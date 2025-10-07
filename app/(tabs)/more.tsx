@@ -1,10 +1,7 @@
-import DailyTasksWidget from '@/components/screens/home/DailyTasksWidget';
-import GoalsWidget from '@/components/screens/home/GoalsWidget';
-import GreetingCard from '@/components/screens/home/GreetingCard';
+import FABMenu from '@/components/screens/home/FABMenu';
 import Header from '@/components/screens/home/Header';
-import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 
@@ -12,15 +9,11 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header />
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <GreetingCard />
-        <ProgressIndicators />
-        <DailyTasksWidget />
-        <GoalsWidget />
-        <View style={styles.bottomSpacer} />
+        <Text>Moe Screen</Text>
       </ScrollView>
     </SafeAreaView>
   );

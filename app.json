@@ -8,30 +8,28 @@
     "scheme": "leora",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/android-icon-foreground.png",
-      "resizeMode": "contain",
+      "image": "./assets/images/iphone-splash-preview-dark.png",
+      "resizeMode": "cover",
       "backgroundColor": "#000000"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leora.app",
+      "splash": {
+        "image": "./assets/images/iphone-splash-preview-dark.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#000000"
+      },
       "infoPlist": {
         "NSCameraUsageDescription": "LEORA needs access to your camera to capture receipts and documents.",
         "NSMicrophoneUsageDescription": "LEORA needs access to your microphone for voice commands.",
         "NSFaceIDUsageDescription": "LEORA uses Face ID to securely access your financial data.",
-        "UIBackgroundModes": [
-          "audio",
-          "fetch",
-          "remote-notification"
-        ]
+        "UIBackgroundModes": ["audio", "fetch", "remote-notification"]
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/android-icon-background.png",
+        "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#000000"
       },
       "package": "com.leora.app",
@@ -43,12 +41,12 @@
         "VIBRATE",
         "RECEIVE_BOOT_COMPLETED",
         "SCHEDULE_EXACT_ALARM"
-      ]
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      ],
+      "splash": {
+        "image": "./assets/images/iphone-splash-preview-dark.png",
+        "resizeMode": "cover",
+        "backgroundColor": "#000000"
+      }
     },
     "plugins": [
       "expo-router",
@@ -59,17 +57,13 @@
         {
           "icon": "./assets/images/notification-icon.png",
           "color": "#ffffff",
-          "sounds": [
-            "./assets/sounds/notification.mp3"
-          ]
+          "sounds": ["./assets/sounds/notification.mp3"]
         }
       ],
       [
         "expo-build-properties",
         {
-          "ios": {
-            "deploymentTarget": "15.1"
-          },
+          "ios": { "deploymentTarget": "15.1" },
           "android": {
             "compileSdkVersion": 34,
             "targetSdkVersion": 34,
@@ -78,17 +72,9 @@
         }
       ]
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
     "extra": {
-      "router": {
-        "origin": false
-      },
-      "eas": {
-        "projectId": "your-project-id"
-      }
+      "router": { "origin": false },
+      "eas": { "projectId": "37fe7383-c10c-4078-973a-8761f1e382fa" }
     }
   }
 }
-
