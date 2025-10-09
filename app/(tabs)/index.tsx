@@ -1,27 +1,43 @@
+import React from 'react';
+import { StyleSheet, View } from 'react-native';
+import Animated, {
+  useAnimatedScrollHandler,
+  useSharedValue,
+} from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import DailyTasksWidget from '@/components/screens/home/DailyTasksWidget';
 import GoalsWidget from '@/components/screens/home/GoalsWidget';
 import GreetingCard from '@/components/screens/home/GreetingCard';
 import Header from '@/components/screens/home/Header';
 import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
-import React from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
 
 export default function HomeScreen() {
+  const scrollY = useSharedValue(0);
+
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      scrollY.value = event.contentOffset.y;
+    },
+  });
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header />
-      <ScrollView 
+      <Header scrollY={scrollY} />
+
+      <Animated.ScrollView
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={[0]} // 👈 keep ProgressIndicators pinned
         contentContainerStyle={styles.scrollContent}
       >
+        <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
         <GreetingCard />
-        <ProgressIndicators />
         <DailyTasksWidget />
         <GoalsWidget />
         <View style={styles.bottomSpacer} />
-      </ScrollView>
+      </Animated.ScrollView>
     </SafeAreaView>
   );
 }
@@ -29,13 +45,13 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#25252B',
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingTop: 64, // allow space for header above
+    paddingBottom: 40,
   },
   bottomSpacer: {
-    height: 100,
+    height: 200,
   },
 });
-

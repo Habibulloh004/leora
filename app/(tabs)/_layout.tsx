@@ -241,7 +241,7 @@ function TabsContent() {
         screenOptions={{
           headerShown: false,
           sceneStyle: {
-            backgroundColor: '#000000',
+            backgroundColor: '#25252B',
           },
         }}
       >

@@ -38,7 +38,7 @@ export default function GreetingCard({
 
   return (
     <LinearGradient
-      colors={['#0F0F0F', '#000000']}
+      colors={['#34343DCC', '#34343DCC']}
       style={styles.card}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -56,9 +56,9 @@ export default function GreetingCard({
           activeOpacity={0.7}
         >
           {editMode ? (
-            <Check color="#4CAF50" size={16} />
+            <Check color="#A6A6B9" size={16} />
           ) : (
-            <Pencil color="#4CAF50" size={16} />
+            <Pencil color="#A6A6B9" size={16} />
           )}
           <Text style={styles.editText}>{editMode ? 'Done' : 'Edit'}</Text>
         </TouchableOpacity>
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
   },
   editText: {
     fontSize: 14,
-    color: '#4CAF50',
+    color: '#A6A6B9',
     fontWeight: '500',
   },
 });

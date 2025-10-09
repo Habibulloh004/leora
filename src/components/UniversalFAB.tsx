@@ -1,3 +1,4 @@
+import * as Haptics from 'expo-haptics';
 import { Check, Clock, DollarSign, Minus, Plus, Target, Zap } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
@@ -23,6 +24,12 @@ export default function UniversalFAB() {
   const insets = useSafeAreaInsets();
 
   const [expanded, setExpanded] = useState(false);
+
+  // Универсальная функция для кросс-платформенной вибрации
+  // expo-haptics автоматически работает на iOS и Android
+  const triggerHaptic = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   // Main overlay + buttons animations (your originals)
   const [rotation] = useState(new Animated.Value(0));
@@ -133,15 +140,19 @@ export default function UniversalFAB() {
     <>
       {/* Overlay */}
       <Modal visible={expanded} transparent animationType="fade" statusBarTranslucent>
-        <Pressable style={styles.modalContainer} onPress={toggleExpanded}>
+        <Pressable 
+          style={styles.modalContainer} 
+          onPress={() => {
+            triggerHaptic(); // Вибрация при закрытии FAB через overlay
+            toggleExpanded();
+          }}
+        >
           <Animated.View
             style={[
               styles.overlayContainer,
               { opacity: overlayOpacity },
             ]}
-          >
-            {/* (Optional) Add gradient/dimming here if needed */}
-          </Animated.View>
+          />
         </Pressable>
       </Modal>
 
@@ -201,6 +212,7 @@ export default function UniversalFAB() {
               <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => {
+                  triggerHaptic();
                   toggleExpanded();
                   setTimeout(() => {
                     // handleActionPress
@@ -236,7 +248,14 @@ export default function UniversalFAB() {
         })}
 
         {/* Main FAB */}
-        <TouchableOpacity style={styles.fab} onPress={toggleExpanded} activeOpacity={0.9}>
+        <TouchableOpacity 
+          style={styles.fab} 
+          onPress={() => {
+            triggerHaptic();
+            toggleExpanded();
+          }} 
+          activeOpacity={0.9}
+        >
           {/* Optional global rotate effect */}
           <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
             {/* Icon stack: PLUS (default) -> MINUS (expanded) */}
@@ -320,10 +339,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#34343D',
     alignItems: 'center',
     justifyContent: 'center',
+    // Выразительная тень для эффекта глубины (как на скриншоте)
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 8 },  // Увеличенное смещение для большей глубины
+    shadowOpacity: 0.4,  // Более интенсивная тень для заметности на темном фоне
+    shadowRadius: 12,  // Большой радиус размытия для мягкого эффекта
+    elevation: 12,  // Аналогичная тень для Android
   },
   modalContainer: {
     flex: 1,
@@ -351,21 +372,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#34343D99',
     alignItems: 'center',
     justifyContent: 'center',
+    // Выразительная тень для эффекта глубины (как на скриншоте)
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },  // Увеличенное смещение
+    shadowOpacity: 0.4,  // Более интенсивная тень
+    shadowRadius: 12,  // Большой радиус размытия для мягкости
+    elevation: 12,  // Аналогичная тень для Android
   },
   labelContainer: {
     backgroundColor: '#34343D99',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
+    // Выразительная тень для эффекта глубины (как на скриншоте)
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 8 },  // Увеличенное смещение
+    shadowOpacity: 0.4,  // Более интенсивная тень
+    shadowRadius: 12,  // Большой радиус размытия для мягкости
+    elevation: 12,  // Аналогичная тень для Android
   },
   label: {
     color: '#FFFFFF',

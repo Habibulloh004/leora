@@ -1,0 +1,205 @@
+import React from 'react';
+import { StyleSheet } from 'react-native';
+import { AnimatedCircularProgress } from 'react-native-circular-progress';
+import Animated, {
+  Easing,
+  interpolate,
+  SharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+
+interface Props {
+  scrollY: SharedValue<number>;
+  tasks?: number;
+  budget?: number;
+  focus?: number;
+}
+
+export default function ProgressIndicators({
+  scrollY,
+  tasks = 50,
+  budget = 62,
+  focus = 52,
+}: Props) {
+  const HEADER_HEIGHT = 120;
+  const CIRCLE_SIZE = 96;
+
+  const TIMING_CONFIG = {
+    duration: 400,
+    easing: Easing.bezier(0.4, 0.0, 0.2, 1),
+  };
+
+  const SPRING_CONFIG = {
+    damping: 30,
+    stiffness: 100,
+  };
+
+  // Container shrink + slide
+  const containerStyle = useAnimatedStyle(() => {
+    const translateY = withSpring(
+      interpolate(scrollY.value, [0, HEADER_HEIGHT], [0, -10], 'clamp'),
+      SPRING_CONFIG
+    );
+
+    const height = withTiming(
+      interpolate(scrollY.value, [0, HEADER_HEIGHT], [150, 72], 'clamp'),
+      TIMING_CONFIG
+    );
+
+    return {
+      height,
+      transform: [{ translateY }],
+    };
+  });
+
+  // Fade out percent text
+  const percentOpacity = useAnimatedStyle(() => {
+    const opacity = withTiming(
+      interpolate(scrollY.value, [0, 60], [1, 0], 'clamp'),
+      TIMING_CONFIG
+    );
+    return { opacity };
+  });
+
+  // Shrink circle
+  const circleScale = useAnimatedStyle(() => {
+    const targetScale = interpolate(
+      scrollY.value,
+      [0, HEADER_HEIGHT + 20],
+      [1, 0.4],
+      'clamp'
+    );
+    const horizontalOffset = (1 - targetScale) * (CIRCLE_SIZE / 2);
+
+    return {
+      transform: [{ scale: withSpring(targetScale, SPRING_CONFIG) }],
+      marginHorizontal: withSpring(-horizontalOffset, SPRING_CONFIG),
+      width: CIRCLE_SIZE,
+      paddingTop: -3
+    };
+  });
+
+  // Layout style - animate gap and padding
+  const layoutStyle = useAnimatedStyle(() => {
+    const gap = withTiming(
+      interpolate(scrollY.value, [0, HEADER_HEIGHT], [6, 8], 'clamp'),
+      TIMING_CONFIG
+    );
+
+    const paddingVertical = withTiming(
+      interpolate(scrollY.value, [0, HEADER_HEIGHT], [12, 0], 'clamp'),
+      TIMING_CONFIG
+    );
+
+
+    return {
+      gap,
+      paddingVertical,
+      width: CIRCLE_SIZE / 2
+    };
+  });
+
+  // Label - move and resize text
+  const labelStyle = useAnimatedStyle(() => {
+    const fontSize = withTiming(
+      interpolate(scrollY.value, [0, HEADER_HEIGHT], [12, 10], 'clamp'),
+      TIMING_CONFIG
+    );
+
+    // Shift text to the right while scrolling
+    const translateX = withSpring(
+      interpolate(scrollY.value, [0, HEADER_HEIGHT], [0, 60], 'clamp'),
+      SPRING_CONFIG
+    );
+
+    // Lift text as the header collapses
+    const translateY = withSpring(
+      interpolate(scrollY.value, [0, HEADER_HEIGHT], [0, -60], 'clamp'),
+      SPRING_CONFIG
+    );
+
+    return {
+      fontSize,
+      transform: [{ translateX }, { translateY }]
+    };
+  });
+
+  const colorForValue = (value: number) => {
+    if (value >= 90) return '#00E676';
+    if (value >= 75) return '#4CAF50';
+    if (value >= 60) return '#FFC107';
+    if (value >= 45) return '#2196F3';
+    return '#F44336';
+  };
+
+  const progressItems = [
+    { label: 'TASKS', value: tasks, color: colorForValue(tasks) },
+    { label: 'BUDGET', value: budget, color: colorForValue(budget) },
+    { label: 'FOCUS', value: focus, color: colorForValue(focus) },
+  ];
+
+  return (
+    <Animated.View style={[styles.stickyContainer, containerStyle]}>
+      {progressItems.map((item, i) => (
+        <Animated.View key={i} style={[styles.item, layoutStyle]}>
+          <Animated.View style={[circleScale]}>
+            <AnimatedCircularProgress
+              size={CIRCLE_SIZE}
+              width={6}
+              fill={item.value}
+              tintColor={item.color}
+              backgroundColor="#2C2C2C"
+              rotation={0}
+              lineCap="round"
+            >
+              {(fill: number) => (
+                <Animated.Text style={[styles.value, percentOpacity]}>
+                  {`${Math.round(fill)}%`}
+                </Animated.Text>
+              )}
+            </AnimatedCircularProgress>
+          </Animated.View>
+          <Animated.Text style={[styles.label, labelStyle]}>
+            {item.label}
+          </Animated.Text>
+        </Animated.View>
+      ))}
+    </Animated.View>
+  );
+}
+
+const styles = StyleSheet.create({
+  stickyContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    backgroundColor: '#25252B',
+    borderBottomWidth: 1,
+    borderBottomColor: '#34343D',
+    zIndex: 99,
+    paddingHorizontal: 8,
+  },
+  item: {
+    alignItems: 'flex-start',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    height: '100%',
+  },
+  label: {
+    color: '#A6A6B9',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  value: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});
+
+
+
+

@@ -9,7 +9,7 @@ interface IconProps {
 export const PlannerIcon = ({ 
   size = 24, 
   color = '#FFFFFF', 
-  strokeWidth = 2 
+  strokeWidth = 3 
 }: IconProps) => {
   return (
     <Svg width={size} height={size} viewBox="0 0 62 48" fill="none">
