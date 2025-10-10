@@ -1,9 +1,10 @@
 import * as Haptics from 'expo-haptics';
+import { useRouter } from 'expo-router';
 import { Check, Clock, DollarSign, Minus, Plus, Target, Zap } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
   Animated,
-  Modal,
+  ImageBackground,
   Pressable,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTab } from '../contexts/TabContext';
+import VoiceAiModal from './modals/VoiceAiModal';
 
 interface FABAction {
   id: string;
@@ -24,14 +26,13 @@ export default function UniversalFAB() {
   const insets = useSafeAreaInsets();
 
   const [expanded, setExpanded] = useState(false);
+  const [voiceModaOpen, setVoiceModalOpen] = useState(false)
+  const router = useRouter();
 
-  // Универсальная функция для кросс-платформенной вибрации
-  // expo-haptics автоматически работает на iOS и Android
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
-  // Main overlay + buttons animations (your originals)
   const [rotation] = useState(new Animated.Value(0));
   const [overlayOpacity] = useState(new Animated.Value(0));
   const [buttonAnimations] = useState([
@@ -40,13 +41,11 @@ export default function UniversalFAB() {
     new Animated.Value(0),
     new Animated.Value(0),
   ]);
-
-  // Icon crossfade/rotate/scale (PLUS -> MINUS)
-  const [iconProgress] = useState(new Animated.Value(0)); // 0 = PLUS, 1 = MINUS
+  const [iconProgress] = useState(new Animated.Value(0));
 
   const actions: FABAction[] = useMemo(() => {
     switch (activeTab) {
-      case 'index': // Home
+      case 'index':
         return [
           { id: 'add-task', icon: Check, label: 'ADD TASK' },
           { id: 'quick-expense', icon: DollarSign, label: 'QUICK EXPENSE' },
@@ -64,8 +63,6 @@ export default function UniversalFAB() {
           { id: 'add-task', icon: Check, label: 'ADD TASK' },
           { id: 'start-focus', icon: Clock, label: 'START FOCUS' },
         ];
-      case 'insights':
-      case 'more':
       default:
         return [];
     }
@@ -76,7 +73,6 @@ export default function UniversalFAB() {
   const toggleExpanded = () => {
     const toValue = expanded ? 0 : 1;
 
-    // Rotate main container if you want (kept from your code)
     Animated.spring(rotation, {
       toValue,
       friction: 8,
@@ -84,14 +80,12 @@ export default function UniversalFAB() {
       useNativeDriver: true,
     }).start();
 
-    // Overlay fade
     Animated.timing(overlayOpacity, {
       toValue,
       duration: 300,
       useNativeDriver: true,
     }).start();
 
-    // Icon PLUS (0) <-> MINUS (1)
     Animated.spring(iconProgress, {
       toValue,
       useNativeDriver: true,
@@ -99,7 +93,6 @@ export default function UniversalFAB() {
       tension: 120,
     }).start();
 
-    // Buttons appear/disappear with stagger
     if (!expanded) {
       const animations = buttonAnimations.slice(0, actions.length).map((anim, index) =>
         Animated.spring(anim, {
@@ -134,31 +127,29 @@ export default function UniversalFAB() {
     outputRange: ['0deg', '90deg'],
   });
 
-  const bottomOffset = 76 + insets.bottom; // tab bar + safe area
+  const bottomOffset = 76 + insets.bottom;
 
   return (
-    <>
-      {/* Overlay */}
-      <Modal visible={expanded} transparent animationType="fade" statusBarTranslucent>
-        <Pressable 
-          style={styles.modalContainer} 
+    <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+      {/* Overlay with background image */}
+      {expanded && (
+        <Pressable
+          style={StyleSheet.absoluteFill}
           onPress={() => {
-            triggerHaptic(); // Вибрация при закрытии FAB через overlay
+            triggerHaptic();
             toggleExpanded();
           }}
         >
-          <Animated.View
-            style={[
-              styles.overlayContainer,
-              { opacity: overlayOpacity },
-            ]}
+          <ImageBackground
+            source={require('@assets/images/backgroundModal.png')}
+            style={StyleSheet.absoluteFill}
+            imageStyle={{ opacity: 0.3 }}
           />
         </Pressable>
-      </Modal>
+      )}
 
       {/* FAB + Actions */}
       <View style={[styles.container, { bottom: bottomOffset }]} pointerEvents="box-none">
-        {/* Action Buttons */}
         {actions.map((action, index) => {
           const Icon = action.icon;
           const animValue = buttonAnimations[index];
@@ -235,6 +226,7 @@ export default function UniversalFAB() {
                         break;
                       case 'voice-note':
                         console.log('Voice Note');
+                        setVoiceModalOpen(true)
                         break;
                     }
                   }, 300);
@@ -248,80 +240,82 @@ export default function UniversalFAB() {
         })}
 
         {/* Main FAB */}
-        <TouchableOpacity 
-          style={styles.fab} 
+        <TouchableOpacity
+          style={styles.fab}
           onPress={() => {
             triggerHaptic();
             toggleExpanded();
-          }} 
+          }}
           activeOpacity={0.9}
         >
-          {/* Optional global rotate effect */}
-          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
-            {/* Icon stack: PLUS (default) -> MINUS (expanded) */}
-            <View style={styles.iconStack}>
-              {/* PLUS (visible when collapsed) */}
-              <Animated.View
-                style={[
-                  styles.layeredIcon,
-                  {
-                    opacity: iconProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 0],
-                    }),
-                    transform: [
-                      {
-                        rotate: iconProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['0deg', '90deg'], // rotate out
-                        }),
-                      },
-                      {
-                        scale: iconProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [1, 0.85], // shrink a bit
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <Plus color="#ffffff" size={28} strokeWidth={2.5} />
-              </Animated.View>
+          <View style={styles.fabBackground}>
+            <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+              <View style={styles.iconStack}>
+                {/* PLUS (visible when collapsed) */}
+                <Animated.View
+                  style={[
+                    styles.layeredIcon,
+                    {
+                      opacity: iconProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0],
+                      }),
+                      transform: [
+                        {
+                          rotate: iconProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['0deg', '90deg'], // rotate out
+                          }),
+                        },
+                        {
+                          scale: iconProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 0.85], // shrink a bit
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Plus color="#ffffff" size={28} strokeWidth={2.5} />
+                </Animated.View>
 
-              {/* MINUS (visible when expanded) */}
-              <Animated.View
-                style={[
-                  styles.layeredIcon,
-                  {
-                    opacity: iconProgress.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 1],
-                    }),
-                    transform: [
-                      {
-                        rotate: iconProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: ['90deg', '-90deg'], // rotate in
-                        }),
-                      },
-                      {
-                        scale: iconProgress.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.85, 1], // grow to full
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              >
-                <Minus color="#ffffff" size={28} strokeWidth={2.5} />
-              </Animated.View>
-            </View>
-          </Animated.View>
+                {/* MINUS (visible when expanded) */}
+                <Animated.View
+                  style={[
+                    styles.layeredIcon,
+                    {
+                      opacity: iconProgress.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 1],
+                      }),
+                      transform: [
+                        {
+                          rotate: iconProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: ['90deg', '-90deg'], // rotate in
+                          }),
+                        },
+                        {
+                          scale: iconProgress.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.85, 1], // grow to full
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                >
+                  <Minus color="#ffffff" size={28} strokeWidth={2.5} />
+                </Animated.View>
+              </View>
+            </Animated.View>
+          </View>
         </TouchableOpacity>
       </View>
-    </>
+
+      <VoiceAiModal visible={voiceModaOpen} onClose={() => setVoiceModalOpen(false)} />
+    </View>
   );
 }
 
@@ -337,22 +331,17 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 28,
     backgroundColor: '#34343D',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 12,
+  },
+  fabBackground: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    // Выразительная тень для эффекта глубины (как на скриншоте)
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },  // Увеличенное смещение для большей глубины
-    shadowOpacity: 0.4,  // Более интенсивная тень для заметности на темном фоне
-    shadowRadius: 12,  // Большой радиус размытия для мягкого эффекта
-    elevation: 12,  // Аналогичная тень для Android
-  },
-  modalContainer: {
-    flex: 1,
-    zIndex: 10,
-  },
-  overlayContainer: {
-    flex: 1,
-    position: 'relative',
   },
   actionContainer: {
     position: 'absolute',
@@ -361,8 +350,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 4,
-    width: '100%',
-    zIndex: 999,
     minWidth: 160,
   },
   actionButton: {
@@ -372,24 +359,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#34343D99',
     alignItems: 'center',
     justifyContent: 'center',
-    // Выразительная тень для эффекта глубины (как на скриншоте)
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },  // Увеличенное смещение
-    shadowOpacity: 0.4,  // Более интенсивная тень
-    shadowRadius: 12,  // Большой радиус размытия для мягкости
-    elevation: 12,  // Аналогичная тень для Android
   },
   labelContainer: {
     backgroundColor: '#34343D99',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    // Выразительная тень для эффекта глубины (как на скриншоте)
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },  // Увеличенное смещение
-    shadowOpacity: 0.4,  // Более интенсивная тень
-    shadowRadius: 12,  // Большой радиус размытия для мягкости
-    elevation: 12,  // Аналогичная тень для Android
   },
   label: {
     color: '#FFFFFF',
@@ -397,8 +372,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.5,
   },
-
-  // Icon layering for crossfade
   iconStack: {
     width: 28,
     height: 28,

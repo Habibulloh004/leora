@@ -10,7 +10,7 @@ export const Colors = {
   secondaryDark: '#6d28d9',
   
   // === Темная тема (Dark/AMOLED) ===
-  background: '#0a0a0b',    // Почти черный фон
+  background: '#25252B',    // Почти черный фон
   backgroundElevated: '#0f0f10',
   
   surface: '#16161a',       // Карточки первого уровня
