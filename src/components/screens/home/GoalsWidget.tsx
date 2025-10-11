@@ -1,4 +1,3 @@
-import AnimatedBorderCard from '@/components/shared/AnimatedBorderCard';
 import type { Goal } from '@/types/home';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -64,25 +63,39 @@ export default function GoalsWidget({
   onMenuPress,
 }: GoalsWidgetProps) {
   return (
-    <AnimatedBorderCard style={styles.widget}>
-      <View style={styles.header}>
-        <Text style={styles.title}>GOALS</Text>
-        <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
-          <Text style={styles.menu}>⋯</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
 
-      {goals.map(goal => (
-        <GoalItem key={goal.id} goal={goal} />
-      ))}
-    </AnimatedBorderCard>
+      <View style={styles.widget}>
+        <View style={styles.header}>
+          <Text style={styles.title}>GOALS</Text>
+          <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
+            <Text style={styles.menu}>⋯</Text>
+          </TouchableOpacity>
+        </View>
+
+        {goals.map(goal => (
+          <GoalItem key={goal.id} goal={goal} />
+        ))}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
   widget: {
     backgroundColor: '#25252B',
     borderRadius: 16,
+    padding: 12,
   },
   header: {
     flexDirection: 'row',

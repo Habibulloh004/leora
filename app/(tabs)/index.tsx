@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
@@ -11,9 +11,22 @@ import GoalsWidget from '@/components/screens/home/GoalsWidget';
 import GreetingCard from '@/components/screens/home/GreetingCard';
 import Header from '@/components/screens/home/Header';
 import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
+import UniversalFAB from '@/components/UniversalFAB';
+import { HapticTab } from '@/components/haptic-tab';
+import SearchModal from '@/components/modals/SearchModal';
+import NotificationModal from '@/components/modals/NotificationModal';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [searchVisible, setSearchVisible] = useState(false)
+  const [notifVisible, setNotifVisible] = useState(false)
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 2000);
+  }, []);
 
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -23,14 +36,16 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <Header scrollY={scrollY} />
-
+      <Header onNotificationPress={() => setNotifVisible(true)} scrollY={scrollY} onSearchPress={() => setSearchVisible(true)} />
       <Animated.ScrollView
         onScroll={onScroll}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[0]} // 👈 keep ProgressIndicators pinned
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl progressViewOffset={36} refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
         <GreetingCard />
@@ -38,6 +53,12 @@ export default function HomeScreen() {
         <GoalsWidget />
         <View style={styles.bottomSpacer} />
       </Animated.ScrollView>
+      <HapticTab>
+        <UniversalFAB
+        />
+      </HapticTab>
+      <SearchModal visible={searchVisible} onClose={() => setSearchVisible(false)} />
+      <NotificationModal visible={notifVisible} onClose={() => setNotifVisible(false)} />
     </SafeAreaView>
   );
 }

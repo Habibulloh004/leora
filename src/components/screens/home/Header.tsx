@@ -1,6 +1,7 @@
+import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   interpolate,
   SharedValue,
@@ -21,6 +22,7 @@ export default function Header({
   onNotificationPress,
   hasNotifications = true,
 }: HeaderProps) {
+  const [openDateModal, setOpenDateModal] = useState(false)
   const animatedStyle = useAnimatedStyle(() => {
     // Проверяем что scrollY существует
     if (!scrollY) {
@@ -49,12 +51,16 @@ export default function Header({
 
   return (
     <Animated.View style={[styles.header, animatedStyle]}>
-      <Text style={styles.logo}>Sarvar</Text>
-
-      <View style={styles.dateContainer}>
-        <Text style={styles.dateText}>Monday</Text>
-        <Text style={styles.dateText}>September 8</Text>
+      <View style={[styles.avatar]}>
+        <Text style={styles.logo}>S</Text>
       </View>
+
+      <Pressable onPress={() => setOpenDateModal(true)} >
+        <View style={styles.dateContainer}>
+          <Text style={styles.dateText}>Monday</Text>
+          <Text style={styles.dateText}>September 8</Text>
+        </View>
+      </Pressable>
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
@@ -66,6 +72,7 @@ export default function Header({
           {hasNotifications && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
+      <DateChangeModal visible={openDateModal} onClose={() => setOpenDateModal(false)} />
     </Animated.View>
   );
 }
@@ -81,11 +88,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingTop:52,
+    paddingTop: 52,
     borderBottomWidth: 1,
     borderBottomColor: '#34343D',
     backgroundColor: '#25252B',
     zIndex: 100,
+  },
+  avatar:{
+    padding:4,
+    borderRadius:100,
+    backgroundColor:"#000",
+    width:40,
+    height:40,
+    justifyContent:"center",
+    alignItems:"center",
+    fontWeight:"bold"
   },
   dateContainer: {
     flexDirection: 'column',

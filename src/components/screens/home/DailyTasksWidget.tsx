@@ -1,4 +1,3 @@
-import AnimatedBorderCard from '@/components/shared/AnimatedBorderCard';
 import type { Task } from '@/types/home';
 import { Check } from 'lucide-react-native';
 import React, { useState } from 'react';
@@ -68,30 +67,43 @@ export default function DailyTasksWidget({
   };
 
   return (
-    <AnimatedBorderCard style={styles.widget}>
-      <View style={styles.header}>
-        <Text style={styles.title}>DAILY TASKS</Text>
-        <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
-          <Text style={styles.menu}>⋯</Text>
-        </TouchableOpacity>
-      </View>
+    <View style={styles.container}>
+      <View style={styles.widget}>
+        <View style={styles.header}>
+          <Text style={styles.title}>DAILY TASKS</Text>
+          <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
+            <Text style={styles.menu}>⋯</Text>
+          </TouchableOpacity>
+        </View>
 
-      {tasks.map(task => (
-        <TaskItem
-          key={task.id}
-          task={task}
-          onToggle={() => handleTaskToggle(task.id)}
-        />
-      ))}
-    </AnimatedBorderCard>
+        {tasks.map(task => (
+          <TaskItem
+            key={task.id}
+            task={task}
+            onToggle={() => handleTaskToggle(task.id)}
+          />
+        ))}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
   widget: {
     backgroundColor: '#25252B',
     borderRadius: 16,
     marginTop: 16,
+    padding:12
   },
 
   header: {
@@ -100,14 +112,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  
+
   title: {
     fontSize: 12,
     fontWeight: '700',
     color: '#A6A6B9',
     letterSpacing: 2.5,
   },
-  
+
   menu: {
     fontSize: 20,
     color: '#888888',
@@ -135,7 +147,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
-  
+
   checkboxCompleted: {
     backgroundColor: '#4CAF50',
     borderColor: '#4CAF50',
@@ -144,18 +156,18 @@ const styles = StyleSheet.create({
   taskContent: {
     flex: 1,
   },
-  
+
   taskTitle: {
     fontSize: 16,
     color: '#FFFFFF',
     fontWeight: '500',
   },
-  
+
   taskTitleCompleted: {
     textDecorationLine: 'line-through',
     color: '#6B6B76',
   },
-  
+
   taskTime: {
     fontSize: 14,
     color: '#8E8E93',

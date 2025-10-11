@@ -12,7 +12,7 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
-        <Text>Planner Screen</Text>
+        <Text style={{ color: "#fff" }}>Planner Screen</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -21,10 +21,11 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#25252B',
   },
   scrollContent: {
-    paddingBottom: 20,
+    paddingTop: 64, // allow space for header above
+    paddingBottom: 40,
   },
   bottomSpacer: {
     height: 100,

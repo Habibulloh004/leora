@@ -1,7 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -31,7 +31,21 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(modals)/voice-ai" options={{ presentation: "modal" }} />
+          <Stack.Screen name="modals"
+            options={{
+              presentation: "modal",
+              headerShown:false
+            }} />
+          <Stack.Screen
+            name="modal-with-stack"
+            options={{
+              presentation: "modal",
+              headerShown: false,
+              headerStyle: {
+                backgroundColor: "#000"
+              }
+            }}
+          />
         </Stack>
         <StatusBar style="auto" />
       </ThemeProvider>
