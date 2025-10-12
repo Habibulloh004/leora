@@ -1,5 +1,6 @@
 // app/(modals)/menage-widget.tsx
 import { AVAILABLE_WIDGETS, WidgetType } from '@/config/widgetConfig';
+import { useWidgetStore } from '@/stores/widgetStore';
 import { X, GripVertical, Plus, Minus } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
@@ -8,7 +9,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -19,45 +19,27 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const STORAGE_KEY = '@active_widgets';
 
 export default function ManageWidgetModal() {
   const router = useRouter();
-  const [activeWidgets, setActiveWidgets] = useState<WidgetType[]>([
-    'daily-tasks',
-    'goals',
-    'habits',
-    'weekly-review',
-  ]);
+  
+  // Get state and actions from Zustand store
+  const { activeWidgets, addWidget, removeWidget, reorderWidgets } = useWidgetStore();
 
   const inactiveWidgets = Object.keys(AVAILABLE_WIDGETS).filter(
     (id) => !activeWidgets.includes(id as WidgetType)
   ) as WidgetType[];
 
   const handleAddWidget = (widgetId: WidgetType) => {
-    setActiveWidgets([...activeWidgets, widgetId]);
+    addWidget(widgetId);
   };
 
   const handleRemoveWidget = (widgetId: WidgetType) => {
-    setActiveWidgets(activeWidgets.filter((id) => id !== widgetId));
+    removeWidget(widgetId);
   };
 
   const handleReorder = (fromIndex: number, toIndex: number) => {
-    const newOrder = [...activeWidgets];
-    const [removed] = newOrder.splice(fromIndex, 1);
-    newOrder.splice(toIndex, 0, removed);
-    setActiveWidgets(newOrder);
-  };
-
-  const handleSave = async () => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(activeWidgets));
-      router.back();
-    } catch (error) {
-      console.error('Error saving widgets:', error);
-    }
+    reorderWidgets(fromIndex, toIndex);
   };
 
   return (
@@ -69,8 +51,8 @@ export default function ManageWidgetModal() {
             <X color="#FFFFFF" size={24} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Manage Widgets</Text>
-          <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-            <Text style={styles.saveText}>Save</Text>
+          <TouchableOpacity onPress={() => router.back()} style={styles.saveButton}>
+            <Text style={styles.saveText}>Done</Text>
           </TouchableOpacity>
         </View>
 

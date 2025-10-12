@@ -1,12 +1,11 @@
 // app/(tabs)/index.tsx
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import UniversalWidget from '@/components/widget/UniversalWidget';
 import GreetingCard from '@/components/screens/home/GreetingCard';
@@ -15,15 +14,7 @@ import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import UniversalFAB from '@/components/UniversalFAB';
 import SearchModal from '@/components/modals/SearchModal';
 import NotificationModal from '@/components/modals/NotificationModal';
-import { WidgetType } from '@/config/widgetConfig';
-
-const STORAGE_KEY = '@active_widgets';
-const DEFAULT_WIDGETS: WidgetType[] = [
-  'daily-tasks',
-  'goals',
-  'habits',
-  'weekly-review',
-];
+import { useWidgetStore } from '@/stores/widgetStore';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
@@ -31,27 +22,13 @@ export default function HomeScreen() {
   const [searchVisible, setSearchVisible] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
-  const [activeWidgets, setActiveWidgets] = useState<WidgetType[]>(DEFAULT_WIDGETS);
 
-  // Load widgets from storage on mount
-  useEffect(() => {
-    loadWidgets();
-  }, []);
+  // Subscribe to Zustand store - will automatically re-render when activeWidgets changes
+  const activeWidgets = useWidgetStore((state) => state.activeWidgets);
 
-  const loadWidgets = async () => {
-    try {
-      const stored = await AsyncStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setActiveWidgets(JSON.parse(stored));
-      }
-    } catch (error) {
-      console.error('Error loading widgets:', error);
-    }
-  };
-
-  const onRefresh = useCallback(async () => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
-    await loadWidgets();
+    // Simulate refresh
     setTimeout(() => {
       setRefreshing(false);
     }, 1000);
@@ -92,15 +69,11 @@ export default function HomeScreen() {
         <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
         <GreetingCard onEditModeChange={handleEditModeChange} />
 
-        {/* Render active widgets dynamically */}
+        {/* Render active widgets from Zustand store - will update in real-time */}
         {activeWidgets.map((widgetId) => (
           <UniversalWidget
             key={widgetId}
             widgetId={widgetId}
-            editMode={editMode}
-            onRemove={() => {
-              setActiveWidgets(prev => prev.filter(id => id !== widgetId));
-            }}
           />
         ))}
 
