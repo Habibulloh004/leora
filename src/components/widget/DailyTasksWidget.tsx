@@ -1,11 +1,12 @@
 import type { Task } from '@/types/home';
-import { Check } from 'lucide-react-native';
+import { CheckIcon } from '@assets/icons';
+import { Dot } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 interface DailyTasksWidgetProps {
@@ -38,7 +39,7 @@ const TaskItem = ({ task, onToggle }: TaskItemProps) => (
       style={styles.checkboxHit}
     >
       <View style={[styles.checkbox, task.completed && styles.checkboxCompleted]}>
-        {task.completed && <Check color="#FFFFFF" size={14} />}
+        {task.completed && <CheckIcon color="#FFFFFF" size={18} />}
       </View>
     </TouchableOpacity>
 
@@ -70,19 +71,24 @@ export default function DailyTasksWidget({
     <View style={styles.container}>
       <View style={styles.widget}>
         <View style={styles.header}>
-          <Text style={styles.title}>DAILY TASKS</Text>
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>Daily tasks</Text>
+            <Dot color="#7E8491" />
+            <Text style={styles.title}>Monday</Text>
+          </View>
           <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
             <Text style={styles.menu}>⋯</Text>
           </TouchableOpacity>
         </View>
-
-        {tasks.map(task => (
-          <TaskItem
-            key={task.id}
-            task={task}
-            onToggle={() => handleTaskToggle(task.id)}
-          />
-        ))}
+        <View style={styles.tasksContainer}>
+          {tasks.map(task => (
+            <TaskItem
+              key={task.id}
+              task={task}
+              onToggle={() => handleTaskToggle(task.id)}
+            />
+          ))}
+        </View>
       </View>
     </View>
   );
@@ -92,32 +98,39 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 10,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#34343D",
   },
   widget: {
     backgroundColor: '#25252B',
     borderRadius: 16,
-    marginTop: 16,
-    padding:12
+    marginTop: 6,
+    padding: 12
   },
-
+  tasksContainer: {
+    flexDirection: "column",
+    gap: 0
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+    borderBottomWidth: 2,
+    borderBottomColor: "#34343D",
+    paddingBottom: 8
   },
-
+  titleContainer: {
+    justifyContent: "flex-start",
+    alignItems: "center",
+    flexDirection: "row",
+    color: '#7E8491',
+  },
   title: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#A6A6B9',
-    letterSpacing: 2.5,
+    color: '#7E8491',
   },
 
   menu: {
@@ -128,8 +141,10 @@ const styles = StyleSheet.create({
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
     gap: 12,
+    paddingVertical: 5,
+    borderBottomWidth: 2,
+    borderBottomColor: "#34343D"
   },
 
   checkboxHit: {
@@ -138,9 +153,9 @@ const styles = StyleSheet.create({
   },
 
   checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 28,
+    height: 28,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: '#3A3A42',
     alignItems: 'center',
@@ -149,8 +164,8 @@ const styles = StyleSheet.create({
   },
 
   checkboxCompleted: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    backgroundColor: '#3A3A42',
+    borderColor: '#3A3A42',
   },
 
   taskContent: {
@@ -160,7 +175,7 @@ const styles = StyleSheet.create({
   taskTitle: {
     fontSize: 16,
     color: '#FFFFFF',
-    fontWeight: '500',
+    fontWeight: '200',
   },
 
   taskTitleCompleted: {

@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Check, Clock, DollarSign, Minus, Plus, Target, Zap } from 'lucide-react-native';
+import { Check, Clock, DollarSign, Minus, Plus, Target, Zap, HeartPulse } from 'lucide-react-native';
 import React, { useMemo } from 'react';
 import {
   ImageBackground,
@@ -21,6 +21,10 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTab } from '../contexts/TabContext';
 import VoiceAiModal from './modals/VoiceAiModal';
+import { AddTaskIcon } from '@assets/icons/AddTaskIcon';
+import { QuickExpIcon } from '@assets/icons/QuickExpIcon';
+import { AIVoiceIcon } from '@assets/icons/AIVoiceIcon';
+import { DebtIcon, InComingIcon, OutComingIcon, TransactionIcon } from '@assets/icons';
 
 interface FABAction {
   id: string;
@@ -51,21 +55,17 @@ export default function UniversalFAB() {
     switch (activeTab) {
       case 'index':
         return [
-          { id: 'add-task', icon: Check, label: 'ADD TASK' },
-          { id: 'quick-expense', icon: DollarSign, label: 'QUICK EXPENSE' },
-          { id: 'start-focus', icon: Clock, label: 'START FOCUS' },
-          { id: 'voice-note', icon: Zap, label: 'VOICE NOTE' },
+          { id: 'add-task', icon: AddTaskIcon, label: 'ADD TASK' },
+          { id: 'quick-expense', icon: QuickExpIcon, label: 'QUICK EXPENSE' },
+          { id: 'start-focus', icon: HeartPulse, label: 'START FOCUS' },
+          { id: 'voice-note', icon: AIVoiceIcon, label: 'VOICE NOTE' },
         ];
       case 'finance':
         return [
-          { id: 'add-expense', icon: DollarSign, label: 'ADD EXPENSE' },
-          { id: 'add-income', icon: Plus, label: 'ADD INCOME' },
-          { id: 'transfer', icon: Target, label: 'TRANSFER' },
-        ];
-      case 'planner':
-        return [
-          { id: 'add-task', icon: Check, label: 'ADD TASK' },
-          { id: 'start-focus', icon: Clock, label: 'START FOCUS' },
+          { id: 'debt', icon: DebtIcon, label: 'DEBT' },
+          { id: 'transaction', icon: TransactionIcon, label: 'TRANSACTION' },
+          { id: 'add-outcome', icon: OutComingIcon, label: '-OUTCOME' },
+          { id: 'add-income', icon: InComingIcon, label: '+INCOME' },
         ];
       default:
         return [];
@@ -100,7 +100,7 @@ export default function UniversalFAB() {
     } else {
       // Opening animation
       rotation.value = withSpring(1, springConfig);
-      overlayOpacity.value = withTiming(1, timingConfig);
+      overlayOpacity.value = withTiming(0.7, timingConfig);
       iconProgress.value = withSpring(1, springConfig);
 
       // Animate buttons in with stagger
@@ -117,6 +117,8 @@ export default function UniversalFAB() {
 
   const overlayStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
+    width: isOpen ? "100%" : 0,
+    height: isOpen ? "100%" : 0
   }));
 
   const fabRotationStyle = useAnimatedStyle(() => ({
@@ -205,9 +207,10 @@ export default function UniversalFAB() {
   if (actions.length === 0) return null;
 
   return (
-    <View style={{ position: "relative", backgroundColor: "transparent" }}>
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}>
       {/* Full Screen Background Overlay */}
       <Animated.View
+        pointerEvents={isOpen.value ? 'auto' : 'none'}
         style={[
           styles.overlayContainer,
           overlayStyle,
@@ -227,7 +230,7 @@ export default function UniversalFAB() {
         </Pressable>
       </Animated.View>
       {/* Button fubs */}
-      <View pointerEvents="box-none">
+      <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, right: 0 }}>
         {/* FAB + Actions */}
         <View style={[styles.container, { bottom: bottomOffset }]} pointerEvents="box-none">
           {actions.map((action, index) => {
@@ -249,7 +252,7 @@ export default function UniversalFAB() {
                     setTimeout(() => {
                       switch (action.id) {
                         case 'add-task':
-                          router.push('/modals');
+                          router.push('/(modals)/add-task');
                           break;
                         case 'quick-expense':
                         case 'add-expense':
@@ -259,13 +262,13 @@ export default function UniversalFAB() {
                           console.log('Add Income');
                           break;
                         case 'start-focus':
-                          router.push('/modals/start-focus');
+                          router.push('/focus-mode');
                           break;
                         case 'transfer':
                           console.log('Transfer');
                           break;
                         case 'voice-note':
-                          setVoiceModalOpen(true);
+                          router.push('/(modals)/voice-ai');
                           break;
                       }
                     }, 300);
@@ -307,7 +310,11 @@ export default function UniversalFAB() {
 
 const styles = StyleSheet.create({
   overlayContainer: {
-    zIndex: 998,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   container: {
     position: 'absolute',
@@ -322,7 +329,7 @@ const styles = StyleSheet.create({
   },
   overlayTint: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(0, 0, 0, 0.15)',
   },
   fabShadowWrapper: {
     shadowColor: '#000',
@@ -364,7 +371,6 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   labelContainer: {
-    backgroundColor: '#34343D99',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,

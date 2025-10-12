@@ -1,19 +1,20 @@
 import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { Check, Pencil } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface GreetingCardProps {
   userName?: string;
   onEditModeChange?: (isEditMode: boolean) => void;
 }
 
-export default function GreetingCard({ 
+export default function GreetingCard({
   userName = 'Sardor',
-  onEditModeChange 
+  onEditModeChange
 }: GreetingCardProps) {
   const [editMode, setEditMode] = useState(false);
-
+  const router = useRouter()
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -34,6 +35,7 @@ export default function GreetingCard({
     const newEditMode = !editMode;
     setEditMode(newEditMode);
     onEditModeChange?.(newEditMode);
+    router.push("/(modals)/menage-widget")
   };
 
   return (

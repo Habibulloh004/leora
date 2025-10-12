@@ -31,10 +31,37 @@ export default function RootLayout() {
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="modals"
+          <Stack.Screen name="(modals)/add-task"
             options={{
-              presentation: "modal",
+              presentation:"transparentModal",
               headerShown:false
+            }} />
+          <Stack.Screen name="(modals)/voice-ai"
+            options={{
+              presentation:"modal",
+              headerTitle:"Voice Mode",
+              headerStyle:{
+                backgroundColor:"#25252B"
+              },
+              headerTintColor:"#fff"
+            }} />
+          <Stack.Screen name="(modals)/menage-widget"
+            options={{
+              presentation:"modal",
+              headerTitle:"Menage Widget",
+              headerStyle:{
+                backgroundColor:"#25252B"
+              },
+              headerTintColor:"#fff"
+            }} />
+          <Stack.Screen name="focus-mode"
+            options={{
+              headerTitle:"Focus Mode",
+              headerBackButtonDisplayMode:"minimal",
+              headerStyle:{
+                backgroundColor:"#25252B"
+              },
+              headerTintColor:"#fff"
             }} />
           <Stack.Screen
             name="modal-with-stack"
@@ -43,7 +70,8 @@ export default function RootLayout() {
               headerShown: false,
               headerStyle: {
                 backgroundColor: "#000"
-              }
+              },
+              headerTintColor:"#fff"
             }}
           />
         </Stack>

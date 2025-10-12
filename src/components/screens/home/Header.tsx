@@ -51,8 +51,10 @@ export default function Header({
 
   return (
     <Animated.View style={[styles.header, animatedStyle]}>
-      <View style={[styles.avatar]}>
-        <Text style={styles.logo}>S</Text>
+      <View style={{ flex: 1, justifyContent: "flex-start", alignItems: "flex-start" }}>
+        <View style={[styles.avatar]}>
+          <Text style={styles.logo}>S</Text>
+        </View>
       </View>
 
       <Pressable onPress={() => setOpenDateModal(true)} >
@@ -94,17 +96,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#25252B',
     zIndex: 100,
   },
-  avatar:{
-    padding:4,
-    borderRadius:100,
-    backgroundColor:"#000",
+  avatar: {
+    padding: 4,
+    borderRadius: 100,
     width:40,
     height:40,
-    justifyContent:"center",
-    alignItems:"center",
-    fontWeight:"bold"
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+    fontWeight: "bold"
   },
   dateContainer: {
+    flex: 1,
+    justifyContent: "center",
     flexDirection: 'column',
     alignItems: 'center',
   },
@@ -120,7 +124,9 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
+    flex: 1,
     alignItems: 'center',
+    justifyContent:"flex-end"
   },
   iconButton: {
     padding: 4,

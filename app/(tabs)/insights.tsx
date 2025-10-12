@@ -1,8 +1,8 @@
-import FABMenu from '@/components/screens/home/FABMenu';
 import Header from '@/components/screens/home/Header';
 import React from 'react';
 import { ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import UniversalFAB from '@/components/UniversalFAB';
 
 
 export default function HomeScreen() {
@@ -15,6 +15,7 @@ export default function HomeScreen() {
       >
         <Text style={{ color: "#fff" }}>Insights Screen</Text>
       </ScrollView>
+      <UniversalFAB/>
     </SafeAreaView>
   );
 }

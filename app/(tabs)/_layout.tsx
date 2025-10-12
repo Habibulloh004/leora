@@ -208,9 +208,10 @@ function TabsContent() {
           sceneStyle: { backgroundColor: '#25252B' },
           tabBarButton: HapticTab,
         }}
+        backBehavior="order"
       >
         <Tabs.Screen name="index" />
-        <Tabs.Screen name="finance" />
+        <Tabs.Screen name="(finance)" />
         <Tabs.Screen name="planner" />
         <Tabs.Screen name="insights" />
         <Tabs.Screen name="more" />

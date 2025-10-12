@@ -6,13 +6,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import DailyTasksWidget from '@/components/screens/home/DailyTasksWidget';
-import GoalsWidget from '@/components/screens/home/GoalsWidget';
+import DailyTasksWidget from '@/components/widget/DailyTasksWidget';
+import GoalsWidget from '@/components/widget/GoalsWidget';
 import GreetingCard from '@/components/screens/home/GreetingCard';
 import Header from '@/components/screens/home/Header';
 import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import UniversalFAB from '@/components/UniversalFAB';
-import { HapticTab } from '@/components/haptic-tab';
 import SearchModal from '@/components/modals/SearchModal';
 import NotificationModal from '@/components/modals/NotificationModal';
 
@@ -44,7 +43,7 @@ export default function HomeScreen() {
         stickyHeaderIndices={[0]} // 👈 keep ProgressIndicators pinned
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl progressViewOffset={36} refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl progressBackgroundColor={"#acacadff"} progressViewOffset={56} refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
         <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
@@ -53,10 +52,7 @@ export default function HomeScreen() {
         <GoalsWidget />
         <View style={styles.bottomSpacer} />
       </Animated.ScrollView>
-      <HapticTab>
-        <UniversalFAB
-        />
-      </HapticTab>
+      <UniversalFAB />
       <SearchModal visible={searchVisible} onClose={() => setSearchVisible(false)} />
       <NotificationModal visible={notifVisible} onClose={() => setNotifVisible(false)} />
     </SafeAreaView>
