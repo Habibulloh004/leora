@@ -1,10 +1,19 @@
+// src/config/widgetConfig.tsx
 import React from 'react';
 import DailyTasksWidget from '@/components/widget/DailyTasksWidget';
 import GoalsWidget from '@/components/widget/GoalsWidget';
 import HabitsWidget from '@/components/widget/HabitsWidget';
 import WeeklyReviewWidget from '@/components/widget/WeeklyReviewWidget';
+import FocusSessionsWidget from '@/components/widget/FocusSessionsWidget';
+import TransactionsWidget from '@/components/widget/TransactionsWidget';
 
-export type WidgetType = 'daily-tasks' | 'goals' | 'habits' | 'weekly-review';
+export type WidgetType = 
+  | 'daily-tasks' 
+  | 'goals' 
+  | 'habits' 
+  | 'weekly-review'
+  | 'focus-sessions'
+  | 'transactions';
 
 export interface WidgetConfig {
   id: WidgetType;
@@ -48,5 +57,21 @@ export const AVAILABLE_WIDGETS: Record<WidgetType, WidgetConfig> = {
     description: 'Week progress overview',
     component: WeeklyReviewWidget,
     category: 'planner',
+  },
+  'focus-sessions': {
+    id: 'focus-sessions',
+    title: 'Focus Sessions',
+    icon: '⏱️',
+    description: 'Pomodoro timer & tracking',
+    component: FocusSessionsWidget,
+    category: 'planner',
+  },
+  'transactions': {
+    id: 'transactions',
+    title: 'Transactions',
+    icon: '💳',
+    description: 'Recent financial activity',
+    component: TransactionsWidget,
+    category: 'finance',
   },
 };

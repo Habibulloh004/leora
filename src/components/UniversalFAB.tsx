@@ -25,6 +25,9 @@ import { AddTaskIcon } from '@assets/icons/AddTaskIcon';
 import { QuickExpIcon } from '@assets/icons/QuickExpIcon';
 import { AIVoiceIcon } from '@assets/icons/AIVoiceIcon';
 import { DebtIcon, InComingIcon, OutComingIcon, TransactionIcon } from '@assets/icons';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 
 interface FABAction {
   id: string;
@@ -210,7 +213,7 @@ export default function UniversalFAB() {
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}>
       {/* Full Screen Background Overlay */}
       <Animated.View
-        pointerEvents={isOpen.value ? 'auto' : 'none'}
+        pointerEvents={isOpen.value ? "box-none" : "none"}
         style={[
           styles.overlayContainer,
           overlayStyle,
@@ -220,6 +223,17 @@ export default function UniversalFAB() {
           style={StyleSheet.absoluteFill}
           onPress={toggleExpanded}
         >
+          <MaskedView
+            maskElement={
+              <LinearGradient
+                colors={['transparent', 'black', 'black']}
+                locations={[0, 0.3, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+            }
+          >
+            <BlurView intensity={50} style={StyleSheet.absoluteFill} />
+          </MaskedView>
           <ImageBackground
             source={require('@assets/images/backgroundModal.png')}
             style={styles.backgroundImage}
@@ -315,6 +329,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    zIndex: 998
   },
   container: {
     position: 'absolute',

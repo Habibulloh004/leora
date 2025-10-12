@@ -2,7 +2,7 @@ import '../global.css'; // Add this import at the top
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
@@ -34,35 +34,37 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(modals)/add-task"
             options={{
-              presentation:"transparentModal",
-              headerShown:false
+              presentation: "transparentModal",
+              headerShown: false
             }} />
           <Stack.Screen name="(modals)/voice-ai"
             options={{
-              presentation:"modal",
-              headerTitle:"Voice Mode",
-              headerStyle:{
-                backgroundColor:"#25252B"
+              presentation: "modal",
+              headerTitle: "Voice Mode",
+              headerStyle: {
+                backgroundColor: "#25252B"
               },
-              headerTintColor:"#fff"
+              headerTintColor: "#fff"
             }} />
           <Stack.Screen name="(modals)/menage-widget"
             options={{
-              presentation:"modal",
-              headerTitle:"Menage Widget",
-              headerStyle:{
-                backgroundColor:"#25252B"
+              headerShown: false,
+              presentation: "modal",
+              headerTitle: "Menage Widget",
+              headerStyle: {
+                backgroundColor: "#25252B"
               },
-              headerTintColor:"#fff"
+              headerTintColor: "#fff"
             }} />
           <Stack.Screen name="focus-mode"
             options={{
-              headerTitle:"Focus Mode",
-              headerBackButtonDisplayMode:"minimal",
-              headerStyle:{
-                backgroundColor:"#25252B"
+              headerTitle: "Focus Mode",
+              headerBackButtonDisplayMode: "default",
+              headerStyle: {
+                backgroundColor: "#25252B"
               },
-              headerTintColor:"#fff"
+              headerBackTitle: "Back",
+              headerTintColor: "#fff"
             }} />
           <Stack.Screen
             name="modal-with-stack"
@@ -72,7 +74,7 @@ export default function RootLayout() {
               headerStyle: {
                 backgroundColor: "#000"
               },
-              headerTintColor:"#fff"
+              headerTintColor: "#fff"
             }}
           />
         </Stack>

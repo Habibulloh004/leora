@@ -1,6 +1,6 @@
+import { Colors } from "@/constants/Colors";
 import { View } from "react-native";
 import { Text } from "react-native-gesture-handler";
-import { BlurView } from "expo-blur";
 export default function AddTask() {
   return (
     <View style={{
@@ -8,7 +8,8 @@ export default function AddTask() {
       justifyContent: 'center',
       width: "100%",
       height: "100%",
-      alignItems: "center"
+      alignItems: "center",
+      backgroundColor:Colors.background
     }}>
       <Text>
         Focus Mode

@@ -1,10 +1,12 @@
-import React, { useCallback, useState } from 'react';
+// app/(tabs)/index.tsx
+import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import UniversalWidget from '@/components/widget/UniversalWidget';
 import GreetingCard from '@/components/screens/home/GreetingCard';
@@ -15,26 +17,44 @@ import SearchModal from '@/components/modals/SearchModal';
 import NotificationModal from '@/components/modals/NotificationModal';
 import { WidgetType } from '@/config/widgetConfig';
 
+const STORAGE_KEY = '@active_widgets';
+const DEFAULT_WIDGETS: WidgetType[] = [
+  'daily-tasks',
+  'goals',
+  'habits',
+  'weekly-review',
+];
+
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
   const [refreshing, setRefreshing] = useState(false);
   const [searchVisible, setSearchVisible] = useState(false);
   const [notifVisible, setNotifVisible] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [activeWidgets, setActiveWidgets] = useState<WidgetType[]>(DEFAULT_WIDGETS);
 
-  // Active widgets - this would come from AsyncStorage or context
-  const [activeWidgets, setActiveWidgets] = useState<WidgetType[]>([
-    'daily-tasks',
-    'goals',
-    'habits',
-    'weekly-review',
-  ]);
+  // Load widgets from storage on mount
+  useEffect(() => {
+    loadWidgets();
+  }, []);
 
-  const onRefresh = useCallback(() => {
+  const loadWidgets = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setActiveWidgets(JSON.parse(stored));
+      }
+    } catch (error) {
+      console.error('Error loading widgets:', error);
+    }
+  };
+
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
+    await loadWidgets();
     setTimeout(() => {
       setRefreshing(false);
-    }, 2000);
+    }, 1000);
   }, []);
 
   const onScroll = useAnimatedScrollHandler({
