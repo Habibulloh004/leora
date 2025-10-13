@@ -27,8 +27,12 @@
         "UIBackgroundModes": [
           "audio",
           "fetch",
+          "remote-notification",
+          "audio",
+          "fetch",
           "remote-notification"
-        ]
+        ],
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -47,7 +51,7 @@
         "SCHEDULE_EXACT_ALARM",
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT"
-      ],
+      ]
     },
     "plugins": [
       "expo-router",

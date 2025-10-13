@@ -22,9 +22,9 @@ export default function Header({
   onNotificationPress,
   hasNotifications = true,
 }: HeaderProps) {
-  const [openDateModal, setOpenDateModal] = useState(false)
+  const [openDateModal, setOpenDateModal] = useState(false);
+  
   const animatedStyle = useAnimatedStyle(() => {
-    // Проверяем что scrollY существует
     if (!scrollY) {
       return {
         transform: [{ translateY: 0 }],
@@ -32,15 +32,16 @@ export default function Header({
       };
     }
 
-    // Move header up when scrolling down, back down when scrolling up
+    // Slide up when scrolling down, slide back down when scrolling up
     const translateY = withTiming(
-      interpolate(scrollY.value, [0, 100], [0, -120], 'clamp'),
-      { duration: 300 }
+      interpolate(scrollY.value, [0, 100], [0, -100], 'clamp'),
+      { duration: 100 }
     );
 
+    // Fade out when scrolling down, fade in when scrolling up
     const opacity = withTiming(
-      interpolate(scrollY.value, [0, 50], [1, 0], 'clamp'),
-      { duration: 250 }
+      interpolate(scrollY.value, [0, 100], [1, 0], 'clamp'),
+      { duration: 300 }
     );
 
     return {
@@ -57,7 +58,7 @@ export default function Header({
         </View>
       </View>
 
-      <Pressable onPress={() => setOpenDateModal(true)} >
+      <Pressable onPress={() => setOpenDateModal(true)}>
         <View style={styles.dateContainer}>
           <Text style={styles.dateText}>Monday</Text>
           <Text style={styles.dateText}>September 8</Text>
@@ -99,8 +100,8 @@ const styles = StyleSheet.create({
   avatar: {
     padding: 4,
     borderRadius: 100,
-    width:40,
-    height:40,
+    width: 40,
+    height: 40,
     backgroundColor: "#000",
     justifyContent: "center",
     alignItems: "center",
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flex: 1,
     alignItems: 'center',
-    justifyContent:"flex-end"
+    justifyContent: "flex-end"
   },
   iconButton: {
     padding: 4,

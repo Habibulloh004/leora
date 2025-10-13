@@ -21,13 +21,14 @@ interface Props {
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface CircularProgressProps {
-  size: number;
-  strokeWidth: number;
   progress: number;
   color: string;
 }
 
-function CircularProgress({ size, strokeWidth, progress, color }: CircularProgressProps) {
+// CircularProgress har doim bir xil o'lchamda
+const CircularProgress = React.memo(({ progress, color }: CircularProgressProps) => {
+  const size = 96;
+  const strokeWidth = 7;
   const center = size / 2;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
@@ -44,16 +45,14 @@ function CircularProgress({ size, strokeWidth, progress, color }: CircularProgre
 
   return (
     <Svg width={size} height={size}>
-      {/* Background circle */}
       <Circle
         cx={center}
         cy={center}
         r={radius}
-        stroke="#"
+        stroke="#34343D"
         strokeWidth={strokeWidth}
         fill="none"
       />
-      {/* Progress circle */}
       <AnimatedCircle
         cx={center}
         cy={center}
@@ -69,7 +68,9 @@ function CircularProgress({ size, strokeWidth, progress, color }: CircularProgre
       />
     </Svg>
   );
-}
+});
+
+CircularProgress.displayName = 'CircularProgress';
 
 export default function ProgressIndicators({
   scrollY,
@@ -85,11 +86,10 @@ export default function ProgressIndicators({
   };
 
   const SPRING_CONFIG = {
-    damping: 25,
-    stiffness: 120,
+    damping: 70,
+    stiffness: 300,
   };
 
-  // Контейнер
   const containerStyle = useAnimatedStyle(() => {
     const height = withTiming(
       interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [160, 40], 'clamp'),
@@ -99,86 +99,72 @@ export default function ProgressIndicators({
     return { height };
   });
 
-  // Размер кольца - напрямую меняем размер, БЕЗ scale
+  // Scale orqali kichraytirish - SVG o'lchami o'zgarmaydi!
   const circleContainerStyle = useAnimatedStyle(() => {
-    const size = withSpring(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [96, 20], 'clamp'),
+    const scale = withSpring(
+      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [1, 0.208], 'clamp'), // 96 -> 20
+      SPRING_CONFIG
+    );
+    const translateX = withSpring(
+      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, -10], 'clamp'),
+      SPRING_CONFIG
+    );
+
+    const translateY = withSpring(
+      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 90], 'clamp'),
       SPRING_CONFIG
     );
 
     return {
-      width: size,
-      height: size,
+      transform: [{ scale }, { translateX }, { translateY }],
     };
   });
 
-  // Stroke width тоже уменьшаем
-  const strokeWidthAnimated = useAnimatedStyle(() => {
-    const width = withSpring(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [7, 4], 'clamp'),
-      SPRING_CONFIG
-    );
-
-    return { width };
-  });
-
-  // Проценты
   const percentStyle = useAnimatedStyle(() => {
     const opacity = withTiming(
       interpolate(scrollY.value, [0, 50], [1, 0], 'clamp'),
       { duration: 250 }
     );
 
-    const fontSize = withTiming(
-      interpolate(scrollY.value, [0, 50], [18, 14], 'clamp'),
+    const scale = withTiming(
+      interpolate(scrollY.value, [0, 50], [1, 0.78], 'clamp'), // 18 -> 14
       { duration: 250 }
     );
 
     return {
       opacity,
-      fontSize,
+      transform: [{ scale }],
     };
   });
 
-  // Лейбл
+  /* CHANGED: Staggered animation - label moves RIGHT first (0-60), then UP later (40-100).
+     This prevents overlap by clearing the circle horizontally before moving vertically. */
   const labelStyle = useAnimatedStyle(() => {
+    // Move right early in the animation (completes at 60% of scroll)
     const translateX = withSpring(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 42], 'clamp')
+      interpolate(scrollY.value, [0, 60], [0, 45], 'clamp'),
+      SPRING_CONFIG
     );
 
+    // Move up later in the animation (starts at 40% of scroll)
     const translateY = withSpring(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, -23], 'clamp')
-    );
-
-    const fontSize = withTiming(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [12, 9], 'clamp'),
-      TIMING_CONFIG
-    );
-
-    const opacity = withTiming(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [1, 0.9], 'clamp'),
-      TIMING_CONFIG
+      interpolate(scrollY.value, [50, SCROLL_THRESHOLD], [0, -44], 'clamp'),
+      SPRING_CONFIG
     );
 
     return {
-      fontSize,
-      opacity,
       transform: [{ translateX }, { translateY }],
     };
   });
+
   const progressAnimatedStyle = useAnimatedStyle(() => {
     const paddingRight = withTiming(
       interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 55], 'clamp'),
       TIMING_CONFIG
     );
-    const paddingTop = withTiming(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 20], 'clamp'),
-      TIMING_CONFIG
-    );
 
     return {
       paddingRight,
-      paddingTop
     };
   });
 
@@ -201,22 +187,17 @@ export default function ProgressIndicators({
       <Animated.View style={[styles.innerContainer, progressAnimatedStyle]}>
         {progressItems.map((item, index) => (
           <View key={index} style={styles.itemWrapper}>
-            {/* Кольцо с динамическим размером */}
             <Animated.View style={[styles.circleContainer, circleContainerStyle]}>
-              <CircularProgressAnimated
-                scrollY={scrollY}
+              <CircularProgress
                 progress={item.value}
                 color={item.color}
-                threshold={SCROLL_THRESHOLD}
               />
 
-              {/* Процент в центре */}
               <Animated.Text style={[styles.percentText, percentStyle]}>
                 {Math.round(item.value)}%
               </Animated.Text>
             </Animated.View>
 
-            {/* Лейбл */}
             <Animated.Text style={[styles.labelText, labelStyle]}>
               {item.label}
             </Animated.Text>
@@ -224,45 +205,6 @@ export default function ProgressIndicators({
         ))}
       </Animated.View>
     </Animated.View>
-  );
-}
-
-// Обертка для анимированного размера
-interface CircularProgressAnimatedProps {
-  scrollY: SharedValue<number>;
-  progress: number;
-  color: string;
-  threshold: number;
-}
-
-function CircularProgressAnimated({
-  scrollY,
-  progress,
-  color,
-  threshold,
-}: CircularProgressAnimatedProps) {
-  // Используем derived values
-  const animatedSize = interpolate(
-    scrollY.value,
-    [0, threshold],
-    [96, 20],
-    'clamp'
-  );
-
-  const animatedStrokeWidth = interpolate(
-    scrollY.value,
-    [0, threshold],
-    [7, 2.5],
-    'clamp'
-  );
-
-  return (
-    <CircularProgress
-      size={animatedSize}
-      strokeWidth={animatedStrokeWidth}
-      progress={progress}
-      color={color}
-    />
   );
 }
 
@@ -286,6 +228,8 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   circleContainer: {
+    width: 96,
+    height: 96,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -293,13 +237,22 @@ const styles = StyleSheet.create({
   percentText: {
     position: 'absolute',
     color: '#FFFFFF',
+    fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
   },
   labelText: {
     color: '#A6A6B9',
+    fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.5,
     marginTop: 8,
   },
 });
+
+/*
+ * FIX: Used staggered animation timing to prevent overlap during transition.
+ * - translateX animates from scrollY 0-60 (label moves right early, clearing the circle)
+ * - translateY animates from scrollY 40-100 (label moves up later, after clearing horizontally)
+ * This ensures the label is safely to the right side before it starts moving upward.
+ */

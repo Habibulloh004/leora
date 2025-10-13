@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Check, Clock, DollarSign, Minus, Plus, Target, Zap, HeartPulse } from 'lucide-react-native';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -42,7 +42,7 @@ export default function UniversalFAB() {
   const rotation = useSharedValue(0);
   const overlayOpacity = useSharedValue(0);
   const iconProgress = useSharedValue(0);
-
+  const [openModal,setOpenModal]=useState(false)
   // Animation values for each button
   const buttonAnimations = [
     useSharedValue(0),
@@ -76,6 +76,9 @@ export default function UniversalFAB() {
   }, [activeTab]);
 
   const toggleExpanded = () => {
+    setOpenModal(!openModal)
+  console.log(isOpen.value)
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const springConfig = {
       damping: 45,
@@ -83,7 +86,7 @@ export default function UniversalFAB() {
     };
 
     const timingConfig = {
-      duration: 200,
+      duration: 100,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     };
 
@@ -103,7 +106,7 @@ export default function UniversalFAB() {
     } else {
       // Opening animation
       rotation.value = withSpring(1, springConfig);
-      overlayOpacity.value = withTiming(0.7, timingConfig);
+      overlayOpacity.value = withTiming(1, timingConfig);
       iconProgress.value = withSpring(1, springConfig);
 
       // Animate buttons in with stagger
@@ -208,12 +211,11 @@ export default function UniversalFAB() {
 
   // Return null after all hooks have been called
   if (actions.length === 0) return null;
-
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}>
       {/* Full Screen Background Overlay */}
       <Animated.View
-        pointerEvents={isOpen.value ? "box-none" : "none"}
+        pointerEvents={openModal ? "box-only" : "none"}
         style={[
           styles.overlayContainer,
           overlayStyle,
@@ -221,7 +223,7 @@ export default function UniversalFAB() {
       >
         <Pressable
           style={StyleSheet.absoluteFill}
-          onPress={toggleExpanded}
+          onPressOut={toggleExpanded}
         >
           <MaskedView
             maskElement={
@@ -271,6 +273,7 @@ export default function UniversalFAB() {
                         case 'quick-expense':
                         case 'add-expense':
                           console.log('Add Expense');
+                          router.push('/(modals)/quick-exp');
                           break;
                         case 'add-income':
                           console.log('Add Income');

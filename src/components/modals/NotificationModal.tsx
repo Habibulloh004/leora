@@ -37,10 +37,6 @@ export default function NotificationModal({ visible, onClose }: NotificationModa
   const slideAnim = useRef(new Animated.Value(0)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
 
-  useEffect(() => {
-    if (visible) openModal();
-  }, [visible]);
-
   const openModal = () => {
     Animated.parallel([
       Animated.spring(slideAnim, {
@@ -57,6 +53,10 @@ export default function NotificationModal({ visible, onClose }: NotificationModa
       }),
     ]).start();
   };
+
+   useEffect(() => {
+    if (visible) openModal();
+  }, [visible]);
 
   const closeModal = () => {
     Animated.parallel([

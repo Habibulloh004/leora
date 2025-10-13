@@ -1,10 +1,10 @@
 import '../global.css'; // Add this import at the top
+import 'react-native-reanimated';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import 'react-native-reanimated';
 
 import LeoraSplashScreen from '@/components/splash/LeoraSplashScreen';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -34,8 +34,21 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="(modals)/add-task"
             options={{
-              presentation: "transparentModal",
-              headerShown: false
+              presentation: "modal",
+              headerTitle:"Add Task",
+              headerStyle: {
+                backgroundColor: "#25252B"
+              },
+              headerTintColor: "#fff"
+            }} />
+          <Stack.Screen name="(modals)/quick-exp"
+            options={{
+              presentation: "modal",
+              headerTitle:"Quick Expence",
+              headerStyle: {
+                backgroundColor: "#25252B"
+              },
+              headerTintColor: "#fff"
             }} />
           <Stack.Screen name="(modals)/voice-ai"
             options={{

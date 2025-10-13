@@ -6,6 +6,8 @@ import { WidgetType } from '@/config/widgetConfig';
 
 interface WidgetStore {
   activeWidgets: WidgetType[];
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
   setActiveWidgets: (widgets: WidgetType[]) => void;
   addWidget: (widgetId: WidgetType) => void;
   removeWidget: (widgetId: WidgetType) => void;
@@ -24,6 +26,11 @@ export const useWidgetStore = create<WidgetStore>()(
   persist(
     (set, get) => ({
       activeWidgets: DEFAULT_WIDGETS,
+      _hasHydrated: false,
+
+      setHasHydrated: (state) => {
+        set({ _hasHydrated: state });
+      },
 
       setActiveWidgets: (widgets) => 
         set({ activeWidgets: widgets }),
@@ -55,6 +62,14 @@ export const useWidgetStore = create<WidgetStore>()(
     {
       name: 'widget-storage',
       storage: createJSONStorage(() => AsyncStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
     }
   )
 );
+
+// Hook to check if store is ready
+export const useWidgetStoreHydrated = () => {
+  return useWidgetStore((state) => state._hasHydrated);
+};
