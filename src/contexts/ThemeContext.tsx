@@ -1,59 +1,128 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Appearance } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
+  SharedValue,
   interpolateColor,
-  SharedValue
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 type Theme = 'light' | 'dark';
 
 interface ThemeContextType {
   theme: Theme;
+  isReady: boolean;
+  setTheme: (value: Theme) => void;
   toggleTheme: () => void;
   progress: SharedValue<number>;
 }
 
+const DEFAULT_THEME: Theme = 'dark';
+const THEME_STORAGE_KEY = 'leora:theme';
+
 const ThemeContext = createContext<ThemeContextType>({
-  theme: 'dark',
+  theme: DEFAULT_THEME,
+  isReady: false,
+  setTheme: () => {},
   toggleTheme: () => {},
-  progress: { value: 0 } as any,
+  progress: { value: DEFAULT_THEME === 'dark' ? 1 : 0 } as SharedValue<number>,
 });
 
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setTheme] = useState<Theme>('dark');
-  const progress = useSharedValue(0);
+  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
+  const [isReady, setIsReady] = useState(false);
+  const progress = useSharedValue(DEFAULT_THEME === 'dark' ? 1 : 0);
+  const isFirstRender = useRef(true);
 
   useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      setTheme(colorScheme === 'dark' ? 'dark' : 'light');
-    });
+    let isMounted = true;
 
-    return () => subscription.remove();
+    const hydrateTheme = async () => {
+      try {
+        const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+        if (storedTheme === 'light' || storedTheme === 'dark') {
+          if (isMounted) {
+            setThemeState(storedTheme);
+          }
+        }
+      } catch (error) {
+        console.warn('ThemeProvider: failed to load theme preference', error);
+      } finally {
+        if (isMounted) {
+          setIsReady(true);
+        }
+      }
+    };
+
+    hydrateTheme();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   useEffect(() => {
-    progress.value = withTiming(theme === 'dark' ? 1 : 0, { duration: 500 });
-  }, [theme]);
+    if (isFirstRender.current) {
+      progress.value = theme === 'dark' ? 1 : 0;
+      isFirstRender.current = false;
+      return;
+    }
 
-  const toggleTheme = () => {
-    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
-  };
+    progress.value = withTiming(theme === 'dark' ? 1 : 0, { duration: 320 });
+  }, [theme, progress]);
 
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, progress }}>
-      {children}
-    </ThemeContext.Provider>
+  const persistTheme = useCallback(async (value: Theme) => {
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, value);
+    } catch (error) {
+      console.warn('ThemeProvider: failed to persist theme preference', error);
+    }
+  }, []);
+
+  const setTheme = useCallback(
+    (value: Theme) => {
+      setThemeState(value);
+      void persistTheme(value);
+    },
+    [persistTheme]
   );
+
+  const toggleTheme = useCallback(() => {
+    setThemeState((current) => {
+      const next = current === 'dark' ? 'light' : 'dark';
+      void persistTheme(next);
+      return next;
+    });
+  }, [persistTheme]);
+
+  const contextValue = useMemo(
+    () => ({
+      theme,
+      isReady,
+      setTheme,
+      toggleTheme,
+      progress,
+    }),
+    [isReady, setTheme, theme, toggleTheme, progress]
+  );
+
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 };
 
-export const ThemedView: React.FC<{ children: React.ReactNode; style?: any }> = ({ 
-  children, 
-  style 
+export const ThemedView: React.FC<{ children: React.ReactNode; style?: any }> = ({
+  children,
+  style,
 }) => {
   const { progress } = useTheme();
 
@@ -67,9 +136,5 @@ export const ThemedView: React.FC<{ children: React.ReactNode; style?: any }> = 
     return { backgroundColor };
   });
 
-  return (
-    <Animated.View style={[animatedStyle, style]}>
-      {children}
-    </Animated.View>
-  );
+  return <Animated.View style={[animatedStyle, style]}>{children}</Animated.View>;
 };

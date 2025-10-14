@@ -3,10 +3,10 @@ import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
+  Extrapolation,
   interpolate,
   SharedValue,
   useAnimatedStyle,
-  withTiming,
 } from 'react-native-reanimated';
 
 interface HeaderProps {
@@ -32,17 +32,14 @@ export default function Header({
       };
     }
 
-    // Slide up when scrolling down, slide back down when scrolling up
-    const translateY = withTiming(
-      interpolate(scrollY.value, [0, 100], [0, -100], 'clamp'),
-      { duration: 100 }
+    const progress = interpolate(
+      scrollY.value,
+      [0, 100],
+      [0, 1],
+      Extrapolation.CLAMP
     );
-
-    // Fade out when scrolling down, fade in when scrolling up
-    const opacity = withTiming(
-      interpolate(scrollY.value, [0, 100], [1, 0], 'clamp'),
-      { duration: 300 }
-    );
+    const translateY = -100 * progress;
+    const opacity = 1 - progress;
 
     return {
       transform: [{ translateY }],

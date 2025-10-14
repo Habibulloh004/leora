@@ -2,11 +2,11 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
+  Extrapolation,
   interpolate,
   SharedValue,
   useAnimatedProps,
   useAnimatedStyle,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
@@ -80,40 +80,30 @@ export default function ProgressIndicators({
 }: Props) {
   const SCROLL_THRESHOLD = 100;
 
-  const TIMING_CONFIG = {
-    duration: 350,
-    easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-  };
-
-  const SPRING_CONFIG = {
-    damping: 70,
-    stiffness: 300,
-  };
-
   const containerStyle = useAnimatedStyle(() => {
-    const height = withTiming(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [160, 40], 'clamp'),
-      TIMING_CONFIG
+    const collapse = interpolate(
+      scrollY.value,
+      [0, SCROLL_THRESHOLD],
+      [0, 1],
+      Extrapolation.CLAMP
     );
+    const height = 160 - collapse * 120;
+    
 
     return { height };
   });
 
   // Scale orqali kichraytirish - SVG o'lchami o'zgarmaydi!
   const circleContainerStyle = useAnimatedStyle(() => {
-    const scale = withSpring(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [1, 0.208], 'clamp'), // 96 -> 20
-      SPRING_CONFIG
+    const collapse = interpolate(
+      scrollY.value,
+      [0, SCROLL_THRESHOLD],
+      [0, 1],
+      Extrapolation.CLAMP
     );
-    const translateX = withSpring(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, -10], 'clamp'),
-      SPRING_CONFIG
-    );
-
-    const translateY = withSpring(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 90], 'clamp'),
-      SPRING_CONFIG
-    );
+    const scale = 1 - collapse * 0.792; // 1 -> 0.208
+    const translateX = -10 * collapse;
+    const translateY = 90 * collapse;
 
     return {
       transform: [{ scale }, { translateX }, { translateY }],
@@ -121,15 +111,14 @@ export default function ProgressIndicators({
   });
 
   const percentStyle = useAnimatedStyle(() => {
-    const opacity = withTiming(
-      interpolate(scrollY.value, [0, 50], [1, 0], 'clamp'),
-      { duration: 250 }
+    const hideProgress = interpolate(
+      scrollY.value,
+      [0, 50],
+      [0, 1],
+      Extrapolation.CLAMP
     );
-
-    const scale = withTiming(
-      interpolate(scrollY.value, [0, 50], [1, 0.78], 'clamp'), // 18 -> 14
-      { duration: 250 }
-    );
+    const opacity = 1 - hideProgress;
+    const scale = 1 - hideProgress * 0.22; // 1 -> 0.78
 
     return {
       opacity,
@@ -140,17 +129,20 @@ export default function ProgressIndicators({
   /* CHANGED: Staggered animation - label moves RIGHT first (0-60), then UP later (40-100).
      This prevents overlap by clearing the circle horizontally before moving vertically. */
   const labelStyle = useAnimatedStyle(() => {
-    // Move right early in the animation (completes at 60% of scroll)
-    const translateX = withSpring(
-      interpolate(scrollY.value, [0, 60], [0, 45], 'clamp'),
-      SPRING_CONFIG
+    const rightShift = interpolate(
+      scrollY.value,
+      [0, 60],
+      [0, 1],
+      Extrapolation.CLAMP
     );
-
-    // Move up later in the animation (starts at 40% of scroll)
-    const translateY = withSpring(
-      interpolate(scrollY.value, [50, SCROLL_THRESHOLD], [0, -44], 'clamp'),
-      SPRING_CONFIG
+    const verticalShift = interpolate(
+      scrollY.value,
+      [50, SCROLL_THRESHOLD],
+      [0, 1],
+      Extrapolation.CLAMP
     );
+    const translateX = 45 * rightShift;
+    const translateY = -44 * verticalShift;
 
     return {
       transform: [{ translateX }, { translateY }],
@@ -158,10 +150,13 @@ export default function ProgressIndicators({
   });
 
   const progressAnimatedStyle = useAnimatedStyle(() => {
-    const paddingRight = withTiming(
-      interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 55], 'clamp'),
-      TIMING_CONFIG
+    const collapse = interpolate(
+      scrollY.value,
+      [0, SCROLL_THRESHOLD],
+      [0, 1],
+      Extrapolation.CLAMP
     );
+    const paddingRight = 55 * collapse;
 
     return {
       paddingRight,
@@ -215,6 +210,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#34343D',
     zIndex: 99,
     justifyContent: 'center',
+    paddingTop:20
   },
   innerContainer: {
     flexDirection: 'row',
