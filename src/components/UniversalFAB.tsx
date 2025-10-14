@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Check, Clock, DollarSign, Minus, Plus, Target, Zap, HeartPulse } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -21,6 +21,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTab } from '../contexts/TabContext';
 import VoiceAiModal from './modals/VoiceAiModal';
+import { BottomSheetHandle } from './modals/BottomSheet';
 import { AddTaskIcon } from '@assets/icons/AddTaskIcon';
 import { QuickExpIcon } from '@assets/icons/QuickExpIcon';
 import { AIVoiceIcon } from '@assets/icons/AIVoiceIcon';
@@ -42,7 +43,9 @@ export default function UniversalFAB() {
   const rotation = useSharedValue(0);
   const overlayOpacity = useSharedValue(0);
   const iconProgress = useSharedValue(0);
-  const [openModal,setOpenModal]=useState(false)
+  const [openModal, setOpenModal] = useState(false);
+  const voiceSheetRef = useRef<BottomSheetHandle>(null);
+  
   // Animation values for each button
   const buttonAnimations = [
     useSharedValue(0),
@@ -51,7 +54,6 @@ export default function UniversalFAB() {
     useSharedValue(0),
   ];
 
-  const [voiceModalOpen, setVoiceModalOpen] = React.useState(false);
   const router = useRouter();
 
   const actions: FABAction[] = useMemo(() => {
@@ -76,44 +78,41 @@ export default function UniversalFAB() {
   }, [activeTab]);
 
   const toggleExpanded = () => {
-    setOpenModal(!openModal)
-  console.log(isOpen.value)
+    setOpenModal(!openModal);
+    console.log(isOpen.value);
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const springConfig = {
-      damping: 45,
-      stiffness: 300,
-    };
 
     const timingConfig = {
-      duration: 100,
+      duration: 250,
       easing: Easing.bezier(0.25, 0.1, 0.25, 1),
     };
 
     if (isOpen.value) {
       // Closing animation
-      rotation.value = withSpring(0, springConfig);
-      overlayOpacity.value = withTiming(0, timingConfig);
-      iconProgress.value = withSpring(0, springConfig);
+      rotation.value = withTiming(0, { duration: 200, easing: Easing.ease });
+      overlayOpacity.value = withTiming(0, { duration: 150 });
+      iconProgress.value = withTiming(0, { duration: 200, easing: Easing.ease });
 
-      // Animate buttons out in reverse order
+      // Animate buttons out sequentially from top to bottom
       actions.forEach((_, index) => {
+        const reverseIndex = actions.length - 1 - index;
         buttonAnimations[index].value = withDelay(
-          index * 30,
-          withTiming(0, { duration: 150 })
+          reverseIndex * 50,
+          withTiming(0, { duration: 200, easing: Easing.bezier(0.4, 0, 0.6, 1) })
         );
       });
     } else {
       // Opening animation
-      rotation.value = withSpring(1, springConfig);
-      overlayOpacity.value = withTiming(1, timingConfig);
-      iconProgress.value = withSpring(1, springConfig);
+      rotation.value = withTiming(1, { duration: 200, easing: Easing.ease });
+      overlayOpacity.value = withTiming(1, { duration: 150 });
+      iconProgress.value = withTiming(1, { duration: 200, easing: Easing.ease });
 
-      // Animate buttons in with stagger
+      // Animate buttons in sequentially from bottom to top
       actions.forEach((_, index) => {
         buttonAnimations[index].value = withDelay(
-          index * 50,
-          withSpring(1, springConfig)
+          index * 100,
+          withTiming(1, timingConfig)
         );
       });
     }
@@ -152,8 +151,8 @@ export default function UniversalFAB() {
     bottom: 72,
     opacity: buttonAnimations[0].value,
     transform: [
-      { scale: 0.3 + buttonAnimations[0].value * 0.7 },
-      { translateY: 20 - buttonAnimations[0].value * 20 },
+      { scale: 0.8 + buttonAnimations[0].value * 0.2 },
+      { translateY: 80 - buttonAnimations[0].value * 80 },
     ],
   }));
 
@@ -161,8 +160,8 @@ export default function UniversalFAB() {
     bottom: 144,
     opacity: buttonAnimations[1].value,
     transform: [
-      { scale: 0.3 + buttonAnimations[1].value * 0.7 },
-      { translateY: 20 - buttonAnimations[1].value * 20 },
+      { scale: 0.8 + buttonAnimations[1].value * 0.2 },
+      { translateY: 80 - buttonAnimations[1].value * 80 },
     ],
   }));
 
@@ -170,8 +169,8 @@ export default function UniversalFAB() {
     bottom: 216,
     opacity: buttonAnimations[2].value,
     transform: [
-      { scale: 0.3 + buttonAnimations[2].value * 0.7 },
-      { translateY: 20 - buttonAnimations[2].value * 20 },
+      { scale: 0.8 + buttonAnimations[2].value * 0.2 },
+      { translateY: 80 - buttonAnimations[2].value * 80 },
     ],
   }));
 
@@ -179,8 +178,8 @@ export default function UniversalFAB() {
     bottom: 288,
     opacity: buttonAnimations[3].value,
     transform: [
-      { scale: 0.3 + buttonAnimations[3].value * 0.7 },
-      { translateY: 20 - buttonAnimations[3].value * 20 },
+      { scale: 0.8 + buttonAnimations[3].value * 0.2 },
+      { translateY: 80 - buttonAnimations[3].value * 80 },
     ],
   }));
 
@@ -211,6 +210,7 @@ export default function UniversalFAB() {
 
   // Return null after all hooks have been called
   if (actions.length === 0) return null;
+  
   return (
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}>
       {/* Full Screen Background Overlay */}
@@ -245,6 +245,7 @@ export default function UniversalFAB() {
           </ImageBackground>
         </Pressable>
       </Animated.View>
+      
       {/* Button fubs */}
       <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, right: 0 }}>
         {/* FAB + Actions */}
@@ -285,7 +286,7 @@ export default function UniversalFAB() {
                           console.log('Transfer');
                           break;
                         case 'voice-note':
-                          router.push('/(modals)/voice-ai');
+                          voiceSheetRef.current?.present();
                           break;
                       }
                     }, 300);
@@ -318,8 +319,7 @@ export default function UniversalFAB() {
             </TouchableOpacity>
           </View>
         </View>
-
-        <VoiceAiModal visible={voiceModalOpen} onClose={() => setVoiceModalOpen(false)} />
+        <VoiceAiModal ref={voiceSheetRef} />
       </View>
     </View>
   );

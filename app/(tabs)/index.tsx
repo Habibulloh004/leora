@@ -1,5 +1,5 @@
 // app/(tabs)/index.tsx
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
@@ -14,14 +14,14 @@ import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import UniversalFAB from '@/components/UniversalFAB';
 import SearchModal from '@/components/modals/SearchModal';
 import NotificationModal from '@/components/modals/NotificationModal';
+import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { useWidgetStore } from '@/stores/widgetStore';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchVisible, setSearchVisible] = useState(false);
-  const [notifVisible, setNotifVisible] = useState(false);
-  const [editMode, setEditMode] = useState(false);
+  const searchSheetRef = useRef<BottomSheetHandle>(null);
+  const notifSheetRef = useRef<BottomSheetHandle>(null);
 
   // Subscribe to Zustand store - will automatically re-render when activeWidgets changes
   const activeWidgets = useWidgetStore((state) => state.activeWidgets);
@@ -41,15 +41,15 @@ export default function HomeScreen() {
   });
 
   const handleEditModeChange = (isEditMode: boolean) => {
-    setEditMode(isEditMode);
+    console.log('Edit mode toggled:', isEditMode);
   };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header
-        onNotificationPress={() => setNotifVisible(true)}
+        onNotificationPress={() => notifSheetRef.current?.present()}
         scrollY={scrollY}
-        onSearchPress={() => setSearchVisible(true)}
+        onSearchPress={() => searchSheetRef.current?.present()}
       />
       <Animated.ScrollView
         onScroll={onScroll}
@@ -80,8 +80,8 @@ export default function HomeScreen() {
         <View style={styles.bottomSpacer} />
       </Animated.ScrollView>
       <UniversalFAB />
-      <SearchModal visible={searchVisible} onClose={() => setSearchVisible(false)} />
-      <NotificationModal visible={notifVisible} onClose={() => setNotifVisible(false)} />
+      <SearchModal ref={searchSheetRef} />
+      <NotificationModal ref={notifSheetRef} />
     </SafeAreaView>
   );
 }

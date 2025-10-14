@@ -5,16 +5,10 @@ import React, {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
+  useRef,
 } from 'react';
-import Animated, {
-  SharedValue,
-  interpolateColor,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { View, StyleSheet } from 'react-native';
 
 type Theme = 'light' | 'dark';
 
@@ -23,9 +17,9 @@ interface ThemeContextType {
   isReady: boolean;
   setTheme: (value: Theme) => void;
   toggleTheme: () => void;
-  progress: SharedValue<number>;
 }
 
+// ALWAYS DEFAULT TO DARK - NO SYSTEM THEME
 const DEFAULT_THEME: Theme = 'dark';
 const THEME_STORAGE_KEY = 'leora:theme';
 
@@ -34,32 +28,29 @@ const ThemeContext = createContext<ThemeContextType>({
   isReady: false,
   setTheme: () => {},
   toggleTheme: () => {},
-  progress: { value: DEFAULT_THEME === 'dark' ? 1 : 0 } as SharedValue<number>,
 });
 
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Start with dark immediately (no undefined state)
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [isReady, setIsReady] = useState(false);
-  const progress = useSharedValue(DEFAULT_THEME === 'dark' ? 1 : 0);
-  const isFirstRender = useRef(true);
+  const isMounted = useRef(true);
 
   useEffect(() => {
-    let isMounted = true;
-
     const hydrateTheme = async () => {
       try {
         const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
         if (storedTheme === 'light' || storedTheme === 'dark') {
-          if (isMounted) {
+          if (isMounted.current) {
             setThemeState(storedTheme);
           }
         }
       } catch (error) {
-        console.warn('ThemeProvider: failed to load theme preference', error);
+        console.warn('Failed to load theme:', error);
       } finally {
-        if (isMounted) {
+        if (isMounted.current) {
           setIsReady(true);
         }
       }
@@ -68,25 +59,15 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     hydrateTheme();
 
     return () => {
-      isMounted = false;
+      isMounted.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      progress.value = theme === 'dark' ? 1 : 0;
-      isFirstRender.current = false;
-      return;
-    }
-
-    progress.value = withTiming(theme === 'dark' ? 1 : 0, { duration: 320 });
-  }, [theme, progress]);
 
   const persistTheme = useCallback(async (value: Theme) => {
     try {
       await AsyncStorage.setItem(THEME_STORAGE_KEY, value);
     } catch (error) {
-      console.warn('ThemeProvider: failed to persist theme preference', error);
+      console.warn('Failed to persist theme:', error);
     }
   }, []);
 
@@ -112,29 +93,22 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isReady,
       setTheme,
       toggleTheme,
-      progress,
     }),
-    [isReady, setTheme, theme, toggleTheme, progress]
+    [theme, isReady, setTheme, toggleTheme]
   );
 
-  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
+  // Render with dark background immediately
+  return (
+    <View style={[styles.container, { backgroundColor: theme === 'dark' ? '#000000' : '#FFFFFF' }]}>
+      <ThemeContext.Provider value={contextValue}>
+        {children}
+      </ThemeContext.Provider>
+    </View>
+  );
 };
 
-export const ThemedView: React.FC<{ children: React.ReactNode; style?: any }> = ({
-  children,
-  style,
-}) => {
-  const { progress } = useTheme();
-
-  const animatedStyle = useAnimatedStyle(() => {
-    const backgroundColor = interpolateColor(
-      progress.value,
-      [0, 1],
-      ['#FFFFFF', '#25252B']
-    );
-
-    return { backgroundColor };
-  });
-
-  return <Animated.View style={[animatedStyle, style]}>{children}</Animated.View>;
-};
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

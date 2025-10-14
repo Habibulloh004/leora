@@ -205,13 +205,11 @@ function TabsContent() {
   return (
     <View style={{ flex: 1 }}>
       <Tabs
-        lazy
         detachInactiveScreens
         screenListeners={screenListeners}
         tabBar={(props) => <CustomTabBar {...props} />}
         screenOptions={{
           headerShown: false,
-          sceneContainerStyle: { backgroundColor: palette.background },
           freezeOnBlur: true,
           tabBarButton: HapticTab,
         }}

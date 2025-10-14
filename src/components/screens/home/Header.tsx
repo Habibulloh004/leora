@@ -1,6 +1,7 @@
 import DateChangeModal from '@/components/modals/DateChangeModal';
+import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
-import React, { useState } from 'react';
+import React, { useRef } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -22,8 +23,8 @@ export default function Header({
   onNotificationPress,
   hasNotifications = true,
 }: HeaderProps) {
-  const [openDateModal, setOpenDateModal] = useState(false);
-  
+  const dateSheetRef = useRef<BottomSheetHandle>(null);
+
   const animatedStyle = useAnimatedStyle(() => {
     if (!scrollY) {
       return {
@@ -55,7 +56,7 @@ export default function Header({
         </View>
       </View>
 
-      <Pressable onPress={() => setOpenDateModal(true)}>
+      <Pressable onPress={() => dateSheetRef.current?.present()}>
         <View style={styles.dateContainer}>
           <Text style={styles.dateText}>Monday</Text>
           <Text style={styles.dateText}>September 8</Text>
@@ -72,7 +73,7 @@ export default function Header({
           {hasNotifications && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
-      <DateChangeModal visible={openDateModal} onClose={() => setOpenDateModal(false)} />
+      <DateChangeModal ref={dateSheetRef} />
     </Animated.View>
   );
 }

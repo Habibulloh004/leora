@@ -1,250 +1,144 @@
-import { Colors } from "@/constants/Colors";
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Easing,
-  FlatList,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur"; // ✅ to‘g‘ri import
+import { Colors } from '@/constants/Colors';
+import React, {
+  ForwardedRef,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
+
+import CustomBottomSheet, { BottomSheetHandle } from '@/components/modals/BottomSheet';
 
 interface SearchModalProps {
-  visible: boolean;
-  onClose: () => void;
+  onDismiss?: () => void;
 }
 
-export default function SearchModal({ visible, onClose }: SearchModalProps) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<string[]>([]);
+const mockSuggestions = [
+  'How to improve focus',
+  'Create a new task',
+  'Budget tips 2025',
+  'Plan my goals',
+  'AI suggestions for finance',
+  'Quick expenses list',
+];
 
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const backdropAnim = useRef(new Animated.Value(0)).current;
+function SearchModalComponent({ onDismiss }: SearchModalProps, ref: ForwardedRef<BottomSheetHandle>) {
+  const internalRef = useRef<BottomSheetHandle>(null);
+  const [query, setQuery] = useState('');
 
-  useEffect(() => {
-    if (visible) openModal();
-  }, [visible]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      present: () => internalRef.current?.present(),
+      dismiss: () => internalRef.current?.dismiss(),
+    }),
+    []
+  );
 
-  const openModal = () => {
-    Animated.parallel([
-      Animated.spring(slideAnim, {
-        toValue: 1,
-        friction: 10,
-        tension: 65,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropAnim, {
-        toValue: 1,
-        duration: 250,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  const closeModal = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 250,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropAnim, {
-        toValue: 0,
-        duration: 200,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start(() => onClose());
-  };
-
-  const translateY = slideAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [800, 0],
-  });
-
-  const backdropOpacity = backdropAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-
-  const handleSearch = (text: string) => {
-    setQuery(text);
-    if (text.length > 1) {
-      const mockData = [
-        "How to improve focus",
-        "Create a new task",
-        "Budget tips 2025",
-        "Plan my goals",
-        "AI suggestions for finance",
-        "Quick expenses list",
-      ].filter((item) => item.toLowerCase().includes(text.toLowerCase()));
-      setResults(mockData);
-    } else {
-      setResults([]);
+  const filteredResults = useMemo(() => {
+    if (!query.trim()) {
+      return [];
     }
-  };
 
-  const handleSelect = (item: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    console.log("Selected:", item);
-    closeModal();
-  };
+    return mockSuggestions.filter((item) => item.toLowerCase().includes(query.toLowerCase()));
+  }, [query]);
+
+  const handleClose = useCallback(() => {
+    internalRef.current?.dismiss();
+    onDismiss?.();
+  }, [onDismiss]);
+
+  const handleSelect = useCallback(
+    (item: string) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      console.log('Selected:', item);
+      handleClose();
+    },
+    [handleClose]
+  );
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      presentationStyle="overFullScreen"
-      onRequestClose={closeModal}
+    <CustomBottomSheet
+      ref={internalRef}
+      onDismiss={onDismiss}
+      contentContainerStyle={styles.sheetContent}
+      isFullScreen
     >
-      {/* 🔹 Background with blur + gradient */}
-      <Animated.View
-        style={[
-          StyleSheet.absoluteFill,
-          { opacity: backdropOpacity, zIndex: 1 },
-        ]}
-      >
-        <LinearGradient
-          colors={[
-            "rgba(0,0,0,0.3)",
-            "rgba(20,20,30,0.4)",
-            "rgba(30,30,40,0.3)",
-          ]}
-          start={{ x: 0.3, y: 0 }}
-          end={{ x: 0.8, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      </Animated.View>
+      <View style={styles.header}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={22} color={Colors.textSecondary} style={{ marginRight: 8 }} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search..."
+            placeholderTextColor={Colors.textSecondary + '99'}
+            style={styles.input}
+            autoFocus
+          />
+          {query.length > 0 && (
+            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
+        <Pressable onPress={handleClose} hitSlop={10}>
+          <Ionicons name="close" size={26} color={Colors.textSecondary} />
+        </Pressable>
+      </View>
 
-      <Pressable style={StyleSheet.absoluteFill} onPress={closeModal} />
-
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, justifyContent: "flex-end" }}
-      >
-        <Animated.View
-          style={[
-            styles.container,
-            {
-              transform: [{ translateY }],
-              zIndex: 2,
-            },
-          ]}
-        >
-          <BlurView
-            experimentalBlurMethod="dimezisBlurView"
-            intensity={70} tint="dark" style={{
-              width: "100%",
-              height: "100%",
-              position: "absolute",
-              bottom: 0
-            }} />
-          <View style={styles.contentWrapper}>
-            {/* Header with Search Input */}
-            <View style={styles.header}>
-              <View style={styles.searchBar}>
+      <View style={styles.resultsWrapper}>
+        {filteredResults.length > 0 ? (
+          <BottomSheetFlatList
+            data={filteredResults}
+            keyExtractor={(item: any) => item}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }: { item: any }) => (
+              <Pressable
+                onPress={() => handleSelect(item)}
+                style={({ pressed }) => [styles.resultItem, pressed && { opacity: 0.6 }]}
+              >
                 <Ionicons
-                  name="search"
-                  size={22}
+                  name='document-text-outline'
+                  size={20}
                   color={Colors.textSecondary}
-                  style={{ marginRight: 8 }}
+                  style={{ marginRight: 12 }}
                 />
-                <TextInput
-                  value={query}
-                  onChangeText={handleSearch}
-                  placeholder="Search..."
-                  placeholderTextColor={Colors.textSecondary + "99"}
-                  autoFocus
-                  style={styles.input}
-                />
-                {query.length > 0 && (
-                  <Pressable onPress={() => setQuery("")}>
-                    <Ionicons
-                      name="close-circle"
-                      size={20}
-                      color={Colors.textSecondary}
-                    />
-                  </Pressable>
-                )}
-              </View>
-              <Pressable onPress={closeModal} hitSlop={10}>
-                <Ionicons name="close" size={26} color={Colors.textSecondary} />
+                <Text style={styles.resultText}>{item}</Text>
               </Pressable>
-            </View>
-
-            {/* Search Results */}
-            <View style={styles.resultsWrapper}>
-              {results.length > 0 ? (
-                <FlatList
-                  data={results}
-                  keyExtractor={(item) => item}
-                  renderItem={({ item }) => (
-                    <Pressable
-                      onPress={() => handleSelect(item)}
-                      style={({ pressed }) => [
-                        styles.resultItem,
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Ionicons
-                        name="document-text-outline"
-                        size={20}
-                        color={Colors.textSecondary}
-                        style={{ marginRight: 12 }}
-                      />
-                      <Text style={styles.resultText}>{item}</Text>
-                    </Pressable>
-                  )}
-                />
-              ) : query.length > 1 ? (
-                <Text style={styles.noResults}>No results found</Text>
-              ) : (
-                <Text style={styles.hintText}>
-                  Start typing to see search results
-                </Text>
-              )}
-            </View>
-          </View>
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
+            )}
+          />
+        ) : query.length > 1 ? (
+          <Text style={styles.noResults}>No results found</Text>
+        ) : (
+          <Text style={styles.hintText}>Start typing to see search results</Text>
+        )}
+      </View>
+    </CustomBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    height: "100%",
-    overflow: "hidden",
-  },
-  contentWrapper: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-    paddingBottom: 40,
+  sheetContent: {
+    paddingTop: 24,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
   searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.surface,
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
     borderRadius: 16,
     paddingHorizontal: 12,
     paddingVertical: 8,
@@ -254,18 +148,17 @@ const styles = StyleSheet.create({
     flex: 1,
     color: Colors.textPrimary,
     fontSize: 16,
-    paddingVertical:6
+    paddingVertical: 6,
   },
   resultsWrapper: {
     flex: 1,
-    marginTop: 10,
   },
   resultItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 8,
-    borderBottomColor: Colors.textSecondary + "22",
+    borderBottomColor: Colors.textSecondary + '22',
     borderBottomWidth: 1,
   },
   resultText: {
@@ -273,15 +166,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   noResults: {
-    textAlign: "center",
+    textAlign: 'center',
     color: Colors.textSecondary,
     marginTop: 20,
     fontSize: 15,
   },
   hintText: {
-    textAlign: "center",
+    textAlign: 'center',
     color: Colors.textSecondary,
     marginTop: 20,
     fontSize: 15,
   },
+  listContent: {
+    paddingBottom: 24,
+  },
 });
+
+export default React.forwardRef<BottomSheetHandle, SearchModalProps>(SearchModalComponent);

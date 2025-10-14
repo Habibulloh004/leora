@@ -1,226 +1,139 @@
-import React, { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Easing,
-  Modal,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-} from "react-native";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { Calendar } from "react-native-calendars";
-import { Colors } from "@/constants/Colors";
+import React, {
+  ForwardedRef,
+  useCallback,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Calendar } from 'react-native-calendars';
+import { Ionicons } from '@expo/vector-icons';
+
+import CustomBottomSheet, { BottomSheetHandle } from '@/components/modals/BottomSheet';
+import { Colors } from '@/constants/Colors';
 
 interface DateModalProps {
-  visible: boolean;
-  onClose: () => void;
+  onDismiss?: () => void;
   onSelectDate?: (date: string) => void;
 }
 
-export default function DateChangeModal({
-  visible,
-  onClose,
-  onSelectDate,
-}: DateModalProps) {
-  const slideAnim = useRef(new Animated.Value(-600)).current;
-  const backdropAnim = useRef(new Animated.Value(0)).current;
+function DateChangeModalComponent(
+  { onDismiss, onSelectDate }: DateModalProps,
+  ref: ForwardedRef<BottomSheetHandle>
+) {
+  const internalRef = useRef<BottomSheetHandle>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (visible) openModal();
-  }, [visible]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      present: () => internalRef.current?.present(),
+      dismiss: () => internalRef.current?.dismiss(),
+    }),
+    []
+  );
 
-  const openModal = () => {
-    Animated.parallel([
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        friction: 9,
-        tension: 65,
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropAnim, {
-        toValue: 1,
-        duration: 250,
-        easing: Easing.out(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
+  const handleClose = useCallback(() => {
+    internalRef.current?.dismiss();
+    onDismiss?.();
+  }, [onDismiss]);
 
-  const closeModal = () => {
-    Animated.parallel([
-      Animated.timing(slideAnim, {
-        toValue: -600,
-        duration: 300,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
-      }),
-      Animated.timing(backdropAnim, {
-        toValue: 0,
-        duration: 200,
-        easing: Easing.in(Easing.ease),
-        useNativeDriver: true,
-      }),
-    ]).start(() => onClose());
-  };
-
-  const backdropOpacity = backdropAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 1],
-  });
-
-  const handleDayPress = (day: any) => {
-    setSelected(day.dateString);
-    onSelectDate?.(day.dateString);
-  };
+  const handleDayPress = useCallback(
+    (day: { dateString: string }) => {
+      setSelected(day.dateString);
+      onSelectDate?.(day.dateString);
+    },
+    [onSelectDate]
+  );
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="none"
-      presentationStyle="overFullScreen"
-      onRequestClose={closeModal}
+    <CustomBottomSheet
+      ref={internalRef}
+      snapPoints={['CONTENT_HEIGHT']}
+      onDismiss={onDismiss}
+      contentContainerStyle={styles.sheetContent}
     >
-      {/* ✅ TouchableWithoutFeedback bosilganda yopiladi */}
-      <TouchableWithoutFeedback onPress={closeModal}>
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            { opacity: backdropOpacity, zIndex: 1 },
-          ]}
-        >
-          <BlurView
-            experimentalBlurMethod="dimezisBlurView"
-            intensity={70}
-            tint="dark"
-            style={StyleSheet.absoluteFill}
-          />
-          <LinearGradient
-            colors={[
-              "rgba(0,0,0,0.4)",
-              "rgba(20,20,30,0.5)",
-              "rgba(30,30,40,0.4)",
-            ]}
-            start={{ x: 0.3, y: 0 }}
-            end={{ x: 0.8, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-      </TouchableWithoutFeedback>
+      <View style={styles.header}>
+        <Text style={styles.title}>Select Date</Text>
+        <Pressable onPress={handleClose} hitSlop={10}>
+          <Ionicons name="close" size={26} color={Colors.textSecondary} />
+        </Pressable>
+      </View>
 
-      {/* 🔹 Content (touchable parent ustiga chiqmasligi uchun zIndex pastroq emas) */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, justifyContent: "flex-start" }}
-      >
-        <Animated.View
-          style={[
-            styles.container,
-            {
-              transform: [{ translateY: slideAnim }],
-              zIndex: 2,
-            },
-          ]}
-        >
+      <Calendar
+        onDayPress={handleDayPress}
+        markedDates={
+          selected
+            ? { [selected]: { selected: true, selectedColor: Colors.primary } }
+            : undefined
+        }
+        theme={{
+          backgroundColor: 'transparent',
+          calendarBackground: 'transparent',
+          textSectionTitleColor: Colors.textSecondary,
+          dayTextColor: Colors.textPrimary,
+          monthTextColor: Colors.textPrimary,
+          arrowColor: Colors.textPrimary,
+          selectedDayTextColor: '#FFFFFF',
+          todayTextColor: Colors.primary,
+        }}
+        style={styles.calendar}
+      />
 
-
-          <View style={styles.header}>
-            <Text style={styles.title}>Select Date</Text>
-            <Pressable onPress={closeModal} hitSlop={10}>
-              <Ionicons name="close" size={26} color={Colors.textSecondary} />
-            </Pressable>
-          </View>
-
-          {/* Calendar */}
-          <Calendar
-            onDayPress={handleDayPress}
-            markedDates={
-              selected
-                ? { [selected]: { selected: true, selectedColor: Colors.primary } }
-                : {}
-            }
-            theme={{
-              backgroundColor: "transparent",
-              calendarBackground: "transparent",
-              textSectionTitleColor: Colors.textSecondary,
-              dayTextColor: Colors.textPrimary,
-              monthTextColor: Colors.textPrimary,
-              arrowColor: Colors.textPrimary,
-              selectedDayTextColor: "#fff",
-              todayTextColor: Colors.primary,
-            }}
-            style={styles.calendar}
-          />
-
-          {selected && (
-            <View style={styles.footer}>
-              <Text style={styles.footerText}>Selected: {selected}</Text>
-              <Pressable onPress={closeModal} style={styles.confirmButton}>
-                <Text style={styles.confirmText}>Confirm</Text>
-              </Pressable>
-            </View>
-          )}
-        </Animated.View>
-      </KeyboardAvoidingView>
-    </Modal>
+      {selected && (
+        <View style={styles.footer}>
+          <Text style={styles.footerText}>Selected: {selected}</Text>
+          <Pressable onPress={handleClose} style={styles.confirmButton}>
+            <Text style={styles.confirmText}>Confirm</Text>
+          </Pressable>
+        </View>
+      )}
+    </CustomBottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    minHeight: "50%",
-    height:"auto",
-    width: "100%",
-    backgroundColor: Colors.background,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    paddingBottom:10,
-    overflow: "hidden",
+  sheetContent: {
+    paddingTop: 20,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 50 : 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingBottom: 12,
   },
   title: {
     fontSize: 20,
-    fontWeight: "600",
+    fontWeight: '600',
     color: Colors.textPrimary,
   },
   calendar: {
-    borderRadius: 12,
-    marginHorizontal: 16,
-    backgroundColor: Colors.surface + "AA",
-    marginTop: 10,
+    backgroundColor: 'transparent',
   },
   footer: {
-    marginTop: 16,
-    alignItems: "center",
+    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    backgroundColor: Colors.surface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   footerText: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-    marginBottom: 10,
+    color: Colors.textSecondary,
+    fontSize: 14,
   },
   confirmButton: {
     backgroundColor: Colors.primary,
-    paddingHorizontal: 40,
-    paddingVertical: 10,
-    borderRadius: 10,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   confirmText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });
+
+export default React.forwardRef<BottomSheetHandle, DateModalProps>(DateChangeModalComponent);
