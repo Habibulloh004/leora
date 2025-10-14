@@ -1,5 +1,14 @@
 // src/config/widgetConfig.tsx
 import React from 'react';
+import {
+  Activity,
+  BarChart3,
+  CheckSquare,
+  CreditCard,
+  Target,
+  Timer,
+} from 'lucide-react-native';
+
 import DailyTasksWidget from '@/components/widget/DailyTasksWidget';
 import GoalsWidget from '@/components/widget/GoalsWidget';
 import HabitsWidget from '@/components/widget/HabitsWidget';
@@ -15,10 +24,12 @@ export type WidgetType =
   | 'focus-sessions'
   | 'transactions';
 
+type WidgetIcon = React.ComponentType<{ size?: number; color?: string }>;
+
 export interface WidgetConfig {
   id: WidgetType;
   title: string;
-  icon: string;
+  icon: WidgetIcon;
   description: string;
   component: React.ComponentType<any>;
   category: 'planner' | 'finance' | 'ai' | 'health';
@@ -29,7 +40,7 @@ export const AVAILABLE_WIDGETS: Record<WidgetType, WidgetConfig> = {
   'daily-tasks': {
     id: 'daily-tasks',
     title: 'Daily Tasks',
-    icon: '✓',
+    icon: CheckSquare,
     description: "Today's task list",
     component: DailyTasksWidget,
     category: 'planner',
@@ -37,7 +48,7 @@ export const AVAILABLE_WIDGETS: Record<WidgetType, WidgetConfig> = {
   'goals': {
     id: 'goals',
     title: 'Goals',
-    icon: '🎯',
+    icon: Target,
     description: 'Track your goals',
     component: GoalsWidget,
     category: 'planner',
@@ -45,7 +56,7 @@ export const AVAILABLE_WIDGETS: Record<WidgetType, WidgetConfig> = {
   'habits': {
     id: 'habits',
     title: 'Habits',
-    icon: '✨',
+    icon: Activity,
     description: 'Daily habits tracker',
     component: HabitsWidget,
     category: 'planner',
@@ -53,7 +64,7 @@ export const AVAILABLE_WIDGETS: Record<WidgetType, WidgetConfig> = {
   'weekly-review': {
     id: 'weekly-review',
     title: 'Weekly Review',
-    icon: '📊',
+    icon: BarChart3,
     description: 'Week progress overview',
     component: WeeklyReviewWidget,
     category: 'planner',
@@ -61,7 +72,7 @@ export const AVAILABLE_WIDGETS: Record<WidgetType, WidgetConfig> = {
   'focus-sessions': {
     id: 'focus-sessions',
     title: 'Focus Sessions',
-    icon: '⏱️',
+    icon: Timer,
     description: 'Pomodoro timer & tracking',
     component: FocusSessionsWidget,
     category: 'planner',
@@ -69,7 +80,7 @@ export const AVAILABLE_WIDGETS: Record<WidgetType, WidgetConfig> = {
   'transactions': {
     id: 'transactions',
     title: 'Transactions',
-    icon: '💳',
+    icon: CreditCard,
     description: 'Recent financial activity',
     component: TransactionsWidget,
     category: 'finance',

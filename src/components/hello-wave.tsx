@@ -1,19 +1,31 @@
-import Animated from 'react-native-reanimated';
+import { useEffect } from 'react';
+import { Hand } from 'lucide-react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+
+import { Colors } from '@/constants/Colors';
 
 export function HelloWave() {
+  const rotation = useSharedValue(0);
+
+  useEffect(() => {
+    rotation.value = withRepeat(
+      withSequence(
+        withTiming(15, { duration: 180 }),
+        withTiming(-10, { duration: 180 }),
+        withTiming(0, { duration: 180 })
+      ),
+      3,
+      false
+    );
+  }, [rotation]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
   return (
-    <Animated.Text
-      style={{
-        fontSize: 28,
-        lineHeight: 32,
-        marginTop: -6,
-        animationName: {
-          '50%': { transform: [{ rotate: '25deg' }] },
-        },
-        animationIterationCount: 4,
-        animationDuration: '300ms',
-      }}>
-      👋
-    </Animated.Text>
+    <Animated.View style={animatedStyle}>
+      <Hand size={28} color={Colors.textPrimary} />
+    </Animated.View>
   );
 }

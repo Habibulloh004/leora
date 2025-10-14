@@ -1,6 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Dot } from 'lucide-react-native';
+import { Dot, Flame } from 'lucide-react-native';
+
+import { Colors } from '@/constants/Colors';
 
 interface WeeklyStats {
   tasksCompleted: number;
@@ -45,8 +47,11 @@ export default function WeeklyReviewWidget() {
           </View>
 
           <View style={[styles.statCard, styles.fullWidth]}>
-            <Text style={styles.statValue}>🔥 {MOCK_STATS.streak} days</Text>
-            <Text style={styles.statLabel}>Current Streak</Text>
+            <View style={styles.streakRow}>
+              <Flame size={16} color={Colors.warning} />
+              <Text style={styles.statValue}>{MOCK_STATS.streak} days</Text>
+            </View>
+            <Text style={styles.statLabel}>Current streak</Text>
           </View>
         </View>
 
@@ -126,5 +131,10 @@ const styles = StyleSheet.create({
     color: '#A6A6B9',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 });

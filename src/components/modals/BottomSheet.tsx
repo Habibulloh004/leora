@@ -27,26 +27,12 @@ export interface BottomSheetHandle {
 
 type CustomBottomSheetProps = Omit<BottomSheetModalProps, 'children' | 'snapPoints'> & {
   children: ReactNode;
-  /**
-   * Override snap points; omit to use sensible defaults.
-   */
   snapPoints?: (string | number)[];
-  /**
-   * Optional content container style applied to the sheet body.
-   */
   contentContainerStyle?: StyleProp<ViewStyle>;
-  /**
-   * Forces the sheet to occupy the entire screen height.
-   */
   isFullScreen?: boolean;
-  /**
-   * Wraps children in a BottomSheetScrollView for automatic scrolling.
-   */
   scrollable?: boolean;
-  /**
-   * Additional props forwarded to the BottomSheetScrollView when scrollable.
-   */
   scrollProps?: Partial<ComponentProps<typeof BottomSheetScrollView>>;
+  hasScrollableChildren?: boolean;
 };
 
 const CustomBottomSheet = forwardRef(function CustomBottomSheet(
@@ -59,17 +45,12 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
     isFullScreen = false,
     scrollable = false,
     scrollProps,
+    hasScrollableChildren = false,
     ...rest
   }: CustomBottomSheetProps,
   ref: ForwardedRef<BottomSheetHandle>
 ) {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
-  const computedSnapPoints = useMemo<(string | number)[]>(() => {
-    if (snapPoints && snapPoints.length > 0) {
-      return snapPoints;
-    }
-    return isFullScreen ? ['100%'] : ['60%'];
-  }, [isFullScreen, snapPoints]);
 
   const handlePresent = useCallback(() => {
     bottomSheetRef.current?.present();
@@ -108,8 +89,24 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
     keyboardBehavior,
     keyboardBlurBehavior,
     enablePanDownToClose,
+    enableDynamicSizing,
     ...modalRest
   } = rest;
+
+  const dynamicSizingEnabled = enableDynamicSizing ?? false;
+  const defaultSnapPoints = useMemo<(string | number)[]>(
+    () => (isFullScreen ? ['95%'] : ['60%']),
+    [isFullScreen]
+  );
+  const resolvedSnapPoints = useMemo<(string | number)[] | undefined>(() => {
+    if (dynamicSizingEnabled) {
+      return snapPoints && snapPoints.length > 0 ? snapPoints : undefined;
+    }
+    if (snapPoints && snapPoints.length > 0) {
+      return snapPoints;
+    }
+    return defaultSnapPoints;
+  }, [defaultSnapPoints, dynamicSizingEnabled, snapPoints]);
 
   const panDownToClose = enablePanDownToClose ?? !isFullScreen;
   const backgroundStyles = useMemo(
@@ -120,20 +117,29 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
     () => [styles.handleIndicator, isFullScreen && styles.hiddenHandleIndicator, handleIndicatorStyle],
     [handleIndicatorStyle, isFullScreen]
   );
-
-  const baseContentStyle = [styles.contentContainer, contentContainerStyle];
-  const content = scrollable ? (
-    <BottomSheetScrollView
-      style={styles.scrollContainer}
-      contentContainerStyle={baseContentStyle}
-      showsVerticalScrollIndicator={false}
-      {...scrollProps}
-    >
-      {children}
-    </BottomSheetScrollView>
-  ) : (
-    <BottomSheetView style={baseContentStyle}>{children}</BottomSheetView>
+  const baseContentStyle = useMemo(
+    () => [styles.contentContainer, isFullScreen && styles.fullScreenContent, contentContainerStyle],
+    [contentContainerStyle, isFullScreen]
   );
+  const flattenedBaseStyle = useMemo(() => StyleSheet.flatten(baseContentStyle), [baseContentStyle]);
+
+  let content: ReactNode;
+  if (hasScrollableChildren) {
+    content = <BottomSheetView style={[styles.flexContainer, flattenedBaseStyle]}>{children}</BottomSheetView>;
+  } else if (scrollable) {
+    content = (
+      <BottomSheetScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={baseContentStyle}
+        showsVerticalScrollIndicator={false}
+        {...scrollProps}
+      >
+        {children}
+      </BottomSheetScrollView>
+    );
+  } else {
+    content = <BottomSheetView style={baseContentStyle}>{children}</BottomSheetView>;
+  }
 
   return (
     <BottomSheetModal
@@ -142,10 +148,11 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
       keyboardBehavior={keyboardBehavior ?? 'interactive'}
       keyboardBlurBehavior={keyboardBlurBehavior ?? 'restore'}
       enablePanDownToClose={panDownToClose}
-      snapPoints={computedSnapPoints}
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={handleIndicatorStyles}
       backgroundStyle={backgroundStyles}
+      enableDynamicSizing={dynamicSizingEnabled}
+      {...(resolvedSnapPoints ? { snapPoints: resolvedSnapPoints } : {})}
       {...modalRest}
     >
       {content}
@@ -170,13 +177,19 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     flexGrow: 1,
-    paddingHorizontal: 40,
+    paddingHorizontal: 20,
     paddingBottom: 24,
+  },
+  fullScreenContent: {
+    flex: 1,
   },
   fullScreenBackground: {
     borderRadius: 0,
   },
   scrollContainer: {
+    flex: 1,
+  },
+  flexContainer: {
     flex: 1,
   },
 });

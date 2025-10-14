@@ -18,6 +18,8 @@ import Sortable from 'react-native-sortables';
 import type { SortableGridDragEndParams, SortableGridRenderItem } from 'react-native-sortables';
 import { useRouter } from 'expo-router';
 
+import { Colors } from '@/constants/Colors';
+
 export default function ManageWidgetModal() {
   const router = useRouter();
   const hasHydrated = useWidgetStoreHydrated();
@@ -70,10 +72,14 @@ export default function ManageWidgetModal() {
     ({ item: widgetId }) => {
       const widget = AVAILABLE_WIDGETS[widgetId];
 
+      const Icon = widget.icon;
+
       return (
         <View style={styles.widgetItem}>
           <View style={styles.widgetInfo}>
-            <Text style={styles.widgetIcon}>{widget.icon}</Text>
+            <View style={styles.widgetIconBadge}>
+              <Icon size={18} color={Colors.textPrimary} />
+            </View>
             <View style={styles.widgetText}>
               <Text style={styles.widgetTitle}>{widget.title}</Text>
               <Text style={styles.widgetDescription}>{widget.description}</Text>
@@ -82,7 +88,7 @@ export default function ManageWidgetModal() {
 
           <TouchableOpacity onPress={() => handleAddWidget(widgetId)} style={styles.actionButton}>
             <View style={[styles.actionIcon, styles.addIcon]}>
-              <Plus color="#FFFFFF" size={20} />
+              <Plus color={Colors.textPrimary} size={18} />
             </View>
           </TouchableOpacity>
         </View>
@@ -94,6 +100,7 @@ export default function ManageWidgetModal() {
   const renderActiveWidget = useCallback<SortableGridRenderItem<WidgetType>>(
     ({ item: widgetId }) => {
       const widget = AVAILABLE_WIDGETS[widgetId];
+      const Icon = widget.icon;
 
       const renderRightActions = (
         progress: Animated.AnimatedInterpolation<number>,
@@ -118,7 +125,7 @@ export default function ManageWidgetModal() {
               style={styles.deleteButton}
               onPress={() => handleRemoveWidget(widgetId)}
             >
-              <Trash2 color="#FFFFFF" size={24} />
+              <Trash2 color={Colors.textPrimary} size={24} />
             </TouchableOpacity>
           </Animated.View>
         );
@@ -133,12 +140,14 @@ export default function ManageWidgetModal() {
           <View style={styles.widgetItem}>
             <Sortable.Handle>
               <View style={styles.dragHandle}>
-                <GripVertical color="#7E8491" size={24} />
+                <GripVertical color={Colors.textSecondary} size={24} />
               </View>
             </Sortable.Handle>
 
             <View style={styles.widgetInfo}>
-              <Text style={styles.widgetIcon}>{widget.icon}</Text>
+              <View style={styles.widgetIconBadge}>
+                <Icon size={18} color={Colors.textPrimary} />
+              </View>
               <View style={styles.widgetText}>
                 <Text style={styles.widgetTitle}>{widget.title}</Text>
                 <Text style={styles.widgetDescription}>{widget.description}</Text>
@@ -157,12 +166,12 @@ export default function ManageWidgetModal() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-            <X color="#FFFFFF" size={24} />
+            <X color={Colors.textPrimary} size={24} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Manage Widgets</Text>
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#4CAF50" />
+          <ActivityIndicator size="large" color={Colors.success} />
           <Text style={styles.loadingText}>Loading widgets...</Text>
         </View>
       </SafeAreaView>
@@ -174,7 +183,7 @@ export default function ManageWidgetModal() {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-          <X color="#FFFFFF" size={24} />
+          <X color={Colors.textPrimary} size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Manage Widgets</Text>
       </View>
@@ -240,28 +249,24 @@ export default function ManageWidgetModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25252B',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#34343D',
-    gap:10
+    borderBottomColor: Colors.border,
   },
   closeButton: {
-    padding: 8,
-  },
-  closeButtonRight: {
     padding: 8,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#FFFFFF',
+    color: Colors.textPrimary,
   },
   section: {
     paddingHorizontal: 16,
@@ -270,13 +275,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#7E8491',
     letterSpacing: 1,
+    color: Colors.textSecondary,
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 12,
-    color: '#7E8491',
+    color: Colors.textSecondary,
     marginBottom: 16,
   },
   sortableContainer: {
@@ -285,10 +290,12 @@ const styles = StyleSheet.create({
   widgetItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#34343D',
+    backgroundColor: Colors.surface,
     borderRadius: 12,
     padding: 12,
-    minHeight: 80,
+    minHeight: 72,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   dragHandle: {
     padding: 8,
@@ -300,34 +307,39 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  widgetIcon: {
-    fontSize: 32,
+  widgetIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: Colors.surfaceElevated,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   widgetText: {
     flex: 1,
+    gap: 4,
   },
   widgetTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
+    color: Colors.textPrimary,
   },
   widgetDescription: {
-    fontSize: 14,
-    color: '#7E8491',
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
   actionButton: {
-    padding: 8,
+    padding: 4,
   },
   actionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
   },
   addIcon: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: Colors.primary,
   },
   deleteAction: {
     justifyContent: 'center',
@@ -336,7 +348,7 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   deleteButton: {
-    backgroundColor: '#F44336',
+    backgroundColor: Colors.danger,
     borderRadius: 12,
     width: 60,
     height: '100%',
@@ -346,16 +358,16 @@ const styles = StyleSheet.create({
   emptyState: {
     padding: 32,
     alignItems: 'center',
+    gap: 6,
   },
   emptyText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#7E8491',
-    marginBottom: 8,
+    color: Colors.textPrimary,
   },
   emptySubtext: {
-    fontSize: 14,
-    color: '#7E8491',
+    fontSize: 13,
+    color: Colors.textSecondary,
   },
   loadingContainer: {
     flex: 1,
@@ -365,7 +377,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#7E8491',
-    marginTop: 8,
+    color: Colors.textSecondary,
   },
 });

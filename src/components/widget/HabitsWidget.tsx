@@ -1,19 +1,21 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Dot } from 'lucide-react-native';
+import { BookOpen, Brain, CheckCircle2, Dot, Dumbbell, Flame } from 'lucide-react-native';
+
+import { Colors } from '@/constants/Colors';
 
 interface Habit {
   id: string;
   name: string;
   streak: number;
   completed: boolean;
-  icon: string;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
 }
 
 const MOCK_HABITS: Habit[] = [
-  { id: '1', name: 'Morning Workout', streak: 12, completed: false, icon: '🏃' },
-  { id: '2', name: 'Meditation', streak: 21, completed: true, icon: '🧘' },
-  { id: '3', name: 'Read 30 min', streak: 8, completed: false, icon: '📚' },
+  { id: '1', name: 'Morning Workout', streak: 12, completed: false, icon: Dumbbell },
+  { id: '2', name: 'Meditation', streak: 21, completed: true, icon: Brain },
+  { id: '3', name: 'Read 30 min', streak: 8, completed: false, icon: BookOpen },
 ];
 
 export default function HabitsWidget() {
@@ -40,23 +42,35 @@ export default function HabitsWidget() {
         </View>
 
         <View style={styles.habitsContainer}>
-          {habits.map(habit => (
-            <TouchableOpacity
-              key={habit.id}
-              style={styles.habitItem}
-              onPress={() => toggleHabit(habit.id)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.habitIcon}>{habit.icon}</Text>
-              <View style={styles.habitContent}>
-                <Text style={[styles.habitName, habit.completed && styles.habitCompleted]}>
-                  {habit.name}
-                </Text>
-                <Text style={styles.habitStreak}>🔥 {habit.streak} day streak</Text>
-              </View>
-              <View style={[styles.checkbox, habit.completed && styles.checkboxCompleted]} />
-            </TouchableOpacity>
-          ))}
+          {habits.map((habit) => {
+            const Icon = habit.icon;
+            return (
+              <TouchableOpacity
+                key={habit.id}
+                style={styles.habitItem}
+                onPress={() => toggleHabit(habit.id)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.habitIconBadge}>
+                  <Icon size={18} color={Colors.textPrimary} />
+                </View>
+                <View style={styles.habitContent}>
+                  <Text style={[styles.habitName, habit.completed && styles.habitCompleted]}>
+                    {habit.name}
+                  </Text>
+                  <View style={styles.habitMeta}>
+                    <Flame size={14} color={Colors.warning} />
+                    <Text style={styles.habitStreak}>{habit.streak} day streak</Text>
+                  </View>
+                </View>
+                <CheckCircle2
+                  size={20}
+                  color={habit.completed ? Colors.success : Colors.border}
+                  fill={habit.completed ? Colors.success : 'transparent'}
+                />
+              </TouchableOpacity>
+            );
+          })}
         </View>
       </View>
     </View>
@@ -109,8 +123,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2,
     borderBottomColor: '#34343D',
   },
-  habitIcon: {
-    fontSize: 24,
+  habitIconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: '#34343D',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginRight: 12,
   },
   habitContent: {
@@ -125,20 +144,14 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
     color: '#6B6B76',
   },
+  habitMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
   habitStreak: {
     fontSize: 12,
-    color: '#FF6B35',
-    marginTop: 2,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#3A3A42',
-  },
-  checkboxCompleted: {
-    backgroundColor: '#4CAF50',
-    borderColor: '#4CAF50',
+    color: Colors.textSecondary,
   },
 });

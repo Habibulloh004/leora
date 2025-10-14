@@ -45,7 +45,7 @@ const MOCK_NOTIFICATIONS: NotificationItem[] = [
   },
   {
     id: '3',
-    title: 'Goal achieved 🎯',
+    title: 'Goal achieved',
     message: 'Weekly progress complete — keep it up!',
     time: 'Yesterday',
     image: require('@assets/images/notifImage.jpg'),
@@ -53,7 +53,7 @@ const MOCK_NOTIFICATIONS: NotificationItem[] = [
   },
   {
     id: '4',
-    title: 'Goal achieved 🎯',
+    title: 'Goal achieved',
     message: 'Weekly progress complete — keep it up!',
     time: 'Yesterday',
     image: require('@assets/images/notifImage.jpg'),

@@ -286,7 +286,7 @@ export default function UniversalFAB() {
                           console.log('Transfer');
                           break;
                         case 'voice-note':
-                          voiceSheetRef.current?.present();
+                          router.push('/(modals)/voice-ai');
                           break;
                       }
                     }, 300);

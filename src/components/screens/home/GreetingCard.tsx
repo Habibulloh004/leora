@@ -3,7 +3,7 @@ import { useRouter } from 'expo-router';
 import { Check, Pencil } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-
+import { EditSquareIcon } from '@assets/icons';
 interface GreetingCardProps {
   userName?: string;
   onEditModeChange?: (isEditMode: boolean) => void;
@@ -57,12 +57,8 @@ export default function GreetingCard({
           onPress={handleEditToggle}
           activeOpacity={0.7}
         >
-          {editMode ? (
-            <Check color="#A6A6B9" size={16} />
-          ) : (
-            <Pencil color="#A6A6B9" size={16} />
-          )}
-          <Text style={styles.editText}>{editMode ? 'Done' : 'Edit'}</Text>
+            <EditSquareIcon color="#A6A6B9" size={16} />
+          <Text style={styles.editText}>{'Edit'}</Text>
         </TouchableOpacity>
       </View>
     </LinearGradient>

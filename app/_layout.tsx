@@ -106,6 +106,7 @@ function RootNavigator() {
           options={{
             presentation: 'modal',
             headerTitle: 'Voice Mode',
+            headerShown:false,
             headerStyle: { backgroundColor: '#25252B' },
             headerTintColor: '#fff',
           }}
