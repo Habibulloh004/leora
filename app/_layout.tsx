@@ -30,7 +30,6 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const { theme } = useTheme();
-
   const palette = theme === 'dark' ? Colors.dark : Colors.light;
 
   const navigationTheme = useMemo(() => {
