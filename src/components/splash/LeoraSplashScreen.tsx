@@ -18,6 +18,14 @@ interface LeoraSplashScreenProps {
   onAnimationComplete?: () => void;
 }
 
+const LOADING_TEXTS = [
+  'Initializing System',
+  'Loading Resources',
+  'Preparing Interface',
+  'Finalizing Setup',
+  'Ready to Launch',
+];
+
 // Цветовая палитра LEORA
 const COLORS = {
   leoraBlack: '#000000',
@@ -97,7 +105,7 @@ const Particle = ({ delay, left }: { delay: number; left: string }) => {
 };
 
 export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashScreenProps) {
-  const [loadingText, setLoadingText] = useState('Initializing System');
+  const [loadingText, setLoadingText] = useState(LOADING_TEXTS[0]);
   
   // Анимации
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -112,15 +120,6 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
   const progressWidth = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0.8)).current;
   const gridOpacity = useRef(new Animated.Value(0.1)).current;
-
-  // Тексты загрузки
-  const loadingTexts = [
-    'Initializing System',
-    'Loading Resources',
-    'Preparing Interface',
-    'Finalizing Setup',
-    'Ready to Launch',
-  ];
 
   useEffect(() => {
     // Запуск всех анимаций
@@ -246,8 +245,8 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
     let textIndex = 0;
     const textInterval = setInterval(() => {
       textIndex++;
-      if (textIndex < loadingTexts.length) {
-        setLoadingText(loadingTexts[textIndex]);
+      if (textIndex < LOADING_TEXTS.length) {
+        setLoadingText(LOADING_TEXTS[textIndex]);
       }
     }, 1000);
 
@@ -285,7 +284,6 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
     progressWidth,
     glowOpacity,
     onAnimationComplete,
-    loadingTexts,
   ]);
 
   return (
@@ -312,7 +310,7 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
 
       {/* Радиальный градиент */}
       <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.4)', COLORS.leoraBlack]}
+        colors={[COLORS.leoraBlack, COLORS.leoraBlack, COLORS.leoraBlack]}
         style={styles.gradientOverlay}
         start={{ x: 0.5, y: 0.5 }}
         end={{ x: 1, y: 1 }}

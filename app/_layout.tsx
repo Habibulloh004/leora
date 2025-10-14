@@ -3,7 +3,7 @@ import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze, enableScreens } from 'react-native-screens';
@@ -20,18 +20,24 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const [hasBooted, setHasBooted] = useState(false);
+
+  const handleSplashComplete = useCallback(() => {
+    setHasBooted(true);
+  }, []);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <BottomSheetModalProvider>
         <ThemeProvider>
-          <RootNavigator />
+          <RootNavigator hasBooted={hasBooted} onSplashComplete={handleSplashComplete} />
         </ThemeProvider>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }
 
-function RootNavigator() {
+function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; onSplashComplete: () => void }) {
   const { theme } = useTheme();
 
   const palette = theme === 'dark' ? ThemeColors.dark : ThemeColors.light;
@@ -67,8 +73,8 @@ function RootNavigator() {
 
   const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
 
-  if (!true) {
-    return <LeoraSplashScreen onAnimationComplete={() => {}} />;
+  if (!hasBooted) {
+    return <LeoraSplashScreen onAnimationComplete={onSplashComplete} />;
   }
 
   return (
