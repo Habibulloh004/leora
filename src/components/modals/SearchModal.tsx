@@ -78,7 +78,6 @@ function SearchModalComponent({ onDismiss }: SearchModalProps, ref: ForwardedRef
             placeholder="Search..."
             placeholderTextColor={Colors.textSecondary + '99'}
             style={styles.input}
-            autoFocus
           />
           {query.length > 0 && (
             <Pressable onPress={() => setQuery('')} hitSlop={8}>

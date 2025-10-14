@@ -103,7 +103,23 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
     []
   );
 
-  const { index, keyboardBehavior, keyboardBlurBehavior, enablePanDownToClose, ...modalRest } = rest;
+  const {
+    index,
+    keyboardBehavior,
+    keyboardBlurBehavior,
+    enablePanDownToClose,
+    ...modalRest
+  } = rest;
+
+  const panDownToClose = enablePanDownToClose ?? !isFullScreen;
+  const backgroundStyles = useMemo(
+    () => [styles.background, isFullScreen && styles.fullScreenBackground, backgroundStyle],
+    [backgroundStyle, isFullScreen]
+  );
+  const handleIndicatorStyles = useMemo(
+    () => [styles.handleIndicator, isFullScreen && styles.hiddenHandleIndicator, handleIndicatorStyle],
+    [handleIndicatorStyle, isFullScreen]
+  );
 
   const baseContentStyle = [styles.contentContainer, contentContainerStyle];
   const content = scrollable ? (
@@ -125,11 +141,11 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
       index={index ?? 0}
       keyboardBehavior={keyboardBehavior ?? 'interactive'}
       keyboardBlurBehavior={keyboardBlurBehavior ?? 'restore'}
-      enablePanDownToClose={enablePanDownToClose ?? true}
+      enablePanDownToClose={panDownToClose}
       snapPoints={computedSnapPoints}
       backdropComponent={renderBackdrop}
-      handleIndicatorStyle={[styles.handleIndicator, handleIndicatorStyle]}
-      backgroundStyle={[styles.background, backgroundStyle]}
+      handleIndicatorStyle={handleIndicatorStyles}
+      backgroundStyle={backgroundStyles}
       {...modalRest}
     >
       {content}
@@ -149,10 +165,16 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.textTertiary,
     width: 56,
   },
+  hiddenHandleIndicator: {
+    opacity: 0,
+  },
   contentContainer: {
     flexGrow: 1,
-    paddingHorizontal: 20,
+    paddingHorizontal: 40,
     paddingBottom: 24,
+  },
+  fullScreenBackground: {
+    borderRadius: 0,
   },
   scrollContainer: {
     flex: 1,
