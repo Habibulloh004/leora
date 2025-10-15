@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "LEORA",
-    "slug": "leora-mobile",
+    "slug": "leora",
     "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -67,14 +67,22 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "react-native-vosk",
+        {
+          "models": [
+            "assets/model-en-us"
+          ]
+        }
       ]
     ],
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "215c6b4e-64df-4adb-ae1b-ecf88f303e85"
+        "projectId": "5fa3a555-1519-4da3-9e1a-0879915b84d9"
       }
     },
-    "owner": "dev_bek_211"
+    "owner": "habibulloh"
   }
 }

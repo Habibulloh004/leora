@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Minus, Plus, HeartPulse } from 'lucide-react-native';
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ImageBackground,
   Pressable,
@@ -19,8 +19,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTab } from '../contexts/TabContext';
-import VoiceAiModal from './modals/VoiceAiModal';
-import { BottomSheetHandle } from './modals/BottomSheet';
 import { AddTaskIcon } from '@assets/icons/AddTaskIcon';
 import { QuickExpIcon } from '@assets/icons/QuickExpIcon';
 import { AIVoiceIcon } from '@assets/icons/AIVoiceIcon';
@@ -43,7 +41,6 @@ export default function UniversalFAB() {
   const overlayOpacity = useSharedValue(0);
   const iconProgress = useSharedValue(0);
   const [openModal, setOpenModal] = useState(false);
-  const voiceSheetRef = useRef<BottomSheetHandle>(null);
   
   // Animation values for each button
   const buttonAnimations = [
@@ -318,7 +315,6 @@ export default function UniversalFAB() {
             </TouchableOpacity>
           </View>
         </View>
-        <VoiceAiModal ref={voiceSheetRef} />
       </View>
     </View>
   );
