@@ -1,8 +1,7 @@
 // apps/mobile/src/data/services/RecurringTransactionService.ts
-import { Realm } from 'realm';
-import { RecurringTransaction } from '../models/RecurringTransaction';
-import { Transaction } from '../models/Transaction';
-import { Account } from '../models/Account';
+import Realm from 'realm';
+import { RecurringTransaction } from '@/utils/models/RecurringTransaction';
+import { Transaction } from '@/utils/models/Transaction';
 
 export class RecurringTransactionService {
   private realm: Realm;
@@ -22,7 +21,7 @@ export class RecurringTransactionService {
   }
 
   // Получить предстоящие транзакции на N дней
-  getUpcoming(days: number = 7): RecurringTransaction[] {
+  getUpcoming(days: number = 7): Realm.Results<RecurringTransaction> {
     const futureDate = new Date();
     futureDate.setDate(futureDate.getDate() + days);
     
@@ -165,53 +164,45 @@ export class RecurringTransactionService {
     daysOfWeek?: number[],
     dayOfMonth?: number
   ): Date {
+    const normalizedInterval = Math.max(1, interval);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    let firstDate = new Date(startDate);
-    firstDate.setHours(0, 0, 0, 0);
-    
-    // Если startDate в прошлом, вычисляем следующее появление от сегодня
-    if (firstDate < today) {
-      firstDate = new Date(today);
-      
-      switch (pattern) {
-        case 'daily':
-          // Уже на сегодня
-          break;
-          
-        case 'weekly':
-        case 'biweekly':
-          // Находим следующий нужный день недели
-          if (daysOfWeek && daysOfWeek.length > 0) {
-            while (!daysOfWeek.includes(firstDate.getDay())) {
-              firstDate.setDate(firstDate.getDate() + 1);
-            }
-          }
-          break;
-          
-        case 'monthly':
-          // Устанавливаем нужный день месяца
-          if (dayOfMonth) {
-            firstDate.setDate(dayOfMonth);
-            // Если день уже прошел, переходим на следующий месяц
-            if (firstDate < today) {
-              firstDate.setMonth(firstDate.getMonth() + 1);
-              firstDate.setDate(dayOfMonth);
-            }
-          }
-          break;
-          
-        case 'yearly':
-          // Переходим на следующий год если дата уже прошла
-          if (firstDate < today) {
-            firstDate.setFullYear(today.getFullYear() + 1);
-          }
-          break;
-      }
+
+    const initialDate = new Date(startDate);
+    initialDate.setHours(0, 0, 0, 0);
+
+    if (initialDate >= today) {
+      return initialDate;
     }
-    
-    return firstDate;
+
+    const tempRecurring = {
+      pattern,
+      interval: normalizedInterval,
+      daysOfWeek,
+      dayOfMonth,
+      skipDates: [] as unknown as Realm.List<Date>,
+      nextOccurrence: initialDate,
+      calculateNextOccurrence: RecurringTransaction.prototype.calculateNextOccurrence,
+    } as unknown as RecurringTransaction & {
+      calculateNextOccurrence: () => Date;
+    };
+
+    let nextOccurrence = initialDate;
+    let iterations = 0;
+    const maxIterations = 512;
+
+    while (nextOccurrence < today && iterations < maxIterations) {
+      tempRecurring.nextOccurrence = nextOccurrence;
+      nextOccurrence = tempRecurring.calculateNextOccurrence.call(tempRecurring);
+      iterations += 1;
+    }
+
+    if (iterations >= maxIterations) {
+      console.warn('Exceeded max iterations while calculating first occurrence');
+      return today;
+    }
+
+    return nextOccurrence;
   }
 
   // Обновление recurring транзакции

@@ -24,7 +24,7 @@ const DEFAULT_WIDGETS: WidgetType[] = [
 
 export const useWidgetStore = create<WidgetStore>()(
   persist(
-    (set, get) => ({
+    (set, _get) => ({
       activeWidgets: DEFAULT_WIDGETS,
       _hasHydrated: false,
 

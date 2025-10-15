@@ -116,18 +116,6 @@ const DebtsPage = () => {
     return `${diff} days left`;
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'overdue':
-        return Colors.danger;
-      case 'partial':
-        return Colors.warning;
-      case 'pending':
-      default:
-        return Colors.textSecondary;
-    }
-  };
-
   const getTotals = () => {
     const owedByMe = debts
       .filter(d => d.type === 'owed_by_me')

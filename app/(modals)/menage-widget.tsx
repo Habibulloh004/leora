@@ -103,7 +103,7 @@ export default function ManageWidgetModal() {
       const Icon = widget.icon;
 
       const renderRightActions = (
-        progress: Animated.AnimatedInterpolation<number>,
+        _progress: Animated.AnimatedInterpolation<number>,
         dragX: Animated.AnimatedInterpolation<number>
       ) => {
         const scale = dragX.interpolate({

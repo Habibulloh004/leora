@@ -1,5 +1,5 @@
 import type { Goal, ProgressData, Task } from '@/types/home';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface HomeData {
   tasks: Task[];
@@ -20,24 +20,23 @@ export function useHomeData(): HomeData {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    // TODO: Fetch data from API
-    // fetchHomeData();
-  }, []);
-
-  const fetchHomeData = async () => {
+  const fetchHomeData = useCallback(async () => {
     try {
       setLoading(true);
-      // const response = await api.get('/home');
-      // setTasks(response.data.tasks);
-      // setGoals(response.data.goals);
-      // setProgress(response.data.progress);
+      // TODO: Replace mock data with API call
+      setTasks([]);
+      setGoals([]);
+      setProgress((prev) => ({ ...prev }));
     } catch (err) {
       setError(err as Error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void fetchHomeData();
+  }, [fetchHomeData]);
 
   return { tasks, goals, progress, loading, error };
 }

@@ -2,7 +2,6 @@
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { withLayoutContext } from "expo-router";
 import { StyleSheet } from "react-native";
-import { FinanceIcon } from "@assets/icons";
 
 const { Navigator } = createMaterialTopTabNavigator();
 

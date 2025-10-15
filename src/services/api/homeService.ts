@@ -14,7 +14,7 @@ export const homeService = {
     throw new Error('Not implemented');
   },
 
-  async updateTask(taskId: string, completed: boolean): Promise<void> {
+  async updateTask(_taskId: string, _completed: boolean): Promise<void> {
     // TODO: Implement API call
     // await fetch(`${API_URL}/tasks/${taskId}`, {
     //   method: 'PATCH',
@@ -23,7 +23,7 @@ export const homeService = {
     throw new Error('Not implemented');
   },
 
-  async updateGoalProgress(goalId: string, current: number): Promise<void> {
+  async updateGoalProgress(_goalId: string, _current: number): Promise<void> {
     // TODO: Implement API call
     throw new Error('Not implemented');
   },

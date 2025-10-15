@@ -1,5 +1,6 @@
 // apps/mobile/src/data/models/RecurringTransaction.ts
-import { Realm } from 'realm';
+import Realm from 'realm';
+import { Account } from './Account';
 
 export class RecurringTransaction extends Realm.Object<RecurringTransaction> {
   _id!: Realm.BSON.ObjectId;
@@ -193,8 +194,8 @@ export class RecurringTransaction extends Realm.Object<RecurringTransaction> {
       // Обновляем счет
       if (this.type === 'transfer' && this.toAccountId) {
         // Для переводов обновляем оба счета
-        const fromAccount = realm.objectForPrimaryKey('Account', this.accountId);
-        const toAccount = realm.objectForPrimaryKey('Account', this.toAccountId);
+        const fromAccount = realm.objectForPrimaryKey<Account>('Account', this.accountId);
+        const toAccount = realm.objectForPrimaryKey<Account>('Account', this.toAccountId);
         
         if (fromAccount && toAccount) {
           fromAccount.balance -= this.amount;
@@ -202,7 +203,7 @@ export class RecurringTransaction extends Realm.Object<RecurringTransaction> {
         }
       } else {
         // Для обычных транзакций
-        const account = realm.objectForPrimaryKey('Account', this.accountId);
+        const account = realm.objectForPrimaryKey<Account>('Account', this.accountId);
         if (account) {
           if (this.type === 'expense') {
             account.balance -= this.amount;

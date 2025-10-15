@@ -1,6 +1,6 @@
 // apps/mobile/src/data/services/CurrencyService.ts
 import Realm, { BSON } from 'realm';
-import { Rate } from '../models/Rate';
+import { Rate } from '@/utils/models/Rate';
 
 export interface CurrencyRate {
   currency: string;

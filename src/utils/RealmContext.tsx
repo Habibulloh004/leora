@@ -20,9 +20,9 @@ const realmConfig: Realm.Configuration = {
     RecurringTransaction, // ДОБАВЛЕНО
   ],
   schemaVersion: 3, // Увеличиваем версию для новой модели
-  
+
   // Миграция для добавления новых моделей и полей
-  migration: (oldRealm, newRealm) => {
+  onMigration: (oldRealm: Realm, newRealm: Realm) => {
     // Версия 1 -> 2: Добавление Debt модели
     if (oldRealm.schemaVersion < 2) {
       console.log('Migrating from version', oldRealm.schemaVersion, 'to', 2);

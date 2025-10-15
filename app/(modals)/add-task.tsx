@@ -1,6 +1,5 @@
 import { View } from "react-native";
 import { Text } from "react-native-gesture-handler";
-import { BlurView } from "expo-blur";
 import { Colors } from "@/constants/Colors";
 export default function AddTask() {
   return (

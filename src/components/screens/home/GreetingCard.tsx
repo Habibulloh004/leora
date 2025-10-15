@@ -1,8 +1,7 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { Check, Pencil } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { EditSquareIcon } from '@assets/icons';
 interface GreetingCardProps {
   userName?: string;

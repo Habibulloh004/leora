@@ -8,8 +8,6 @@ import { Tabs } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { TabProvider, useTab } from '@/contexts/TabContext';
-import { useTheme } from '@/contexts/ThemeContext';
-import { Colors } from '@/constants/theme';
 import { FinanceIcon, HomeIcon, InsightsIcon, MoreIcon, PlannerIcon } from '@assets/icons';
 
 const { width } = Dimensions.get('window');
@@ -185,8 +183,6 @@ CustomTabBar.displayName = 'CustomTabBar';
 
 /* ---------------------------- Tabs Container -------------------------- */
 function TabsContent() {
-  const { theme } = useTheme();
-  const palette = theme === 'dark' ? Colors.dark : Colors.light;
   const { setActiveTab } = useTab();
 
   const screenListeners = useMemo(

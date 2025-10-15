@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Check, Clock, DollarSign, Minus, Plus, Target, Zap, HeartPulse } from 'lucide-react-native';
+import { Minus, Plus, HeartPulse } from 'lucide-react-native';
 import React, { useMemo, useRef, useState } from 'react';
 import {
   ImageBackground,
@@ -15,7 +15,6 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
