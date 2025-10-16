@@ -83,7 +83,6 @@ function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; on
         screenOptions={{
           headerShadowVisible: false,
           contentStyle: { backgroundColor: palette.background },
-          navigationBarColor: palette.background,
           fullScreenGestureEnabled: true,
           ...(Platform.OS === 'android' ? { statusBarStyle } : {}),
         }}
@@ -105,6 +104,27 @@ function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; on
             headerTitle: 'Quick Expence',
             headerStyle: { backgroundColor: '#25252B' },
             headerTintColor: '#fff',
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/search"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/notifications"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/calendar"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
           }}
         />
         <Stack.Screen

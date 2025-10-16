@@ -62,15 +62,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#25252B",
   },
   tabBar: {
-    backgroundColor: "#25252B",
-    borderBottomWidth: 1,
-    borderBottomColor: "#34343D",
+    backgroundColor: '#25252B',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#1F1F22',
     elevation: 0,
     shadowOpacity: 0,
   },
   indicator: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: '#FFFFFF',
     height: 2,
+    borderRadius: 1,
   },
   label: {
     fontSize: 13,

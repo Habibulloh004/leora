@@ -137,7 +137,7 @@ const registerStyles = StyleSheet.create({
 const authStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#25252B',
   },
   content: {
     flex: 1,
@@ -184,7 +184,7 @@ const authStyles = StyleSheet.create({
     fontWeight: '500',
   },
   input: {
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#31313A',
     borderWidth: 1,
     borderColor: '#1A1A1A',
     borderRadius: 12,

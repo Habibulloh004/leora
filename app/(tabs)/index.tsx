@@ -1,5 +1,5 @@
 // app/(tabs)/index.tsx
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
@@ -12,16 +12,13 @@ import GreetingCard from '@/components/screens/home/GreetingCard';
 import Header from '@/components/screens/home/Header';
 import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import UniversalFAB from '@/components/UniversalFAB';
-import SearchModal from '@/components/modals/SearchModal';
-import NotificationModal from '@/components/modals/NotificationModal';
-import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { useWidgetStore } from '@/stores/widgetStore';
+import { useRouter } from 'expo-router';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
   const [refreshing, setRefreshing] = useState(false);
-  const searchSheetRef = useRef<BottomSheetHandle>(null);
-  const notifSheetRef = useRef<BottomSheetHandle>(null);
+  const router = useRouter();
 
   // Subscribe to Zustand store - will automatically re-render when activeWidgets changes
   const activeWidgets = useWidgetStore((state) => state.activeWidgets);
@@ -47,9 +44,9 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <Header
-        onNotificationPress={() => notifSheetRef.current?.present()}
+        onNotificationPress={() => router.navigate('/(modals)/notifications')}
         scrollY={scrollY}
-        onSearchPress={() => searchSheetRef.current?.present()}
+        onSearchPress={() => router.navigate('/(modals)/search')}
       />
       <Animated.ScrollView
         onScroll={onScroll}
@@ -80,8 +77,6 @@ export default function HomeScreen() {
         <View style={styles.bottomSpacer} />
       </Animated.ScrollView>
       <UniversalFAB />
-      <SearchModal ref={searchSheetRef} />
-      <NotificationModal ref={notifSheetRef} />
     </SafeAreaView>
   );
 }

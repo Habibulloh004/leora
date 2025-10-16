@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import { Minus, Plus, HeartPulse } from 'lucide-react-native';
+import { Minus, Plus, HeartPulse, Flag, ListChecks } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
 import {
   ImageBackground,
@@ -18,6 +18,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import IncomeOutcomeModal from '@/components/modals/finance/IncomeOutcomeModal';
+import TransactionModal from '@/components/modals/finance/TransactionModal';
+import DebtModal from '@/components/modals/finance/DebtModal';
+import { useModalStore } from '@/stores/useModalStore';
 import { useTab } from '../contexts/TabContext';
 import { AddTaskIcon } from '@assets/icons/AddTaskIcon';
 import { QuickExpIcon } from '@assets/icons/QuickExpIcon';
@@ -26,6 +31,7 @@ import { DebtIcon, InComingIcon, OutComingIcon, TransactionIcon } from '@assets/
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
+import { useShallow } from 'zustand/react/shallow';
 
 interface FABAction {
   id: string;
@@ -51,6 +57,25 @@ export default function UniversalFAB() {
   ];
 
   const router = useRouter();
+  const {
+    openIncomeOutcome,
+    openTransferModal,
+    openDebtModal,
+    openPlannerTaskModal,
+    openPlannerGoalModal,
+    openPlannerHabitModal,
+    openPlannerFocusModal,
+  } = useModalStore(
+    useShallow((state) => ({
+      openIncomeOutcome: state.openIncomeOutcome,
+      openTransferModal: state.openTransferModal,
+      openDebtModal: state.openDebtModal,
+      openPlannerTaskModal: state.openPlannerTaskModal,
+      openPlannerGoalModal: state.openPlannerGoalModal,
+      openPlannerHabitModal: state.openPlannerHabitModal,
+      openPlannerFocusModal: state.openPlannerFocusModal,
+    }))
+  );
 
   const actions: FABAction[] = useMemo(() => {
     switch (activeTab) {
@@ -62,11 +87,20 @@ export default function UniversalFAB() {
           { id: 'voice-note', icon: AIVoiceIcon, label: 'VOICE NOTE' },
         ];
       case 'finance':
+      case '(finance)':
         return [
-          { id: 'debt', icon: DebtIcon, label: 'DEBT' },
-          { id: 'transaction', icon: TransactionIcon, label: 'TRANSACTION' },
-          { id: 'add-outcome', icon: OutComingIcon, label: '-OUTCOME' },
-          { id: 'add-income', icon: InComingIcon, label: '+INCOME' },
+          { id: 'finance-income', icon: InComingIcon, label: '+INCOME' },
+          { id: 'finance-outcome', icon: OutComingIcon, label: '-OUTCOME' },
+          { id: 'finance-transfer', icon: TransactionIcon, label: 'TRANSFER' },
+          { id: 'finance-debt', icon: DebtIcon, label: 'DEBT' },
+        ];
+      case 'planner':
+      case '(planner)':
+        return [
+          { id: 'planner-task', icon: AddTaskIcon, label: 'NEW TASK' },
+          { id: 'planner-goal', icon: Flag, label: 'NEW GOAL' },
+          { id: 'planner-habit', icon: ListChecks, label: 'NEW HABIT' },
+          { id: 'planner-focus', icon: HeartPulse, label: 'FOCUS MODE' },
         ];
       default:
         return [];
@@ -206,8 +240,9 @@ export default function UniversalFAB() {
 
   // Return null after all hooks have been called
   if (actions.length === 0) return null;
-  
+
   return (
+    <>
     <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}>
       {/* Full Screen Background Overlay */}
       <Animated.View
@@ -265,24 +300,42 @@ export default function UniversalFAB() {
                     setTimeout(() => {
                       switch (action.id) {
                         case 'add-task':
-                          router.push('/(modals)/add-task');
+                          router.navigate('/(modals)/add-task');
                           break;
                         case 'quick-expense':
                         case 'add-expense':
                           console.log('Add Expense');
-                          router.push('/(modals)/quick-exp');
-                          break;
-                        case 'add-income':
-                          console.log('Add Income');
+                          router.navigate('/(modals)/quick-exp');
                           break;
                         case 'start-focus':
-                          router.push('/focus-mode');
-                          break;
-                        case 'transfer':
-                          console.log('Transfer');
+                          router.navigate('/focus-mode');
                           break;
                         case 'voice-note':
-                          router.push('/(modals)/voice-ai');
+                          router.navigate('/(modals)/voice-ai');
+                          break;
+                        case 'planner-task':
+                          openPlannerTaskModal('create');
+                          break;
+                        case 'planner-goal':
+                          openPlannerGoalModal('create');
+                          break;
+                        case 'planner-habit':
+                          openPlannerHabitModal('create');
+                          break;
+                        case 'planner-focus':
+                          openPlannerFocusModal();
+                          break;
+                        case 'finance-income':
+                          openIncomeOutcome({ tab: 'income' });
+                          break;
+                        case 'finance-outcome':
+                          openIncomeOutcome({ tab: 'outcome' });
+                          break;
+                        case 'finance-transfer':
+                          openTransferModal();
+                          break;
+                        case 'finance-debt':
+                          openDebtModal();
                           break;
                       }
                     }, 300);
@@ -317,6 +370,10 @@ export default function UniversalFAB() {
         </View>
       </View>
     </View>
+    <IncomeOutcomeModal />
+    <TransactionModal />
+    <DebtModal />
+    </>
   );
 }
 

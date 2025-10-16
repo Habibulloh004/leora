@@ -26,6 +26,8 @@ const LOADING_TEXTS = [
   'Ready to Launch',
 ];
 
+const LOGO_SOURCE = require('@assets/images/icon.png');
+
 // Цветовая палитра LEORA
 const COLORS = {
   leoraBlack: '#000000',
@@ -329,7 +331,7 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
 
       {/* Логотип и текст */}
       <View style={styles.logoContainer}>
-        {/* Логотип L */}
+        {/* Логотип */}
         <Animated.View
           style={[
             styles.logoMain,
@@ -338,30 +340,15 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
               transform: [
                 { scale: logoScale },
                 { translateY: logoTranslateY },
-                { skewX: '-15deg' },
               ],
             },
           ]}
         >
-          {/* Вертикальная часть L */}
-          <Animated.View style={[styles.logoVertical, { opacity: glowOpacity }]}>
-            <LinearGradient
-              colors={[COLORS.neutral50, COLORS.neutral100, COLORS.neutral200, COLORS.neutral300]}
-              style={styles.gradientFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 0, y: 1 }}
-            />
-          </Animated.View>
-          
-          {/* Горизонтальная часть L */}
-          <Animated.View style={[styles.logoHorizontal, { opacity: glowOpacity }]}>
-            <LinearGradient
-              colors={[COLORS.neutral100, COLORS.neutral200, COLORS.neutral300, COLORS.neutral400]}
-              style={styles.gradientFill}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-            />
-          </Animated.View>
+          <Animated.Image
+            source={LOGO_SOURCE}
+            resizeMode="contain"
+            style={[styles.logoImage, { opacity: glowOpacity }]}
+          />
         </Animated.View>
 
         {/* Текст LEORA */}
@@ -463,36 +450,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   logoMain: {
-    width: 80,
-    height: 100,
+    width: 140,
+    height: 140,
     marginBottom: 24,
-    position: 'relative',
-  },
-  logoVertical: {
-    position: 'absolute',
-    width: 18,
-    height: 80,
-    top: 0,
-    left: 0,
-    borderRadius: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: COLORS.leoraWhite,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 12,
   },
-  logoHorizontal: {
-    position: 'absolute',
-    width: 70,
-    height: 18,
-    bottom: 0,
-    left: 0,
-    borderRadius: 2,
-    shadowColor: COLORS.leoraWhite,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
-    elevation: 10,
+  logoImage: {
+    width: '100%',
+    height: '100%',
   },
   gradientFill: {
     width: '100%',

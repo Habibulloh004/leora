@@ -34,7 +34,7 @@ export default function GreetingCard({
     const newEditMode = !editMode;
     setEditMode(newEditMode);
     onEditModeChange?.(newEditMode);
-    router.push("/(modals)/menage-widget")
+    router.navigate('/(modals)/menage-widget')
   };
 
   return (

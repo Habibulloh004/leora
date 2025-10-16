@@ -13,9 +13,9 @@ export const Colors = {
   background: '#25252B',    // Почти черный фон
   backgroundElevated: '#0f0f10',
   
-  surface: '#16161a',       // Карточки первого уровня
+  surface: '#31313A',       // Карточки первого уровня
   surfaceElevated: '#1c1c21', // Приподнятые карточки
-  surfaceHighlight: '#242429', // Hover/Active состояния
+  surfaceHighlight: '#030304ff', // Hover/Active состояния
   
   // === Текст с правильной иерархией ===
   textPrimary: '#ffffff',   // Основной текст
@@ -223,7 +223,7 @@ export const Themes = {
   // AMOLED тема (чистый черный)
   amoled: {
     ...Colors,
-    background: '#000000',
+    background: '#25252B',
     backgroundElevated: '#0a0a0a',
     surface: '#0f0f0f',
     surfaceElevated: '#1a1a1a',

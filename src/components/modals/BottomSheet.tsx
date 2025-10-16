@@ -16,7 +16,7 @@ import {
   BottomSheetScrollView,
   BottomSheetView,
 } from '@gorhom/bottom-sheet';
-import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, ViewStyle, useWindowDimensions } from 'react-native';
 
 import { Colors } from '@/constants/Colors';
 
@@ -25,7 +25,7 @@ export interface BottomSheetHandle {
   dismiss: () => void;
 }
 
-type CustomBottomSheetProps = Omit<BottomSheetModalProps, 'children' | 'snapPoints'> & {
+export type CustomBottomSheetProps = Omit<BottomSheetModalProps, 'children' | 'snapPoints'> & {
   children: ReactNode;
   snapPoints?: (string | number)[];
   contentContainerStyle?: StyleProp<ViewStyle>;
@@ -34,6 +34,8 @@ type CustomBottomSheetProps = Omit<BottomSheetModalProps, 'children' | 'snapPoin
   scrollProps?: Partial<ComponentProps<typeof BottomSheetScrollView>>;
   hasScrollableChildren?: boolean;
 };
+
+const MAX_HEIGHT_PERCENT = 0.88;
 
 const CustomBottomSheet = forwardRef(function CustomBottomSheet(
   {
@@ -51,6 +53,36 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
   ref: ForwardedRef<BottomSheetHandle>
 ) {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  const cappedDynamicSize = useMemo(() => windowHeight * MAX_HEIGHT_PERCENT, [windowHeight]);
+
+  const clampSnapPoint = useCallback(
+    (point: string | number) => {
+      if (typeof point === 'string') {
+        const trimmed = point.trim();
+        if (trimmed.endsWith('%')) {
+          const numeric = parseFloat(trimmed.slice(0, -1));
+          if (Number.isFinite(numeric)) {
+            const clamped = Math.min(numeric, MAX_HEIGHT_PERCENT * 100);
+            return `${clamped}%`;
+          }
+        }
+        return point;
+      }
+      if (typeof point === 'number') {
+        return Math.min(point, cappedDynamicSize);
+      }
+      return point;
+    },
+    [cappedDynamicSize]
+  );
+
+  const normalizedSnapPoints = useMemo<(string | number)[] | undefined>(() => {
+    if (!snapPoints || snapPoints.length === 0) {
+      return undefined;
+    }
+    return snapPoints.map(clampSnapPoint);
+  }, [clampSnapPoint, snapPoints]);
 
   const handlePresent = useCallback(() => {
     bottomSheetRef.current?.present();
@@ -95,18 +127,18 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
 
   const dynamicSizingEnabled = enableDynamicSizing ?? false;
   const defaultSnapPoints = useMemo<(string | number)[]>(
-    () => (isFullScreen ? ['95%'] : ['60%']),
+    () => (isFullScreen ? [`${MAX_HEIGHT_PERCENT * 100}%`] : ['60%']),
     [isFullScreen]
   );
   const resolvedSnapPoints = useMemo<(string | number)[] | undefined>(() => {
     if (dynamicSizingEnabled) {
-      return snapPoints && snapPoints.length > 0 ? snapPoints : undefined;
+      return normalizedSnapPoints && normalizedSnapPoints.length > 0 ? normalizedSnapPoints : undefined;
     }
-    if (snapPoints && snapPoints.length > 0) {
-      return snapPoints;
+    if (normalizedSnapPoints && normalizedSnapPoints.length > 0) {
+      return normalizedSnapPoints;
     }
     return defaultSnapPoints;
-  }, [defaultSnapPoints, dynamicSizingEnabled, snapPoints]);
+  }, [defaultSnapPoints, dynamicSizingEnabled, normalizedSnapPoints]);
 
   const panDownToClose = enablePanDownToClose ?? !isFullScreen;
   const backgroundStyles = useMemo(
@@ -152,6 +184,7 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
       handleIndicatorStyle={handleIndicatorStyles}
       backgroundStyle={backgroundStyles}
       enableDynamicSizing={dynamicSizingEnabled}
+      maxDynamicContentSize={cappedDynamicSize}
       {...(resolvedSnapPoints ? { snapPoints: resolvedSnapPoints } : {})}
       {...modalRest}
     >

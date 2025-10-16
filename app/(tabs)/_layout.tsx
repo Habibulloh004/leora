@@ -213,8 +213,8 @@ function TabsContent() {
       >
         <Tabs.Screen name="index" />
         <Tabs.Screen name="(finance)" />
-        <Tabs.Screen name="planner" />
-        <Tabs.Screen name="insights" />
+        <Tabs.Screen name="(planner)" />
+        <Tabs.Screen name="(insights)" />
         <Tabs.Screen name="more" />
       </Tabs>
     </View>

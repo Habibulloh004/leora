@@ -1,22 +1,20 @@
-import { Colors } from '@/constants/Colors';
-import React, {
-  ForwardedRef,
-  useCallback,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-} from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import {
+  FlatList,
+  Image,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Bell, Dumbbell, PartyPopper } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { BottomSheetFlatList } from '@gorhom/bottom-sheet';
 
-import CustomBottomSheet, { BottomSheetHandle } from '@/components/modals/BottomSheet';
-
-interface NotificationModalProps {
-  onDismiss?: () => void;
-}
+import { Colors } from '@/constants/Colors';
 
 interface NotificationItem {
   id: string;
@@ -61,56 +59,37 @@ const MOCK_NOTIFICATIONS: NotificationItem[] = [
   },
 ];
 
-function NotificationModalComponent(
-  { onDismiss }: NotificationModalProps,
-  ref: ForwardedRef<BottomSheetHandle>
-) {
-  const internalRef = useRef<BottomSheetHandle>(null);
+export default function NotificationsModalScreen() {
+  const router = useRouter();
   const notifications = useMemo(() => MOCK_NOTIFICATIONS, []);
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      present: () => internalRef.current?.present(),
-      dismiss: () => internalRef.current?.dismiss(),
-    }),
-    []
-  );
+  const handleClose = () => {
+    router.back();
+  };
 
-  const handleClose = useCallback(() => {
-    internalRef.current?.dismiss();
-    onDismiss?.();
-  }, [onDismiss]);
-
-  const handleSelect = useCallback((item: NotificationItem) => {
+  const handleSelect = (item: NotificationItem) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     console.log('Notification opened:', item.title);
-  }, []);
+  };
 
-  return (
-    <CustomBottomSheet
-      ref={internalRef}
-      onDismiss={onDismiss}
-      contentContainerStyle={styles.sheetContent}
-      isFullScreen
-    >
+  const renderHeader = () => (
+    <View style={styles.headerContainer}>
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
         <Pressable onPress={handleClose} hitSlop={10}>
           <Ionicons name="close" size={26} color={Colors.textSecondary} />
         </Pressable>
       </View>
+    </View>
+  );
 
-      <BottomSheetFlatList
+  return (
+    <SafeAreaView style={styles.container}>
+      <FlatList
         data={notifications}
-        keyExtractor={(item: any) => item.id}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-        ListEmptyComponent={<Text style={styles.noResults}>No new notifications</Text>}
-        keyboardShouldPersistTaps="handled"
-        renderItem={({ item }: { item: any }) => {
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => {
           const IconComponent = item.icon || Bell;
-
           return (
             <Pressable
               onPress={() => handleSelect(item)}
@@ -135,35 +114,53 @@ function NotificationModalComponent(
             </Pressable>
           );
         }}
+        ListEmptyComponent={<Text style={styles.noResults}>No new notifications</Text>}
+        ListHeaderComponent={renderHeader}
+        stickyHeaderIndices={[0]}
+        contentContainerStyle={styles.listContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
       />
-    </CustomBottomSheet>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  sheetContent: {
-    paddingTop: 24,
+  container: {
+    flex: 1,
+    backgroundColor: Colors.background,
+  },
+  headerContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    paddingTop: Platform.OS === 'ios' ? 12 : 40,
+    backgroundColor: Colors.background,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: Colors.textSecondary + '33',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
   },
   title: {
     fontSize: 22,
     fontWeight: '600',
     color: Colors.textPrimary,
   },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
   notificationItem: {
     borderRadius: 16,
     overflow: 'hidden',
+    marginBottom: 16,
   },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 16,
   },
   notificationHeader: {
     flexDirection: 'row',
@@ -201,12 +198,7 @@ const styles = StyleSheet.create({
   noResults: {
     textAlign: 'center',
     color: Colors.textSecondary,
-    marginTop: 40,
+    marginTop: 32,
     fontSize: 15,
   },
-  listContent: {
-    paddingBottom: 40,
-  },
 });
-
-export default React.forwardRef<BottomSheetHandle, NotificationModalProps>(NotificationModalComponent);

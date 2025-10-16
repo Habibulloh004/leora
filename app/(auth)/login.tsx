@@ -74,7 +74,7 @@ export default function LoginScreen() {
             </View>
           </View>
 
-          <TouchableOpacity onPress={() => router.push('/(auth)/forgot-password')}>
+          <TouchableOpacity onPress={() => router.navigate('/(auth)/forgot-password')}>
             <Text style={authStyles.forgotPassword}>Forgot Password?</Text>
           </TouchableOpacity>
 
@@ -90,7 +90,7 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             style={authStyles.biometricButton}
-            onPress={() => router.push('/(auth)/biometric')}
+            onPress={() => router.navigate('/(auth)/biometric')}
           >
             <Text style={authStyles.biometricText}>Use Face ID</Text>
           </TouchableOpacity>
@@ -98,7 +98,7 @@ export default function LoginScreen() {
 
         <View style={authStyles.footer}>
           <Text style={authStyles.footerText}>Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
+          <TouchableOpacity onPress={() => router.navigate('/(auth)/register')}>
             <Text style={authStyles.footerLink}>Sign Up</Text>
           </TouchableOpacity>
         </View>
@@ -110,7 +110,7 @@ export default function LoginScreen() {
 const authStyles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#25252B',
   },
   content: {
     flex: 1,
@@ -157,7 +157,7 @@ const authStyles = StyleSheet.create({
     fontWeight: '500',
   },
   input: {
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#31313A',
     borderWidth: 1,
     borderColor: '#1A1A1A',
     borderRadius: 12,
@@ -225,4 +225,3 @@ const authStyles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

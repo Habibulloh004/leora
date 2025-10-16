@@ -12,21 +12,29 @@ export interface Task {
 
 export interface Transaction {
   id: string;
-  type: 'income' | 'outcome' | 'debt';
+  type: 'income' | 'outcome' | 'transfer';
   amount: number;
-  category: string;
-  description: string;
+  category?: string;
+  accountId: string;
+  toAccountId?: string;
+  note?: string;
+  description?: string;
   date: Date;
+  currency?: string;
   createdAt: Date;
 }
 
 export interface Debt {
   id: string;
-  creditorName: string;
+  person: string;
   amount: number;
   remainingAmount: number;
-  dueDate?: Date;
-  status: 'active' | 'paid' | 'overdue';
+  type: 'borrowed' | 'lent';
+  currency: string;
+  date: Date;
+  expectedReturnDate?: Date;
+  note?: string;
+  status: 'active' | 'settled' | 'overdue';
   createdAt: Date;
 }
 

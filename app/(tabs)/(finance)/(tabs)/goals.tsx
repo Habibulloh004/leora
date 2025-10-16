@@ -117,7 +117,7 @@ const GoalsPage = () => {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       {/* Summary Card */}
       <LinearGradient
-        colors={['#0A0A0A', '#0F0F0F']}
+        colors={['#0A0A0A', '#31313A']}
         style={styles.summaryCard}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
@@ -365,7 +365,7 @@ const styles = StyleSheet.create({
   },
   quickStatCard: {
     flex: 1,
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#31313A',
     borderRadius: 12,
     padding: 16,
     borderLeftWidth: 3,
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
     color: '#7E8491',
   },
   goalCard: {
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#31313A',
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -518,7 +518,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#0F0F0F',
+    backgroundColor: '#31313A',
     marginHorizontal: 16,
     paddingVertical: 18,
     borderRadius: 16,

@@ -3,18 +3,33 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeftRight, Download } from 'lucide-react-native';
+import { ArrowLeftRight, Download, Image } from 'lucide-react-native';
+import UniversalFAB from '@/components/UniversalFAB';
+import { DateTransferIcon, DiagramIcon, DollorEuroIcon, SearchDocIcon, SettingIcon } from '@assets/icons';
 
 function FinanceHeader() {
   return (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>Finance</Text>
-      <View style={styles.headerActions}>
+      <View style={styles.headerActions0}>
         <TouchableOpacity style={styles.headerButton}>
-          <ArrowLeftRight color="#FFFFFF" size={20} />
+          <DollorEuroIcon color="#A6A6B9" size={24} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton}>
-          <Download color="#FFFFFF" size={20} />
+          <DiagramIcon color="#A6A6B9" size={24} />
+        </TouchableOpacity>
+      </View>
+      <View style={styles.headerTitle}>
+        <Text style={styles.headerTitleText}>FINANCE</Text>
+      </View>
+      <View style={styles.headerActions1}>
+        <TouchableOpacity style={styles.headerButton}>
+          <DateTransferIcon color="#A6A6B9" size={24} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.headerButton}>
+          <SearchDocIcon color="#A6A6B9" size={24} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.headerButton}>
+          <SettingIcon color="#A6A6B9" size={24} />
         </TouchableOpacity>
       </View>
     </View>
@@ -33,6 +48,7 @@ const FinanceLayout = () => {
       >
         <Stack.Screen name="(tabs)" />
       </Stack>
+      <UniversalFAB />
     </SafeAreaView>
   );
 };
@@ -45,28 +61,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#25252B',
   },
   header: {
+    height: 60,
+    backgroundColor: '#25252B',
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#34343D',
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    justifyContent: "center",
+    alignItems: "center",
+    flex: 1,
   },
-  headerActions: {
+  headerTitleText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#A6A6B9',
+  },
+  headerActions0: {
+    flex: 1,
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
+  },
+  headerActions1: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: "flex-end",
+    gap: 12,
   },
   headerButton: {
-    width: 40,
-    height: 40,
+    width: "auto",
+    height: "auto",
     borderRadius: 12,
-    backgroundColor: '#0F0F0F',
     justifyContent: 'center',
     alignItems: 'center',
   },
