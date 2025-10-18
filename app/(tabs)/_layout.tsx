@@ -1,21 +1,18 @@
 // app/(tabs)/_layout.tsx
 import 'react-native-gesture-handler';
-import React, { memo, useEffect, useMemo, useRef } from 'react';
+import React, { memo, useMemo, useRef } from 'react';
 import { Animated, Dimensions, Platform, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Tabs, useRouter } from 'expo-router';
-import { useSharedValue } from 'react-native-reanimated';
+import { Tabs } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { TabProvider, useTab } from '@/contexts/TabContext';
 import { FinanceIcon, HomeIcon, InsightsIcon, MoreIcon, PlannerIcon } from '@assets/icons';
-import Header from '@/components/screens/home/Header';
 import PlannerHeader from '@/components/planner/PlannerHeader';
 import InsightsHeader from '@/components/insights/InsightsHeader';
 import MoreHeader from '@/components/more/MoreHeader';
 import FinanceHeader from '@/components/finance/FinanceHeader';
-import { useHomeScrollStore } from '@/stores/useHomeScrollStore';
 
 const { width } = Dimensions.get('window');
 const TAB_COUNT = 5 as const;
@@ -44,26 +41,6 @@ const TabHeaderFrame: React.FC<{ children: React.ReactNode }> = ({ children }) =
   );
 };
 
-const HomeTabHeader = () => {
-  const router = useRouter();
-  const scrollValue = useHomeScrollStore((state) => state.scrollY);
-  const headerScroll = useSharedValue(scrollValue);
-
-  useEffect(() => {
-    headerScroll.value = scrollValue;
-  }, [scrollValue, headerScroll]);
-
-  return (
-    <TabHeaderFrame>
-      <Header
-        mode="inline"
-        scrollY={headerScroll}
-        onNotificationPress={() => router.navigate('/(modals)/notifications')}
-        onSearchPress={() => router.navigate('/(modals)/search')}
-      />
-    </TabHeaderFrame>
-  );
-};
 
 const FinanceTabHeader = () => (
   <TabHeaderFrame>
@@ -273,7 +250,7 @@ function TabsContent() {
         <Tabs.Screen
           name="index"
           options={{
-            header: () => <HomeTabHeader />,
+            headerShown: false 
           }}
         />
         <Tabs.Screen
