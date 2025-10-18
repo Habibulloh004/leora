@@ -7,6 +7,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze, enableScreens } from 'react-native-screens';
+import { Asset } from 'expo-asset';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import LeoraSplashScreen from '@/components/splash/LeoraSplashScreen';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { Colors as ThemeColors } from '@/constants/theme';
@@ -20,24 +22,74 @@ export const unstable_settings = {
 };
 
 export default function RootLayout() {
+  const [assetsReady, setAssetsReady] = useState(false);
+  const [animationFinished, setAnimationFinished] = useState(false);
   const [hasBooted, setHasBooted] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAssets = async () => {
+      try {
+        await Asset.loadAsync([
+          require('@assets/images/icon.png'),
+          require('@assets/images/authBackground.png'),
+          require('@assets/images/backgroundModal.png'),
+          require('@assets/images/notifImage.jpg'),
+          require('@assets/images/bg.png'),
+        ]);
+      } catch (error) {
+        console.warn('[RootLayout] Failed to preload assets', error);
+      } finally {
+        if (isMounted) {
+          setAssetsReady(true);
+        }
+      }
+    };
+
+    loadAssets();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (assetsReady && animationFinished) {
+      setHasBooted(true);
+    }
+  }, [assetsReady, animationFinished]);
+
   const handleSplashComplete = useCallback(() => {
-    setHasBooted(true);
+    setAnimationFinished(true);
   }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <BottomSheetModalProvider>
-        <ThemeProvider>
-          <RootNavigator hasBooted={hasBooted} onSplashComplete={handleSplashComplete} />
-        </ThemeProvider>
-      </BottomSheetModalProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <BottomSheetModalProvider>
+          <ThemeProvider>
+            <RootNavigator
+              hasBooted={hasBooted}
+              assetsReady={assetsReady}
+              onSplashComplete={handleSplashComplete}
+            />
+          </ThemeProvider>
+        </BottomSheetModalProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
 
-function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; onSplashComplete: () => void }) {
+function RootNavigator({
+  hasBooted,
+  assetsReady,
+  onSplashComplete,
+}: {
+  hasBooted: boolean;
+  assetsReady: boolean;
+  onSplashComplete: () => void;
+}) {
   const { theme } = useTheme();
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
@@ -92,7 +144,7 @@ function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; on
   const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
 
   if (!hasBooted) {
-    return <LeoraSplashScreen onAnimationComplete={onSplashComplete} />;
+    return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
   }
 
   return (

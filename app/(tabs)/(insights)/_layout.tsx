@@ -4,14 +4,12 @@ import { Stack } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import InsightsHeader from '@/components/insights/InsightsHeader';
 import UniversalFAB from '@/components/UniversalFAB';
 import InsightsModals from '@/components/insights/InsightsModals';
 
 const InsightsLayout = () => {
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <InsightsHeader />
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <View style={styles.contentWrapper}>
         <Stack
           screenOptions={{

@@ -1,64 +1,228 @@
-import React, { useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, TextInputProps } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Animated,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  TouchableOpacity,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Eye, EyeOff } from 'lucide-react-native';
 
+type ValidationState = 'default' | 'focused' | 'error';
+
+type IconComponent = React.ComponentType<{ size?: number; color?: string }>;
+
 interface InputProps extends TextInputProps {
-  icon?: React.ReactNode;
+  label?: string;
+  icon?: IconComponent;
+  iconSize?: number;
   isPassword?: boolean;
+  error?: string;
+  onClearError?: () => void;
 }
 
 export const Input: React.FC<InputProps> = ({
+  label,
   icon,
+  iconSize = 20,
   isPassword = false,
   style,
+  error: externalError,
+  onClearError,
+  onFocus,
+  onBlur,
+  onChangeText,
+  value = '',
   ...props
 }) => {
+  const error = externalError;
+
   const [showPassword, setShowPassword] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Animated values keep transitions subtle and polished
+  const stateAnim = useRef(new Animated.Value(0)).current;
+  const errorAnim = useRef(new Animated.Value(error ? 1 : 0)).current;
+
+  const validationState: ValidationState = error
+    ? 'error'
+    : isFocused
+    ? 'focused'
+    : 'default';
+
+  useEffect(() => {
+    const toValue = validationState === 'error' ? 2 : validationState === 'focused' ? 1 : 0;
+
+    Animated.timing(stateAnim, {
+      toValue,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [stateAnim, validationState]);
+
+  useEffect(() => {
+    Animated.timing(errorAnim, {
+      toValue: error ? 1 : 0,
+      duration: 180,
+      useNativeDriver: false,
+    }).start();
+  }, [error, errorAnim]);
+
+  const handleFocus = (e: any) => {
+    setIsFocused(true);
+    onFocus?.(e);
+  };
+
+  const handleBlur = (e: any) => {
+    setIsFocused(false);
+
+    onBlur?.(e);
+  };
+
+  const handleChangeText = (text: string) => {
+    onChangeText?.(text);
+
+    if (error) {
+      onClearError?.();
+    }
+  };
+
+  const placeholderColor = useMemo(() => {
+    switch (validationState) {
+      case 'error':
+        return '#ffb3b3';
+      case 'focused':
+        return '#dce1ff';
+      default:
+        return '#A6A6B9';
+    }
+  }, [validationState]);
+
+  const textColor = validationState === 'error' ? '#FFE5E5' : '#FFFFFF';
+
+  const borderColor = stateAnim.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: ['rgba(255,255,255,0.08)', '#7C83FF', '#FF4D4F'],
+  });
+
+  const borderWidth = stateAnim.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [1, 2, 2],
+  });
+
+  const iconTint = useMemo(() => {
+    switch (validationState) {
+      case 'error':
+        return '#FF8A8C';
+      case 'focused':
+        return '#D1D5FF';
+      default:
+        return '#A6A6B9';
+    }
+  }, [validationState]);
+
+  const labelTint = useMemo(() => {
+    switch (validationState) {
+      case 'error':
+        return '#FF7A7C';
+      case 'focused':
+        return '#F3F4FF';
+      default:
+        return '#A6A6B9';
+    }
+  }, [validationState]);
+
+  const IconComponent = icon;
 
   return (
-    <View style={[styles.container, style]}>
-      {/* Gradient background */}
-      <LinearGradient
-        colors={[
-          'rgba(49,49,58,0.2)',
-          'rgba(0,0,0,0.12)',
+    <Animated.View style={[styles.container, style]}>
+      {label && <Text style={[styles.label, { color: labelTint }]}>{label}</Text>}
+
+      <Animated.View style={[styles.inputWrapper, { borderColor, borderWidth }]}>
+        <LinearGradient
+          colors={['rgba(49,49,58,0.2)', 'rgba(0,0,0,0.12)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.gradientBackground}
+        >
+          {IconComponent && (
+            <Animated.View style={styles.iconContainer}>
+              <IconComponent size={iconSize} color={iconTint} />
+            </Animated.View>
+          )}
+
+          <TextInput
+            style={[
+              styles.input,
+              IconComponent ? styles.inputWithIcon : undefined,
+              isPassword ? styles.inputWithToggle : undefined,
+              { color: textColor },
+            ]}
+            value={value}
+            secureTextEntry={isPassword && !showPassword}
+            placeholderTextColor={placeholderColor}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onChangeText={handleChangeText}
+            {...props}
+          />
+
+          {isPassword && (
+            <TouchableOpacity
+              style={styles.eyeIcon}
+              onPress={() => setShowPassword((prev) => !prev)}
+            >
+              {showPassword ? (
+                <EyeOff size={18} color="#dce1ff" />
+              ) : (
+                <Eye size={18} color="#dce1ff" />
+              )}
+            </TouchableOpacity>
+          )}
+        </LinearGradient>
+      </Animated.View>
+
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.errorWrapper,
+          {
+            opacity: errorAnim,
+            transform: [
+              {
+                translateY: errorAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-4, 0],
+                }),
+              },
+            ],
+            height: errorAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, 18],
+            }),
+          },
         ]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.gradientBackground}
       >
-        {icon && <View style={styles.iconContainer}>{icon}</View>}
-
-        <TextInput
-          style={[styles.input, icon ? styles.inputWithIcon : undefined, isPassword && { marginRight: 32, }]}
-          secureTextEntry={isPassword && !showPassword}
-          placeholderTextColor="#A6A6B9"
-          {...props}
-        />
-
-        {isPassword && (
-          <TouchableOpacity
-            style={styles.eyeIcon}
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? (
-              <EyeOff size={20} color="#A6A6B9" />
-            ) : (
-              <Eye size={20} color="#A6A6B9" />
-            )}
-          </TouchableOpacity>
-        )}
-      </LinearGradient>
-    </View>
+        <Text style={styles.errorText}>{error ?? ''}</Text>
+      </Animated.View>
+    </Animated.View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    marginBottom: 16,
-    borderRadius: 12,
+    marginBottom: 10,
+  },
+  label: {
+    fontWeight: '600',
+    letterSpacing: 0.15,
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    borderRadius: 14,
     overflow: 'hidden',
     shadowColor: 'rgba(0,0,0,0.25)',
     shadowOffset: { width: 0, height: 2 },
@@ -67,34 +231,43 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   gradientBackground: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 14,
     position: 'relative',
   },
   input: {
-    height: 52,
-    paddingHorizontal: 16,
-    color: '#FFFFFF',
+    height: 56,
+    paddingHorizontal: 18,
     fontSize: 16,
     fontWeight: '500',
   },
   inputWithIcon: {
-    paddingLeft: 48,
+    paddingLeft: 54,
+  },
+  inputWithToggle: {
+    paddingRight: 48,
   },
   iconContainer: {
     position: 'absolute',
-    left: 16,
-    top: 16,
-    zIndex: 1,
+    left: 18,
+    top: 18,
   },
   eyeIcon: {
     position: 'absolute',
     right: 0,
-    width: 40,
-    height: "100%",
-    justifyContent: "center",
-    padding: 2,
     top: 0,
+    width: 48,
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorWrapper: {
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  errorText: {
+    color: '#FF8A8C',
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.1,
   },
 });

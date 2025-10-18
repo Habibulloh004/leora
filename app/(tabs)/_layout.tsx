@@ -1,14 +1,21 @@
 // app/(tabs)/_layout.tsx
 import 'react-native-gesture-handler';
-import React, { memo, useMemo, useRef } from 'react';
+import React, { memo, useEffect, useMemo, useRef } from 'react';
 import { Animated, Dimensions, Platform, Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
+import { useSharedValue } from 'react-native-reanimated';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { TabProvider, useTab } from '@/contexts/TabContext';
 import { FinanceIcon, HomeIcon, InsightsIcon, MoreIcon, PlannerIcon } from '@assets/icons';
+import Header from '@/components/screens/home/Header';
+import PlannerHeader from '@/components/planner/PlannerHeader';
+import InsightsHeader from '@/components/insights/InsightsHeader';
+import MoreHeader from '@/components/more/MoreHeader';
+import FinanceHeader from '@/components/finance/FinanceHeader';
+import { useHomeScrollStore } from '@/stores/useHomeScrollStore';
 
 const { width } = Dimensions.get('window');
 const TAB_COUNT = 5 as const;
@@ -29,6 +36,58 @@ const TABS: readonly TabItem[] = [
   { name: 'insights', label: 'Insights', icon: InsightsIcon },
   { name: 'more', label: 'More', icon: MoreIcon },
 ] as const;
+
+const TabHeaderFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const insets = useSafeAreaInsets();
+  return (
+    <View style={{ paddingTop: insets.top, backgroundColor: '#25252B' }}>{children}</View>
+  );
+};
+
+const HomeTabHeader = () => {
+  const router = useRouter();
+  const scrollValue = useHomeScrollStore((state) => state.scrollY);
+  const headerScroll = useSharedValue(scrollValue);
+
+  useEffect(() => {
+    headerScroll.value = scrollValue;
+  }, [scrollValue, headerScroll]);
+
+  return (
+    <TabHeaderFrame>
+      <Header
+        mode="inline"
+        scrollY={headerScroll}
+        onNotificationPress={() => router.navigate('/(modals)/notifications')}
+        onSearchPress={() => router.navigate('/(modals)/search')}
+      />
+    </TabHeaderFrame>
+  );
+};
+
+const FinanceTabHeader = () => (
+  <TabHeaderFrame>
+    <FinanceHeader />
+  </TabHeaderFrame>
+);
+
+const PlannerTabHeader = () => (
+  <TabHeaderFrame>
+    <PlannerHeader />
+  </TabHeaderFrame>
+);
+
+const InsightsTabHeader = () => (
+  <TabHeaderFrame>
+    <InsightsHeader />
+  </TabHeaderFrame>
+);
+
+const MoreTabHeader = () => (
+  <TabHeaderFrame>
+    <MoreHeader />
+  </TabHeaderFrame>
+);
 
 /* ----------------------------- Tab Button ----------------------------- */
 interface TabButtonProps {
@@ -144,7 +203,7 @@ const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
     }).start();
   }
 
-  const totalHeight = (Platform.OS === 'ios' ? 49 : 56) + insets.bottom;
+  const totalHeight = (Platform.OS === 'ios' ? 54 : 60) + insets.bottom;
 
   return (
     <View style={[styles.tabBar, { height: totalHeight, paddingBottom: Platform.OS === 'ios' ? insets.bottom : 8 }]}>
@@ -205,17 +264,42 @@ function TabsContent() {
         screenListeners={screenListeners}
         tabBar={(props) => <CustomTabBar {...props} />}
         screenOptions={{
-          headerShown: false,
           freezeOnBlur: true,
           tabBarButton: HapticTab,
+          headerStyle: { backgroundColor: '#25252B' },
         }}
         backBehavior="order"
       >
-        <Tabs.Screen name="index" />
-        <Tabs.Screen name="(finance)" />
-        <Tabs.Screen name="(planner)" />
-        <Tabs.Screen name="(insights)" />
-        <Tabs.Screen name="more" />
+        <Tabs.Screen
+          name="index"
+          options={{
+            header: () => <HomeTabHeader />,
+          }}
+        />
+        <Tabs.Screen
+          name="(finance)"
+          options={{
+            header: () => <FinanceTabHeader />,
+          }}
+        />
+        <Tabs.Screen
+          name="(planner)"
+          options={{
+            header: () => <PlannerTabHeader />,
+          }}
+        />
+        <Tabs.Screen
+          name="(insights)"
+          options={{
+            header: () => <InsightsTabHeader />,
+          }}
+        />
+        <Tabs.Screen
+          name="more"
+          options={{
+            header: () => <MoreTabHeader />,
+          }}
+        />
       </Tabs>
     </View>
   );
@@ -224,11 +308,9 @@ function TabsContent() {
 /* ------------------------------ Root Export --------------------------- */
 export default function TabsLayout() {
   return (
-    <SafeAreaProvider>
-      <TabProvider>
-        <TabsContent />
-      </TabProvider>
-    </SafeAreaProvider>
+    <TabProvider>
+      <TabsContent />
+    </TabProvider>
   );
 }
 
@@ -240,7 +322,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#25252B',
     borderTopWidth: 1,
     borderTopColor: '#1A1A1A',
-    paddingTop: 8,
+    paddingVertical: 8,
     overflow: 'visible',
   },
   tabContainer: {

@@ -76,18 +76,18 @@ const styles = StyleSheet.create({
     paddingBottom: 32
   },
   logo: {
-    width: 80,
-    height: 100
+    width: 60,
+    height: 80
   },
   logoTitle: {
     paddingLeft: 10,
     color: "#A6A6B9",
     fontWeight: "200",
-    fontSize: 65,
+    fontSize: 48,
     letterSpacing: 3
   },
   logoDesc: {
-    fontSize: 18,
+    fontSize: 13,
     color: "#A6A6B9"
   }
 });

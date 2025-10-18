@@ -1,4 +1,5 @@
 import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -12,10 +13,12 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg';
 
 interface Props {
-  scrollY: SharedValue<number>;
+  scrollY?: SharedValue<number>;
   tasks?: number;
   budget?: number;
   focus?: number;
+  variant?: 'default' | 'inline';
+  style?: StyleProp<ViewStyle>;
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -25,7 +28,6 @@ interface CircularProgressProps {
   color: string;
 }
 
-// CircularProgress har doim bir xil o'lchamda
 const CircularProgress = React.memo(({ progress, color }: CircularProgressProps) => {
   const size = 96;
   const strokeWidth = 7;
@@ -77,31 +79,30 @@ export default function ProgressIndicators({
   tasks = 50,
   budget = 62,
   focus = 52,
+  variant = 'default',
+  style,
 }: Props) {
   const SCROLL_THRESHOLD = 100;
+  const isInline = variant === 'inline';
 
   const containerStyle = useAnimatedStyle(() => {
-    const collapse = interpolate(
-      scrollY.value,
-      [0, SCROLL_THRESHOLD],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
+    if (!scrollY || isInline) {
+      return {};
+    }
+
+    const collapse = interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 1], Extrapolation.CLAMP);
     const height = 160 - collapse * 120;
-    
 
     return { height };
   });
 
-  // Scale orqali kichraytirish - SVG o'lchami o'zgarmaydi!
   const circleContainerStyle = useAnimatedStyle(() => {
-    const collapse = interpolate(
-      scrollY.value,
-      [0, SCROLL_THRESHOLD],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
-    const scale = 1 - collapse * 0.792; // 1 -> 0.208
+    if (!scrollY || isInline) {
+      return {};
+    }
+
+    const collapse = interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 1], Extrapolation.CLAMP);
+    const scale = 1 - collapse * 0.792;
     const translateX = -10 * collapse;
     const translateY = 90 * collapse;
 
@@ -111,14 +112,13 @@ export default function ProgressIndicators({
   });
 
   const percentStyle = useAnimatedStyle(() => {
-    const hideProgress = interpolate(
-      scrollY.value,
-      [0, 50],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
+    if (!scrollY || isInline) {
+      return {};
+    }
+
+    const hideProgress = interpolate(scrollY.value, [0, 50], [0, 1], Extrapolation.CLAMP);
     const opacity = 1 - hideProgress;
-    const scale = 1 - hideProgress * 0.22; // 1 -> 0.78
+    const scale = 1 - hideProgress * 0.22;
 
     return {
       opacity,
@@ -126,21 +126,13 @@ export default function ProgressIndicators({
     };
   });
 
-  /* CHANGED: Staggered animation - label moves RIGHT first (0-60), then UP later (40-100).
-     This prevents overlap by clearing the circle horizontally before moving vertically. */
   const labelStyle = useAnimatedStyle(() => {
-    const rightShift = interpolate(
-      scrollY.value,
-      [0, 60],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
-    const verticalShift = interpolate(
-      scrollY.value,
-      [50, SCROLL_THRESHOLD],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
+    if (!scrollY || isInline) {
+      return {};
+    }
+
+    const rightShift = interpolate(scrollY.value, [0, 60], [0, 1], Extrapolation.CLAMP);
+    const verticalShift = interpolate(scrollY.value, [50, SCROLL_THRESHOLD], [0, 1], Extrapolation.CLAMP);
     const translateX = 45 * rightShift;
     const translateY = -44 * verticalShift;
 
@@ -150,16 +142,27 @@ export default function ProgressIndicators({
   });
 
   const progressAnimatedStyle = useAnimatedStyle(() => {
-    const collapse = interpolate(
-      scrollY.value,
-      [0, SCROLL_THRESHOLD],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
+    if (!scrollY || isInline) {
+      return {};
+    }
+
+    const collapse = interpolate(scrollY.value, [0, SCROLL_THRESHOLD], [0, 1], Extrapolation.CLAMP);
     const paddingRight = 55 * collapse;
 
     return {
       paddingRight,
+    };
+  });
+
+  const visibilityStyle = useAnimatedStyle(() => {
+    if (!scrollY || isInline) {
+      return {};
+    }
+
+    const appear = interpolate(scrollY.value, [0, 30, SCROLL_THRESHOLD], [0, 0.4, 1], Extrapolation.CLAMP);
+
+    return {
+      opacity: appear,
     };
   });
 
@@ -178,22 +181,51 @@ export default function ProgressIndicators({
   ];
 
   return (
-    <Animated.View style={[styles.container, containerStyle]}>
-      <Animated.View style={[styles.innerContainer, progressAnimatedStyle]}>
+    <Animated.View
+      style={[
+        styles.container,
+        isInline ? styles.inlineContainer : undefined,
+        style,
+        containerStyle,
+        !isInline ? visibilityStyle : undefined,
+      ]}
+    >
+      <Animated.View
+        style={[
+          styles.innerContainer,
+          isInline ? styles.inlineInner : undefined,
+          progressAnimatedStyle,
+        ]}
+      >
         {progressItems.map((item, index) => (
           <View key={index} style={styles.itemWrapper}>
-            <Animated.View style={[styles.circleContainer, circleContainerStyle]}>
-              <CircularProgress
-                progress={item.value}
-                color={item.color}
-              />
+            <Animated.View
+              style={[
+                styles.circleContainer,
+                isInline ? styles.inlineCircleContainer : undefined,
+                circleContainerStyle,
+              ]}
+            >
+              <CircularProgress progress={item.value} color={item.color} />
 
-              <Animated.Text style={[styles.percentText, percentStyle]}>
+              <Animated.Text
+                style={[
+                  styles.percentText,
+                  isInline ? styles.inlinePercentText : undefined,
+                  percentStyle,
+                ]}
+              >
                 {Math.round(item.value)}%
               </Animated.Text>
             </Animated.View>
 
-            <Animated.Text style={[styles.labelText, labelStyle]}>
+            <Animated.Text
+              style={[
+                styles.labelText,
+                isInline ? styles.inlineLabelText : undefined,
+                labelStyle,
+              ]}
+            >
               {item.label}
             </Animated.Text>
           </View>
@@ -210,13 +242,22 @@ const styles = StyleSheet.create({
     borderBottomColor: '#34343D',
     zIndex: 99,
     justifyContent: 'center',
-    paddingTop:20
+    paddingTop: 20,
   },
   innerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
     width: '100%',
+  },
+  inlineContainer: {
+    paddingTop: 0,
+    paddingBottom: 12,
+    borderBottomWidth: 0,
+  },
+  inlineInner: {
+    paddingHorizontal: 12,
+    justifyContent: 'space-between',
   },
   itemWrapper: {
     alignItems: 'center',
@@ -230,12 +271,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
+  inlineCircleContainer: {
+    width: 88,
+    height: 88,
+  },
   percentText: {
     position: 'absolute',
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
+  },
+  inlinePercentText: {
+    fontSize: 16,
   },
   labelText: {
     color: '#A6A6B9',
@@ -244,11 +292,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginTop: 8,
   },
+  inlineLabelText: {
+    marginTop: 6,
+  },
 });
-
-/*
- * FIX: Used staggered animation timing to prevent overlap during transition.
- * - translateX animates from scrollY 0-60 (label moves right early, clearing the circle)
- * - translateY animates from scrollY 40-100 (label moves up later, after clearing horizontally)
- * This ensures the label is safely to the right side before it starts moving upward.
- */

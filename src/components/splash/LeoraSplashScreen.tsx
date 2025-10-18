@@ -16,6 +16,7 @@ const { width, height } = Dimensions.get('window');
 
 interface LeoraSplashScreenProps {
   onAnimationComplete?: () => void;
+  ready?: boolean;
 }
 
 const LOADING_TEXTS = [
@@ -106,8 +107,11 @@ const Particle = ({ delay, left }: { delay: number; left: string }) => {
   );
 };
 
-export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashScreenProps) {
+export default function LeoraSplashScreen({ onAnimationComplete, ready = false }: LeoraSplashScreenProps) {
   const [loadingText, setLoadingText] = useState(LOADING_TEXTS[0]);
+  const [introComplete, setIntroComplete] = useState(false);
+  const textIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const exitStartedRef = useRef(false);
   
   // Анимации
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -122,6 +126,7 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
   const progressWidth = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0.8)).current;
   const gridOpacity = useRef(new Animated.Value(0.1)).current;
+  const introTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Запуск всех анимаций
@@ -245,32 +250,25 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
 
     // Изменение текста загрузки
     let textIndex = 0;
-    const textInterval = setInterval(() => {
+    textIntervalRef.current = setInterval(() => {
       textIndex++;
       if (textIndex < LOADING_TEXTS.length) {
         setLoadingText(LOADING_TEXTS[textIndex]);
       }
     }, 1000);
-
-    // Завершение анимации
-    const timer = setTimeout(() => {
-      clearInterval(textInterval);
-      // Анимация исчезновения
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
-      }).start(() => {
-        if (onAnimationComplete) {
-          onAnimationComplete();
-        }
-      });
-    }, 5000);
+    introTimerRef.current = setTimeout(() => {
+      setIntroComplete(true);
+    }, 4800);
 
     return () => {
-      clearTimeout(timer);
-      clearInterval(textInterval);
+      if (introTimerRef.current) {
+        clearTimeout(introTimerRef.current);
+        introTimerRef.current = null;
+      }
+      if (textIntervalRef.current) {
+        clearInterval(textIntervalRef.current);
+        textIntervalRef.current = null;
+      }
     };
   }, [
     fadeAnim,
@@ -285,8 +283,33 @@ export default function LeoraSplashScreen({ onAnimationComplete }: LeoraSplashSc
     loadingOpacity,
     progressWidth,
     glowOpacity,
-    onAnimationComplete,
   ]);
+
+  useEffect(() => {
+    if (!ready || !introComplete || exitStartedRef.current) {
+      return;
+    }
+
+    exitStartedRef.current = true;
+
+    if (introTimerRef.current) {
+      clearTimeout(introTimerRef.current);
+      introTimerRef.current = null;
+    }
+    if (textIntervalRef.current) {
+      clearInterval(textIntervalRef.current);
+      textIntervalRef.current = null;
+    }
+
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 800,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      onAnimationComplete?.();
+    });
+  }, [ready, introComplete, fadeAnim, onAnimationComplete]);
 
   return (
     <Animated.View

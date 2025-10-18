@@ -18,6 +18,7 @@ interface ButtonProps {
   textStyle?: TextStyle;
   loading?: boolean;
   disabled?: boolean;
+  onValidationError?: () => void; // Called when button is pressed but validation fails
 }
 
 export const Button: React.FC<ButtonProps> = ({

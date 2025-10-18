@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -8,21 +8,24 @@ import {
   TextInput,
   Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Mail } from 'lucide-react-native';
 import { Input, Button } from '@/components/auth';
 import GlassCard from '@/components/shared/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { validateEmailOrUsername } from '@/utils/validation';
 
 const ForgotPasswordScreen = () => {
   const { sendPasswordResetCode, verifyPasswordResetOtp, isLoading, error, clearError } = useAuthStore();
 
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
+  const [emailError, setEmailError] = useState<string | undefined>();
   const [otp, setOtp] = useState(['', '', '', '']);
   const [timer, setTimer] = useState(85);
   const [canResend, setCanResend] = useState(false);
+  const hasFocusedRef = useRef(false);
 
   const otpRefs = [
     useRef<TextInput>(null),
@@ -30,6 +33,22 @@ const ForgotPasswordScreen = () => {
     useRef<TextInput>(null),
     useRef<TextInput>(null),
   ];
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocusedRef.current) {
+        setStep('email');
+        setEmail('');
+        setOtp(['', '', '', '']);
+        setTimer(85);
+        setCanResend(false);
+      }
+
+      setEmailError(undefined);
+      clearError();
+      hasFocusedRef.current = true;
+    }, [clearError])
+  );
 
   useEffect(() => {
     if (step === 'otp' && timer > 0) {
@@ -49,10 +68,14 @@ const ForgotPasswordScreen = () => {
   const handleSendCode = async () => {
     clearError();
 
-    if (!email) {
-      Alert.alert('Error', 'Please enter your email or phone number');
+    const validationError = validateEmailOrUsername(email.trim());
+    setEmailError(validationError);
+
+    if (validationError) {
       return;
     }
+
+    setEmailError(undefined);
 
     const success = await sendPasswordResetCode(email);
 
@@ -147,14 +170,22 @@ const ForgotPasswordScreen = () => {
 
             <View style={styles.form}>
               <Input
-                style={{ width: 'auto' }}
-                placeholder="Email or Phone"
+                label="Email or Phone"
+                placeholder="Enter your email or phone number"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  if (error) {
+                    clearError();
+                  }
+                }}
                 keyboardType="email-address"
                 autoCapitalize="none"
-                icon={<Mail size={20} color="#A6A6B9" />}
-              />
+              icon={Mail}
+              iconSize={22}
+              error={emailError}
+              onClearError={() => setEmailError(undefined)}
+            />
 
               {/* Error message */}
               {error && (
@@ -262,7 +293,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   header: {
-    marginBottom: 32,
+    marginBottom: 16,
+    paddingTop:8
   },
   title: {
     fontSize: 28,

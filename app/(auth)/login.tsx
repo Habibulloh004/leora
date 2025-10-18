@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Mail, Lock } from "lucide-react-native";
 import { Input, Button, SocialLoginButtons } from "@/components/auth";
 import GlassCard from "@/components/shared/GlassCard";
 import { CheckIcon } from "@assets/icons";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { validateEmailOrUsername } from "@/utils/validation";
 
 const LoginScreen = () => {
   const { login, isLoading, error, clearError, setRememberMe } = useAuthStore();
@@ -19,9 +20,39 @@ const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rememberMeLocal, setRememberMeLocal] = useState(false);
+  const [emailError, setEmailError] = useState<string | undefined>();
+  const [passwordError, setPasswordError] = useState<string | undefined>();
+  const hasFocusedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocusedRef.current) {
+        setEmail("");
+        setPassword("");
+        setRememberMeLocal(false);
+      }
+
+      setEmailError(undefined);
+      setPasswordError(undefined);
+      clearError();
+      hasFocusedRef.current = true;
+    }, [clearError])
+  );
 
   const handleLogin = async () => {
     clearError();
+
+    // Validate inputs
+    const emailValidationError = validateEmailOrUsername(email);
+    const passwordValidationError = password ? undefined : "Password is required";
+
+    setEmailError(emailValidationError);
+    setPasswordError(passwordValidationError);
+
+    // If validation fails, don't proceed
+    if (emailValidationError || passwordValidationError) {
+      return;
+    }
 
     const success = await login({
       emailOrUsername: email,
@@ -58,20 +89,38 @@ const LoginScreen = () => {
           {/* Inputs */}
           <View style={styles.form}>
             <Input
-              placeholder="Email or Username"
+              label="Email or Username"
+              placeholder="Enter your email or username"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (error) {
+                  clearError();
+                }
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
-              icon={<Mail size={20} color="#A6A6B9" />}
+              icon={Mail}
+              iconSize={22}
+              error={emailError}
+              onClearError={() => setEmailError(undefined)}
             />
 
             <Input
-              placeholder="Password"
+              label="Password"
+              placeholder="Enter your password"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (error) {
+                  clearError();
+                }
+              }}
               isPassword
-              icon={<Lock size={20} color="#A6A6B9" />}
+              icon={Lock}
+              iconSize={22}
+              error={passwordError}
+              onClearError={() => setPasswordError(undefined)}
             />
 
             {/* Options */}
@@ -105,7 +154,7 @@ const LoginScreen = () => {
             <Button
               title={isLoading ? "Logging in..." : "Log In"}
               onPress={handleLogin}
-              disabled={isLoading || !email || !password}
+              disabled={isLoading}
             />
 
             {/* Social buttons */}
@@ -143,7 +192,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20
   },
   header: {
-    marginBottom: 24,
+    marginBottom: 16,
+    paddingTop: 8
   },
   title: {
     fontSize: 24,
@@ -159,7 +209,7 @@ const styles = StyleSheet.create({
   },
   form: {
     width: "100%",
-    marginTop: 12,
+    marginTop: 16,
   },
   options: {
     flexDirection: "row",

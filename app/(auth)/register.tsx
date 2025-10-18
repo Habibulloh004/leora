@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Mail, Lock, User } from 'lucide-react-native';
 import { Input, Button, SocialLoginButtons } from '@/components/auth';
 import GlassCard from '@/components/shared/GlassCard';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { validateEmail, validateName, validatePassword, validateConfirmPassword } from '@/utils/validation';
 
 const RegisterScreen = () => {
   const { register, isLoading, error, clearError } = useAuthStore();
@@ -14,8 +15,48 @@ const RegisterScreen = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const [emailError, setEmailError] = useState<string | undefined>();
+  const [nameError, setNameError] = useState<string | undefined>();
+  const [passwordError, setPasswordError] = useState<string | undefined>();
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | undefined>();
+  const hasFocusedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (hasFocusedRef.current) {
+        setEmailOrPhone('');
+        setFullName('');
+        setPassword('');
+        setConfirmPassword('');
+      }
+
+      setEmailError(undefined);
+      setNameError(undefined);
+      setPasswordError(undefined);
+      setConfirmPasswordError(undefined);
+      clearError();
+      hasFocusedRef.current = true;
+    }, [clearError])
+  );
+
   const handleRegister = async () => {
     clearError();
+
+    // Validate all inputs
+    const emailValidationError = validateEmail(emailOrPhone);
+    const nameValidationError = validateName(fullName);
+    const passwordValidationError = validatePassword(password);
+    const confirmPasswordValidationError = validateConfirmPassword(password, confirmPassword);
+
+    setEmailError(emailValidationError);
+    setNameError(nameValidationError);
+    setPasswordError(passwordValidationError);
+    setConfirmPasswordError(confirmPasswordValidationError);
+
+    // If any validation fails, don't proceed
+    if (emailValidationError || nameValidationError || passwordValidationError || confirmPasswordValidationError) {
+      return;
+    }
 
     const success = await register({
       emailOrPhone,
@@ -52,34 +93,71 @@ const RegisterScreen = () => {
 
         <View style={styles.form}>
           <Input
-            placeholder="Email or Phone or Username"
+            label="Email"
+            placeholder="name@example.com"
             value={emailOrPhone}
-            onChangeText={setEmailOrPhone}
+            onChangeText={(text) => {
+              setEmailOrPhone(text);
+              if (error) {
+                clearError();
+              }
+            }}
             autoCapitalize="none"
-            icon={<Mail size={20} color="#A6A6B9" />}
+            keyboardType="email-address"
+            icon={Mail}
+            iconSize={22}
+            error={emailError}
+            onClearError={() => setEmailError(undefined)}
           />
 
           <Input
-            placeholder="Full Name"
+            label="Full Name"
+            placeholder="Enter your full name"
             value={fullName}
-            onChangeText={setFullName}
-            icon={<User size={20} color="#A6A6B9" />}
+            onChangeText={(text) => {
+              setFullName(text);
+              if (error) {
+                clearError();
+              }
+            }}
+            icon={User}
+            iconSize={22}
+            error={nameError}
+            onClearError={() => setNameError(undefined)}
           />
 
           <Input
-            placeholder="Password"
+            label="Password"
+            placeholder="Create a password"
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error) {
+                clearError();
+              }
+            }}
             isPassword
-            icon={<Lock size={20} color="#A6A6B9" />}
+            icon={Lock}
+            iconSize={22}
+            error={passwordError}
+            onClearError={() => setPasswordError(undefined)}
           />
 
           <Input
-            placeholder="Confirm Password"
+            label="Confirm Password"
+            placeholder="Re-enter your password"
             value={confirmPassword}
-            onChangeText={setConfirmPassword}
+            onChangeText={(text) => {
+              setConfirmPassword(text);
+              if (error) {
+                clearError();
+              }
+            }}
             isPassword
-            icon={<Lock size={20} color="#A6A6B9" />}
+            icon={Lock}
+            iconSize={22}
+            error={confirmPasswordError}
+            onClearError={() => setConfirmPasswordError(undefined)}
           />
 
           {/* Error message */}
@@ -92,7 +170,7 @@ const RegisterScreen = () => {
           <Button
             title={isLoading ? "Creating Account..." : "Sign Up"}
             onPress={handleRegister}
-            disabled={isLoading || !emailOrPhone || !fullName || !password || !confirmPassword}
+            disabled={isLoading}
           />
 
           <SocialLoginButtons
@@ -121,8 +199,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20 
   },
   header: {
-    marginBottom: 32,
-  },
+    marginBottom: 16,
+    paddingTop:8  },
   title: {
     fontSize: 32,
     fontWeight: '700',

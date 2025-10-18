@@ -5,13 +5,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 
 import UniversalFAB from '@/components/UniversalFAB';
-import PlannerHeader from '@/components/planner/PlannerHeader';
 import PlannerModals from '@/components/planner/PlannerModals';
 
 const PlannerLayout = () => {
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <PlannerHeader />
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <View style={styles.contentWrapper}>
         <Stack
           screenOptions={{

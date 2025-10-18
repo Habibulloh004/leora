@@ -3,7 +3,6 @@ import { ScrollView, StyleSheet, Text, View, Pressable, Switch } from 'react-nat
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
-import MoreHeader from '@/components/more/MoreHeader';
 import UniversalFAB from '@/components/UniversalFAB';
 import { LogoutButton } from '@/components/auth';
 
@@ -57,8 +56,7 @@ export default function MoreScreen() {
   const [syncEnabled, setSyncEnabled] = React.useState(true);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <MoreHeader />
+    <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -391,4 +389,3 @@ const styles = StyleSheet.create({
     height: 100,
   },
 });
-
