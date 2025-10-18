@@ -3,7 +3,6 @@ import React from 'react';
 import { Stack } from 'expo-router';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeftRight, Download, Image } from 'lucide-react-native';
 import UniversalFAB from '@/components/UniversalFAB';
 import { DateTransferIcon, DiagramIcon, DollorEuroIcon, SearchDocIcon, SettingIcon } from '@assets/icons';
 

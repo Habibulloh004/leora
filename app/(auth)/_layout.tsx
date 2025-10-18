@@ -1,4 +1,4 @@
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Slot, useRouter } from 'expo-router';
 import { Image, ImageBackground, StyleSheet, Text, View } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,7 +8,6 @@ import { useEffect } from 'react';
 export default function AuthLayout() {
   const { isAuthenticated } = useAuthStore();
   const router = useRouter();
-  const segments = useSegments();
 
   // Redirect authenticated users to main app
   useEffect(() => {
