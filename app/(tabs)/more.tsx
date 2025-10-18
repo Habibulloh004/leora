@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 
 import MoreHeader from '@/components/more/MoreHeader';
 import UniversalFAB from '@/components/UniversalFAB';
+import { LogoutButton } from '@/components/auth';
 
 interface MenuItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -224,6 +225,7 @@ export default function MoreScreen() {
 
         {/* Account Actions */}
         <View style={styles.dangerSection}>
+          <LogoutButton/>
           <Pressable style={styles.dangerButton}>
             <Ionicons name="log-out-outline" size={20} color="#FF6B6B" />
             <Text style={styles.dangerButtonText}>Выйти из аккаунта</Text>

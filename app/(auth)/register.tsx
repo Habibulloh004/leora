@@ -1,256 +1,171 @@
-import { useRouter } from 'expo-router';
-import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { router } from 'expo-router';
+import { Mail, Lock, User } from 'lucide-react-native';
+import { Input, Button, SocialLoginButtons } from '@/components/auth';
+import GlassCard from '@/components/shared/GlassCard';
+import { useAuthStore } from '@/stores/useAuthStore';
 
-export default function RegisterScreen() {
-  const router = useRouter();
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
-  });
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+const RegisterScreen = () => {
+  const { register, isLoading, error, clearError } = useAuthStore();
+
+  const [emailOrPhone, setEmailOrPhone] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleRegister = async () => {
-    setLoading(true);
-    // TODO: Implement API call
-    // await authService.register(formData);
-    setTimeout(() => {
-      router.replace('/(tabs)');
-    }, 1000);
+    clearError();
+
+    const success = await register({
+      emailOrPhone,
+      fullName,
+      password,
+      confirmPassword,
+    });
+
+    if (success) {
+      Alert.alert(
+        'Registration Successful',
+        'Welcome to Leora! Your account has been created.',
+        [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+      );
+    } else if (error) {
+      Alert.alert('Registration Failed', error);
+    }
+  };
+
+  const handleSocialRegister = (provider: string) => {
+    Alert.alert('Coming Soon', `${provider} registration will be available soon!`);
   };
 
   return (
-    <SafeAreaView style={authStyles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        <TouchableOpacity
-          style={registerStyles.backButton}
-          onPress={() => router.back()}
-        >
-          <ArrowLeft color="#FFFFFF" size={24} />
-        </TouchableOpacity>
+    <GlassCard>
 
-        <View style={authStyles.header}>
-          <Text style={authStyles.logo}>LEORA</Text>
-          <Text style={authStyles.tagline}>Order in Tasks & Money</Text>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Register</Text>
+          <Text style={styles.description}>
+            Create an account to continue!
+          </Text>
         </View>
 
-        <View style={authStyles.form}>
-          <Text style={authStyles.title}>Create Account</Text>
-          <Text style={authStyles.subtitle}>Sign up to get started</Text>
+        <View style={styles.form}>
+          <Input
+            placeholder="Email or Phone or Username"
+            value={emailOrPhone}
+            onChangeText={setEmailOrPhone}
+            autoCapitalize="none"
+            icon={<Mail size={20} color="#A6A6B9" />}
+          />
 
-          <View style={authStyles.inputContainer}>
-            <Text style={authStyles.label}>Full Name</Text>
-            <TextInput
-              style={authStyles.input}
-              placeholder="John Doe"
-              placeholderTextColor="#666666"
-              value={formData.name}
-              onChangeText={(text) => setFormData({ ...formData, name: text })}
-              autoCapitalize="words"
-            />
-          </View>
+          <Input
+            placeholder="Full Name"
+            value={fullName}
+            onChangeText={setFullName}
+            icon={<User size={20} color="#A6A6B9" />}
+          />
 
-          <View style={authStyles.inputContainer}>
-            <Text style={authStyles.label}>Email</Text>
-            <TextInput
-              style={authStyles.input}
-              placeholder="your@email.com"
-              placeholderTextColor="#666666"
-              value={formData.email}
-              onChangeText={(text) => setFormData({ ...formData, email: text })}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-          </View>
+          <Input
+            placeholder="Password"
+            value={password}
+            onChangeText={setPassword}
+            isPassword
+            icon={<Lock size={20} color="#A6A6B9" />}
+          />
 
-          <View style={authStyles.inputContainer}>
-            <Text style={authStyles.label}>Password</Text>
-            <View style={authStyles.passwordContainer}>
-              <TextInput
-                style={[authStyles.input, authStyles.passwordInput]}
-                placeholder="••••••••"
-                placeholderTextColor="#666666"
-                value={formData.password}
-                onChangeText={(text) => setFormData({ ...formData, password: text })}
-                secureTextEntry={!showPassword}
-              />
-              <TouchableOpacity
-                style={authStyles.eyeIcon}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? (
-                  <Eye color="#666666" size={20} />
-                ) : (
-                  <EyeOff color="#666666" size={20} />
-                )}
-              </TouchableOpacity>
+          <Input
+            placeholder="Confirm Password"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            isPassword
+            icon={<Lock size={20} color="#A6A6B9" />}
+          />
+
+          {/* Error message */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
             </View>
-          </View>
+          )}
 
-          <View style={authStyles.inputContainer}>
-            <Text style={authStyles.label}>Confirm Password</Text>
-            <TextInput
-              style={authStyles.input}
-              placeholder="••••••••"
-              placeholderTextColor="#666666"
-              value={formData.confirmPassword}
-              onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
-              secureTextEntry
-            />
-          </View>
-
-          <TouchableOpacity
-            style={[authStyles.button, loading && authStyles.buttonDisabled]}
+          <Button
+            title={isLoading ? "Creating Account..." : "Sign Up"}
             onPress={handleRegister}
-            disabled={loading}
-          >
-            <Text style={authStyles.buttonText}>
-              {loading ? 'Creating Account...' : 'Sign Up'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            disabled={isLoading || !emailOrPhone || !fullName || !password || !confirmPassword}
+          />
 
-        <View style={[authStyles.footer, { marginTop: 20, marginBottom: 32 }]}>
-          <Text style={authStyles.footerText}>Already have an account? </Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Text style={authStyles.footerLink}>Sign In</Text>
-          </TouchableOpacity>
+          <SocialLoginButtons
+            onGooglePress={() => handleSocialRegister('Google')}
+            onFacebookPress={() => handleSocialRegister('Facebook')}
+            onApplePress={() => handleSocialRegister('Apple')}
+          />
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Already have an account? </Text>
+            <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
+              <Text style={styles.signInLink}>Sign In</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </View>
+    </GlassCard>
   );
-}
+};
 
-const registerStyles = StyleSheet.create({
-  backButton: {
-    marginTop: 16,
-    marginLeft: 24,
-    marginBottom: 20,
-  },
-});
-
-const authStyles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#25252B',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
+    width: '100%',
+    paddingBottom: 32,
+    paddingVertical: 12,
+    paddingHorizontal: 20 
   },
   header: {
-    alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 32,
-    fontWeight: '300',
-    color: '#FFFFFF',
-    letterSpacing: 8,
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 14,
-    color: '#666666',
-    letterSpacing: 2,
-  },
-  form: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666666',
     marginBottom: 32,
   },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    color: '#FFFFFF',
+  title: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 8,
-    fontWeight: '500',
+    textAlign: 'center',
   },
-  input: {
-    backgroundColor: '#31313A',
-    borderWidth: 1,
-    borderColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 16,
+  description: {
     fontSize: 16,
-    color: '#FFFFFF',
+    color: '#A6A6B9',
+    textAlign: 'center',
   },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 50,
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-  },
-  forgotPassword: {
-    fontSize: 14,
-    color: '#4CAF50',
-    textAlign: 'right',
-    marginBottom: 24,
-  },
-  button: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 18,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
-  },
-  biometricButton: {
-    borderWidth: 1,
-    borderColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 18,
-    alignItems: 'center',
-  },
-  biometricText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  form: {
+    width: '100%',
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 32,
+    marginTop: 24,
   },
   footerText: {
+    color: '#A6A6B9',
     fontSize: 14,
-    color: '#666666',
   },
-  footerLink: {
+  signInLink: {
+    color: '#667eea',
     fontSize: 14,
-    color: '#4CAF50',
     fontWeight: '600',
+  },
+  errorContainer: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  errorText: {
+    color: '#ef4444',
+    fontSize: 14,
+    textAlign: 'center',
   },
 });
 
-
+export default RegisterScreen;

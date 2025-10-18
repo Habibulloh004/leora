@@ -1,227 +1,259 @@
-import { useRouter } from 'expo-router';
-import { Eye, EyeOff } from 'lucide-react-native';
-import React, { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+} from "react-native";
+import { router } from "expo-router";
+import { Mail, Lock } from "lucide-react-native";
+import { Input, Button, SocialLoginButtons } from "@/components/auth";
+import GlassCard from "@/components/shared/GlassCard";
+import { CheckIcon } from "@assets/icons";
+import { useAuthStore } from "@/stores/useAuthStore";
 
-export default function LoginScreen() {
-  const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
+const LoginScreen = () => {
+  const { login, isLoading, error, clearError, setRememberMe } = useAuthStore();
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [rememberMeLocal, setRememberMeLocal] = useState(false);
 
   const handleLogin = async () => {
-    setLoading(true);
-    // TODO: Implement API call
-    // await authService.login(email, password);
-    setTimeout(() => {
-      router.replace('/(tabs)');
-    }, 1000);
+    clearError();
+
+    const success = await login({
+      emailOrUsername: email,
+      password,
+      rememberMe: rememberMeLocal,
+    });
+
+    if (success) {
+      setRememberMe(rememberMeLocal);
+      router.replace("/(tabs)");
+    } else if (error) {
+      Alert.alert("Login Failed", error);
+    }
+  };
+
+  const handleSocialLogin = (provider: string) => {
+    Alert.alert("Coming Soon", `${provider} login will be available soon!`);
   };
 
   return (
-    <SafeAreaView style={authStyles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={authStyles.content}
-      >
-        <View style={authStyles.header}>
-          <Text style={authStyles.logo}>LEORA</Text>
-          <Text style={authStyles.tagline}>Order in Tasks & Money</Text>
-        </View>
+    <View
+      style={styles.container}
+    >
+      <GlassCard>
+        <View style={styles.card}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.title}>Login</Text>
+            <Text style={styles.description}>
+              Enter your mail and password to log in
+            </Text>
+          </View>
 
-        <View style={authStyles.form}>
-          <Text style={authStyles.title}>Welcome Back</Text>
-          <Text style={authStyles.subtitle}>Sign in to continue</Text>
-
-          <View style={authStyles.inputContainer}>
-            <Text style={authStyles.label}>Email</Text>
-            <TextInput
-              style={authStyles.input}
-              placeholder="your@email.com"
-              placeholderTextColor="#666666"
+          {/* Inputs */}
+          <View style={styles.form}>
+            <Input
+              placeholder="Email or Username"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
               autoCapitalize="none"
-              autoComplete="email"
+              icon={<Mail size={20} color="#A6A6B9" />}
             />
-          </View>
 
-          <View style={authStyles.inputContainer}>
-            <Text style={authStyles.label}>Password</Text>
-            <View style={authStyles.passwordContainer}>
-              <TextInput
-                style={[authStyles.input, authStyles.passwordInput]}
-                placeholder="••••••••"
-                placeholderTextColor="#666666"
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-              />
+            <Input
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              isPassword
+              icon={<Lock size={20} color="#A6A6B9" />}
+            />
+
+            {/* Options */}
+            <View style={styles.options}>
               <TouchableOpacity
-                style={authStyles.eyeIcon}
-                onPress={() => setShowPassword(!showPassword)}
+                style={styles.rememberMeContainer}
+                onPress={() => setRememberMeLocal(!rememberMeLocal)}
+                activeOpacity={0.7}
               >
-                {showPassword ? (
-                  <Eye color="#666666" size={20} />
-                ) : (
-                  <EyeOff color="#666666" size={20} />
-                )}
+                <View
+                  style={[styles.checkbox, rememberMeLocal && styles.checkboxChecked]}
+                >
+                  {rememberMeLocal && <CheckIcon color="#FFFFFF" size={14} />}
+                </View>
+                <Text style={styles.rememberMeText}>Remember Me</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={() => router.push("/(auth)/forgot-password")}>
+                <Text style={styles.forgotPassword}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Error message */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
+
+            {/* Login button */}
+            <Button
+              title={isLoading ? "Logging in..." : "Log In"}
+              onPress={handleLogin}
+              disabled={isLoading || !email || !password}
+            />
+
+            {/* Social buttons */}
+            <SocialLoginButtons
+              onGooglePress={() => handleSocialLogin("Google")}
+              onFacebookPress={() => handleSocialLogin("Facebook")}
+              onApplePress={() => handleSocialLogin("Apple")}
+            />
+
+            {/* Footer */}
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Don&apos;t have an account? </Text>
+              <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+                <Text style={styles.signUpLink}>Sign Up</Text>
               </TouchableOpacity>
             </View>
           </View>
-
-          <TouchableOpacity onPress={() => router.navigate('/(auth)/forgot-password')}>
-            <Text style={authStyles.forgotPassword}>Forgot Password?</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[authStyles.button, loading && authStyles.buttonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
-          >
-            <Text style={authStyles.buttonText}>
-              {loading ? 'Signing in...' : 'Sign In'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={authStyles.biometricButton}
-            onPress={() => router.navigate('/(auth)/biometric')}
-          >
-            <Text style={authStyles.biometricText}>Use Face ID</Text>
-          </TouchableOpacity>
         </View>
-
-        <View style={authStyles.footer}>
-          <Text style={authStyles.footerText}>Don&apos;t have an account? </Text>
-          <TouchableOpacity onPress={() => router.navigate('/(auth)/register')}>
-            <Text style={authStyles.footerLink}>Sign Up</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      </GlassCard>
+    </View>
   );
-}
+};
 
-const authStyles = StyleSheet.create({
+export default LoginScreen;
+
+const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: '#25252B',
+    width: "100%",
+    backgroundColor: "transparent",
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 24,
+  card: {
+    width: "100%",
+    paddingBottom: 32,
+    paddingVertical: 12,
+    paddingHorizontal: 20
   },
   header: {
-    alignItems: 'center',
-    marginTop: 60,
-    marginBottom: 40,
-  },
-  logo: {
-    fontSize: 32,
-    fontWeight: '300',
-    color: '#FFFFFF',
-    letterSpacing: 8,
-    marginBottom: 8,
-  },
-  tagline: {
-    fontSize: 14,
-    color: '#666666',
-    letterSpacing: 2,
-  },
-  form: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666666',
-    marginBottom: 32,
-  },
-  inputContainer: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 14,
-    color: '#FFFFFF',
-    marginBottom: 8,
-    fontWeight: '500',
-  },
-  input: {
-    backgroundColor: '#31313A',
-    borderWidth: 1,
-    borderColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-  passwordContainer: {
-    position: 'relative',
-  },
-  passwordInput: {
-    paddingRight: 50,
-  },
-  eyeIcon: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-  },
-  forgotPassword: {
-    fontSize: 14,
-    color: '#4CAF50',
-    textAlign: 'right',
     marginBottom: 24,
   },
-  button: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 18,
-    alignItems: 'center',
-    marginBottom: 16,
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 8,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  description: {
+    fontSize: 14,
+    color: "#A6A6B9",
+    textAlign: "center",
   },
-  buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000000',
+  form: {
+    width: "100%",
+    marginTop: 12,
   },
-  biometricButton: {
-    borderWidth: 1,
-    borderColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 18,
-    alignItems: 'center',
+  options: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
   },
-  biometricText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+  rememberMeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: "rgba(108, 114, 120, 1)", // shaffof checkbox border
+    marginRight: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.1)", // shaffof fon
+  },
+  checkboxChecked: {
+    borderColor: "rgba(108, 114, 120, 1)", // yarim shaffof ko‘k border
+    backgroundColor: "rgba(108, 114, 120, 1)", // shisha ko‘k fon
+  },
+  checkboxInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "transparent",
+  },
+  rememberMeText: {
+    color: "#A6A6B9",
+    fontSize: 14,
+  },
+  forgotPassword: {
+    color: "#667eea",
+    fontSize: 14,
+    fontWeight: "500",
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 32,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 20,
   },
   footerText: {
+    color: "#A6A6B9",
     fontSize: 14,
-    color: '#666666',
   },
-  footerLink: {
+  signUpLink: {
+    color: "#667eea",
     fontSize: 14,
-    color: '#4CAF50',
-    fontWeight: '600',
+    fontWeight: "600",
+  },
+  errorContainer: {
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.3)",
+  },
+  errorText: {
+    color: "#ef4444",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  // 🔹 Shaffof input va button style
+  input: {
+    width: "100%",
+    height: 50,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.25)", // shisha border
+    paddingHorizontal: 12,
+    color: "#fff",
+    marginBottom: 16,
+    backgroundColor: "rgba(255,255,255,0.08)", // yarim shaffof fon
+  },
+  button: {
+    backgroundColor: "rgba(102,126,234,0.25)", // yarim shaffof ko‘k
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: "rgba(102,126,234,0.4)", // ko‘k shaffof border
+    paddingVertical: 14,
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });

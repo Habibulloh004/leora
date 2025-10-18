@@ -1,16 +1,16 @@
 import 'react-native-reanimated';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze, enableScreens } from 'react-native-screens';
-
 import LeoraSplashScreen from '@/components/splash/LeoraSplashScreen';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { Colors as ThemeColors } from '@/constants/theme';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 enableScreens(true);
 enableFreeze(true);
@@ -39,6 +39,24 @@ export default function RootLayout() {
 
 function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; onSplashComplete: () => void }) {
   const { theme } = useTheme();
+  const { isAuthenticated } = useAuthStore();
+  const router = useRouter();
+  const segments = useSegments();
+
+  // Protect routes based on authentication status
+  useEffect(() => {
+    if (!hasBooted) return;
+
+    const inAuthGroup = segments[0] === '(auth)';
+
+    if (!isAuthenticated && !inAuthGroup) {
+      // Redirect to login if not authenticated and trying to access protected routes
+      router.replace('/(auth)/login');
+    } else if (isAuthenticated && inAuthGroup) {
+      // Redirect to main app if authenticated and on auth screens
+      router.replace('/(tabs)');
+    }
+  }, [isAuthenticated, segments, hasBooted]);
 
   const palette = theme === 'dark' ? ThemeColors.dark : ThemeColors.light;
   const navigationTheme = useMemo(() => {
@@ -88,6 +106,7 @@ function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; on
         }}
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen
           name="(modals)/add-task"
           options={{
@@ -132,7 +151,7 @@ function RootNavigator({ hasBooted, onSplashComplete }: { hasBooted: boolean; on
           options={{
             presentation: 'modal',
             headerTitle: 'Voice Mode',
-            headerShown:false,
+            headerShown: false,
             headerStyle: { backgroundColor: '#25252B' },
             headerTintColor: '#fff',
           }}
