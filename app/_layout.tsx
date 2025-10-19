@@ -9,10 +9,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze, enableScreens } from 'react-native-screens';
 import { Asset } from 'expo-asset';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
-import LeoraSplashScreen from '@/components/splash/LeoraSplashScreen';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { Colors as ThemeColors } from '@/constants/theme';
 import { useAuthStore } from '@/stores/useAuthStore';
+import LeoraSplashScreen from '@/components/screens/splash/LeoraSplashScreen';
+import { useLockStore } from '@/stores/useLockStore';
+import UserInactiveProvider from '@/providers/UserInactiveProvider';
 
 enableScreens(true);
 enableFreeze(true);
@@ -92,6 +94,9 @@ function RootNavigator({
 }) {
   const { theme } = useTheme();
   const { isAuthenticated } = useAuthStore();
+  const setLoggedIn = useLockStore((state) => state.setLoggedIn);
+  const setLocked = useLockStore((state) => state.setLocked);
+  const updateLastActive = useLockStore((state) => state.updateLastActive);
   const router = useRouter();
   const segments = useSegments();
 
@@ -109,6 +114,18 @@ function RootNavigator({
       router.replace('/(tabs)');
     }
   }, [isAuthenticated, segments, hasBooted]);
+
+  useEffect(() => {
+    if (!hasBooted) return;
+
+    if (isAuthenticated) {
+      setLoggedIn(true);
+      updateLastActive({ keepInactive: true });
+    } else {
+      setLoggedIn(false);
+      setLocked(false);
+    }
+  }, [hasBooted, isAuthenticated, setLoggedIn, setLocked, updateLastActive]);
 
   const palette = theme === 'dark' ? ThemeColors.dark : ThemeColors.light;
   const navigationTheme = useMemo(() => {
@@ -149,96 +166,113 @@ function RootNavigator({
 
   return (
     <NavigationThemeProvider value={navigationTheme}>
-      <Stack
-        screenOptions={{
-          headerShadowVisible: false,
-          contentStyle: { backgroundColor: palette.background },
-          fullScreenGestureEnabled: true,
-          ...(Platform.OS === 'android' ? { statusBarStyle } : {}),
-        }}
-      >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="(modals)/add-task"
-          options={{
-            presentation: 'modal',
-            headerTitle: 'Add Task',
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
+      <UserInactiveProvider >
+        <Stack
+          screenOptions={{
+            headerShadowVisible: false,
+            contentStyle: { backgroundColor: palette.background },
+            fullScreenGestureEnabled: true,
+            ...(Platform.OS === 'android' ? { statusBarStyle } : {}),
           }}
-        />
-        <Stack.Screen
-          name="(modals)/quick-exp"
-          options={{
-            presentation: 'modal',
-            headerTitle: 'Quick Expence',
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/search"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/notifications"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/calendar"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/voice-ai"
-          options={{
-            presentation: 'modal',
-            headerTitle: 'Voice Mode',
-            headerShown: false,
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/menage-widget"
-          options={{
-            headerShown: false,
-            presentation: 'modal',
-            headerTitle: 'Menage Widget',
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
-          }}
-        />
-        <Stack.Screen
-          name="focus-mode"
-          options={{
-            headerTitle: 'Focus Mode',
-            headerBackButtonDisplayMode: 'default',
-            headerStyle: { backgroundColor: '#25252B' },
-            headerBackTitle: 'Back',
-            headerTintColor: '#fff',
-          }}
-        />
-        <Stack.Screen
-          name="modal-with-stack"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-            headerStyle: { backgroundColor: '#000' },
-            headerTintColor: '#fff',
-          }}
-        />
-      </Stack>
-      <StatusBar style={statusBarStyle} backgroundColor={palette.background} animated />
+        >
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="profile" options={{ headerShown: false }} />
+          <Stack.Screen
+            name="(modals)/add-task"
+            options={{
+              presentation: 'modal',
+              headerTitle: 'Add Task',
+              headerStyle: { backgroundColor: '#25252B' },
+              headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/quick-exp"
+            options={{
+              presentation: 'modal',
+              headerTitle: 'Quick Expence',
+              headerStyle: { backgroundColor: '#25252B' },
+              headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/search"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/notifications"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/calendar"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/voice-ai"
+            options={{
+              presentation: 'modal',
+              headerTitle: 'Voice Mode',
+              headerShown: false,
+              headerStyle: { backgroundColor: '#25252B' },
+              headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/menage-widget"
+            options={{
+              headerShown: false,
+              presentation: 'modal',
+              headerTitle: 'Menage Widget',
+              headerStyle: { backgroundColor: '#25252B' },
+              headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/inactive"
+            options={{
+              headerShown: false,
+              animation: "none"
+            }}
+          />
+          <Stack.Screen
+            name="(modals)/lock"
+            options={{
+              headerShown: false,
+              animation: "none"
+            }}
+          />
+          <Stack.Screen
+            name="focus-mode"
+            options={{
+              headerTitle: 'Focus Mode',
+              headerBackButtonDisplayMode: 'default',
+              headerStyle: { backgroundColor: '#25252B' },
+              headerBackTitle: 'Back',
+              headerTintColor: '#fff',
+            }}
+          />
+          <Stack.Screen
+            name="modal-with-stack"
+            options={{
+              presentation: 'modal',
+              headerShown: false,
+              headerStyle: { backgroundColor: '#000' },
+              headerTintColor: '#fff',
+            }}
+          />
+        </Stack>
+        <StatusBar style={statusBarStyle} backgroundColor={palette.background} animated />
+      </UserInactiveProvider>
     </NavigationThemeProvider>
   );
 }

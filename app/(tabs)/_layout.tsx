@@ -9,10 +9,10 @@ import { Tabs } from 'expo-router';
 import { HapticTab } from '@/components/haptic-tab';
 import { TabProvider, useTab } from '@/contexts/TabContext';
 import { FinanceIcon, HomeIcon, InsightsIcon, MoreIcon, PlannerIcon } from '@assets/icons';
-import PlannerHeader from '@/components/planner/PlannerHeader';
-import InsightsHeader from '@/components/insights/InsightsHeader';
-import MoreHeader from '@/components/more/MoreHeader';
-import FinanceHeader from '@/components/finance/FinanceHeader';
+import PlannerHeader from '@/components/screens/planner/PlannerHeader';
+import InsightsHeader from '@/components/screens/insights/InsightsHeader';
+import MoreHeader from '@/components/screens/more/MoreHeader';
+import FinanceHeader from '@/components/screens/finance/FinanceHeader';
 
 const { width } = Dimensions.get('window');
 const TAB_COUNT = 5 as const;
@@ -183,7 +183,7 @@ const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
   const totalHeight = (Platform.OS === 'ios' ? 54 : 60) + insets.bottom;
 
   return (
-    <View style={[styles.tabBar, { height: totalHeight, paddingBottom: Platform.OS === 'ios' ? insets.bottom : 8 }]}>
+    <View style={[styles.tabBar, { height: totalHeight, paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24 }]}>
       <GlowIndicator translateX={translateX} width={indicatorWidth} />
 
       <View style={styles.tabContainer}>

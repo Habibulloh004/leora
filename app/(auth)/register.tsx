@@ -2,13 +2,22 @@ import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Mail, Lock, User } from 'lucide-react-native';
-import { Input, Button, SocialLoginButtons } from '@/components/auth';
+import {
+  Input,
+  Button,
+  SocialLoginButtons,
+  AuthScreenContainer,
+} from '@/components/screens/auth';
 import GlassCard from '@/components/shared/GlassCard';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { validateEmail, validateName, validatePassword, validateConfirmPassword } from '@/utils/validation';
+import { useLockStore } from '@/stores/useLockStore';
 
 const RegisterScreen = () => {
   const { register, isLoading, error, clearError } = useAuthStore();
+  const setLoggedIn = useLockStore((state) => state.setLoggedIn);
+  const setLocked = useLockStore((state) => state.setLocked);
+  const updateLastActive = useLockStore((state) => state.updateLastActive);
 
   const [emailOrPhone, setEmailOrPhone] = useState('');
   const [fullName, setFullName] = useState('');
@@ -66,6 +75,9 @@ const RegisterScreen = () => {
     });
 
     if (success) {
+      setLoggedIn(true);
+      setLocked(false);
+      updateLastActive();
       Alert.alert(
         'Registration Successful',
         'Welcome to Leora! Your account has been created.',
@@ -80,114 +92,124 @@ const RegisterScreen = () => {
     Alert.alert('Coming Soon', `${provider} registration will be available soon!`);
   };
 
+  const handleGoToLogin = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(auth)/login');
+  };
+
   return (
-    <GlassCard>
+    <AuthScreenContainer>
+      <GlassCard>
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <Text style={styles.title}>Register</Text>
+            <Text style={styles.description}>
+              Create an account to continue!
+            </Text>
+          </View>
 
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Register</Text>
-          <Text style={styles.description}>
-            Create an account to continue!
-          </Text>
-        </View>
+          <View style={styles.form}>
+            <Input
+              label="Email"
+              placeholder="name@example.com"
+              value={emailOrPhone}
+              onChangeText={(text: string) => {
+                setEmailOrPhone(text);
+                if (error) {
+                  clearError();
+                }
+              }}
+              autoCapitalize="none"
+              keyboardType="email-address"
+              icon={Mail}
+              iconSize={22}
+              error={emailError}
+              onClearError={() => setEmailError(undefined)}
+            />
 
-        <View style={styles.form}>
-          <Input
-            label="Email"
-            placeholder="name@example.com"
-            value={emailOrPhone}
-            onChangeText={(text) => {
-              setEmailOrPhone(text);
-              if (error) {
-                clearError();
-              }
-            }}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            icon={Mail}
-            iconSize={22}
-            error={emailError}
-            onClearError={() => setEmailError(undefined)}
-          />
+            <Input
+              label="Full Name"
+              placeholder="Enter your full name"
+              value={fullName}
+              onChangeText={(text: string) => {
+                setFullName(text);
+                if (error) {
+                  clearError();
+                }
+              }}
+              icon={User}
+              iconSize={22}
+              error={nameError}
+              onClearError={() => setNameError(undefined)}
+            />
 
-          <Input
-            label="Full Name"
-            placeholder="Enter your full name"
-            value={fullName}
-            onChangeText={(text) => {
-              setFullName(text);
-              if (error) {
-                clearError();
-              }
-            }}
-            icon={User}
-            iconSize={22}
-            error={nameError}
-            onClearError={() => setNameError(undefined)}
-          />
+            <Input
+              label="Password"
+              placeholder="Create a password"
+              value={password}
+              onChangeText={(text: string) => {
+                setPassword(text);
+                if (error) {
+                  clearError();
+                }
+              }}
+              isPassword
+              icon={Lock}
+              iconSize={22}
+              error={passwordError}
+              onClearError={() => setPasswordError(undefined)}
+            />
 
-          <Input
-            label="Password"
-            placeholder="Create a password"
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (error) {
-                clearError();
-              }
-            }}
-            isPassword
-            icon={Lock}
-            iconSize={22}
-            error={passwordError}
-            onClearError={() => setPasswordError(undefined)}
-          />
+            <Input
+              label="Confirm Password"
+              placeholder="Re-enter your password"
+              value={confirmPassword}
+              onChangeText={(text: string) => {
+                setConfirmPassword(text);
+                if (error) {
+                  clearError();
+                }
+              }}
+              isPassword
+              icon={Lock}
+              iconSize={22}
+              error={confirmPasswordError}
+              onClearError={() => setConfirmPasswordError(undefined)}
+            />
 
-          <Input
-            label="Confirm Password"
-            placeholder="Re-enter your password"
-            value={confirmPassword}
-            onChangeText={(text) => {
-              setConfirmPassword(text);
-              if (error) {
-                clearError();
-              }
-            }}
-            isPassword
-            icon={Lock}
-            iconSize={22}
-            error={confirmPasswordError}
-            onClearError={() => setConfirmPasswordError(undefined)}
-          />
+            {/* Error message */}
+            {error && (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            )}
 
-          {/* Error message */}
-          {error && (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>{error}</Text>
+            <Button
+              title={isLoading ? 'Creating Account...' : 'Sign Up'}
+              onPress={handleRegister}
+              disabled={isLoading}
+            />
+
+            <SocialLoginButtons
+              onGooglePress={() => handleSocialRegister('Google')}
+              onFacebookPress={() => handleSocialRegister('Facebook')}
+              onApplePress={() => handleSocialRegister('Apple')}
+            />
+
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Already have an account? </Text>
+              <TouchableOpacity onPress={handleGoToLogin}>
+                <Text style={styles.signInLink}>Sign In</Text>
+              </TouchableOpacity>
             </View>
-          )}
-
-          <Button
-            title={isLoading ? "Creating Account..." : "Sign Up"}
-            onPress={handleRegister}
-            disabled={isLoading}
-          />
-
-          <SocialLoginButtons
-            onGooglePress={() => handleSocialRegister('Google')}
-            onFacebookPress={() => handleSocialRegister('Facebook')}
-            onApplePress={() => handleSocialRegister('Apple')}
-          />
-
-          <View style={styles.footer}>
-            <Text style={styles.footerText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
-              <Text style={styles.signInLink}>Sign In</Text>
-            </TouchableOpacity>
           </View>
         </View>
-      </View>
-    </GlassCard>
+      </GlassCard>
+    </AuthScreenContainer>
   );
 };
 
@@ -196,11 +218,12 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingBottom: 32,
     paddingVertical: 12,
-    paddingHorizontal: 20 
+    paddingHorizontal: 20,
   },
   header: {
     marginBottom: 16,
-    paddingTop:8  },
+    paddingTop: 8,
+  },
   title: {
     fontSize: 32,
     fontWeight: '700',

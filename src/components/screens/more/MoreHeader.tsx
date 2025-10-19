@@ -12,19 +12,23 @@ export default function MoreHeader({ title = 'MORE' }: MoreHeaderProps) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.actions}>
-        <Pressable onPress={() => router.back()} style={styles.iconButton}>
-          <Ionicons name="arrow-back" size={24} color="#A6A6B9" />
-        </Pressable>
-      </View>
-      <View>
-        <Text style={styles.title}>{title}</Text>
-      </View>
-      <View style={styles.actions}>
-        <Pressable onPress={() => {}} style={styles.iconButton}>
-          <Ionicons name="notifications-outline" size={24} color="#A6A6B9" />
-        </Pressable>
-      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open profile"
+        style={styles.iconButton}
+        onPress={() => router.navigate('/profile')}
+      >
+        <Ionicons name="person-circle-outline" size={26} color="#A6A6B9" />
+      </Pressable>
+      <Text style={styles.title}>{title}</Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Notifications"
+        style={styles.iconButton}
+        onPress={() => {}}
+      >
+        <Ionicons name="notifications-outline" size={24} color="#A6A6B9" />
+      </Pressable>
     </View>
   );
 }
@@ -46,14 +50,9 @@ const styles = StyleSheet.create({
     color: '#A6A6B9',
     letterSpacing: 1,
   },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   iconButton: {
-    width: 'auto',
-    height: 'auto',
+    width: 44,
+    height: 44,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

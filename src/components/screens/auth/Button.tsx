@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import GlassCard from '../shared/GlassCard';
+import GlassCard from '@/components/shared/GlassCard';
 
 interface ButtonProps {
   title: string;

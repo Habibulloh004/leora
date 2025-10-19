@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 
 import UniversalFAB from '@/components/UniversalFAB';
-import PlannerModals from '@/components/planner/PlannerModals';
+import PlannerModals from '@/components/screens/planner/PlannerModals';
 
 const PlannerLayout = () => {
   return (
@@ -19,8 +19,8 @@ const PlannerLayout = () => {
         >
           <Stack.Screen name="(tabs)" />
         </Stack>
-        <UniversalFAB />
       </View>
+      <UniversalFAB />
       <PlannerModals />
     </SafeAreaView>
   );

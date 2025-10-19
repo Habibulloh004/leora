@@ -1,8 +1,10 @@
 import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
-import React, { useRef } from 'react';
-import { Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useRouter } from 'expo-router';
+import React, { useMemo, useRef } from 'react';
+import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -24,6 +26,13 @@ export default function Header({
   hasNotifications = true,
 }: HeaderProps) {
   const dateSheetRef = useRef<BottomSheetHandle>(null);
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+
+  const initials = useMemo(() => {
+    const source = user?.fullName || user?.username || 'U';
+    return source.slice(0, 1).toUpperCase();
+  }, [user]);
 
   const animatedStyle = useAnimatedStyle(() => {
     if (!scrollY) {
@@ -50,10 +59,16 @@ export default function Header({
 
   return (
     <Animated.View style={[styles.header, animatedStyle]}>
-      <View style={{ flex: 1, justifyContent: "flex-start", alignItems: "flex-start" }}>
-        <View style={[styles.avatar]}>
-          <Text style={styles.logo}>S</Text>
-        </View>
+      <View style={styles.ProfileLogo}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Open profile"
+          onPress={() => router.navigate('/profile')}
+          style={styles.avatar}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.logo}>{initials}</Text>
+        </TouchableOpacity>
       </View>
 
       <Pressable onPress={() => dateSheetRef.current?.present()}>
@@ -80,6 +95,7 @@ export default function Header({
 
 const styles = StyleSheet.create({
   header: {
+    height: 64,
     position: 'absolute',
     top: 0,
     left: 0,
@@ -89,21 +105,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingTop: 56,
+    marginTop: Platform.OS === 'ios' ? 56 : 34,
     borderBottomWidth: 1,
     borderBottomColor: '#34343D',
     backgroundColor: '#25252B',
     zIndex: 100,
   },
+  ProfileLogo: {
+    flex: 1,
+    justifyContent: "flex-start",
+    alignItems: "flex-start",
+    
+  },
   avatar: {
-    padding: 4,
+    fontWeight: "bold",
+    backgroundColor: "#34343D",
     borderRadius: 100,
-    width: 40,
-    height: 40,
-    backgroundColor: "#000",
-    justifyContent: "center",
-    alignItems: "center",
-    fontWeight: "bold"
+    width:40,
+    height:40,
+    flex:1,
+    justifyContent:'center',
+    alignItems:"center",
+    paddingLeft:3
   },
   dateContainer: {
     flex: 1,

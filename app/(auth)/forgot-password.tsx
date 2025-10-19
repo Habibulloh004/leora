@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Mail } from 'lucide-react-native';
-import { Input, Button } from '@/components/auth';
+import { Input, Button, AuthScreenContainer } from '@/components/screens/auth';
 import GlassCard from '@/components/shared/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -152,136 +152,147 @@ const ForgotPasswordScreen = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleGoToLogin = () => {
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+
+    router.replace('/(auth)/login');
+  };
+
   return (
-    <GlassCard>
-      <ScrollView
-        contentContainerStyle={styles.contentContainer}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
-        {step === 'email' ? (
-          <>
-            <View style={styles.header}>
-              <Text style={styles.title}>Forgot your password</Text>
-              <Text style={styles.description}>
-                Enter your mail or phone number to reset
-              </Text>
-            </View>
-
-            <View style={styles.form}>
-              <Input
-                label="Email or Phone"
-                placeholder="Enter your email or phone number"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  if (error) {
-                    clearError();
-                  }
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              icon={Mail}
-              iconSize={22}
-              error={emailError}
-              onClearError={() => setEmailError(undefined)}
-            />
-
-              {/* Error message */}
-              {error && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
-                </View>
-              )}
-
-              <Button
-                title={isLoading ? "Sending..." : "Send"}
-                onPress={handleSendCode}
-                disabled={isLoading || !email}
-              />
-            </View>
-          </>
-        ) : (
-          <>
-            <View style={styles.header}>
-              <Text style={styles.title}>Enter code from message</Text>
-              <Text style={styles.description}>
-                We sent a verification code to {email}
-              </Text>
-            </View>
-
-            <View style={styles.form}>
-              <View style={styles.otpContainer}>
-                {otp.map((digit, index) => (
-                  <LinearGradient
-                    key={index}
-                    colors={[
-                      'rgba(49,49,58,0.2)',
-                      'rgba(0,0,0,0.12)',
-                    ]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 0, y: 1 }}
-                    style={styles.otpBox}
-                  >
-                    <TextInput
-                      ref={otpRefs[index]}
-                      style={styles.otpInput}
-                      value={digit}
-                      onChangeText={(value) => handleOtpChange(index, value)}
-                      onKeyPress={({ nativeEvent }) =>
-                        handleOtpKeyPress(index, nativeEvent.key)
-                      }
-                      keyboardType="number-pad"
-                      maxLength={1}
-                      selectTextOnFocus
-                    />
-                  </LinearGradient>
-                ))}
-              </View>
-
-              <View style={styles.timerContainer}>
-                <Text style={styles.timerText}>
-                  {formatTime(timer)} seconds to send new
+    <AuthScreenContainer>
+      <GlassCard>
+        <ScrollView
+          contentContainerStyle={styles.contentContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {step === 'email' ? (
+            <>
+              <View style={styles.header}>
+                <Text style={styles.title}>Forgot your password</Text>
+                <Text style={styles.description}>
+                  Enter your mail or phone number to reset
                 </Text>
-                {canResend && (
-                  <TouchableOpacity onPress={handleResend} disabled={isLoading}>
-                    <Text style={styles.resendText}>Resend Code</Text>
-                  </TouchableOpacity>
-                )}
               </View>
 
-              {/* Error message */}
-              {error && (
-                <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
+              <View style={styles.form}>
+                <Input
+                  label="Email or Phone"
+                  placeholder="Enter your email or phone number"
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (error) {
+                      clearError();
+                    }
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  icon={Mail}
+                  iconSize={22}
+                  error={emailError}
+                  onClearError={() => setEmailError(undefined)}
+                />
+
+                {/* Error message */}
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
+
+                <Button
+                  title={isLoading ? 'Sending...' : 'Send'}
+                  onPress={handleSendCode}
+                  disabled={isLoading || !email}
+                />
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.header}>
+                <Text style={styles.title}>Enter code from message</Text>
+                <Text style={styles.description}>
+                  We sent a verification code to {email}
+                </Text>
+              </View>
+
+              <View style={styles.form}>
+                <View style={styles.otpContainer}>
+                  {otp.map((digit, index) => (
+                    <LinearGradient
+                      key={index}
+                      colors={[
+                        'rgba(49,49,58,0.2)',
+                        'rgba(0,0,0,0.12)',
+                      ]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={styles.otpBox}
+                    >
+                      <TextInput
+                        ref={otpRefs[index]}
+                        style={styles.otpInput}
+                        value={digit}
+                        onChangeText={(value) => handleOtpChange(index, value)}
+                        onKeyPress={({ nativeEvent }) =>
+                          handleOtpKeyPress(index, nativeEvent.key)
+                        }
+                        keyboardType="number-pad"
+                        maxLength={1}
+                        selectTextOnFocus
+                      />
+                    </LinearGradient>
+                  ))}
                 </View>
-              )}
 
-              <Button
-                title={isLoading ? "Verifying..." : "Restore"}
-                onPress={handleRestore}
-                variant="secondary"
-                disabled={isLoading || otp.join('').length !== 4}
-              />
+                <View style={styles.timerContainer}>
+                  <Text style={styles.timerText}>
+                    {formatTime(timer)} seconds to send new
+                  </Text>
+                  {canResend && (
+                    <TouchableOpacity onPress={handleResend} disabled={isLoading}>
+                      <Text style={styles.resendText}>Resend Code</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
 
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={() => setStep('email')}
-              >
-                <Text style={styles.backText}>Back to email</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        )}
+                {/* Error message */}
+                {error && (
+                  <View style={styles.errorContainer}>
+                    <Text style={styles.errorText}>{error}</Text>
+                  </View>
+                )}
 
-        <View style={styles.footer}>
-          <Text style={styles.footerText}>Remember your password? </Text>
-          <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
-            <Text style={styles.signInLink}>Sign In</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </GlassCard>
+                <Button
+                  title={isLoading ? 'Verifying...' : 'Restore'}
+                  onPress={handleRestore}
+                  variant="secondary"
+                  disabled={isLoading || otp.join('').length !== 4}
+                />
+
+                <TouchableOpacity
+                  style={styles.backButton}
+                  onPress={() => setStep('email')}
+                >
+                  <Text style={styles.backText}>Back to email</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          <View style={styles.footer}>
+            <Text style={styles.footerText}>Remember your password? </Text>
+            <TouchableOpacity onPress={handleGoToLogin}>
+              <Text style={styles.signInLink}>Sign In</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </GlassCard>
+    </AuthScreenContainer>
   );
 };
 
@@ -294,7 +305,7 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 16,
-    paddingTop:8
+    paddingTop: 8,
   },
   title: {
     fontSize: 28,

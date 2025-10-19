@@ -1,5 +1,5 @@
 // app/(modals)/manage-widget.tsx
-import { AVAILABLE_WIDGETS, WidgetType } from '@/config/widgetConfig';
+import { AVAILABLE_WIDGETS, WidgetType, WidgetConfig } from '@/config/widgetConfig';
 import { useWidgetStore, useWidgetStoreHydrated } from '@/stores/widgetStore';
 import { X, GripVertical, Plus, Trash2 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -39,6 +39,47 @@ export default function ManageWidgetModal() {
     ) as WidgetType[];
   }, [activeWidgets]);
 
+  const inactiveWidgetsByCategory = useMemo(() => {
+    return inactiveWidgets.reduce<Partial<Record<WidgetConfig['category'], WidgetType[]>>>(
+      (acc, widgetId) => {
+        const category = AVAILABLE_WIDGETS[widgetId].category;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category]!.push(widgetId);
+        return acc;
+      },
+      {}
+    );
+  }, [inactiveWidgets]);
+
+  const availableCategories = useMemo(
+    () => Object.keys(inactiveWidgetsByCategory) as WidgetConfig['category'][],
+    [inactiveWidgetsByCategory]
+  );
+
+  const [selectedCategory, setSelectedCategory] = useState<WidgetConfig['category'] | null>(
+    availableCategories[0] ?? null
+  );
+
+  useEffect(() => {
+    if (availableCategories.length === 0) {
+      if (selectedCategory !== null) {
+        setSelectedCategory(null);
+      }
+      return;
+    }
+
+    if (!selectedCategory || !availableCategories.includes(selectedCategory)) {
+      setSelectedCategory(availableCategories[0]);
+    }
+  }, [availableCategories, selectedCategory]);
+
+  const displayedInactiveWidgets = useMemo(() => {
+    if (!selectedCategory) return [];
+    return inactiveWidgetsByCategory[selectedCategory] ?? [];
+  }, [inactiveWidgetsByCategory, selectedCategory]);
+
   const handleAddWidget = useCallback((widgetId: WidgetType) => {
     setActiveWidgetsLocal((prev) => {
       if (prev.includes(widgetId)) {
@@ -68,8 +109,8 @@ export default function ManageWidgetModal() {
     setActiveWidgets(data);
   }, [setActiveWidgets]);
 
-  const renderInactiveWidget = useCallback<SortableGridRenderItem<WidgetType>>(
-    ({ item: widgetId }) => {
+  const renderInactiveWidget = useCallback(
+    (widgetId: WidgetType) => {
       const widget = AVAILABLE_WIDGETS[widgetId];
 
       const Icon = widget.icon;
@@ -222,21 +263,59 @@ export default function ManageWidgetModal() {
           <Text style={styles.sectionTitle}>AVAILABLE WIDGETS</Text>
           <Text style={styles.sectionSubtitle}>Tap plus to add</Text>
 
-          {inactiveWidgets.length === 0 ? (
+          {availableCategories.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyText}>All widgets are active</Text>
             </View>
           ) : (
-            <View style={styles.sortableContainer}>
-              <Sortable.Grid
-                activeItemScale={1.05}
-                columns={1}
-                data={inactiveWidgets}
-                overDrag="vertical"
-                renderItem={renderInactiveWidget}
-                rowGap={12}
-              />
-            </View>
+            <>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryList}
+              >
+                {availableCategories.map((category) => (
+                  <TouchableOpacity
+                    key={category}
+                    style={[
+                      styles.categoryChip,
+                      selectedCategory === category && styles.categoryChipActive,
+                    ]}
+                    onPress={() => setSelectedCategory(category)}
+                  >
+                    <Text
+                      style={[
+                        styles.categoryChipText,
+                        selectedCategory === category && styles.categoryChipTextActive,
+                      ]}
+                    >
+                      {CATEGORY_LABELS[category] ?? category}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {displayedInactiveWidgets.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>No widgets available in this category</Text>
+                </View>
+              ) : (
+                <View style={styles.widgetList}>
+                  {displayedInactiveWidgets.map((widgetId, index) => (
+                    <View
+                      key={widgetId}
+                      style={[
+                        styles.widgetListItem,
+                        index === displayedInactiveWidgets.length - 1 &&
+                          styles.widgetListItemLast,
+                      ]}
+                    >
+                      {renderInactiveWidget(widgetId)}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </>
           )}
         </View>
 
@@ -245,6 +324,14 @@ export default function ManageWidgetModal() {
     </SafeAreaView>
   );
 }
+
+const CATEGORY_LABELS: Record<WidgetConfig['category'], string> = {
+  planner: 'Planner',
+  finance: 'Finance',
+  ai: 'AI',
+  health: 'Health',
+  insights: 'Insights',
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -327,6 +414,39 @@ const styles = StyleSheet.create({
   widgetDescription: {
     fontSize: 13,
     color: Colors.textSecondary,
+  },
+  categoryList: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(166,166,185,0.12)',
+    marginRight: 8,
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primaryDark,
+  },
+  categoryChipText: {
+    color: Colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  categoryChipTextActive: {
+    color: Colors.textPrimary,
+  },
+  widgetList: {
+    paddingTop: 8,
+  },
+  widgetListItem: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  widgetListItemLast: {
+    marginBottom: 0,
   },
   actionButton: {
     padding: 4,

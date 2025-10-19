@@ -87,7 +87,7 @@ export default function ProgressIndicators({
       [0, 1],
       Extrapolation.CLAMP
     );
-    const height = 160 - collapse * 120;
+    const height = 180 - collapse * 120;
     
 
     return { height };

@@ -8,14 +8,23 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Mail, Lock } from "lucide-react-native";
-import { Input, Button, SocialLoginButtons } from "@/components/auth";
+import {
+  Input,
+  Button,
+  SocialLoginButtons,
+  AuthScreenContainer,
+} from "@/components/screens/auth";
 import GlassCard from "@/components/shared/GlassCard";
 import { CheckIcon } from "@assets/icons";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { validateEmailOrUsername } from "@/utils/validation";
+import { useLockStore } from "@/stores/useLockStore";
 
 const LoginScreen = () => {
   const { login, isLoading, error, clearError, setRememberMe } = useAuthStore();
+  const setLoggedIn = useLockStore((state) => state.setLoggedIn);
+  const setLocked = useLockStore((state) => state.setLocked);
+  const updateLastActive = useLockStore((state) => state.updateLastActive);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,6 +71,9 @@ const LoginScreen = () => {
 
     if (success) {
       setRememberMe(rememberMeLocal);
+      setLoggedIn(true);
+      setLocked(false);
+      updateLastActive();
       router.replace("/(tabs)");
     } else if (error) {
       Alert.alert("Login Failed", error);
@@ -73,108 +85,108 @@ const LoginScreen = () => {
   };
 
   return (
-    <View
-      style={styles.container}
-    >
-      <GlassCard>
-        <View style={styles.card}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Login</Text>
-            <Text style={styles.description}>
-              Enter your mail and password to log in
-            </Text>
-          </View>
-
-          {/* Inputs */}
-          <View style={styles.form}>
-            <Input
-              label="Email or Username"
-              placeholder="Enter your email or username"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (error) {
-                  clearError();
-                }
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              icon={Mail}
-              iconSize={22}
-              error={emailError}
-              onClearError={() => setEmailError(undefined)}
-            />
-
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (error) {
-                  clearError();
-                }
-              }}
-              isPassword
-              icon={Lock}
-              iconSize={22}
-              error={passwordError}
-              onClearError={() => setPasswordError(undefined)}
-            />
-
-            {/* Options */}
-            <View style={styles.options}>
-              <TouchableOpacity
-                style={styles.rememberMeContainer}
-                onPress={() => setRememberMeLocal(!rememberMeLocal)}
-                activeOpacity={0.7}
-              >
-                <View
-                  style={[styles.checkbox, rememberMeLocal && styles.checkboxChecked]}
-                >
-                  {rememberMeLocal && <CheckIcon color="#FFFFFF" size={14} />}
-                </View>
-                <Text style={styles.rememberMeText}>Remember Me</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity onPress={() => router.push("/(auth)/forgot-password")}>
-                <Text style={styles.forgotPassword}>Forgot Password?</Text>
-              </TouchableOpacity>
+    <AuthScreenContainer>
+      <View style={styles.container}>
+        <GlassCard>
+          <View style={styles.card}>
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.title}>Login</Text>
+              <Text style={styles.description}>
+                Enter your mail and password to log in
+              </Text>
             </View>
 
-            {/* Error message */}
-            {error && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
+            {/* Inputs */}
+          <View style={styles.form}>
+              <Input
+                label="Email or Username"
+                placeholder="Enter your email or username"
+                value={email}
+                onChangeText={(text: string) => {
+                  setEmail(text);
+                  if (error) {
+                    clearError();
+                  }
+                }}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                icon={Mail}
+                iconSize={22}
+                error={emailError}
+                onClearError={() => setEmailError(undefined)}
+              />
+
+              <Input
+                label="Password"
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={(text: string) => {
+                  setPassword(text);
+                  if (error) {
+                    clearError();
+                  }
+                }}
+                isPassword
+                icon={Lock}
+                iconSize={22}
+                error={passwordError}
+                onClearError={() => setPasswordError(undefined)}
+              />
+
+              {/* Options */}
+              <View style={styles.options}>
+                <TouchableOpacity
+                  style={styles.rememberMeContainer}
+                  onPress={() => setRememberMeLocal(!rememberMeLocal)}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[styles.checkbox, rememberMeLocal && styles.checkboxChecked]}
+                  >
+                    {rememberMeLocal && <CheckIcon color="#FFFFFF" size={14} />}
+                  </View>
+                  <Text style={styles.rememberMeText}>Remember Me</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity onPress={() => router.navigate("/(auth)/forgot-password")}>
+                  <Text style={styles.forgotPassword}>Forgot Password?</Text>
+                </TouchableOpacity>
               </View>
-            )}
 
-            {/* Login button */}
-            <Button
-              title={isLoading ? "Logging in..." : "Log In"}
-              onPress={handleLogin}
-              disabled={isLoading}
-            />
+              {/* Error message */}
+              {error && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorText}>{error}</Text>
+                </View>
+              )}
 
-            {/* Social buttons */}
-            <SocialLoginButtons
-              onGooglePress={() => handleSocialLogin("Google")}
-              onFacebookPress={() => handleSocialLogin("Facebook")}
-              onApplePress={() => handleSocialLogin("Apple")}
-            />
+              {/* Login button */}
+              <Button
+                title={isLoading ? "Logging in..." : "Log In"}
+                onPress={handleLogin}
+                disabled={isLoading}
+              />
+
+              {/* Social buttons */}
+              <SocialLoginButtons
+                onGooglePress={() => handleSocialLogin("Google")}
+                onFacebookPress={() => handleSocialLogin("Facebook")}
+                onApplePress={() => handleSocialLogin("Apple")}
+              />
+            </View>
 
             {/* Footer */}
             <View style={styles.footer}>
               <Text style={styles.footerText}>Don&apos;t have an account? </Text>
-              <TouchableOpacity onPress={() => router.push("/(auth)/register")}>
+              <TouchableOpacity onPress={() => router.navigate("/(auth)/register")}>
                 <Text style={styles.signUpLink}>Sign Up</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </GlassCard>
-    </View>
+        </GlassCard>
+      </View>
+    </AuthScreenContainer>
   );
 };
 
@@ -189,11 +201,11 @@ const styles = StyleSheet.create({
     width: "100%",
     paddingBottom: 32,
     paddingVertical: 12,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
   },
   header: {
     marginBottom: 16,
-    paddingTop: 8
+    paddingTop: 8,
   },
   title: {
     fontSize: 24,

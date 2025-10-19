@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, TouchableOpacity, StyleSheet, Text } from 'react-native';
-import { Apple, Facebook } from 'lucide-react-native';
+import { Apple } from 'lucide-react-native';
 import Svg, { Path } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AppleIcon } from '@assets/icons';
 
 const GoogleIcon = () => (
   <Svg width="24" height="24" viewBox="0 0 24 24">
@@ -57,18 +58,6 @@ export const SocialLoginButtons: React.FC<SocialLoginButtonsProps> = ({
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* 🔹 Facebook */}
-        <TouchableOpacity onPress={onFacebookPress} activeOpacity={0.8}>
-          <LinearGradient
-            colors={['rgba(49,49,58,0.2)', 'rgba(0,0,0,0.12)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={[styles.socialButton, styles.shadow]}
-          >
-            <Facebook size={24} color="#fff" />
-          </LinearGradient>
-        </TouchableOpacity>
-
         {/* 🔹 Apple */}
         <TouchableOpacity onPress={onApplePress} activeOpacity={0.8}>
           <LinearGradient
@@ -77,7 +66,7 @@ export const SocialLoginButtons: React.FC<SocialLoginButtonsProps> = ({
             end={{ x: 0, y: 1 }}
             style={[styles.socialButton, styles.shadow]}
           >
-            <Apple size={24} color="#fff" />
+            <AppleIcon size={24} color="#fff" />
           </LinearGradient>
         </TouchableOpacity>
       </View>

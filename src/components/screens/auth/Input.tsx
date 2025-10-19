@@ -108,8 +108,8 @@ export const Input: React.FC<InputProps> = ({
   });
 
   const borderWidth = stateAnim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [1, 2, 2],
+    inputRange: [0, 1, 1],
+    outputRange: [1, 1, 1],
   });
 
   const iconTint = useMemo(() => {
@@ -236,7 +236,6 @@ const styles = StyleSheet.create({
   },
   input: {
     height: 56,
-    paddingHorizontal: 18,
     fontSize: 16,
     fontWeight: '500',
   },

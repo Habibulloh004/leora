@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, LoginCredentials, RegisterCredentials, ForgotPasswordData } from '@/types/auth.types';
+import { useLockStore } from './useLockStore';
 
 interface AuthStore {
   // State
@@ -17,6 +18,7 @@ interface AuthStore {
   login: (credentials: LoginCredentials) => Promise<boolean>;
   register: (credentials: RegisterCredentials) => Promise<boolean>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
   sendPasswordResetCode: (email: string) => Promise<boolean>;
   verifyPasswordResetOtp: (otp: string) => Promise<boolean>;
   resetPassword: (newPassword: string) => Promise<boolean>;
@@ -90,6 +92,10 @@ export const useAuthStore = create<AuthStore>()(
             error: null,
             rememberMe: rememberMe || false,
           });
+
+          useLockStore.getState().setLoggedIn(true);
+          useLockStore.getState().setLocked(false);
+          useLockStore.getState().updateLastActive();
 
           return true;
         } catch (error) {
@@ -173,6 +179,10 @@ export const useAuthStore = create<AuthStore>()(
             error: null,
           });
 
+          useLockStore.getState().setLoggedIn(true);
+          useLockStore.getState().setLocked(false);
+          useLockStore.getState().updateLastActive();
+
           return true;
         } catch (error) {
           set({
@@ -198,8 +208,49 @@ export const useAuthStore = create<AuthStore>()(
             isAuthenticated: false,
             error: null,
           });
+
+          useLockStore.getState().setLoggedIn(false);
+          useLockStore.getState().setLocked(false);
         } catch (error) {
           console.error('Logout error:', error);
+        }
+      },
+
+      deleteAccount: async () => {
+        const currentUser = get().user;
+        if (!currentUser) {
+          return false;
+        }
+
+        set({ isLoading: true, error: null });
+
+        try {
+          const usersJson = await AsyncStorage.getItem('registered-users');
+          const users: User[] = usersJson ? JSON.parse(usersJson) : [];
+          const filteredUsers = users.filter((u) => u.id !== currentUser.id);
+
+          await AsyncStorage.setItem('registered-users', JSON.stringify(filteredUsers));
+          await AsyncStorage.removeItem(`user-password-${currentUser.id}`);
+
+          // Clear persisted session
+          await AsyncStorage.removeItem('auth-storage');
+
+          set({
+            user: null,
+            isAuthenticated: false,
+            isLoading: false,
+            error: null,
+            rememberMe: false,
+          });
+
+          return true;
+        } catch (error) {
+          console.error('Delete account error:', error);
+          set({
+            error: 'Failed to delete account. Please try again later.',
+            isLoading: false,
+          });
+          return false;
         }
       },
 

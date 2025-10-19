@@ -9,6 +9,7 @@ export { FinanceIcon } from './FinanceIcon';
 export { HomeIcon } from './HomeIcon';
 export { InComingIcon } from './InComingIcon';
 export { InsightsIcon } from './InsightsIcon';
+export { AppleIcon } from './AppleIcon';
 export { ListSearchIcon } from './ListSearchIcon';
 export { MoreIcon } from './MoreIcon';
 export { OutComingIcon } from './OutComingIcon';
