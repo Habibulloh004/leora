@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-export const LOCK_TIMEOUT_MS = 5 * 1000; // 20 seconds
+export const LOCK_TIMEOUT_MS = 3 * 1000; // 20 seconds
 let mmkvInstance: any = null;
 try {
   const { MMKV } = require('react-native-mmkv');

@@ -115,18 +115,14 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "flex-start",
     alignItems: "flex-start",
-    
   },
   avatar: {
-    fontWeight: "bold",
-    backgroundColor: "#34343D",
-    borderRadius: 100,
-    width:40,
-    height:40,
-    flex:1,
-    justifyContent:'center',
-    alignItems:"center",
-    paddingLeft:3
+    backgroundColor: '#34343D',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   dateContainer: {
     flex: 1,
@@ -140,9 +136,9 @@ const styles = StyleSheet.create({
   },
   logo: {
     fontSize: 18,
-    fontWeight: '400',
+    fontWeight: '600',
     color: '#A6A6B9',
-    letterSpacing: 3,
+    letterSpacing: 1,
   },
   actions: {
     flexDirection: 'row',
