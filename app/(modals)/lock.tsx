@@ -13,6 +13,7 @@ import {
   View,
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { Colors } from '@/constants/Colors';
 import { useLockStore } from '@/stores/useLockStore';
@@ -82,6 +83,7 @@ export default function LockScreen() {
   const [error, setError] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState<string>('Biometric');
+  const [biometricType, setBiometricType] = useState<'face' | 'fingerprint' | null>(null);
   const [checkingBiometric, setCheckingBiometric] = useState(false);
 
   const [recoveryVisible, setRecoveryVisible] = useState(false);
@@ -242,9 +244,11 @@ export default function LockScreen() {
       } else {
         setBiometricAvailable(false);
         setCheckingBiometric(false);
+        setBiometricType(null);
       }
     } else {
       animateOut();
+      setBiometricType(null);
     }
   }, [biometricsEnabled, isLocked]);
 
@@ -350,6 +354,7 @@ export default function LockScreen() {
     if (!biometricsEnabled) {
       setBiometricAvailable(false);
       setCheckingBiometric(false);
+      setBiometricType(null);
       return;
     }
 
@@ -360,18 +365,25 @@ export default function LockScreen() {
 
       if (!hasHardware || !isEnrolled) {
         setBiometricAvailable(false);
+        setBiometricType(null);
         return;
       }
 
       const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      let nextType: 'face' | 'fingerprint' | null = null;
+
       if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
         setBiometricLabel('Face ID');
+        nextType = 'face';
       } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
         setBiometricLabel('Fingerprint');
+        nextType = 'fingerprint';
       } else {
         setBiometricLabel('Biometric');
+        nextType = 'fingerprint';
       }
 
+      setBiometricType(nextType);
       setBiometricAvailable(true);
 
       if (!attemptedBiometricRef.current) {
@@ -451,14 +463,22 @@ export default function LockScreen() {
                       return <View key={cellKey} style={styles.keypadButtonPlaceholder} />;
                     }
 
+                    const iconName =
+                      biometricType === 'face' ? 'face-recognition' : 'fingerprint';
+
                     return (
                       <TouchableOpacity
                         key={cellKey}
-                        style={styles.keypadButton}
+                        style={[
+                          styles.keypadButton,
+                          checkingBiometric && styles.keypadButtonDisabled,
+                        ]}
                         onPress={attemptBiometric}
                         disabled={checkingBiometric}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Use ${biometricLabel}`}
                       >
-                        <Text style={styles.keypadButtonText}>{biometricLabel}</Text>
+                        <MaterialCommunityIcons name={iconName} size={36} color={Colors.textPrimary} />
                       </TouchableOpacity>
                     );
                   }
@@ -488,13 +508,6 @@ export default function LockScreen() {
               </View>
             ))}
           </View>
-
-          {biometricAvailable && (
-            <TouchableOpacity style={styles.biometricHint} onPress={attemptBiometric}>
-              <Text style={styles.biometricHintText}>Use {biometricLabel}</Text>
-            </TouchableOpacity>
-          )}
-
           <TouchableOpacity style={styles.forgotButton} onPress={openRecoveryFlow}>
             <Text style={styles.forgotButtonText}>Forgot passcode?</Text>
           </TouchableOpacity>
@@ -728,6 +741,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: '#1f1f1f',
   },
+  keypadButtonDisabled: {
+    opacity: 0.6,
+  },
   keypadButtonPlaceholder: {
     flex: 1,
   },
@@ -736,14 +752,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     letterSpacing: 1,
-  },
-  biometricHint: {
-    marginTop: 8,
-  },
-  biometricHintText: {
-    color: Colors.textSecondary,
-    fontSize: 13,
-    textDecorationLine: 'underline',
   },
   forgotButton: {
     marginTop: 16,

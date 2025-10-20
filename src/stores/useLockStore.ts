@@ -115,6 +115,7 @@ export const useLockStore = create<LockState>()(
           isLocked: enabled ? state.isLocked : false,
           isInactive: enabled ? state.isInactive : false,
           biometricsEnabled: enabled ? state.biometricsEnabled : false,
+          lastActive: enabled ? Date.now() : state.lastActive,
         })),
       setBiometricsEnabled: (enabled) =>
         set((state) => ({
@@ -135,3 +136,26 @@ export const useLockStore = create<LockState>()(
     }
   )
 );
+
+const evaluateLockHydration = () => {
+  const { lockEnabled, lastActive } = useLockStore.getState();
+
+  if (!lockEnabled) {
+    useLockStore.setState({ isLocked: false });
+    return;
+  }
+
+  if (typeof lastActive === 'number') {
+    const shouldLock = Date.now() - lastActive >= LOCK_TIMEOUT_MS;
+    if (shouldLock) {
+      useLockStore.setState({ isLocked: true });
+      return;
+    }
+  }
+
+  useLockStore.setState({ isLocked: false });
+};
+
+useLockStore.persist?.onFinishHydration(() => {
+  evaluateLockHydration();
+});

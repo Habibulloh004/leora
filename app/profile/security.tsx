@@ -100,10 +100,21 @@ export default function SecurityScreen() {
   }, []);
 
   useEffect(() => {
+    if (checkingBiometricSupport) {
+      return;
+    }
+
     if ((!lockEnabled || !biometricStatus.supported || !biometricStatus.enrolled) && biometricsEnabled) {
       setBiometricsEnabled(false);
     }
-  }, [biometricStatus.enrolled, biometricStatus.supported, biometricsEnabled, lockEnabled, setBiometricsEnabled]);
+  }, [
+    biometricStatus.enrolled,
+    biometricStatus.supported,
+    biometricsEnabled,
+    checkingBiometricSupport,
+    lockEnabled,
+    setBiometricsEnabled,
+  ]);
 
   const biometricHelper = useMemo(() => {
     if (checkingBiometricSupport) {

@@ -8,7 +8,9 @@ import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableFreeze, enableScreens } from 'react-native-screens';
 import { Asset } from 'expo-asset';
+import * as Font from 'expo-font';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { Colors as ThemeColors } from '@/constants/theme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -33,13 +35,20 @@ export default function RootLayout() {
 
     const loadAssets = async () => {
       try {
-        await Asset.loadAsync([
+        const assetPromise = Asset.loadAsync([
           require('@assets/images/icon.png'),
           require('@assets/images/authBackground.png'),
           require('@assets/images/backgroundModal.png'),
           require('@assets/images/notifImage.jpg'),
           require('@assets/images/bg.png'),
         ]);
+
+        const fontPromise = Font.loadAsync({
+          ...Ionicons.font,
+          ...MaterialCommunityIcons.font,
+        });
+
+        await Promise.all([assetPromise, fontPromise]);
       } catch (error) {
         console.warn('[RootLayout] Failed to preload assets', error);
       } finally {

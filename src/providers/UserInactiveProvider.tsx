@@ -36,6 +36,7 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
   const setLastBackgrounded = useLockStore((state) => state.setLastBackgrounded);
   const lastBackgrounded = useLockStore((state) => state.lastBackgrounded);
   const lockEnabled = useLockStore((state) => state.lockEnabled);
+  const lastActive = useLockStore((state) => state.lastActive);
 
   const currentModalRef = useRef<string | null>(null);
   const lastAppStateRef = useRef<AppStateStatus>(AppState.currentState ?? 'active');
@@ -78,6 +79,19 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
       return;
     }
   }, [dismissModal, isLoggedIn, setInactive, setLastBackgrounded, setLocked]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !lockEnabled) {
+      return;
+    }
+
+    const shouldLock =
+      typeof lastActive === 'number' && Date.now() - lastActive >= LOCK_TIMEOUT_MS;
+
+    if (shouldLock && !isLocked) {
+      setLocked(true);
+    }
+  }, [isLoggedIn, isLocked, lastActive, lockEnabled, setLocked]);
 
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
