@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 interface DateModalProps {
   onDismiss?: () => void;

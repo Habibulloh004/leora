@@ -18,7 +18,7 @@ import Sortable from 'react-native-sortables';
 import type { SortableGridDragEndParams, SortableGridRenderItem } from 'react-native-sortables';
 import { useRouter } from 'expo-router';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 export default function ManageWidgetModal() {
   const router = useRouter();

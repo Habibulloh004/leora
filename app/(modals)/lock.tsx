@@ -15,7 +15,7 @@ import {
 import * as LocalAuthentication from 'expo-local-authentication';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { Colors } from '@/constants/Colors';
+import { Theme, useAppTheme } from '@/constants/theme';
 import { useLockStore } from '@/stores/useLockStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 
@@ -24,7 +24,7 @@ const keypadLayout: Array<Array<string | null>> = [
   ['4', '5', '6'],
   ['7', '8', '9'],
   ['bio', '0', 'back'],
-]; 
+];
 
 const ANIMATION_DURATION = 220;
 const RECOVERY_CODE_LENGTH = 6;
@@ -95,6 +95,10 @@ export default function LockScreen() {
   const [recoveryError, setRecoveryError] = useState('');
   const [recoveryInfo, setRecoveryInfo] = useState('');
   const [resendCountdown, setResendCountdown] = useState(0);
+
+  const theme = useAppTheme();
+  const { colors } = theme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const fadeAnim = useRef(new Animated.Value(isLocked ? 1 : 0)).current;
   const scaleAnim = useRef(new Animated.Value(isLocked ? 1 : 0.96)).current;
@@ -168,8 +172,7 @@ export default function LockScreen() {
     setRecoveryError('');
     setRecoveryCodeInput('');
     setRecoveryInfo(
-      `Enter the ${RECOVERY_CODE_LENGTH}-digit code sent to ${
-        contact.type === 'email' ? 'your email' : 'your phone'
+      `Enter the ${RECOVERY_CODE_LENGTH}-digit code sent to ${contact.type === 'email' ? 'your email' : 'your phone'
       } (${contact.masked}).`
     );
     setResendCountdown(RECOVERY_RESEND_DELAY);
@@ -478,7 +481,7 @@ export default function LockScreen() {
                         accessibilityRole="button"
                         accessibilityLabel={`Use ${biometricLabel}`}
                       >
-                        <MaterialCommunityIcons name={iconName} size={36} color={Colors.textPrimary} />
+                        <MaterialCommunityIcons name={iconName} size={36} color={colors.textLock} />
                       </TouchableOpacity>
                     );
                   }
@@ -527,8 +530,8 @@ export default function LockScreen() {
                 {recoveryStep === 'select'
                   ? 'Reset app lock'
                   : recoveryStep === 'verify'
-                  ? 'Verify code'
-                  : 'Create new passcode'}
+                    ? 'Verify code'
+                    : 'Create new passcode'}
               </Text>
               <TouchableOpacity style={styles.recoveryClose} onPress={closeRecoveryFlow}>
                 <Text style={styles.recoveryCloseText}>✕</Text>
@@ -594,7 +597,7 @@ export default function LockScreen() {
                   maxLength={RECOVERY_CODE_LENGTH}
                   style={styles.recoveryInput}
                   placeholder="Enter verification code"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                 />
 
                 <View style={styles.recoveryActionsRow}>
@@ -645,7 +648,7 @@ export default function LockScreen() {
                   maxLength={4}
                   style={styles.recoveryInput}
                   placeholder="New passcode"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   secureTextEntry
                 />
                 <TextInput
@@ -659,7 +662,7 @@ export default function LockScreen() {
                   maxLength={4}
                   style={styles.recoveryInput}
                   placeholder="Confirm passcode"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor={colors.textTertiary}
                   secureTextEntry
                 />
 
@@ -679,195 +682,195 @@ export default function LockScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  content: {
-    width: '84%',
-    maxWidth: 360,
-    alignItems: 'center',
-    gap: 24,
-  },
-  logo: {
-    width: 96,
-    height: 128,
-    resizeMode: 'contain',
-  },
-  prompt: {
-    color: Colors.textPrimary,
-    fontSize: 18,
-    fontWeight: '600',
-    letterSpacing: 0.4,
-  },
-  pinRow: {
-    flexDirection: 'row',
-    gap: 18,
-  },
-  pinDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: Colors.textPrimary,
-  },
-  pinDotFilled: {
-    backgroundColor: Colors.textPrimary,
-  },
-  pinDotError: {
-    borderColor: Colors.danger,
-    backgroundColor: Colors.danger,
-  },
-  keypad: {
-    width: '100%',
-    gap: 16,
-  },
-  keypadRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  keypadButton: {
-    flex: 1,
-    minHeight: 52,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#111111',
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#1f1f1f',
-  },
-  keypadButtonDisabled: {
-    opacity: 0.6,
-  },
-  keypadButtonPlaceholder: {
-    flex: 1,
-  },
-  keypadButtonText: {
-    color: Colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
-  forgotButton: {
-    marginTop: 16,
-  },
-  forgotButtonText: {
-    color: Colors.primary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  recoveryOverlay: {
-    flex: 1,
-    backgroundColor: Colors.overlay.heavy,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  recoveryContainer: {
-    width: '100%',
-    maxWidth: 420,
-    backgroundColor: Colors.surface,
-    borderRadius: 24,
-    padding: 24,
-    gap: 20,
-  },
-  recoveryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  recoveryTitle: {
-    color: Colors.textPrimary,
-    fontSize: 20,
-    fontWeight: '700',
-  },
-  recoveryClose: {
-    padding: 8,
-  },
-  recoveryCloseText: {
-    color: Colors.textSecondary,
-    fontSize: 18,
-  },
-  recoverySubtitle: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  recoveryOptions: {
-    gap: 12,
-  },
-  recoveryOption: {
-    backgroundColor: Colors.backgroundElevated,
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: Colors.border,
-    gap: 4,
-  },
-  recoveryOptionSelected: {
-    borderColor: Colors.primary,
-  },
-  recoveryOptionLabel: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  recoveryOptionValue: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  recoveryPrimaryButton: {
-    marginTop: 4,
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  recoveryPrimaryButtonDisabled: {
-    backgroundColor: '#3a3a42',
-  },
-  recoveryPrimaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  recoveryInput: {
-    backgroundColor: Colors.backgroundElevated,
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    color: Colors.textPrimary,
-    fontSize: 16,
-  },
-  recoveryActionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  recoverySecondaryAction: {
-    color: Colors.primary,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  recoverySecondaryActionDisabled: {
-    color: Colors.textTertiary,
-  },
-  recoveryErrorText: {
-    color: Colors.danger,
-    fontSize: 13,
-  },
-  recoveryEmptyText: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: theme.colors.backgroundLock,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    content: {
+      width: '84%',
+      maxWidth: 360,
+      alignItems: 'center',
+      gap: 24,
+    },
+    logo: {
+      width: 96,
+      height: 128,
+      resizeMode: 'contain',
+    },
+    prompt: {
+      color: theme.colors.textLock,
+      fontSize: 18,
+      fontWeight: '600',
+      letterSpacing: 0.4,
+    },
+    pinRow: {
+      flexDirection: 'row',
+      gap: 18,
+    },
+    pinDot: {
+      width: 16,
+      height: 16,
+      borderRadius: 8,
+      borderWidth: 1.5,
+      borderColor: theme.colors.textLock,
+    },
+    pinDotFilled: {
+      backgroundColor: theme.colors.textLock,
+    },
+    pinDotError: {
+      borderColor: theme.colors.danger,
+      backgroundColor: theme.colors.danger,
+    },
+    keypad: {
+      width: '100%',
+      gap: 16,
+    },
+    keypadRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 12,
+    },
+    keypadButton: {
+      flex: 1,
+      minHeight: 52,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.colors.background,
+      borderRadius: 16,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: '#1f1f1f',
+    },
+    keypadButtonDisabled: {
+      opacity: 0.6,
+    },
+    keypadButtonPlaceholder: {
+      flex: 1,
+    },
+    keypadButtonText: {
+      color: theme.colors.textLock,
+      fontSize: 20,
+      fontWeight: '600',
+      letterSpacing: 1,
+    },
+    forgotButton: {
+      marginTop: 16,
+    },
+    forgotButtonText: {
+      color: theme.colors.primary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    recoveryOverlay: {
+      flex: 1,
+      backgroundColor: theme.colors.overlayStrong,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    recoveryContainer: {
+      width: '100%',
+      maxWidth: 420,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 24,
+      padding: 24,
+      gap: 20,
+    },
+    recoveryHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    recoveryTitle: {
+      color: theme.colors.textLock,
+      fontSize: 20,
+      fontWeight: '700',
+    },
+    recoveryClose: {
+      padding: 8,
+    },
+    recoveryCloseText: {
+      color: theme.colors.textSecondary,
+      fontSize: 18,
+    },
+    recoverySubtitle: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+    recoveryOptions: {
+      gap: 12,
+    },
+    recoveryOption: {
+      backgroundColor: theme.colors.backgroundMuted,
+      borderRadius: 16,
+      paddingVertical: 16,
+      paddingHorizontal: 18,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+      gap: 4,
+    },
+    recoveryOptionSelected: {
+      borderColor: theme.colors.primary,
+    },
+    recoveryOptionLabel: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      textTransform: 'uppercase',
+      letterSpacing: 0.8,
+    },
+    recoveryOptionValue: {
+      color: theme.colors.textLock,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    recoveryPrimaryButton: {
+      marginTop: 4,
+      backgroundColor: theme.colors.primary,
+      borderRadius: 16,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    recoveryPrimaryButtonDisabled: {
+      backgroundColor: theme.colors.textDisabled,
+    },
+    recoveryPrimaryButtonText: {
+      color: theme.colors.onPrimary,
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    recoveryInput: {
+      backgroundColor: theme.colors.backgroundMuted,
+      borderRadius: 16,
+      paddingHorizontal: 18,
+      paddingVertical: 14,
+      color: theme.colors.white,
+      fontSize: 16,
+    },
+    recoveryActionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    recoverySecondaryAction: {
+      color: theme.colors.primary,
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    recoverySecondaryActionDisabled: {
+      color: theme.colors.textMuted,
+    },
+    recoveryErrorText: {
+      color: theme.colors.danger,
+      fontSize: 13,
+    },
+    recoveryEmptyText: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+      lineHeight: 20,
+    },
+  });

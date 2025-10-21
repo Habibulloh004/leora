@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 const mockMetrics = [
   { label: 'Focus score', value: '82', suffix: '/100' },

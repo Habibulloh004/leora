@@ -11,7 +11,7 @@ import {
   TrendingUp,
 } from 'lucide-react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 type IconComponent = typeof LineChart;
 

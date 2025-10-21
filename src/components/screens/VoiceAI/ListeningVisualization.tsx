@@ -5,13 +5,32 @@ import { Mic } from 'lucide-react-native';
 import { AnimatedSoundWaves } from './AnimatedSoundWaves';
 import { Particles } from './Particles';
 
-export const ListeningVisualization: React.FC = () => {
+interface ListeningVisualizationProps {
+  active?: boolean;
+}
+
+export const ListeningVisualization: React.FC<ListeningVisualizationProps> = ({ active = true }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const spinSlowAnim = useRef(new Animated.Value(0)).current;
   const spinSlowerAnim = useRef(new Animated.Value(0)).current;
+  const loopsRef = useRef<Animated.CompositeAnimation[]>([]);
 
   useEffect(() => {
-    Animated.loop(
+    loopsRef.current.forEach(loop => loop.stop());
+    loopsRef.current = [];
+
+    pulseAnim.setValue(1);
+    spinSlowAnim.setValue(0);
+    spinSlowerAnim.setValue(0);
+
+    if (!active) {
+      return () => {
+        loopsRef.current.forEach(loop => loop.stop());
+        loopsRef.current = [];
+      };
+    }
+
+    const pulseLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
           toValue: 1.05,
@@ -24,24 +43,32 @@ export const ListeningVisualization: React.FC = () => {
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
 
-    Animated.loop(
+    const slowLoop = Animated.loop(
       Animated.timing(spinSlowAnim, {
         toValue: 1,
         duration: 20000,
         useNativeDriver: true,
       })
-    ).start();
+    );
 
-    Animated.loop(
+    const slowerLoop = Animated.loop(
       Animated.timing(spinSlowerAnim, {
         toValue: 1,
         duration: 30000,
         useNativeDriver: true,
       })
-    ).start();
-  }, []);
+    );
+
+    loopsRef.current = [pulseLoop, slowLoop, slowerLoop];
+    loopsRef.current.forEach(loop => loop.start());
+
+    return () => {
+      loopsRef.current.forEach(loop => loop.stop());
+      loopsRef.current = [];
+    };
+  }, [active, pulseAnim, spinSlowAnim, spinSlowerAnim]);
 
   const spinSlow = spinSlowAnim.interpolate({
     inputRange: [0, 1],
@@ -64,7 +91,7 @@ export const ListeningVisualization: React.FC = () => {
         </Svg>
       </Animated.View>
 
-      <AnimatedSoundWaves isActive={true} />
+      <AnimatedSoundWaves isActive={active} />
       <Particles stage="listening" />
 
       <Animated.View style={[styles.coreContainer, { transform: [{ scale: pulseAnim }] }]}>
@@ -151,4 +178,3 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.1)',
   },
 });
-

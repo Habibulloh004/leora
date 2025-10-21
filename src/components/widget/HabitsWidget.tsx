@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BookOpen, Brain, CheckCircle2, Dot, Dumbbell, Flame } from 'lucide-react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 interface Habit {
   id: string;

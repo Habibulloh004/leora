@@ -24,7 +24,7 @@ import { ParsedDataCard } from '@/components/screens/VoiceAI/ParsedDataCard';
 
 // Import utils
 import { parseCommandWithAI, ParsedData } from '@/utils/aiParser';
-import { Colors } from '@/constants/Colors';
+import { Theme, useAppTheme } from '@/constants/theme';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -41,53 +41,57 @@ const EXAMPLE_COMMANDS = [
   "Оплатил такси 50 тысяч"
 ];
 
-const STAGE_META: Record<AIStage, { label: string; headline: string; caption?: string; accent: string }> = {
-  idle: {
-    label: 'VOICE AI',
-    headline: 'Голосовой ассистент',
-    caption: 'Записывайте траты, доходы и переводы в разговорном формате.',
-    accent: Colors.textSecondary,
-  },
-  listening: {
-    label: 'В ПРОЦЕССЕ',
-    headline: 'Слушаю команду',
-    caption: 'Говорите естественно и четко называйте суммы и категории.',
-    accent: Colors.info,
-  },
-  thinking: {
-    label: 'АНАЛИЗ',
-    headline: 'Обрабатываю данные',
-    caption: 'AI извлекает суммы, категории и контекст из сказанного.',
-    accent: Colors.secondary,
-  },
-  confirm: {
-    label: 'ПРОВЕРЬТЕ',
-    headline: 'Все ли верно?',
-    caption: 'Сверьте распознанные данные перед добавлением в учет.',
-    accent: Colors.primary,
-  },
-  editing: {
-    label: 'РЕДАКТИРОВАНИЕ',
-    headline: 'Корректируем детали',
-    caption: 'При необходимости измените суммы или категории вручную.',
-    accent: Colors.warning,
-  },
-  success: {
-    label: 'ГОТОВО',
-    headline: 'Команда выполнена',
-    caption: 'Запись сохранена и синхронизирована с финансовым дэшбордом.',
-    accent: Colors.success,
-  },
-};
-
 // ==================== MAIN COMPONENT ====================
 export default function VoiceAIScreen() {
   const router = useRouter();
+  const theme = useAppTheme();
+  const { colors } = theme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const [stage, setStage] = useState<AIStage>('idle');
   const [transcript, setTranscript] = useState('');
   const [aiParsed, setAiParsed] = useState<ParsedData | null>(null);
   const [currentExample, setCurrentExample] = useState(0);
-  const stageMeta = useMemo(() => STAGE_META[stage], [stage]);
+  const stageMeta = useMemo(() => {
+    const meta: Record<AIStage, { label: string; headline: string; caption?: string; accent: string }> = {
+      idle: {
+        label: 'VOICE AI',
+        headline: 'Голосовой ассистент',
+        caption: 'Записывайте траты, доходы и переводы в разговорном формате.',
+        accent: colors.textSecondary,
+      },
+      listening: {
+        label: 'В ПРОЦЕССЕ',
+        headline: 'Слушаю команду',
+        caption: 'Говорите естественно и четко называйте суммы и категории.',
+        accent: colors.info,
+      },
+      thinking: {
+        label: 'АНАЛИЗ',
+        headline: 'Обрабатываю данные',
+        caption: 'AI извлекает суммы, категории и контекст из сказанного.',
+        accent: colors.secondary,
+      },
+      confirm: {
+        label: 'ПРОВЕРЬТЕ',
+        headline: 'Все ли верно?',
+        caption: 'Сверьте распознанные данные перед добавлением в учет.',
+        accent: colors.primary,
+      },
+      editing: {
+        label: 'РЕДАКТИРОВАНИЕ',
+        headline: 'Корректируем детали',
+        caption: 'При необходимости измените суммы или категории вручную.',
+        accent: colors.warning,
+      },
+      success: {
+        label: 'ГОТОВО',
+        headline: 'Команда выполнена',
+        caption: 'Запись сохранена и синхронизирована с финансовым дэшбордом.',
+        accent: colors.success,
+      },
+    };
+    return meta[stage];
+  }, [colors, stage]);
   const backgroundTint = useMemo(() => stageMeta.accent + '12', [stageMeta]);
 
   // ==================== HANDLERS ====================
@@ -148,7 +152,7 @@ export default function VoiceAIScreen() {
   const renderVisualization = () => {
     switch (stage) {
       case 'listening':
-        return <ListeningVisualization />;
+        return <ListeningVisualization active />;
       case 'thinking':
         return <ThinkingVisualization />;
       case 'confirm':
@@ -207,7 +211,7 @@ export default function VoiceAIScreen() {
         {stage !== 'idle' && (
           <View style={styles.visualizationCard}>
             {renderVisualization()}
-            <StatusDisplay stage={stage} />
+            <StatusDisplay stage={stage} transcript={transcript} />
           </View>
         )}
 
@@ -215,7 +219,7 @@ export default function VoiceAIScreen() {
         {stage === 'idle' && (
           <View style={styles.idleCard}>
             <View style={styles.idleIconContainer}>
-              <Mic color="rgba(255,255,255,0.65)" size={40} strokeWidth={1.4} />
+              <Mic color={colors.textSecondary} size={40} strokeWidth={1.4} />
             </View>
             <Text style={styles.idleTitle}>Говорите свободно</Text>
             <Text style={styles.idleSubtitle}>
@@ -268,7 +272,7 @@ export default function VoiceAIScreen() {
             style={styles.startButton}
             activeOpacity={0.85}
           >
-            <Mic color={Colors.textPrimary} size={20} />
+            <Mic color={colors.onPrimary} size={20} />
             <Text style={styles.startButtonText}>Начать запись</Text>
           </TouchableOpacity>
         )}
@@ -288,14 +292,14 @@ export default function VoiceAIScreen() {
               style={styles.editButton} 
               activeOpacity={0.8}
             >
-              <Edit3 color="#FFFFFF" size={20} />
+              <Edit3 color={colors.textPrimary} size={20} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={handleConfirm}
               style={styles.confirmButton}
               activeOpacity={0.85}
             >
-              <Check color={Colors.background} size={20} />
+              <Check color={colors.onSuccess} size={20} />
               <Text style={styles.confirmButtonText}>Подтвердить</Text>
             </TouchableOpacity>
           </View>
@@ -318,264 +322,268 @@ export default function VoiceAIScreen() {
 
 // ==================== STYLES ====================
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  backgroundOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: SCREEN_HEIGHT * 0.35,
-    opacity: 0.85,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    letterSpacing: 5,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.overlay.light,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scrollContent: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-    paddingTop: 4,
-  },
-  stageMetaCard: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  stageBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 999,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    alignSelf: 'flex-start',
-    marginBottom: 10,
-  },
-  stageDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginRight: 8,
-  },
-  stageBadgeText: {
-    fontSize: 11,
-    letterSpacing: 1,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-  stageHeadline: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginBottom: 6,
-  },
-  stageCaption: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: Colors.textSecondary,
-  },
-  visualizationCard: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 24,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  idleCard: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 20,
-    paddingVertical: 28,
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 24,
-  },
-  idleIconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: Colors.overlay.light,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  idleTitle: {
-    fontSize: 21,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-    marginBottom: 10,
-  },
-  idleSubtitle: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  dataSection: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    marginBottom: 24,
-    gap: 12,
-  },
-  examplesSection: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    marginBottom: 28,
-  },
-  examplesTitle: {
-    fontSize: 12,
-    letterSpacing: 0.5,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: 12,
-    textTransform: 'uppercase',
-  },
-  examplesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -5,
-  },
-  exampleChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-    marginHorizontal: 5,
-    marginBottom: 10,
-  },
-  exampleChipActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primary + '18',
-  },
-  exampleChipText: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  exampleChipTextActive: {
-    color: Colors.textPrimary,
-  },
-  bottomControls: {
-    paddingHorizontal: 20,
-    paddingBottom: 28,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-    backgroundColor: Colors.background,
-    gap: 10,
-  },
-  startButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 999,
-    gap: 10,
-    backgroundColor: Colors.primary,
-  },
-  startButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    columnGap: 10,
-  },
-  cancelButton: {
-    flex: 1,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    paddingVertical: 16,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-  editButton: {
-    width: 52,
-    height: 52,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: 26,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confirmButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 999,
-    gap: 8,
-    backgroundColor: Colors.success,
-  },
-  confirmButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: Colors.background,
-  },
-  stopButton: {
-    marginTop: 6,
-    backgroundColor: Colors.surface,
-    borderRadius: 999,
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stopButtonText: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-});
+const createStyles = (theme: Theme) => {
+  const { colors } = theme;
+
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    backgroundOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      height: SCREEN_HEIGHT * 0.35,
+      opacity: 0.85,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+    },
+    headerTitle: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      letterSpacing: 5,
+    },
+    closeButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.overlaySoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingHorizontal: 20,
+      paddingBottom: 28,
+      paddingTop: 4,
+    },
+    stageMetaCard: {
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
+      marginBottom: 20,
+    },
+    stageBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 999,
+      paddingVertical: 4,
+      paddingHorizontal: 10,
+      borderWidth: 1,
+      alignSelf: 'flex-start',
+      marginBottom: 10,
+    },
+    stageDot: {
+      width: 4,
+      height: 4,
+      borderRadius: 2,
+      marginRight: 8,
+    },
+    stageBadgeText: {
+      fontSize: 11,
+      letterSpacing: 1,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
+    stageHeadline: {
+      fontSize: 22,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 6,
+    },
+    stageCaption: {
+      fontSize: 13,
+      lineHeight: 20,
+      color: colors.textSecondary,
+    },
+    visualizationCard: {
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
+      paddingHorizontal: 18,
+      paddingVertical: 24,
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      alignItems: 'center',
+      marginBottom: 24,
+    },
+    idleCard: {
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      paddingHorizontal: 20,
+      paddingVertical: 28,
+      alignItems: 'center',
+      marginTop: 12,
+      marginBottom: 24,
+    },
+    idleIconContainer: {
+      width: 96,
+      height: 96,
+      borderRadius: 48,
+      backgroundColor: colors.overlaySoft,
+      borderWidth: 1,
+      borderColor: colors.border,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 20,
+    },
+    idleTitle: {
+      fontSize: 21,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginBottom: 10,
+    },
+    idleSubtitle: {
+      fontSize: 13,
+      lineHeight: 20,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    dataSection: {
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
+      marginBottom: 24,
+      gap: 12,
+    },
+    examplesSection: {
+      width: '100%',
+      maxWidth: 420,
+      alignSelf: 'center',
+      marginBottom: 28,
+    },
+    examplesTitle: {
+      fontSize: 12,
+      letterSpacing: 0.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginBottom: 12,
+      textTransform: 'uppercase',
+    },
+    examplesGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginHorizontal: -5,
+    },
+    exampleChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+      marginHorizontal: 5,
+      marginBottom: 10,
+    },
+    exampleChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary + '18',
+    },
+    exampleChipText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+    exampleChipTextActive: {
+      color: colors.textPrimary,
+    },
+    bottomControls: {
+      paddingHorizontal: 20,
+      paddingBottom: 28,
+      paddingTop: 14,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      backgroundColor: colors.background,
+      gap: 10,
+    },
+    startButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 16,
+      borderRadius: 999,
+      gap: 10,
+      backgroundColor: colors.primary,
+    },
+    startButtonText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: colors.onPrimary,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      columnGap: 10,
+    },
+    cancelButton: {
+      flex: 1,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 16,
+      borderRadius: 999,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelButtonText: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
+    editButton: {
+      width: 52,
+      height: 52,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 26,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    confirmButton: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 16,
+      borderRadius: 999,
+      gap: 8,
+      backgroundColor: colors.success,
+    },
+    confirmButtonText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.onSuccess,
+    },
+    stopButton: {
+      marginTop: 6,
+      backgroundColor: colors.surface,
+      borderRadius: 999,
+      paddingVertical: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    stopButtonText: {
+      fontSize: 15,
+      fontWeight: '500',
+      color: colors.textPrimary,
+    },
+  });
+};

@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Plus, ArrowUpRight, ArrowDownLeft, Calendar, User, AlertCircle, CheckCircle, ClipboardList } from 'lucide-react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 interface Debt {
   id: string;

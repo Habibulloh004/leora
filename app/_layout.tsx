@@ -12,7 +12,7 @@ import * as Font from 'expo-font';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
-import { Colors as ThemeColors } from '@/constants/theme';
+import { getTheme } from '@/constants/theme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import LeoraSplashScreen from '@/components/screens/splash/LeoraSplashScreen';
 import { useLockStore } from '@/stores/useLockStore';
@@ -136,7 +136,7 @@ function RootNavigator({
     }
   }, [hasBooted, isAuthenticated, setLoggedIn, setLocked, updateLastActive]);
 
-  const palette = theme === 'dark' ? ThemeColors.dark : ThemeColors.light;
+  const palette = useMemo(() => getTheme(theme).colors, [theme]);
   const navigationTheme = useMemo(() => {
     if (theme === 'dark') {
       return {
@@ -145,10 +145,10 @@ function RootNavigator({
         colors: {
           ...DarkTheme.colors,
           background: palette.background,
-          card: '#1E1E24',
-          border: '#1E1E24',
-          primary: palette.tint,
-          text: palette.text,
+          card: palette.surface,
+          border: palette.border,
+          primary: palette.primary,
+          text: palette.textPrimary,
         },
       };
     }
@@ -159,10 +159,10 @@ function RootNavigator({
       colors: {
         ...DefaultTheme.colors,
         background: palette.background,
-        card: '#FFFFFF',
-        border: '#E5E5EA',
-        primary: palette.tint,
-        text: palette.text,
+        card: palette.surface,
+        border: palette.border,
+        primary: palette.primary,
+        text: palette.textPrimary,
       },
     };
   }, [palette, theme]);

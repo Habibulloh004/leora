@@ -10,7 +10,7 @@ import {
   ReceiptText,
 } from 'lucide-react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 type TransactionType = 'income' | 'expense';
 

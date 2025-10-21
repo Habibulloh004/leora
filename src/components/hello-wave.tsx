@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { Hand } from 'lucide-react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 export function HelloWave() {
   const rotation = useSharedValue(0);

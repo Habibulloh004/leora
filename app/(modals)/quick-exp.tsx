@@ -1,7 +1,8 @@
 import { View } from "react-native";
 import { Text } from "react-native-gesture-handler";
-import { Colors } from "@/constants/Colors";
+import { useThemeColors } from "@/constants/theme";
 export default function AddTask() {
+  const colors = useThemeColors();
   return (
     <View style={{
       flex: 1,
@@ -9,7 +10,7 @@ export default function AddTask() {
       width: "100%",
       height: "100%",
       alignItems: "center",
-      backgroundColor:Colors.background
+      backgroundColor: colors.background
     }}>
       <Text>
         Quick Expence modal

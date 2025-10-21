@@ -9,7 +9,7 @@ import {
   TrendingUp,
 } from 'lucide-react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 interface BalanceCardProps {
   balance: number;

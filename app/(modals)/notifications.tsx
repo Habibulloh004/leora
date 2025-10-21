@@ -14,7 +14,7 @@ import { Bell, Dumbbell, PartyPopper } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
-import { Colors } from '@/constants/Colors';
+import { Theme, useAppTheme } from '@/constants/theme';
 
 interface NotificationItem {
   id: string;
@@ -62,6 +62,9 @@ const MOCK_NOTIFICATIONS: NotificationItem[] = [
 export default function NotificationsModalScreen() {
   const router = useRouter();
   const notifications = useMemo(() => MOCK_NOTIFICATIONS, []);
+  const theme = useAppTheme();
+  const { colors } = theme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const handleClose = () => {
     router.back();
@@ -77,7 +80,7 @@ export default function NotificationsModalScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
         <Pressable onPress={handleClose} hitSlop={10}>
-          <Ionicons name="close" size={26} color={Colors.textSecondary} />
+          <Ionicons name="close" size={26} color={colors.textSecondary} />
         </Pressable>
       </View>
     </View>
@@ -97,8 +100,8 @@ export default function NotificationsModalScreen() {
             >
               <View style={styles.card}>
                 <View style={styles.notificationHeader}>
-                  <View style={styles.iconBox}>
-                    <IconComponent size={20} color="#fff" strokeWidth={2} />
+                <View style={styles.iconBox}>
+                  <IconComponent size={20} color={colors.onPrimary} strokeWidth={2} />
                   </View>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.notificationTitle}>{item.title}</Text>
@@ -125,80 +128,81 @@ export default function NotificationsModalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  headerContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    paddingTop: Platform.OS === 'ios' ? 12 : 40,
-    backgroundColor: Colors.background,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.textSecondary + '33',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-  },
-  notificationItem: {
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 16,
-  },
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    overflow: 'hidden',
-  },
-  notificationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  iconBox: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: Colors.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  notificationTitle: {
-    color: Colors.textPrimary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  notificationMessage: {
-    color: Colors.textSecondary,
-    fontSize: 14,
-  },
-  notificationTime: {
-    color: Colors.textSecondary,
-    fontSize: 12,
-    marginLeft: 8,
-  },
-  notificationImage: {
-    width: '100%',
-    height: 160,
-  },
-  noResults: {
-    textAlign: 'center',
-    color: Colors.textSecondary,
-    marginTop: 32,
-    fontSize: 15,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    headerContainer: {
+      paddingHorizontal: 16,
+      paddingVertical: 16,
+      paddingTop: Platform.OS === 'ios' ? 12 : 40,
+      backgroundColor: theme.colors.background,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.textSecondary + '33',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    title: {
+      fontSize: 22,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+    },
+    listContent: {
+      paddingHorizontal: 16,
+      paddingBottom: 32,
+    },
+    notificationItem: {
+      borderRadius: 16,
+      overflow: 'hidden',
+      marginBottom: 16,
+    },
+    card: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      overflow: 'hidden',
+    },
+    notificationHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+    },
+    iconBox: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: theme.colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 10,
+    },
+    notificationTitle: {
+      color: theme.colors.textPrimary,
+      fontSize: 15,
+      fontWeight: '600',
+    },
+    notificationMessage: {
+      color: theme.colors.textSecondary,
+      fontSize: 14,
+    },
+    notificationTime: {
+      color: theme.colors.textSecondary,
+      fontSize: 12,
+      marginLeft: 8,
+    },
+    notificationImage: {
+      width: '100%',
+      height: 160,
+    },
+    noResults: {
+      textAlign: 'center',
+      color: theme.colors.textSecondary,
+      marginTop: 32,
+      fontSize: 15,
+    },
+  });

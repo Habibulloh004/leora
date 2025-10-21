@@ -27,7 +27,7 @@ import { Wallet } from 'lucide-react-native';
 import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 import {
   FINANCE_CATEGORIES,
   FinanceCategory,

@@ -27,7 +27,7 @@ import { ArrowRightLeft, Wallet } from 'lucide-react-native';
 import CustomModal from '@/components/modals/CustomModal';
 import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 import { useFinanceStore } from '@/stores/useFinanceStore';
 import { useModalStore } from '@/stores/useModalStore';
 import { useTranslation } from '../../../utils/localization';

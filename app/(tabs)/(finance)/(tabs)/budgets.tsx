@@ -11,7 +11,7 @@ import {
   Wallet,
 } from 'lucide-react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 interface HealthIndicator {
   id: string;

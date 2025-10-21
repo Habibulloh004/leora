@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as LocalAuthentication from 'expo-local-authentication';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 import { useLockStore } from '@/stores/useLockStore';
 
 interface BiometricStatus {

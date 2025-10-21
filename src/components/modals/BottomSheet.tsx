@@ -18,7 +18,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import { StyleProp, StyleSheet, ViewStyle, useWindowDimensions } from 'react-native';
 
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 export interface BottomSheetHandle {
   present: () => void;

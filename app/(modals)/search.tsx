@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
-import { Colors } from '@/constants/Colors';
+import { Theme, useAppTheme } from '@/constants/theme';
 
 const SUGGESTIONS = [
   'How to improve focus',
@@ -30,6 +30,9 @@ export default function SearchModalScreen() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const inputRef = useRef<TextInput>(null);
+  const theme = useAppTheme();
+  const { colors } = theme;
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) {
@@ -71,7 +74,7 @@ export default function SearchModalScreen() {
             <Ionicons
               name="document-text-outline"
               size={20}
-              color={Colors.textSecondary}
+              color={colors.textSecondary}
               style={{ marginRight: 12 }}
             />
             <Text style={styles.resultText}>{item}</Text>
@@ -85,7 +88,7 @@ export default function SearchModalScreen() {
                 <Ionicons
                   name="search"
                   size={20}
-                  color={Colors.textSecondary}
+                  color={colors.textSecondary}
                   style={{ marginRight: 8 }}
                 />
                 <TextInput
@@ -93,7 +96,7 @@ export default function SearchModalScreen() {
                   value={query}
                   onChangeText={setQuery}
                   placeholder="Search..."
-                  placeholderTextColor={Colors.textSecondary + '99'}
+                  placeholderTextColor={colors.textSecondary + '99'}
                   style={styles.input}
                   autoCorrect={false}
                   autoCapitalize="none"
@@ -102,12 +105,12 @@ export default function SearchModalScreen() {
                 />
                 {!!query.length && (
                   <Pressable onPress={() => setQuery('')} hitSlop={8}>
-                    <Ionicons name="close-circle" size={20} color={Colors.textSecondary} />
+                    <Ionicons name="close-circle" size={20} color={colors.textSecondary} />
                   </Pressable>
                 )}
               </View>
               <Pressable onPress={handleClose} hitSlop={10}>
-                <Ionicons name="close" size={26} color={Colors.textSecondary} />
+                <Ionicons name="close" size={26} color={colors.textSecondary} />
               </Pressable>
             </View>
           </View>
@@ -127,58 +130,59 @@ export default function SearchModalScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  headerContainer: {
-    backgroundColor: Colors.background,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    paddingTop: Platform.OS === 'ios' ? 12 : 40,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.textSecondary + '33',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  searchBar: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 12,
-  },
-  input: {
-    flex: 1,
-    color: Colors.textPrimary,
-    fontSize: 16,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
-  },
-  resultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: Colors.textSecondary + '22',
-  },
-  resultText: {
-    color: Colors.textPrimary,
-    fontSize: 16,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: Colors.textSecondary,
-    marginTop: 32,
-    fontSize: 15,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    headerContainer: {
+      backgroundColor: theme.colors.background,
+      paddingHorizontal: 16,
+      paddingBottom: 12,
+      paddingTop: Platform.OS === 'ios' ? 12 : 40,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.textSecondary + '33',
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    searchBar: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      marginRight: 12,
+    },
+    input: {
+      flex: 1,
+      color: theme.colors.textPrimary,
+      fontSize: 16,
+    },
+    listContent: {
+      paddingHorizontal: 16,
+      paddingBottom: 32,
+    },
+    resultItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 16,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.textSecondary + '22',
+    },
+    resultText: {
+      color: theme.colors.textPrimary,
+      fontSize: 16,
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: theme.colors.textSecondary,
+      marginTop: 32,
+      fontSize: 15,
+    },
+  });

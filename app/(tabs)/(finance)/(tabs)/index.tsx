@@ -4,7 +4,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 
 import BalanceCard from '@/components/screens/finance/BalanceCard';
-import { Colors } from '@/constants/Colors';
+import { Colors } from '@/constants/theme';
 
 const STATS = [
   { label: 'Accounts', value: '3', tone: Colors.info },
