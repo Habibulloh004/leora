@@ -15,16 +15,17 @@ const Layout = () => {
         tabBarStyle: styles.tabBar,
         tabBarIndicatorStyle: styles.indicator,
         tabBarLabelStyle: styles.label,
-        tabBarScrollEnabled: true,
         tabBarActiveTintColor: '#FFFFFF',
         tabBarInactiveTintColor: '#7E8491',
         tabBarItemStyle: styles.tabItem,
+        tabBarIndicatorContainerStyle:styles.indicatorContainer,
+        tabBarScrollEnabled: true,
       }}
     >
       <MaterialTopTabs.Screen
         name="index"
         options={{
-          title: "Overview",
+          title: "Review",
         }}
       />
       <MaterialTopTabs.Screen
@@ -70,7 +71,7 @@ const styles = StyleSheet.create({
   },
   indicator: {
     backgroundColor: '#FFFFFF',
-    height: 2,
+    height: 1,
     borderRadius: 1,
   },
   label: {
@@ -80,5 +81,10 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     width: 'auto',
+    overflow:"hidden",
+    paddingHorizontal:10
   },
+  indicatorContainer:{
+    paddingHorizontal:20
+  }
 });

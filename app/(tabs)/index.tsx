@@ -1,6 +1,5 @@
-// app/(tabs)/index.tsx
 import React, { useCallback, useState } from 'react';
-import { RefreshControl, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
@@ -54,14 +53,6 @@ export default function HomeScreen() {
         showsVerticalScrollIndicator={false}
         stickyHeaderIndices={[0]}
         contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            progressBackgroundColor="#acacadff"
-            progressViewOffset={56}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-          />
-        }
       >
         <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
         <GreetingCard onEditModeChange={handleEditModeChange} />

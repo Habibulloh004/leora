@@ -75,7 +75,7 @@
     "**/*.ts",
     "**/*.tsx",
     "global.d.ts"
-  ],
+, "app/(tabs)/layout.text"  ],
   "exclude": [
     "node_modules",
     "babel.config.js",

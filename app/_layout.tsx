@@ -11,6 +11,7 @@ import { Asset } from 'expo-asset';
 import * as Font from 'expo-font';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { getTheme } from '@/constants/theme';
 import { useAuthStore } from '@/stores/useAuthStore';
@@ -124,17 +125,17 @@ function RootNavigator({
     }
   }, [isAuthenticated, segments, hasBooted]);
 
-  useEffect(() => {
-    if (!hasBooted) return;
+  // useEffect(() => {
+  //   if (!hasBooted) return;
 
-    if (isAuthenticated) {
-      setLoggedIn(true);
-      updateLastActive({ keepInactive: true });
-    } else {
-      setLoggedIn(false);
-      setLocked(false);
-    }
-  }, [hasBooted, isAuthenticated, setLoggedIn, setLocked, updateLastActive]);
+  //   if (isAuthenticated) {
+  //     setLoggedIn(true);
+  //     updateLastActive({ keepInactive: true });
+  //   } else {
+  //     setLoggedIn(false);
+  //     setLocked(false);
+  //   }
+  // }, [hasBooted, isAuthenticated, setLoggedIn, setLocked, updateLastActive]);
 
   const palette = useMemo(() => getTheme(theme).colors, [theme]);
   const navigationTheme = useMemo(() => {
@@ -168,10 +169,12 @@ function RootNavigator({
   }, [palette, theme]);
 
   const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
+  const appOwnership = Constants?.appOwnership ?? 'standalone';
+  const canManageStatusBar = Platform.OS !== 'ios' || appOwnership !== 'expo';
 
-  if (!hasBooted) {
-    return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
-  }
+  // if (!hasBooted) {
+  //   return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
+  // }
 
   return (
     <NavigationThemeProvider value={navigationTheme}>
@@ -278,9 +281,11 @@ function RootNavigator({
               headerStyle: { backgroundColor: '#000' },
               headerTintColor: '#fff',
             }}
-          />
+          /> 
         </Stack>
-        <StatusBar style={statusBarStyle} backgroundColor={palette.background} animated />
+        {/* {canManageStatusBar && (
+          <StatusBar  style={statusBarStyle} backgroundColor={palette.background} animated />
+        )} */}
       </UserInactiveProvider>
     </NavigationThemeProvider>
   );
