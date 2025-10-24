@@ -1,7 +1,9 @@
 // src/components/widget/TransactionsWidget.tsx
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ArrowDownLeft, ArrowUpRight, Dot } from 'lucide-react-native';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 interface Transaction {
   id: string;
@@ -19,40 +21,50 @@ const MOCK_TRANSACTIONS: Transaction[] = [
 ];
 
 export default function TransactionsWidget() {
+  const theme = useAppTheme();
+
   return (
     <View style={styles.container}>
-      <View style={styles.widget}>
-        <View style={styles.header}>
+      <AdaptiveGlassView style={[styles.widget, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Transactions</Text>
-            <Dot color="#7E8491" />
-            <Text style={styles.title}>Recent</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Transactions</Text>
+            <Dot color={theme.colors.textSecondary} />
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Recent</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.menu}>⋯</Text>
+            <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.transactionsContainer}>
           {MOCK_TRANSACTIONS.map(transaction => (
-            <View key={transaction.id} style={styles.transactionItem}>
+            <View key={transaction.id} style={[styles.transactionItem, { borderBottomColor: theme.colors.border }]}>
               <View style={[
                 styles.iconContainer,
-                { backgroundColor: transaction.type === 'income' ? '#4CAF5020' : '#F4433620' }
+                {
+                  backgroundColor: transaction.type === 'income'
+                    ? (theme.mode === 'dark' ? '#4CAF5020' : '#4CAF5030')
+                    : (theme.mode === 'dark' ? '#F4433620' : '#F4433630')
+                }
               ]}>
                 {transaction.type === 'income' ? (
-                  <ArrowDownLeft size={20} color="#4CAF50" />
+                  <ArrowDownLeft size={20} color={theme.colors.success} />
                 ) : (
-                  <ArrowUpRight size={20} color="#F44336" />
+                  <ArrowUpRight size={20} color={theme.colors.danger} />
                 )}
               </View>
               <View style={styles.transactionContent}>
-                <Text style={styles.transactionCategory}>{transaction.category}</Text>
-                <Text style={styles.transactionDate}>{transaction.date}</Text>
+                <Text style={[styles.transactionCategory, { color: theme.colors.textPrimary }]}>
+                  {transaction.category}
+                </Text>
+                <Text style={[styles.transactionDate, { color: theme.colors.textSecondary }]}>
+                  {transaction.date}
+                </Text>
               </View>
               <Text style={[
                 styles.transactionAmount,
-                { color: transaction.type === 'income' ? '#4CAF50' : '#F44336' }
+                { color: transaction.type === 'income' ? theme.colors.success : theme.colors.danger }
               ]}>
                 {transaction.type === 'income' ? '+' : '-'}
                 {transaction.amount.toLocaleString()} {transaction.currency}
@@ -60,7 +72,7 @@ export default function TransactionsWidget() {
             </View>
           ))}
         </View>
-      </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
@@ -69,14 +81,9 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#34343D',
   },
   widget: {
-    backgroundColor: '#25252B',
     borderRadius: 16,
-    marginTop: 6,
     padding: 12,
   },
   header: {
@@ -84,8 +91,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#34343D',
+    borderBottomWidth: 1,
     paddingBottom: 8,
   },
   titleContainer: {
@@ -95,11 +101,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#7E8491',
   },
   menu: {
     fontSize: 20,
-    color: '#888888',
   },
   transactionsContainer: {
     gap: 8,
@@ -108,8 +112,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#34343D',
+    borderBottomWidth: 1,
     gap: 12,
   },
   iconContainer: {
@@ -124,12 +127,10 @@ const styles = StyleSheet.create({
   },
   transactionCategory: {
     fontSize: 16,
-    color: '#FFFFFF',
     fontWeight: '500',
   },
   transactionDate: {
     fontSize: 12,
-    color: '#7E8491',
     marginTop: 2,
   },
   transactionAmount: {

@@ -1,8 +1,10 @@
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { EditSquareIcon } from '@assets/icons';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
+
 interface GreetingCardProps {
   userName?: string;
   onEditModeChange?: (isEditMode: boolean) => void;
@@ -10,10 +12,12 @@ interface GreetingCardProps {
 
 export default function GreetingCard({
   userName = 'Sardor',
-  onEditModeChange
+  onEditModeChange,
 }: GreetingCardProps) {
   const [editMode, setEditMode] = useState(false);
-  const router = useRouter()
+  const router = useRouter();
+  const theme = useAppTheme();
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
@@ -34,39 +38,41 @@ export default function GreetingCard({
     const newEditMode = !editMode;
     setEditMode(newEditMode);
     onEditModeChange?.(newEditMode);
-    router.navigate('/(modals)/menage-widget')
+    router.navigate('/(modals)/menage-widget');
   };
 
+  const styles = createStyles(theme);
+
   return (
-    <LinearGradient
-      colors={['#34343DCC', '#34343DCC']}
-      style={styles.card}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
+    <AdaptiveGlassView style={styles.card}>
       <View style={styles.content}>
         <View>
-          <Text style={styles.greeting}>
+          <Text style={[styles.greeting, { color: theme.colors.textPrimary }]}>
             {getGreeting()}, {userName}
           </Text>
-          <Text style={styles.date}>{getFormattedDate()}</Text>
+          <Text style={[styles.date, { color: theme.colors.textMuted }]}>{getFormattedDate()}</Text>
         </View>
         <TouchableOpacity
-          style={styles.editButton}
+          style={[styles.editButton, {
+            backgroundColor: theme.mode === 'dark'
+              ? 'rgba(255, 255, 255, 0.08)'
+              : 'rgba(0, 0, 0, 0.05)',
+          }]}
           onPress={handleEditToggle}
           activeOpacity={0.7}
         >
-            <EditSquareIcon color="#A6A6B9" size={16} />
-          <Text style={styles.editText}>{'Edit'}</Text>
+          <EditSquareIcon color={theme.colors.textSecondary} size={16} />
+          <Text style={[styles.editText, { color: theme.colors.textSecondary }]}>{'Edit'}</Text>
         </TouchableOpacity>
       </View>
-    </LinearGradient>
+    </AdaptiveGlassView>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.create({
   card: {
     marginHorizontal: 16,
+    backgroundColor: theme.colors.card,
     marginTop: 16,
     marginBottom: 16,
     borderRadius: 16,
@@ -80,12 +86,10 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: 24,
     fontWeight: '400',
-    color: '#FFFFFF',
     marginBottom: 4,
   },
   date: {
     fontSize: 14,
-    color: '#999999',
   },
   editButton: {
     flexDirection: 'row',
@@ -94,11 +98,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   editText: {
     fontSize: 14,
-    color: '#A6A6B9',
     fontWeight: '500',
   },
 });

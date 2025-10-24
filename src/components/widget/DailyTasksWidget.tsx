@@ -3,11 +3,15 @@ import { CheckIcon } from '@assets/icons';
 import { Dot } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
   View
 } from 'react-native';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
+import { GlassView } from 'expo-glass-effect';
 
 interface DailyTasksWidgetProps {
   initialTasks?: Task[];
@@ -27,37 +31,50 @@ interface TaskItemProps {
   onToggle: () => void;
 }
 
-const TaskItem = ({ task, onToggle }: TaskItemProps) => (
-  <TouchableOpacity
-    style={styles.taskItem}
-    onPress={onToggle}
-    activeOpacity={0.7}
-  >
+const TaskItem = ({ task, onToggle }: TaskItemProps) => {
+  const theme = useAppTheme();
+
+  return (
     <TouchableOpacity
+      style={[styles.taskItem, { borderBottomColor: theme.colors.border }]}
       onPress={onToggle}
       activeOpacity={0.7}
-      style={styles.checkboxHit}
     >
-      <View style={[styles.checkbox, task.completed && styles.checkboxCompleted]}>
-        {task.completed && <CheckIcon color="#FFFFFF" size={18} />}
+      <TouchableOpacity
+        onPress={onToggle}
+        activeOpacity={0.7}
+        style={styles.checkboxHit}
+      >
+        <View style={[
+          styles.checkbox,
+          { borderColor: theme.colors.border },
+          task.completed && { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceElevated }
+        ]}>
+          {task.completed && <CheckIcon color={theme.colors.textPrimary} size={18} />}
+        </View>
+      </TouchableOpacity>
+
+      <View style={styles.taskContent}>
+        <Text style={[
+          styles.taskTitle,
+          { color: theme.colors.textPrimary },
+          task.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
+        ]}>
+          {task.title}
+        </Text>
       </View>
+
+      <Text style={[styles.taskTime, { color: theme.colors.textSecondary }]}>{task.time}</Text>
     </TouchableOpacity>
-
-    <View style={styles.taskContent}>
-      <Text style={[styles.taskTitle, task.completed && styles.taskTitleCompleted]}>
-        {task.title}
-      </Text>
-    </View>
-
-    <Text style={styles.taskTime}>{task.time}</Text>
-  </TouchableOpacity>
-);
+  );
+};
 
 export default function DailyTasksWidget({
   initialTasks = MOCK_TASKS,
   onTaskToggle,
   onMenuPress,
 }: DailyTasksWidgetProps) {
+  const theme = useAppTheme();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
   const handleTaskToggle = (taskId: string) => {
@@ -69,15 +86,15 @@ export default function DailyTasksWidget({
 
   return (
     <View style={styles.container}>
-      <View style={styles.widget}>
-        <View style={styles.header}>
+      <AdaptiveGlassView style={[styles.widget, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Daily tasks</Text>
-            <Dot color="#7E8491" />
-            <Text style={styles.title}>Monday</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Daily tasks</Text>
+            <Dot color={theme.colors.textSecondary} />
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Monday</Text>
           </View>
           <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
-            <Text style={styles.menu}>⋯</Text>
+            <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.tasksContainer}>
@@ -89,7 +106,7 @@ export default function DailyTasksWidget({
             />
           ))}
         </View>
-      </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
@@ -98,15 +115,10 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: "#34343D",
   },
   widget: {
-    backgroundColor: '#25252B',
     borderRadius: 16,
-    marginTop: 6,
-    padding: 12
+    padding: 12,
   },
   tasksContainer: {
     flexDirection: "column",
@@ -117,75 +129,50 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: "#34343D",
+    borderBottomWidth: 1,
     paddingBottom: 8
   },
   titleContainer: {
     justifyContent: "flex-start",
     alignItems: "center",
     flexDirection: "row",
-    color: '#7E8491',
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#7E8491',
   },
-
   menu: {
     fontSize: 20,
-    color: '#888888',
   },
-
   taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     paddingVertical: 5,
-    borderBottomWidth: 2,
-    borderBottomColor: "#34343D"
+    borderBottomWidth: 1,
   },
-
   checkboxHit: {
     padding: 4,
     borderRadius: 12,
   },
-
   checkbox: {
     width: 28,
     height: 28,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#3A3A42',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'transparent',
   },
-
-  checkboxCompleted: {
-    backgroundColor: '#3A3A42',
-    borderColor: '#3A3A42',
-  },
-
   taskContent: {
     flex: 1,
   },
-
   taskTitle: {
     fontSize: 16,
-    color: '#FFFFFF',
     fontWeight: '200',
   },
-
-  taskTitleCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#6B6B76',
-  },
-
   taskTime: {
     fontSize: 14,
-    color: '#8E8E93',
     fontWeight: '500',
   },
 });

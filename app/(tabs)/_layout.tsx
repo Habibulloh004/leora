@@ -14,6 +14,7 @@ import PlannerHeader from '@/components/screens/planner/PlannerHeader';
 import InsightsHeader from '@/components/screens/insights/InsightsHeader';
 import MoreHeader from '@/components/screens/more/MoreHeader';
 import FinanceHeader from '@/components/screens/finance/FinanceHeader';
+import { useAppTheme } from '@/constants/theme';
 
 const { width } = Dimensions.get('window');
 const TAB_COUNT = 5 as const;
@@ -37,8 +38,9 @@ const TABS: readonly TabItem[] = [
 
 const TabHeaderFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const insets = useSafeAreaInsets();
+  const theme = useAppTheme();
   return (
-    <View style={{ paddingTop: insets.top, backgroundColor: '#25252B' }}>{children}</View>
+    <View style={{ paddingTop: insets.top, backgroundColor: theme.colors.background }}>{children}</View>
   );
 };
 
@@ -83,6 +85,7 @@ const TabButton = memo(function TabButton({
   onPress,
   onLongPress,
 }: TabButtonProps) {
+  const theme = useAppTheme();
   const pressAnim = useRef(new Animated.Value(0)).current;
 
   const scale = pressAnim.interpolate({
@@ -92,7 +95,8 @@ const TabButton = memo(function TabButton({
 
   const iconScale = isFocused ? 1.05 : 0.9;
   const opacity = isFocused ? 1 : 0.5;
-  const color = isFocused ? '#FFFFFF' : '#666666';
+  const color = isFocused ? theme.colors.textPrimary : theme.colors.textMuted;
+  const rippleColor = theme.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
 
   const handlePressIn = () =>
     Animated.timing(pressAnim, { toValue: 1, duration: 120, useNativeDriver: true }).start();
@@ -107,7 +111,7 @@ const TabButton = memo(function TabButton({
       onPressIn={handlePressIn}
       onPressOut={handlePressOut}
       style={styles.tabButton}
-      android_ripple={{ color: 'rgba(255,255,255,0.1)', borderless: true }}
+      android_ripple={{ color: rippleColor, borderless: true }}
     >
       <Animated.View style={[styles.tabContent, { transform: [{ scale }] }]}>
         <View style={[styles.iconContainer, { opacity, transform: [{ scale: iconScale }] }]}>
@@ -127,6 +131,10 @@ interface GlowIndicatorProps {
 }
 
 const GlowIndicator = memo(function GlowIndicator({ translateX, width }: GlowIndicatorProps) {
+  const theme = useAppTheme();
+  const indicatorColor = theme.colors.textPrimary;
+  const haloOpacity = theme.mode === 'dark' ? 0.22 : 0.15;
+
   return (
     <Animated.View
       pointerEvents="none"
@@ -141,14 +149,22 @@ const GlowIndicator = memo(function GlowIndicator({ translateX, width }: GlowInd
     >
       {/* HALO */}
       <LinearGradient
-        colors={['rgba(255,255,255,0)', 'rgba(255,255,255,0.22)', 'rgba(255,255,255,0)']}
+        colors={[
+          `rgba(${theme.mode === 'dark' ? '255,255,255' : '0,0,0'},0)`,
+          `rgba(${theme.mode === 'dark' ? '255,255,255' : '0,0,0'},${haloOpacity})`,
+          `rgba(${theme.mode === 'dark' ? '255,255,255' : '0,0,0'},0)`
+        ]}
         start={{ x: 0.5, y: 0.0 }}
         end={{ x: 0.5, y: 1.0 }}
         style={{ position: 'absolute', top: -12, left: -10, right: -10, height: 24, borderRadius: 100 }}
       />
       {/* CORE LINE */}
       <LinearGradient
-        colors={['rgba(255,255,255,0)', '#FFFFFF', 'rgba(255,255,255,0)']}
+        colors={[
+          `rgba(${theme.mode === 'dark' ? '255,255,255' : '0,0,0'},0)`,
+          indicatorColor,
+          `rgba(${theme.mode === 'dark' ? '255,255,255' : '0,0,0'},0)`
+        ]}
         start={{ x: 0, y: 0.5 }}
         end={{ x: 1, y: 0.5 }}
         style={{ height: 1, borderRadius: 1 }}
@@ -161,6 +177,7 @@ GlowIndicator.displayName = 'GlowIndicator';
 /* ---------------------------- Custom TabBar --------------------------- */
 /** We avoid useEffect. We trigger springs only when targetX actually changes. */
 const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
+  const theme = useAppTheme();
   const insets = useSafeAreaInsets();
   const tabWidth = width / TAB_COUNT;
   const indicatorWidth = tabWidth * 0.5;
@@ -182,16 +199,28 @@ const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
   }
 
   const totalHeight = (Platform.OS === 'ios' ? 54 : 60) + insets.bottom;
+  const blurTint = theme.mode === 'dark' ? 'dark' : 'light';
+  const borderColor = theme.mode === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+  const overlayBg = theme.mode === 'dark'
+    ? 'rgba(37, 37, 43, 0.7)'
+    : 'rgba(245, 247, 250, 0.8)';
 
   return (
     <BlurView
       intensity={50}
-      tint="dark"
-      style={[styles.tabBar, { height: totalHeight, paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24 }]}
+      tint={blurTint}
+      style={[
+        styles.tabBar,
+        {
+          height: totalHeight,
+          paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24,
+          borderTopColor: borderColor
+        }
+      ]}
     >
       {/* Semi-transparent overlay for additional depth */}
-      <View style={styles.blurOverlay} />
-      
+      <View style={[styles.blurOverlay, { backgroundColor: overlayBg }]} />
+
       <GlowIndicator translateX={translateX} width={indicatorWidth} />
 
       <View style={styles.tabContainer}>
@@ -227,6 +256,7 @@ CustomTabBar.displayName = 'CustomTabBar';
 
 /* ---------------------------- Tabs Container -------------------------- */
 function TabsContent() {
+  const theme = useAppTheme();
   const { setActiveTab } = useTab();
 
   const screenListeners = useMemo(
@@ -251,14 +281,14 @@ function TabsContent() {
         screenOptions={{
           freezeOnBlur: true,
           tabBarButton: HapticTab,
-          headerStyle: { backgroundColor: '#25252B' },
+          headerStyle: { backgroundColor: theme.colors.background },
         }}
         backBehavior="order"
       >
         <Tabs.Screen
           name="index"
           options={{
-            headerShown: false 
+            headerShown: false
           }}
         />
         <Tabs.Screen
@@ -303,17 +333,15 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   tabBar: {
     position: 'absolute',
-    bottom: 0, 
-    left: 0, 
+    bottom: 0,
+    left: 0,
     right: 0,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
     paddingVertical: 8,
     overflow: 'visible',
   },
   blurOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(37, 37, 43, 0.7)',
   },
   tabContainer: {
     flexDirection: 'row',
@@ -326,15 +354,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 8,
   },
-  tabContent: { 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  tabContent: {
+    alignItems: 'center',
+    justifyContent: 'center'
   },
-  iconContainer: { 
-    marginBottom: 4 
+  iconContainer: {
+    marginBottom: 4
   },
-  tabLabel: { 
-    fontSize: 11, 
-    letterSpacing: 0.3 
+  tabLabel: {
+    fontSize: 11,
+    letterSpacing: 0.3
   },
 });

@@ -252,11 +252,13 @@ export const Fonts: FontFamilies =
 
 export interface ThemeColors {
   background: string;
+  glassTinColor:string,
   backgroundMuted: string;
   surface: string;
   surfaceElevated: string;
   surfaceMuted: string;
   card: string;
+  cardItem: string;
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
@@ -326,18 +328,20 @@ const sharedPalette = {
 
 const lightColors: ThemeColors = {
   ...sharedPalette,
-  background: '#F8FAFC',
+  glassTinColor:"#fff",
+  background: '#dde0e3ff',
   backgroundMuted: '#FFFFFF',
   surface: '#FFFFFF',
-  surfaceElevated: '#F1F5F9',
-  surfaceMuted: '#E2E8F0',
+  surfaceElevated: '#EEF2F6',
+  surfaceMuted: '#DFE5EC',
   card: '#FFFFFF',
+  cardItem: '#efececff',
   textPrimary: '#0F172A',
   textSecondary: '#475467',
   textMuted: '#64748B',
   textDisabled: '#94A3B8',
-  border: '#E2E8F0',
-  borderMuted: '#F8FAFC',
+  border: '#DFE5EC',
+  borderMuted: '#EEF2F6',
   shadowColor: 'rgba(15,23,42,0.12)',
   overlaySoft: 'rgba(15,23,42,0.05)',
   overlayStrong: 'rgba(15,23,42,0.16)',
@@ -364,24 +368,26 @@ const lightColors: ThemeColors = {
   secondary: sharedPalette.secondary,
   secondaryLight: sharedPalette.secondaryLight,
   secondaryDark: sharedPalette.secondaryDark,
-  textTertiary: "#fff",
+  textTertiary: "#0F172A",
   textLock: "#000",
   backgroundLock:"#fff"
 };
 
 const darkColors: ThemeColors = {
   ...sharedPalette,
-  background: Colors.background,
+  glassTinColor:"393941ff",
+  background: '#25252B',
   backgroundMuted: Colors.backgroundElevated,
-  surface: Colors.surface,
-  surfaceElevated: Colors.surfaceElevated,
+  surface: '#252530',
+  surfaceElevated: '#1F1F28',
   surfaceMuted: Colors.surfaceHighlight,
-  card: Colors.surface,
-  textPrimary: Colors.textPrimary,
-  textSecondary: Colors.textSecondary,
-  textMuted: Colors.textTertiary,
+  card: '#31313A',
+  cardItem: '#404049ff',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#A0A0A8',
+  textMuted: '#6B6B75',
   textDisabled: Colors.textDisabled,
-  border: Colors.border,
+  border: '#2E2E38',
   borderMuted: Colors.borderLight,
   shadowColor: 'rgba(0,0,0,0.55)',
   overlaySoft: Colors.overlay.light,
@@ -409,7 +415,7 @@ const darkColors: ThemeColors = {
   secondary: sharedPalette.secondary,
   secondaryLight: sharedPalette.secondaryLight,
   secondaryDark: sharedPalette.secondaryDark,
-  textTertiary: "#fff",
+  textTertiary: "#FFFFFF",
   textLock:"#fff",
   backgroundLock:"#000"
 

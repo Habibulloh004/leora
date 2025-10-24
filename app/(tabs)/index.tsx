@@ -13,11 +13,13 @@ import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import UniversalFAB from '@/components/UniversalFAB';
 import { useWidgetStore } from '@/stores/widgetStore';
 import { useRouter } from 'expo-router';
+import { useAppTheme } from '@/constants/theme';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
   const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
+  const theme = useAppTheme();
 
   // Subscribe to Zustand store - will automatically re-render when activeWidgets changes
   const activeWidgets = useWidgetStore((state) => state.activeWidgets);
@@ -40,42 +42,49 @@ export default function HomeScreen() {
     console.log('Edit mode toggled:', isEditMode);
   };
 
+  const styles = createStyles(theme);
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Header
-        onNotificationPress={() => router.navigate('/(modals)/notifications')}
-        scrollY={scrollY}
-        onSearchPress={() => router.navigate('/(modals)/search')}
-      />
-      <Animated.ScrollView
-        onScroll={onScroll}
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[0]}
-        contentContainerStyle={styles.scrollContent}
-      >
-        <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
-        <GreetingCard onEditModeChange={handleEditModeChange} />
+    <View style={styles.container}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <Header
+          onNotificationPress={() => router.navigate('/(modals)/notifications')}
+          scrollY={scrollY}
+          onSearchPress={() => router.navigate('/(modals)/search')}
+        />
+        <Animated.ScrollView
+          onScroll={onScroll}
+          scrollEventThrottle={16}
+          showsVerticalScrollIndicator={false}
+          stickyHeaderIndices={[0]}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
+          <GreetingCard onEditModeChange={handleEditModeChange} />
 
-        {/* Render active widgets from Zustand store - will update in real-time */}
-        {activeWidgets.map((widgetId) => (
-          <UniversalWidget
-            key={widgetId}
-            widgetId={widgetId}
-          />
-        ))}
+          {/* Render active widgets from Zustand store - will update in real-time */}
+          {activeWidgets.map((widgetId) => (
+            <UniversalWidget
+              key={widgetId}
+              widgetId={widgetId}
+            />
+          ))}
 
-        <View style={styles.bottomSpacer} />
-      </Animated.ScrollView>
-      <UniversalFAB />
-    </SafeAreaView>
+          <View style={styles.bottomSpacer} />
+        </Animated.ScrollView>
+        <UniversalFAB />
+      </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25252B',
+    backgroundColor: theme.colors.background,
+  },
+  safeArea: {
+    flex: 1,
   },
   scrollContent: {
     paddingTop: 64,

@@ -2,6 +2,7 @@ import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { useAppTheme } from '@/constants/theme';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useRef } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -28,6 +29,7 @@ export default function Header({
   const dateSheetRef = useRef<BottomSheetHandle>(null);
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
+  const theme = useAppTheme();
 
   const initials = useMemo(() => {
     const source = user?.fullName || user?.username || 'U';
@@ -57,6 +59,8 @@ export default function Header({
     };
   });
 
+  const styles = createStyles(theme);
+
   return (
     <Animated.View style={[styles.header, animatedStyle]}>
       <View style={styles.ProfileLogo}>
@@ -64,27 +68,27 @@ export default function Header({
           accessibilityRole="button"
           accessibilityLabel="Open profile"
           onPress={() => router.navigate('/profile')}
-          style={styles.avatar}
+          style={[styles.avatar, { backgroundColor: theme.colors.surfaceElevated }]}
           activeOpacity={0.8}
         >
-          <Text style={styles.logo}>{initials}</Text>
+          <Text style={[styles.logo, { color: theme.colors.textPrimary }]}>{initials}</Text>
         </TouchableOpacity>
       </View>
 
       <Pressable onPress={() => dateSheetRef.current?.present()}>
         <View style={styles.dateContainer}>
-          <Text style={styles.dateText}>Monday</Text>
-          <Text style={styles.dateText}>September 8</Text>
+          <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>Monday</Text>
+          <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>September 8</Text>
         </View>
       </Pressable>
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
-          <ListSearchIcon color="#A6A6B9" size={22} />
+          <ListSearchIcon color={theme.colors.textSecondary} size={22} />
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
-          <BellFilledIcon color="#A6A6B9" size={22} />
+          <BellFilledIcon color={theme.colors.textSecondary} size={22} />
           {hasNotifications && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
@@ -93,7 +97,7 @@ export default function Header({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.create({
   header: {
     height: 64,
     position: 'absolute',
@@ -107,17 +111,16 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginTop: Platform.OS === 'ios' ? 56 : 34,
     borderBottomWidth: 1,
-    borderBottomColor: '#34343D',
-    backgroundColor: '#25252B',
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
     zIndex: 100,
   },
   ProfileLogo: {
     flex: 1,
-    justifyContent: "flex-start",
-    alignItems: "flex-start",
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
   },
   avatar: {
-    backgroundColor: '#34343D',
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -126,25 +129,23 @@ const styles = StyleSheet.create({
   },
   dateContainer: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: 'center',
     flexDirection: 'column',
     alignItems: 'center',
   },
   dateText: {
     fontSize: 12,
-    color: '#A6A6B9',
   },
   logo: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#A6A6B9',
     letterSpacing: 1,
   },
   actions: {
     flexDirection: 'row',
     flex: 1,
     alignItems: 'center',
-    justifyContent: "flex-end"
+    justifyContent: 'flex-end',
   },
   iconButton: {
     padding: 4,

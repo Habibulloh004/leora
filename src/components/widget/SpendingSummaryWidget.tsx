@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-
-import { Colors } from '@/constants/theme';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 const mockCategories = [
   { label: 'Food & Dining', amount: 245 },
@@ -10,39 +10,42 @@ const mockCategories = [
 ];
 
 export default function SpendingSummaryWidget() {
+  const theme = useAppTheme();
+
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Spending Summary</Text>
-        <Text style={styles.subtitle}>This month</Text>
-      </View>
+    <View style={styles.container}>
+      <AdaptiveGlassView style={[styles.card, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Spending Summary</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>This month</Text>
+        </View>
 
-      <View style={styles.body}>
-        {mockCategories.map((item) => (
-          <View key={item.label} style={styles.row}>
-            <Text style={styles.rowLabel}>{item.label}</Text>
-            <Text style={styles.rowValue}>-${item.amount}</Text>
-          </View>
-        ))}
-      </View>
+        <View style={styles.body}>
+          {mockCategories.map((item) => (
+            <View key={item.label} style={styles.row}>
+              <Text style={[styles.rowLabel, { color: theme.colors.textSecondary }]}>{item.label}</Text>
+              <Text style={[styles.rowValue, { color: theme.colors.danger }]}>-${item.amount}</Text>
+            </View>
+          ))}
+        </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerLabel}>Total spent</Text>
-        <Text style={styles.footerValue}>-$463</Text>
-      </View>
+        <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
+          <Text style={[styles.footerLabel, { color: theme.colors.textSecondary }]}>Total spent</Text>
+          <Text style={[styles.footerValue, { color: theme.colors.textPrimary }]}>-$463</Text>
+        </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  container: {
     marginHorizontal: 16,
-    backgroundColor: Colors.background,
+  },
+  card: {
     borderRadius: 16,
     padding: 16,
     gap: 16,
-    borderWidth: 2,
-    borderColor: Colors.border,
   },
   header: {
     flexDirection: 'row',
@@ -50,12 +53,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
   subtitle: {
-    color: Colors.textSecondary,
     fontSize: 13,
   },
   body: {
@@ -67,28 +68,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   rowLabel: {
-    color: Colors.textSecondary,
     fontSize: 14,
   },
   rowValue: {
-    color: Colors.danger,
     fontSize: 14,
     fontWeight: '600',
   },
   footer: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: Colors.border,
     paddingTop: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   footerLabel: {
-    color: Colors.textSecondary,
     fontSize: 13,
   },
   footerValue: {
-    color: Colors.textPrimary,
     fontSize: 15,
     fontWeight: '700',
   },

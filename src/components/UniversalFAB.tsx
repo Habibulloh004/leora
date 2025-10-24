@@ -32,6 +32,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { useShallow } from 'zustand/react/shallow';
+import { useAppTheme } from '@/constants/theme';
 
 interface FABAction {
   id: string;
@@ -40,6 +41,7 @@ interface FABAction {
 }
 
 export default function UniversalFAB() {
+  const theme = useAppTheme();
   const { activeTab } = useTab();
   const insets = useSafeAreaInsets();
   const isOpen = useSharedValue(false);
@@ -238,6 +240,14 @@ export default function UniversalFAB() {
 
   const bottomOffset = 76 + insets.bottom;
 
+  // Theme-based colors
+  const fabBgColor = theme.colors.surface;
+  const actionButtonBgColor = theme.mode === 'dark' ? 'rgba(52, 52, 61, 0.6)' : 'rgba(255, 255, 255, 0.9)';
+  const iconColor = theme.colors.textPrimary;
+  const labelColor = theme.colors.textPrimary;
+  const blurTint = theme.mode === 'dark' ? 'dark' : 'light';
+  const overlayTintColor = theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)';
+
   // Return null after all hooks have been called
   if (actions.length === 0) return null;
 
@@ -265,14 +275,14 @@ export default function UniversalFAB() {
               />
             }
           >
-            <BlurView intensity={50} style={StyleSheet.absoluteFill} />
+            <BlurView intensity={50} tint={blurTint} style={StyleSheet.absoluteFill} />
           </MaskedView>
           <ImageBackground
             source={require('@assets/images/backgroundModal.png')}
             style={styles.backgroundImage}
             resizeMode="cover"
           >
-            <View style={styles.overlayTint} />
+            <View style={[styles.overlayTint, { backgroundColor: overlayTintColor }]} />
           </ImageBackground>
         </Pressable>
       </Animated.View>
@@ -290,11 +300,11 @@ export default function UniversalFAB() {
                 style={[styles.actionContainer, buttonStyles[index]]}
               >
                 <Animated.View style={[styles.labelContainer, labelStyles[index]]}>
-                  <Text style={styles.label}>{action.label}</Text>
+                  <Text style={[styles.label]}>{action.label}</Text>
                 </Animated.View>
 
                 <TouchableOpacity
-                  style={styles.actionButton}
+                  style={[styles.actionButton, { backgroundColor: actionButtonBgColor }]}
                   onPress={() => {
                     toggleExpanded();
                     setTimeout(() => {
@@ -342,7 +352,7 @@ export default function UniversalFAB() {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Icon color="#FFFFFF" size={24} strokeWidth={2} />
+                  <Icon color={iconColor} size={24} strokeWidth={2} />
                 </TouchableOpacity>
               </Animated.View>
             );
@@ -351,17 +361,17 @@ export default function UniversalFAB() {
           {/* Main FAB - Shadow wrapper */}
           <View style={styles.fabShadowWrapper}>
             <TouchableOpacity
-              style={styles.fab}
+              style={[styles.fab, { backgroundColor: fabBgColor }]}
               onPress={toggleExpanded}
               activeOpacity={0.9}
             >
               <Animated.View style={fabRotationStyle}>
                 <View style={styles.iconStack}>
                   <Animated.View style={[styles.layeredIcon, plusIconStyle]}>
-                    <Plus color="#ffffff" size={28} strokeWidth={2.5} />
+                    <Plus color={iconColor} size={28} strokeWidth={2.5} />
                   </Animated.View>
                   <Animated.View style={[styles.layeredIcon, minusIconStyle]}>
-                    <Minus color="#ffffff" size={28} strokeWidth={2.5} />
+                    <Minus color={iconColor} size={28} strokeWidth={2.5} />
                   </Animated.View>
                 </View>
               </Animated.View>
@@ -399,7 +409,6 @@ const styles = StyleSheet.create({
   },
   overlayTint: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.15)',
   },
   fabShadowWrapper: {
     shadowColor: '#000',
@@ -413,7 +422,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#34343D',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -431,7 +439,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#34343D99',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -443,18 +450,12 @@ const styles = StyleSheet.create({
   labelContainer: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
   },
   label: {
-    color: '#FFFFFF',
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.5,
+    color:"white"
   },
   iconStack: {
     width: 28,

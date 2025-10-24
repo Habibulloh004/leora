@@ -74,7 +74,7 @@ export default function ProfileScreen() {
     backgroundColor: interpolateColor(
       themeTransition.value,
       [0, 1],
-      [LIGHT_COLORS.surface, DARK_COLORS.surface]
+      [LIGHT_COLORS.card, DARK_COLORS.card]
     ),
   }));
 

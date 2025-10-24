@@ -40,6 +40,7 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
 
   const currentModalRef = useRef<string | null>(null);
   const lastAppStateRef = useRef<AppStateStatus>(AppState.currentState ?? 'active');
+  const isMountedRef = useRef(false);
 
   const dismissModal = useCallback(() => {
     if (currentModalRef.current) {
@@ -53,10 +54,16 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
   const presentModal = useCallback(
     (route: string) => {
       if (currentModalRef.current === route) return;
+      if (!isMountedRef.current) return;
 
       dismissModal();
-      router.push(route);
-      currentModalRef.current = route;
+      // Use setTimeout to ensure navigation happens after the Root Layout is mounted
+      setTimeout(() => {
+        if (isMountedRef.current) {
+          router.push(route);
+          currentModalRef.current = route;
+        }
+      }, 0);
     },
     [dismissModal, router]
   );
@@ -69,6 +76,14 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
       dismissModal();
     }
   }, [dismissModal, isLocked, isLoggedIn, setInactive, updateLastActive]);
+
+  // Track when component is mounted
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isLoggedIn) {

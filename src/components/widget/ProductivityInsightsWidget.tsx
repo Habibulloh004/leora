@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-
-import { Colors } from '@/constants/theme';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 const mockMetrics = [
   { label: 'Focus score', value: '82', suffix: '/100' },
@@ -18,53 +18,64 @@ const mockTrend = [
 ];
 
 export default function ProductivityInsightsWidget() {
+  const theme = useAppTheme();
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Productivity Insights</Text>
+    <View style={styles.container}>
+      <AdaptiveGlassView style={[styles.card, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Productivity Insights</Text>
 
-      <View style={styles.metricsRow}>
-        {mockMetrics.map((metric) => (
-          <View key={metric.label} style={styles.metric}>
-            <Text style={styles.metricLabel}>{metric.label}</Text>
-            <Text style={styles.metricValue}>
-              {metric.value}
-              <Text style={styles.metricSuffix}>{metric.suffix}</Text>
-            </Text>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.trendHeader}>
-        <Text style={styles.trendTitle}>Focus trend</Text>
-        <Text style={styles.trendHint}>+7 vs last week</Text>
-      </View>
-
-      <View style={styles.trendBars}>
-        {mockTrend.map((point) => (
-          <View key={point.label} style={styles.trendItem}>
-            <View style={styles.trendBarContainer}>
-              <View style={[styles.trendBar, { height: `${point.value}%` }]} />
+        <View style={styles.metricsRow}>
+          {mockMetrics.map((metric) => (
+            <View key={metric.label} style={[styles.metric, {
+              backgroundColor: theme.colors.surfaceElevated,
+              borderColor: theme.colors.border
+            }]}>
+              <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>{metric.label}</Text>
+              <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+                {metric.value}
+                <Text style={[styles.metricSuffix, { color: theme.colors.textSecondary }]}>{metric.suffix}</Text>
+              </Text>
             </View>
-            <Text style={styles.trendLabel}>{point.label}</Text>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+
+        <View style={styles.trendHeader}>
+          <Text style={[styles.trendTitle, { color: theme.colors.textPrimary }]}>Focus trend</Text>
+          <Text style={[styles.trendHint, { color: theme.colors.success }]}>+7 vs last week</Text>
+        </View>
+
+        <View style={styles.trendBars}>
+          {mockTrend.map((point) => (
+            <View key={point.label} style={styles.trendItem}>
+              <View style={[styles.trendBarContainer, {
+                backgroundColor: theme.colors.surfaceElevated,
+                borderColor: theme.colors.border
+              }]}>
+                <View style={[styles.trendBar, {
+                  height: `${point.value}%`,
+                  backgroundColor: theme.colors.primary
+                }]} />
+              </View>
+              <Text style={[styles.trendLabel, { color: theme.colors.textSecondary }]}>{point.label}</Text>
+            </View>
+          ))}
+        </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  container: {
     marginHorizontal: 16,
-    backgroundColor: Colors.background,
+  },
+  card: {
     borderRadius: 16,
     padding: 16,
     gap: 16,
-    borderWidth: 2,
-    borderColor: Colors.border,
   },
   title: {
-    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
@@ -75,26 +86,21 @@ const styles = StyleSheet.create({
   },
   metric: {
     flex: 1,
-    backgroundColor: Colors.surfaceElevated,
     borderRadius: 12,
     paddingVertical: 12,
     paddingHorizontal: 10,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   metricLabel: {
-    color: Colors.textSecondary,
     fontSize: 12,
     marginBottom: 4,
   },
   metricValue: {
-    color: Colors.textPrimary,
     fontSize: 18,
     fontWeight: '700',
   },
   metricSuffix: {
     fontSize: 12,
-    color: Colors.textSecondary,
     fontWeight: '500',
   },
   trendHeader: {
@@ -103,12 +109,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   trendTitle: {
-    color: Colors.textPrimary,
     fontSize: 14,
     fontWeight: '600',
   },
   trendHint: {
-    color: Colors.success,
     fontSize: 12,
   },
   trendBars: {
@@ -125,20 +129,16 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 80,
     borderRadius: 8,
-    backgroundColor: Colors.surfaceElevated,
     justifyContent: 'flex-end',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   trendBar: {
     width: '100%',
-    backgroundColor: Colors.primary,
     borderRadius: 8,
   },
   trendLabel: {
     marginTop: 6,
     fontSize: 12,
-    color: Colors.textSecondary,
   },
 });

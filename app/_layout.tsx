@@ -125,17 +125,17 @@ function RootNavigator({
     }
   }, [isAuthenticated, segments, hasBooted]);
 
-  // useEffect(() => {
-  //   if (!hasBooted) return;
+  useEffect(() => {
+    if (!hasBooted) return;
 
-  //   if (isAuthenticated) {
-  //     setLoggedIn(true);
-  //     updateLastActive({ keepInactive: true });
-  //   } else {
-  //     setLoggedIn(false);
-  //     setLocked(false);
-  //   }
-  // }, [hasBooted, isAuthenticated, setLoggedIn, setLocked, updateLastActive]);
+    if (isAuthenticated) {
+      setLoggedIn(true);
+      updateLastActive({ keepInactive: true });
+    } else {
+      setLoggedIn(false);
+      setLocked(false);
+    }
+  }, [hasBooted, isAuthenticated, setLoggedIn, setLocked, updateLastActive]);
 
   const palette = useMemo(() => getTheme(theme).colors, [theme]);
   const navigationTheme = useMemo(() => {
@@ -172,9 +172,9 @@ function RootNavigator({
   const appOwnership = Constants?.appOwnership ?? 'standalone';
   const canManageStatusBar = Platform.OS !== 'ios' || appOwnership !== 'expo';
 
-  // if (!hasBooted) {
-  //   return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
-  // }
+  if (!hasBooted) {
+    return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
+  }
 
   return (
     <NavigationThemeProvider value={navigationTheme}>

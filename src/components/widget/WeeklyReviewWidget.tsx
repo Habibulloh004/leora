@@ -1,8 +1,8 @@
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Dot, Flame } from 'lucide-react-native';
-
-import { Colors } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 interface WeeklyStats {
   tasksCompleted: number;
@@ -19,46 +19,47 @@ const MOCK_STATS: WeeklyStats = {
 };
 
 export default function WeeklyReviewWidget() {
+  const theme = useAppTheme();
   const completionRate = Math.round((MOCK_STATS.tasksCompleted / MOCK_STATS.totalTasks) * 100);
 
   return (
     <View style={styles.container}>
-      <View style={styles.widget}>
-        <View style={styles.header}>
+      <AdaptiveGlassView style={[styles.widget, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Weekly Review</Text>
-            <Dot color="#7E8491" />
-            <Text style={styles.title}>Jan 6-12</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Weekly Review</Text>
+            <Dot color={theme.colors.textSecondary} />
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Jan 6-12</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.menu}>⋯</Text>
+            <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{completionRate}%</Text>
-            <Text style={styles.statLabel}>Completion</Text>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.cardItem }]}>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{completionRate}%</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Completion</Text>
           </View>
 
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{MOCK_STATS.focusHours}h</Text>
-            <Text style={styles.statLabel}>Focus Time</Text>
+          <View style={[styles.statCard, { backgroundColor: theme.colors.cardItem }]}>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{MOCK_STATS.focusHours}h</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Focus Time</Text>
           </View>
 
-          <View style={[styles.statCard, styles.fullWidth]}>
+          <View style={[styles.statCard, styles.fullWidth, { backgroundColor: theme.colors.cardItem }]}>
             <View style={styles.streakRow}>
-              <Flame size={16} color={Colors.warning} />
-              <Text style={styles.statValue}>{MOCK_STATS.streak} days</Text>
+              <Flame size={16} color={theme.colors.warning} />
+              <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{MOCK_STATS.streak} days</Text>
             </View>
-            <Text style={styles.statLabel}>Current streak</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Current streak</Text>
           </View>
         </View>
 
-        <Text style={styles.summary}>
+        <Text style={[styles.summary, { color: theme.colors.textSecondary }]}>
           Great week! You completed {MOCK_STATS.tasksCompleted} of {MOCK_STATS.totalTasks} tasks.
         </Text>
-      </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
@@ -67,14 +68,9 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#34343D',
   },
   widget: {
-    backgroundColor: '#25252B',
     borderRadius: 16,
-    marginTop: 6,
     padding: 12,
   },
   header: {
@@ -82,8 +78,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
-    borderBottomWidth: 2,
-    borderBottomColor: '#34343D',
+    borderBottomWidth: 1,
     paddingBottom: 8,
   },
   titleContainer: {
@@ -93,11 +88,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#7E8491',
   },
   menu: {
     fontSize: 20,
-    color: '#888888',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -108,7 +101,6 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     minWidth: '47%',
-    backgroundColor: '#34343D',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
@@ -119,16 +111,13 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#FFFFFF',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#7E8491',
   },
   summary: {
     fontSize: 14,
-    color: '#A6A6B9',
     textAlign: 'center',
     lineHeight: 20,
   },

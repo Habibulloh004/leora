@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-
-import { Colors } from '@/constants/theme';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 const mockWellness = [
   { label: 'Energy', value: 76 },
@@ -10,45 +10,52 @@ const mockWellness = [
 ];
 
 export default function WellnessOverviewWidget() {
+  const theme = useAppTheme();
+
   return (
-    <View style={styles.card}>
-      <Text style={styles.title}>Wellness Overview</Text>
-      <Text style={styles.subtitle}>Self-reported in the last 7 days</Text>
+    <View style={styles.container}>
+      <AdaptiveGlassView style={[styles.card, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Wellness Overview</Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Self-reported in the last 7 days</Text>
 
-      <View style={styles.scores}>
-        {mockWellness.map((item) => (
-          <View key={item.label} style={styles.scoreCard}>
-            <Text style={styles.scoreValue}>{item.value}</Text>
-            <Text style={styles.scoreLabel}>{item.label}</Text>
-          </View>
-        ))}
-      </View>
+        <View style={styles.scores}>
+          {mockWellness.map((item) => (
+            <View key={item.label} style={[styles.scoreCard, {
+              backgroundColor: theme.colors.surfaceElevated,
+              borderColor: theme.colors.border
+            }]}>
+              <Text style={[styles.scoreValue, { color: theme.colors.primary }]}>{item.value}</Text>
+              <Text style={[styles.scoreLabel, { color: theme.colors.textSecondary }]}>{item.label}</Text>
+            </View>
+          ))}
+        </View>
 
-      <View style={styles.footer}>
-        <View style={styles.footerIndicator} />
-        <Text style={styles.footerText}>Balanced week — keep up the routines</Text>
-      </View>
+        <View style={[styles.footer, {
+          backgroundColor: theme.colors.surfaceElevated,
+          borderColor: theme.colors.border
+        }]}>
+          <View style={[styles.footerIndicator, { backgroundColor: theme.colors.success }]} />
+          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Balanced week — keep up the routines</Text>
+        </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  container: {
     marginHorizontal: 16,
-    backgroundColor: Colors.background,
+  },
+  card: {
     borderRadius: 16,
     padding: 16,
     gap: 16,
-    borderWidth: 2,
-    borderColor: Colors.border,
   },
   title: {
-    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
   subtitle: {
-    color: Colors.textSecondary,
     fontSize: 13,
   },
   scores: {
@@ -58,21 +65,17 @@ const styles = StyleSheet.create({
   },
   scoreCard: {
     flex: 1,
-    backgroundColor: Colors.surfaceElevated,
     borderRadius: 12,
     paddingVertical: 18,
     alignItems: 'center',
     gap: 6,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   scoreValue: {
-    color: Colors.primary,
     fontSize: 24,
     fontWeight: '700',
   },
   scoreLabel: {
-    color: Colors.textSecondary,
     fontSize: 12,
     textAlign: 'center',
   },
@@ -80,20 +83,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: Colors.surfaceElevated,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   footerIndicator: {
     width: 8,
     height: 8,
     borderRadius: 8,
-    backgroundColor: Colors.success,
   },
   footerText: {
-    color: Colors.textSecondary,
     fontSize: 13,
     flex: 1,
   },

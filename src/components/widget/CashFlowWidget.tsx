@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-
-import { Colors } from '@/constants/theme';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 const mockCashFlow = [
   { label: 'Mon', income: 220, expense: 180 },
@@ -12,56 +12,60 @@ const mockCashFlow = [
 ];
 
 export default function CashFlowWidget() {
+  const theme = useAppTheme();
   const totalIncome = mockCashFlow.reduce((sum, day) => sum + day.income, 0);
   const totalExpense = mockCashFlow.reduce((sum, day) => sum + day.expense, 0);
   const net = totalIncome - totalExpense;
 
   return (
-    <View style={styles.card}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Cash Flow</Text>
-        <Text style={styles.subtitle}>Last 5 days</Text>
-      </View>
+    <View style={styles.container}>
+      <AdaptiveGlassView style={[styles.card, {
+        backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card,
+      }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Cash Flow</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Last 5 days</Text>
+        </View>
 
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Income</Text>
-          <Text style={[styles.summaryValue, styles.incomeValue]}>${totalIncome}</Text>
-        </View>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Expenses</Text>
-          <Text style={[styles.summaryValue, styles.expenseValue]}>${totalExpense}</Text>
-        </View>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Net</Text>
-          <Text style={[styles.summaryValue, net >= 0 ? styles.incomeValue : styles.expenseValue]}>
-            ${net}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.table}>
-        {mockCashFlow.map((day) => (
-          <View key={day.label} style={styles.tableRow}>
-            <Text style={styles.dayLabel}>{day.label}</Text>
-            <Text style={[styles.tableValue, styles.incomeValue]}>+${day.income}</Text>
-            <Text style={[styles.tableValue, styles.expenseValue]}>-${day.expense}</Text>
+        <View style={styles.summaryRow}>
+          <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Income</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.success }]}>${totalIncome}</Text>
           </View>
-        ))}
-      </View>
+          <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Expenses</Text>
+            <Text style={[styles.summaryValue, { color: theme.colors.danger }]}>${totalExpense}</Text>
+          </View>
+          <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Net</Text>
+            <Text style={[styles.summaryValue, { color: net >= 0 ? theme.colors.success : theme.colors.danger }]}>
+              ${net}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.table}>
+          {mockCashFlow.map((day) => (
+            <View key={day.label} style={styles.tableRow}>
+              <Text style={[styles.dayLabel, { color: theme.colors.textSecondary }]}>{day.label}</Text>
+              <Text style={[styles.tableValue, { color: theme.colors.success }]}>+${day.income}</Text>
+              <Text style={[styles.tableValue, { color: theme.colors.danger }]}>-${day.expense}</Text>
+            </View>
+          ))}
+        </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    marginHorizontal: 16,
+  },
   card: {
-    backgroundColor: Colors.background,
     borderRadius: 16,
     padding: 16,
     gap: 16,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    marginHorizontal: 16,
   },
   header: {
     flexDirection: 'row',
@@ -69,12 +73,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   title: {
-    color: Colors.textPrimary,
     fontSize: 16,
     fontWeight: '700',
   },
   subtitle: {
-    color: Colors.textSecondary,
     fontSize: 13,
   },
   summaryRow: {
@@ -84,26 +86,17 @@ const styles = StyleSheet.create({
   },
   summaryItem: {
     flex: 1,
-    backgroundColor: Colors.surfaceElevated,
     padding: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   summaryLabel: {
-    color: Colors.textSecondary,
     fontSize: 12,
     marginBottom: 4,
   },
   summaryValue: {
     fontSize: 15,
     fontWeight: '700',
-  },
-  incomeValue: {
-    color: Colors.success,
-  },
-  expenseValue: {
-    color: Colors.danger,
   },
   table: {
     gap: 8,
@@ -116,7 +109,6 @@ const styles = StyleSheet.create({
   },
   dayLabel: {
     flex: 1,
-    color: Colors.textSecondary,
     fontSize: 13,
   },
   tableValue: {

@@ -1,7 +1,9 @@
 // src/components/widget/FocusSessionsWidget.tsx
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Dot, Timer } from 'lucide-react-native';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 interface FocusSession {
   id: string;
@@ -17,47 +19,53 @@ const MOCK_SESSIONS: FocusSession[] = [
 ];
 
 export default function FocusSessionsWidget() {
+  const theme = useAppTheme();
+
   return (
     <View style={styles.container}>
-      <View style={styles.widget}>
-        <View style={styles.header}>
+      <AdaptiveGlassView style={[styles.widget, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Focus Sessions</Text>
-            <Dot color="#7E8491" />
-            <Text style={styles.title}>Today</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Focus Sessions</Text>
+            <Dot color={theme.colors.textSecondary} />
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Today</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.menu}>⋯</Text>
+            <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.stats}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>2</Text>
-            <Text style={styles.statLabel}>Completed</Text>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>2</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Completed</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>50m</Text>
-            <Text style={styles.statLabel}>Total Time</Text>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>50m</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Time</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>25m</Text>
-            <Text style={styles.statLabel}>Next Session</Text>
+            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>25m</Text>
+            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Next Session</Text>
           </View>
         </View>
 
         <View style={styles.sessionsContainer}>
           {MOCK_SESSIONS.map(session => (
-            <View key={session.id} style={styles.sessionItem}>
-              <Timer size={20} color={session.completed ? '#4CAF50' : '#7E8491'} />
-              <Text style={[styles.sessionTask, session.completed && styles.completed]}>
+            <View key={session.id} style={[styles.sessionItem, { borderBottomColor: theme.colors.border }]}>
+              <Timer size={20} color={session.completed ? theme.colors.success : theme.colors.textSecondary} />
+              <Text style={[
+                styles.sessionTask,
+                { color: theme.colors.textPrimary },
+                session.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
+              ]}>
                 {session.task}
               </Text>
-              <Text style={styles.sessionDuration}>{session.duration}m</Text>
+              <Text style={[styles.sessionDuration, { color: theme.colors.textSecondary }]}>{session.duration}m</Text>
             </View>
           ))}
         </View>
-      </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
@@ -66,14 +74,9 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#34343D',
   },
   widget: {
-    backgroundColor: '#25252B',
     borderRadius: 16,
-    marginTop: 6,
     padding: 12,
   },
   header: {
@@ -81,8 +84,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#34343D',
+    borderBottomWidth: 1,
     paddingBottom: 8,
   },
   titleContainer: {
@@ -92,11 +94,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#7E8491',
   },
   menu: {
     fontSize: 20,
-    color: '#888888',
   },
   stats: {
     flexDirection: 'row',
@@ -109,11 +109,9 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#FFFFFF',
   },
   statLabel: {
     fontSize: 12,
-    color: '#7E8491',
     marginTop: 4,
   },
   sessionsContainer: {
@@ -123,23 +121,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#34343D',
+    borderBottomWidth: 1,
     gap: 12,
   },
   sessionTask: {
     flex: 1,
     fontSize: 16,
-    color: '#FFFFFF',
     fontWeight: '400',
-  },
-  completed: {
-    textDecorationLine: 'line-through',
-    color: '#6B6B76',
   },
   sessionDuration: {
     fontSize: 14,
-    color: '#8E8E93',
     fontWeight: '500',
   },
 });

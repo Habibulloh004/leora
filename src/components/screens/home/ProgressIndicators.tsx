@@ -10,6 +10,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
+import { useAppTheme } from '@/constants/theme';
 
 interface Props {
   scrollY: SharedValue<number>;
@@ -23,10 +24,10 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 interface CircularProgressProps {
   progress: number;
   color: string;
+  trackColor: string;
 }
 
-// CircularProgress har doim bir xil o'lchamda
-const CircularProgress = React.memo(({ progress, color }: CircularProgressProps) => {
+const CircularProgress = React.memo(({ progress, color, trackColor }: CircularProgressProps) => {
   const size = 96;
   const strokeWidth = 7;
   const center = size / 2;
@@ -49,7 +50,7 @@ const CircularProgress = React.memo(({ progress, color }: CircularProgressProps)
         cx={center}
         cy={center}
         r={radius}
-        stroke="#34343D"
+        stroke={trackColor}
         strokeWidth={strokeWidth}
         fill="none"
       />
@@ -78,6 +79,7 @@ export default function ProgressIndicators({
   budget = 62,
   focus = 52,
 }: Props) {
+  const theme = useAppTheme();
   const SCROLL_THRESHOLD = 100;
 
   const containerStyle = useAnimatedStyle(() => {
@@ -88,12 +90,10 @@ export default function ProgressIndicators({
       Extrapolation.CLAMP
     );
     const height = 180 - collapse * 120;
-    
 
     return { height };
   });
 
-  // Scale orqali kichraytirish - SVG o'lchami o'zgarmaydi!
   const circleContainerStyle = useAnimatedStyle(() => {
     const collapse = interpolate(
       scrollY.value,
@@ -101,7 +101,7 @@ export default function ProgressIndicators({
       [0, 1],
       Extrapolation.CLAMP
     );
-    const scale = 1 - collapse * 0.792; // 1 -> 0.208
+    const scale = 1 - collapse * 0.792;
     const translateX = -10 * collapse;
     const translateY = 90 * collapse;
 
@@ -118,7 +118,7 @@ export default function ProgressIndicators({
       Extrapolation.CLAMP
     );
     const opacity = 1 - hideProgress;
-    const scale = 1 - hideProgress * 0.22; // 1 -> 0.78
+    const scale = 1 - hideProgress * 0.22;
 
     return {
       opacity,
@@ -126,8 +126,6 @@ export default function ProgressIndicators({
     };
   });
 
-  /* CHANGED: Staggered animation - label moves RIGHT first (0-60), then UP later (40-100).
-     This prevents overlap by clearing the circle horizontally before moving vertically. */
   const labelStyle = useAnimatedStyle(() => {
     const rightShift = interpolate(
       scrollY.value,
@@ -177,6 +175,8 @@ export default function ProgressIndicators({
     { label: 'FOCUS', value: focus, color: colorForValue(focus) },
   ];
 
+  const styles = createStyles(theme);
+
   return (
     <Animated.View style={[styles.container, containerStyle]}>
       <Animated.View style={[styles.innerContainer, progressAnimatedStyle]}>
@@ -186,14 +186,15 @@ export default function ProgressIndicators({
               <CircularProgress
                 progress={item.value}
                 color={item.color}
+                trackColor={theme.colors.card}
               />
 
-              <Animated.Text style={[styles.percentText, percentStyle]}>
+              <Animated.Text style={[styles.percentText, percentStyle, { color: theme.colors.textPrimary }]}>
                 {Math.round(item.value)}%
               </Animated.Text>
             </Animated.View>
 
-            <Animated.Text style={[styles.labelText, labelStyle]}>
+            <Animated.Text style={[styles.labelText, labelStyle, { color: theme.colors.textSecondary }]}>
               {item.label}
             </Animated.Text>
           </View>
@@ -203,14 +204,14 @@ export default function ProgressIndicators({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.create({
   container: {
-    backgroundColor: '#25252B',
+    backgroundColor: theme.colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: '#34343D',
+    borderBottomColor: theme.colors.border,
     zIndex: 99,
     justifyContent: 'center',
-    paddingTop:20
+    paddingTop: 20,
   },
   innerContainer: {
     flexDirection: 'row',
@@ -232,23 +233,14 @@ const styles = StyleSheet.create({
   },
   percentText: {
     position: 'absolute',
-    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '700',
     textAlign: 'center',
   },
   labelText: {
-    color: '#A6A6B9',
     fontSize: 12,
     fontWeight: '600',
     letterSpacing: 0.5,
     marginTop: 8,
   },
 });
-
-/*
- * FIX: Used staggered animation timing to prevent overlap during transition.
- * - translateX animates from scrollY 0-60 (label moves right early, clearing the circle)
- * - translateY animates from scrollY 40-100 (label moves up later, after clearing horizontally)
- * This ensures the label is safely to the right side before it starts moving upward.
- */

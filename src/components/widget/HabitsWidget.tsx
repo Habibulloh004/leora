@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BookOpen, Brain, CheckCircle2, Dot, Dumbbell, Flame } from 'lucide-react-native';
-
-import { Colors } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
 interface Habit {
   id: string;
@@ -19,6 +19,7 @@ const MOCK_HABITS: Habit[] = [
 ];
 
 export default function HabitsWidget() {
+  const theme = useAppTheme();
   const [habits, setHabits] = useState<Habit[]>(MOCK_HABITS);
 
   const toggleHabit = (id: string) => {
@@ -29,15 +30,15 @@ export default function HabitsWidget() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.widget}>
-        <View style={styles.header}>
+      <AdaptiveGlassView style={[styles.widget,{backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card}]}>
+        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={styles.title}>Habits</Text>
-            <Dot color="#7E8491" />
-            <Text style={styles.title}>Today</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Habits</Text>
+            <Dot color={theme.colors.textSecondary} />
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Today</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.menu}>⋯</Text>
+            <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
 
@@ -47,32 +48,36 @@ export default function HabitsWidget() {
             return (
               <TouchableOpacity
                 key={habit.id}
-                style={styles.habitItem}
+                style={[styles.habitItem, { borderBottomColor: theme.colors.border }]}
                 onPress={() => toggleHabit(habit.id)}
                 activeOpacity={0.7}
               >
-                <View style={styles.habitIconBadge}>
-                  <Icon size={18} color={Colors.textPrimary} />
+                <View style={[styles.habitIconBadge, { backgroundColor: theme.colors.surfaceElevated }]}>
+                  <Icon size={18} color={theme.colors.textPrimary} />
                 </View>
                 <View style={styles.habitContent}>
-                  <Text style={[styles.habitName, habit.completed && styles.habitCompleted]}>
+                  <Text style={[
+                    styles.habitName,
+                    { color: theme.colors.textPrimary },
+                    habit.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
+                  ]}>
                     {habit.name}
                   </Text>
                   <View style={styles.habitMeta}>
-                    <Flame size={14} color={Colors.warning} />
-                    <Text style={styles.habitStreak}>{habit.streak} day streak</Text>
+                    <Flame size={14} color={theme.colors.warning} />
+                    <Text style={[styles.habitStreak, { color: theme.colors.textSecondary }]}>{habit.streak} day streak</Text>
                   </View>
                 </View>
                 <CheckCircle2
                   size={20}
-                  color={habit.completed ? Colors.success : Colors.border}
-                  fill={habit.completed ? Colors.success : 'transparent'}
+                  color={habit.completed ? theme.colors.success : theme.colors.border}
+                  fill={habit.completed ? theme.colors.success : 'transparent'}
                 />
               </TouchableOpacity>
             );
           })}
         </View>
-      </View>
+      </AdaptiveGlassView>
     </View>
   );
 }
@@ -81,14 +86,9 @@ const styles = StyleSheet.create({
   container: {
     marginHorizontal: 16,
     marginBottom: 16,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#34343D',
   },
   widget: {
-    backgroundColor: '#25252B',
     borderRadius: 16,
-    marginTop: 6,
     padding: 12,
   },
   header: {
@@ -96,8 +96,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#34343D',
+    borderBottomWidth: 1,
     paddingBottom: 8,
   },
   titleContainer: {
@@ -107,11 +106,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#7E8491',
   },
   menu: {
     fontSize: 20,
-    color: '#888888',
   },
   habitsContainer: {
     gap: 8,
@@ -120,14 +117,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
-    borderBottomWidth: 2,
-    borderBottomColor: '#34343D',
+    borderBottomWidth: 1,
   },
   habitIconBadge: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: '#34343D',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -137,12 +132,7 @@ const styles = StyleSheet.create({
   },
   habitName: {
     fontSize: 16,
-    color: '#FFFFFF',
     fontWeight: '400',
-  },
-  habitCompleted: {
-    textDecorationLine: 'line-through',
-    color: '#6B6B76',
   },
   habitMeta: {
     flexDirection: 'row',
@@ -152,6 +142,5 @@ const styles = StyleSheet.create({
   },
   habitStreak: {
     fontSize: 12,
-    color: Colors.textSecondary,
   },
 });
