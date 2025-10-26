@@ -43,6 +43,18 @@
       "@config/*": [
         "src/config/*"
       ],
+      "@react-navigation/native": [
+        "node_modules/@react-navigation/native/lib/typescript/src/index"
+      ],
+      "@react-navigation/native/*": [
+        "node_modules/@react-navigation/native/lib/typescript/src/*"
+      ],
+      "@react-navigation/core": [
+        "node_modules/@react-navigation/core/lib/typescript/src/index"
+      ],
+      "@react-navigation/core/*": [
+        "node_modules/@react-navigation/core/lib/typescript/src/*"
+      ],
       "@assets/*": [
         "assets/*"
       ]

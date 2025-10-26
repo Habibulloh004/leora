@@ -1,761 +1,925 @@
-// app/(tabs)/(finance)/(tabs)/debts.tsx
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Plus, ArrowUpRight, ArrowDownLeft, Calendar, User, AlertCircle, CheckCircle, ClipboardList } from 'lucide-react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
+import {
+  BellRing,
+  CalendarDays,
+  CalendarRange,
+  Check,
+  CircleAlert,
+  HandCoins,
+  Plus,
+  UserRound,
+} from 'lucide-react-native';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 
-import { Colors } from '@/constants/theme';
+import CustomBottomSheet, {
+  BottomSheetHandle,
+} from '@/components/modals/BottomSheet';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
-interface Debt {
-  id: string;
-  type: 'owed_by_me' | 'owed_to_me';
-  person: string;
+type DebtCardProps = {
+  name: string;
+  description: string;
+  amount: number | string;
+  currency?: string;
+  period: string;
+  isIncoming: boolean;
+  secondaryAmount?: string;
+  onNotify?: () => void;
+  onCancel?: () => void;
+  onPlan?: () => void;
+  onPayPartly?: () => void;
+};
+
+type DebtSectionProps = {
+  title: string;
+  data: DebtCardProps[];
+};
+
+type AddDebtPayload = {
+  name: string;
+  description: string;
   amount: number;
   currency: string;
-  originalAmount: number;
-  description: string;
-  dueDate: string;
-  status: 'pending' | 'partial' | 'overdue';
-  avatar?: string;
-  payments: Payment[];
-}
+  period: string;
+  isIncoming: boolean;
+};
 
-interface Payment {
-  id: string;
-  amount: number;
-  date: string;
-}
+type AddDebtModalProps = {
+  onSubmit: (payload: AddDebtPayload) => void;
+};
 
-const MOCK_DEBTS: Debt[] = [
-  {
-    id: '1',
-    type: 'owed_by_me',
-    person: 'Jovzod',
-    amount: 2000,
-    currency: 'USD',
-    originalAmount: 2500,
-    description: 'Loan for business',
-    dueDate: '2025-10-05',
-    status: 'pending',
-    payments: [
-      { id: 'p1', amount: 500, date: '2025-01-10' },
-    ],
-  },
-  {
-    id: '2',
-    type: 'owed_by_me',
-    person: 'Sardor',
-    amount: 500000,
-    currency: 'UZS',
-    originalAmount: 500000,
-    description: 'Borrowed for rent',
-    dueDate: '2025-02-01',
-    status: 'overdue',
-    payments: [],
-  },
-  {
-    id: '3',
-    type: 'owed_to_me',
-    person: 'Aziz',
-    amount: 10000,
-    currency: 'UZS',
-    originalAmount: 15000,
-    description: 'Personal loan',
-    dueDate: '2025-10-11',
-    status: 'partial',
-    payments: [
-      { id: 'p2', amount: 5000, date: '2024-12-20' },
-    ],
-  },
-  {
-    id: '4',
-    type: 'owed_to_me',
-    person: 'Bekzod',
-    amount: 300,
-    currency: 'USD',
-    originalAmount: 300,
-    description: 'Lent for emergency',
-    dueDate: '2025-01-25',
-    status: 'pending',
-    payments: [],
-  },
-];
+export type AddDebtModalHandle = {
+  open: () => void;
+  close: () => void;
+};
 
-const DebtsPage = () => {
-  const [debts] = useState<Debt[]>(MOCK_DEBTS);
-  const [activeTab, setActiveTab] = useState<'all' | 'owed_by_me' | 'owed_to_me'>('all');
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type LucideIcon = (props: { size?: number; color?: string }) => JSX.Element;
 
-  const formatCurrency = (amount: number, currency: string) => {
-    if (currency === 'UZS') {
-      return new Intl.NumberFormat('uz-UZ', {
-        minimumFractionDigits: 0,
-      }).format(amount) + ' сум';
-    }
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-    }).format(amount);
+type DebtActionButtonProps = {
+  label: string;
+  Icon: LucideIcon;
+  onPress?: () => void;
+};
+
+const DebtActionButton: React.FC<DebtActionButtonProps> = ({ label, Icon, onPress }) => {
+  const theme = useAppTheme();
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: scale.value,
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withTiming(0.96, { duration: 120, easing: Easing.linear });
   };
 
-  const calculateProgress = (amount: number, original: number) => {
-    const paid = original - amount;
-    return Math.round((paid / original) * 100);
+  const handlePressOut = () => {
+    scale.value = withTiming(1, { duration: 160, easing: Easing.linear });
   };
-
-  const isOverdue = (dueDate: string) => {
-    return new Date(dueDate) < new Date();
-  };
-
-  const getDaysRemaining = (dueDate: string) => {
-    const today = new Date();
-    const due = new Date(dueDate);
-    const diff = Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-    
-    if (diff < 0) return `${Math.abs(diff)} days overdue`;
-    if (diff === 0) return 'Due today';
-    if (diff === 1) return 'Due tomorrow';
-    return `${diff} days left`;
-  };
-
-  const getTotals = () => {
-    const owedByMe = debts
-      .filter(d => d.type === 'owed_by_me')
-      .reduce((sum, d) => {
-        const amount = d.currency === 'USD' ? d.amount : d.amount / 12650;
-        return sum + amount;
-      }, 0);
-
-    const owedToMe = debts
-      .filter(d => d.type === 'owed_to_me')
-      .reduce((sum, d) => {
-        const amount = d.currency === 'USD' ? d.amount : d.amount / 12650;
-        return sum + amount;
-      }, 0);
-
-    return {
-      owedByMe: Math.round(owedByMe),
-      owedToMe: Math.round(owedToMe),
-      netBalance: Math.round(owedToMe - owedByMe),
-    };
-  };
-
-  const filteredDebts = debts.filter(debt => {
-    if (activeTab === 'all') return true;
-    return debt.type === activeTab;
-  });
-
-  const totals = getTotals();
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Summary Cards */}
-      <View style={styles.summaryCards}>
-        <View style={[styles.summaryCard, styles.owedByMeCard]}>
-          <View style={styles.summaryCardHeader}>
-            <View style={[styles.summaryIconContainer, styles.summaryIconNegative]}>
-              <ArrowUpRight size={18} color={Colors.danger} />
-            </View>
-            <Text style={styles.summaryLabel}>I OWE</Text>
-          </View>
-          <Text style={[styles.summaryAmount, styles.negativeAmount]}>
-            ${totals.owedByMe.toLocaleString()}
-          </Text>
-          <Text style={styles.summarySubtext}>
-            {debts.filter(d => d.type === 'owed_by_me').length} active debts
-          </Text>
-        </View>
-
-        <View style={[styles.summaryCard, styles.owedToMeCard]}>
-          <View style={styles.summaryCardHeader}>
-            <View style={[styles.summaryIconContainer, styles.summaryIconPositive]}>
-              <ArrowDownLeft size={18} color={Colors.success} />
-            </View>
-            <Text style={styles.summaryLabel}>OWED TO ME</Text>
-          </View>
-          <Text style={[styles.summaryAmount, styles.positiveAmount]}>
-            ${totals.owedToMe.toLocaleString()}
-          </Text>
-          <Text style={styles.summarySubtext}>
-            {debts.filter(d => d.type === 'owed_to_me').length} loans out
-          </Text>
-        </View>
-      </View>
-
-      {/* Net Balance */}
-      <View style={styles.netBalanceCard}>
-        <Text style={styles.netBalanceLabel}>Net Balance</Text>
-        <Text style={[
-          styles.netBalanceAmount,
-          totals.netBalance >= 0 ? styles.positiveAmount : styles.negativeAmount
-        ]}>
-          {totals.netBalance >= 0 ? '+' : ''}${Math.abs(totals.netBalance).toLocaleString()}
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[styles.actionPressable, animatedStyle]}
+    >
+      <AdaptiveGlassView
+        style={[
+          styles.actionButton,
+          {
+            borderColor: theme.colors.borderMuted,
+            backgroundColor: theme.mode === 'dark'
+              ? 'rgba(255,255,255,0.08)'
+              : 'rgba(20,20,30,0.06)',
+          },
+        ]}
+      >
+        <Icon size={15} color={theme.colors.textSecondary} />
+        <Text style={[styles.actionLabel, { color: theme.colors.textSecondary }]}>
+          {label}
         </Text>
-        <Text style={styles.netBalanceSubtext}>
-          {totals.netBalance >= 0 
-            ? 'You are owed more than you owe' 
-            : 'You owe more than owed to you'}
-        </Text>
-      </View>
-
-      {/* Filter Tabs */}
-      <View style={styles.filterTabs}>
-        <TouchableOpacity
-          style={[styles.filterTab, activeTab === 'all' && styles.filterTabActive]}
-          onPress={() => setActiveTab('all')}
-        >
-          <Text style={[styles.filterTabText, activeTab === 'all' && styles.filterTabTextActive]}>
-            All ({debts.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, activeTab === 'owed_by_me' && styles.filterTabActive]}
-          onPress={() => setActiveTab('owed_by_me')}
-        >
-          <Text style={[styles.filterTabText, activeTab === 'owed_by_me' && styles.filterTabTextActive]}>
-            I Owe ({debts.filter(d => d.type === 'owed_by_me').length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.filterTab, activeTab === 'owed_to_me' && styles.filterTabActive]}
-          onPress={() => setActiveTab('owed_to_me')}
-        >
-          <Text style={[styles.filterTabText, activeTab === 'owed_to_me' && styles.filterTabTextActive]}>
-            Owed to Me ({debts.filter(d => d.type === 'owed_to_me').length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Debts List */}
-      <View style={styles.debtsList}>
-        {filteredDebts.length === 0 ? (
-          <View style={styles.emptyState}>
-            <View style={styles.emptyStateIcon}>
-              <ClipboardList size={28} color={Colors.textPrimary} />
-            </View>
-            <Text style={styles.emptyStateTitle}>No debts found</Text>
-            <Text style={styles.emptyStateSubtitle}>
-              {activeTab === 'all' 
-                ? 'Add a debt to get started' 
-                : activeTab === 'owed_by_me'
-                ? 'You have no outstanding debts'
-                : 'No one owes you money'}
-            </Text>
-          </View>
-        ) : (
-          filteredDebts.map((debt) => {
-            const progress = calculateProgress(debt.amount, debt.originalAmount);
-            const daysInfo = getDaysRemaining(debt.dueDate);
-            const overdue = isOverdue(debt.dueDate);
-
-            return (
-              <TouchableOpacity key={debt.id} style={styles.debtCard}>
-                {/* Debt Header */}
-                <View style={styles.debtHeader}>
-                  <View
-                    style={[
-                      styles.debtIconContainer,
-                      {
-                        backgroundColor:
-                          (debt.type === 'owed_by_me' ? Colors.danger : Colors.success) + '1A',
-                      },
-                    ]}
-                  >
-                    <User
-                      size={22}
-                      color={debt.type === 'owed_by_me' ? Colors.danger : Colors.success}
-                    />
-                  </View>
-                  <View style={styles.debtHeaderInfo}>
-                    <Text style={styles.debtPerson}>{debt.person}</Text>
-                    <Text style={styles.debtDescription}>{debt.description}</Text>
-                  </View>
-                  <View style={styles.debtTypeIndicator}>
-                    {debt.type === 'owed_by_me' ? (
-                      <ArrowUpRight size={18} color={Colors.danger} />
-                    ) : (
-                      <ArrowDownLeft size={18} color={Colors.success} />
-                    )}
-                  </View>
-                </View>
-
-                {/* Amount Section */}
-                <View style={styles.debtAmountSection}>
-                  <View style={styles.debtAmountRow}>
-                    <Text style={styles.debtAmountLabel}>Amount</Text>
-                    <Text
-                      style={[
-                        styles.debtAmount,
-                        { color: debt.type === 'owed_by_me' ? Colors.danger : Colors.success },
-                      ]}
-                    >
-                      {debt.type === 'owed_by_me' ? '-' : '+'}
-                      {formatCurrency(debt.amount, debt.currency)}
-                    </Text>
-                  </View>
-                  
-                  {progress > 0 && progress < 100 && (
-                    <>
-                      <View style={styles.debtProgressBar}>
-                        <View
-                          style={[
-                            styles.debtProgressFill,
-                            {
-                              width: `${progress}%`,
-                              backgroundColor:
-                                debt.type === 'owed_by_me' ? Colors.danger : Colors.success,
-                            },
-                          ]}
-                        />
-                      </View>
-                      <Text style={styles.debtProgressText}>
-                        {formatCurrency(debt.originalAmount - debt.amount, debt.currency)} paid ({progress}%)
-                      </Text>
-                    </>
-                  )}
-                </View>
-
-                {/* Due Date Section */}
-                <View style={[
-                  styles.debtDueSection,
-                  overdue && styles.debtOverdue
-                ]}>
-                  <View style={styles.debtDueInfo}>
-                    <Calendar
-                      size={14}
-                      color={overdue ? Colors.danger : Colors.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.debtDueText,
-                        overdue && styles.debtDueTextOverdue,
-                      ]}
-                    >
-                      {daysInfo}
-                    </Text>
-                  </View>
-                  {overdue && (
-                    <View style={styles.overdueTag}>
-                      <AlertCircle size={14} color={Colors.danger} />
-                      <Text style={styles.overdueTagText}>OVERDUE</Text>
-                    </View>
-                  )}
-                  {debt.status === 'partial' && !overdue && (
-                    <View style={styles.partialTag}>
-                      <CheckCircle size={14} color={Colors.warning} />
-                      <Text style={styles.partialTagText}>PARTIAL</Text>
-                    </View>
-                  )}
-                </View>
-
-                {/* Payment History */}
-                {debt.payments.length > 0 && (
-                  <View style={styles.debtPayments}>
-                    <Text style={styles.debtPaymentsTitle}>Payment History</Text>
-                    {debt.payments.map((payment) => (
-                      <View key={payment.id} style={styles.paymentItem}>
-                        <View style={styles.paymentDot} />
-                        <Text style={styles.paymentAmount}>
-                          {formatCurrency(payment.amount, debt.currency)}
-                        </Text>
-                        <Text style={styles.paymentDate}>
-                          {new Date(payment.date).toLocaleDateString()}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-
-                {/* Action Buttons */}
-                <View style={styles.debtActions}>
-                  {debt.type === 'owed_by_me' ? (
-                    <>
-                      <TouchableOpacity style={[styles.debtActionButton, styles.payButton]}>
-                        <Text style={styles.debtActionText}>Pay</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.debtActionButton, styles.secondaryButton]}>
-                        <Text style={styles.secondaryButtonText}>Remind Me</Text>
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    <>
-                      <TouchableOpacity style={[styles.debtActionButton, styles.collectButton]}>
-                        <Text style={styles.debtActionText}>Mark Paid</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity style={[styles.debtActionButton, styles.secondaryButton]}>
-                        <Text style={styles.secondaryButtonText}>Send Reminder</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-      </View>
-
-      {/* Add Debt Button */}
-      <TouchableOpacity style={styles.addDebtButton}>
-        <Plus color={Colors.textPrimary} size={20} />
-        <Text style={styles.addDebtText}>Add New Debt</Text>
-      </TouchableOpacity>
-
-      <View style={styles.bottomSpacer} />
-    </ScrollView>
+      </AdaptiveGlassView>
+    </AnimatedPressable>
   );
 };
 
-export default DebtsPage;
+const formatAmount = (amount: number, currency: string) =>
+  new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: 0,
+  }).format(amount);
+
+const DebtCard: React.FC<DebtCardProps & { index: number }> = ({
+  name,
+  description,
+  amount,
+  currency = 'UZS',
+  period,
+  isIncoming,
+  secondaryAmount,
+  onNotify,
+  onCancel,
+  onPlan,
+  onPayPartly,
+  index,
+}) => {
+  const theme = useAppTheme();
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(12);
+
+  useEffect(() => {
+    opacity.value = withDelay(
+      index * 60,
+      withTiming(1, { duration: 260, easing: Easing.linear }),
+    );
+    translateY.value = withDelay(
+      index * 60,
+      withTiming(0, { duration: 260, easing: Easing.linear }),
+    );
+  }, [index, opacity, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const numericAmount = typeof amount === 'number' ? amount : Number(amount);
+  const formattedAmount =
+    typeof amount === 'number'
+      ? formatAmount(amount, currency)
+      : amount;
+  const amountPrefix = isIncoming ? '+' : '−';
+  const amountColor = isIncoming ? theme.colors.success : theme.colors.danger;
+  const defaultSecondary =
+    Number.isFinite(numericAmount) && currency
+      ? `(${new Intl.NumberFormat('en-US', {
+          notation: 'compact',
+          compactDisplay: 'short',
+          maximumFractionDigits: 1,
+        }).format(numericAmount)} ${currency})`
+      : undefined;
+
+  const buttons = isIncoming
+    ? [
+        { label: 'Notify', icon: BellRing, onPress: onNotify },
+        { label: 'Cancel debt', icon: CircleAlert, onPress: onCancel },
+      ]
+    : [
+        { label: 'Plan', icon: CalendarRange, onPress: onPlan },
+        { label: 'Pay partly', icon: HandCoins, onPress: onPayPartly },
+      ];
+
+  return (
+    <Animated.View style={[styles.cardAnimated, animatedStyle]}>
+      <AdaptiveGlassView
+        style={[
+          styles.cardContainer,
+          {
+            borderColor: theme.colors.borderMuted,
+            backgroundColor:
+              theme.mode === 'dark'
+                ? 'rgba(44,44,52,0.65)'
+                : 'rgba(255,255,255,0.75)',
+          },
+        ]}
+      >
+        <View style={styles.cardHeader}>
+          <View style={styles.cardInfo}>
+            <AdaptiveGlassView
+              style={[
+                styles.avatar,
+                {
+                  borderColor: theme.colors.borderMuted,
+                  backgroundColor: theme.mode === 'dark'
+                    ? 'rgba(84,84,96,0.28)'
+                    : 'rgba(224,224,236,0.24)',
+                },
+              ]}
+            >
+              <UserRound size={18} color={theme.colors.textSecondary} />
+            </AdaptiveGlassView>
+            <View style={styles.titleBlock}>
+              <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+                {name}
+              </Text>
+              <Text
+                style={[styles.cardSubtitle, { color: theme.colors.textMuted }]}
+                numberOfLines={1}
+              >
+                {description}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.amountBlock}>
+            <Text style={[styles.amountText, { color: amountColor }]}>
+              {amountPrefix} {formattedAmount.replace('-', '').replace('+', '')}
+            </Text>
+            {secondaryAmount ?? defaultSecondary ? (
+              <Text style={[styles.secondaryAmount, { color: theme.colors.textSecondary }]}>
+                {secondaryAmount ?? defaultSecondary}
+              </Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={styles.periodRow}>
+          <AdaptiveGlassView
+            style={[
+              styles.periodBadge,
+              {
+                borderColor: theme.colors.border,
+                backgroundColor: theme.mode === 'dark'
+                  ? 'rgba(110,110,120,0.18)'
+                  : 'rgba(200,200,210,0.18)',
+              },
+            ]}
+          >
+            <CalendarDays size={16} color={theme.colors.textSecondary} />
+            <Text style={[styles.periodText, { color: theme.colors.textSecondary }]}>
+              {period}
+            </Text>
+          </AdaptiveGlassView>
+        </View>
+
+        <View style={styles.actionsRow}>
+        {buttons.map(({ label, icon, onPress }, idx) => (
+          <DebtActionButton key={`${label}-${idx}`} label={label} Icon={icon} onPress={onPress} />
+        ))}
+      </View>
+    </AdaptiveGlassView>
+  </Animated.View>
+  );
+};
+
+const DebtSection: React.FC<DebtSectionProps> = ({ title, data }) => {
+  const theme = useAppTheme();
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeader}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          {title}
+        </Text>
+        <View style={[styles.sectionDivider, { backgroundColor: theme.colors.borderMuted }]} />
+      </View>
+
+      <View style={styles.sectionBody}>
+        {data.map((item, index) => (
+          <DebtCard key={`${item.name}-${index}`} index={index} {...item} />
+        ))}
+      </View>
+    </View>
+  );
+};
+
+const AddDebtModal = React.forwardRef<AddDebtModalHandle, AddDebtModalProps>(
+  ({ onSubmit }, ref) => {
+    const theme = useAppTheme();
+    const sheetRef = useRef<BottomSheetHandle>(null);
+
+    const [name, setName] = useState('');
+    const [description, setDescription] = useState('');
+    const [amount, setAmount] = useState('');
+    const [currency, setCurrency] = useState('UZS');
+    const [period, setPeriod] = useState('');
+    const [isIncoming, setIsIncoming] = useState(true);
+
+    const resetForm = useCallback(() => {
+      setName('');
+      setDescription('');
+      setAmount('');
+      setCurrency('UZS');
+      setPeriod('');
+      setIsIncoming(true);
+    }, []);
+
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        open: () => {
+          resetForm();
+          sheetRef.current?.present();
+        },
+        close: () => sheetRef.current?.dismiss(),
+      }),
+      [resetForm],
+    );
+
+    const snapPoints = useMemo<(string | number)[]>(() => ['35%', '70%'], []);
+    const animationConfigs = useMemo(
+      () => ({
+        duration: 340,
+        easing: Easing.linear,
+      }),
+      [],
+    );
+
+    const handleSubmit = useCallback(() => {
+      const parsedAmount = Number(
+        amount.replace(/[^0-9.-]+/g, '').trim() || '0',
+      );
+
+      const payload: AddDebtPayload = {
+        name: name.trim(),
+        description: description.trim(),
+        amount: Number.isFinite(parsedAmount) ? parsedAmount : 0,
+        currency: currency.trim() || 'UZS',
+        period: period.trim() || 'No period',
+        isIncoming,
+      };
+
+      onSubmit(payload);
+      sheetRef.current?.dismiss();
+      resetForm();
+    }, [amount, currency, isIncoming, name, onSubmit, period, resetForm]);
+
+    return (
+      <CustomBottomSheet
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        animationConfigs={animationConfigs}
+        enableDynamicSizing={false}
+        backgroundStyle={{
+          backgroundColor:
+            theme.mode === 'dark'
+              ? 'rgba(20,20,24,0.92)'
+              : 'rgba(240,240,246,0.92)',
+        }}
+        handleIndicatorStyle={{ backgroundColor: theme.colors.textMuted }}
+      >
+        <View style={[styles.modalContent, { gap: 16 }]}>
+          <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+            Add new debt
+          </Text>
+
+          <View style={styles.modalRow}>
+            <BottomSheetTextInput
+              placeholder="Name"
+              placeholderTextColor={theme.colors.textMuted}
+              value={name}
+              onChangeText={setName}
+              style={[
+                styles.modalInput,
+                {
+                  color: theme.colors.textPrimary,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.mode === 'dark'
+                    ? 'rgba(255,255,255,0.04)'
+                    : 'rgba(0,0,0,0.04)',
+                },
+              ]}
+            />
+          </View>
+
+          <BottomSheetTextInput
+            placeholder="Description"
+            placeholderTextColor={theme.colors.textMuted}
+            value={description}
+            onChangeText={setDescription}
+            style={[
+              styles.modalInput,
+              {
+                color: theme.colors.textPrimary,
+                borderColor: theme.colors.border,
+                backgroundColor: theme.mode === 'dark'
+                  ? 'rgba(255,255,255,0.04)'
+                  : 'rgba(0,0,0,0.04)',
+              },
+            ]}
+          />
+
+          <View style={styles.modalInputsRow}>
+            <BottomSheetTextInput
+              placeholder="Amount"
+              keyboardType="numeric"
+              placeholderTextColor={theme.colors.textMuted}
+              value={amount}
+              onChangeText={setAmount}
+              style={[
+                styles.modalInput,
+                styles.modalInputHalf,
+                {
+                  color: theme.colors.textPrimary,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.mode === 'dark'
+                    ? 'rgba(255,255,255,0.04)'
+                    : 'rgba(0,0,0,0.04)',
+                },
+              ]}
+            />
+
+            <BottomSheetTextInput
+              placeholder="Currency"
+              placeholderTextColor={theme.colors.textMuted}
+              value={currency}
+              onChangeText={setCurrency}
+              style={[
+                styles.modalInput,
+                styles.modalInputHalf,
+                {
+                  color: theme.colors.textPrimary,
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.mode === 'dark'
+                    ? 'rgba(255,255,255,0.04)'
+                    : 'rgba(0,0,0,0.04)',
+                },
+              ]}
+            />
+          </View>
+
+          <BottomSheetTextInput
+            placeholder="Due date / Period"
+            placeholderTextColor={theme.colors.textMuted}
+            value={period}
+            onChangeText={setPeriod}
+            style={[
+              styles.modalInput,
+              {
+                color: theme.colors.textPrimary,
+                borderColor: theme.colors.border,
+                backgroundColor: theme.mode === 'dark'
+                  ? 'rgba(255,255,255,0.04)'
+                  : 'rgba(0,0,0,0.04)',
+              },
+            ]}
+          />
+
+          <View style={styles.switchRow}>
+            <AdaptiveGlassView
+              style={[
+                styles.togglePill,
+                {
+                  borderColor: theme.colors.borderMuted,
+                  backgroundColor: theme.mode === 'dark'
+                    ? 'rgba(255,255,255,0.04)'
+                    : 'rgba(0,0,0,0.04)',
+                },
+              ]}
+            >
+              <Pressable
+                style={[
+                  styles.toggleOption,
+                  isIncoming && {
+                    backgroundColor: theme.colors.success,
+                  },
+                ]}
+                onPress={() => setIsIncoming(true)}
+              >
+                <Text
+                  style={[
+                    styles.toggleLabel,
+                    {
+                      color: isIncoming ? theme.colors.onSuccess : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  They owe me
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.toggleOption,
+                  !isIncoming && {
+                    backgroundColor: theme.colors.danger,
+                  },
+                ]}
+                onPress={() => setIsIncoming(false)}
+              >
+                <Text
+                  style={[
+                    styles.toggleLabel,
+                    {
+                      color: !isIncoming ? theme.colors.onDanger : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  I owe
+                </Text>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+
+          <View style={styles.modalActions}>
+            <Pressable
+              onPress={() => sheetRef.current?.dismiss()}
+              style={[
+                styles.modalSecondaryButton,
+                {
+                  borderColor: theme.colors.border,
+                  backgroundColor: theme.mode === 'dark'
+                    ? 'rgba(255,255,255,0.05)'
+                    : 'rgba(0,0,0,0.04)',
+                },
+              ]}
+            >
+              <Text style={[styles.modalSecondaryLabel, { color: theme.colors.textSecondary }]}>
+                Cancel
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleSubmit}
+              style={[
+                styles.modalPrimaryButton,
+                { backgroundColor: theme.colors.primary },
+              ]}
+            >
+              <Text style={[styles.modalPrimaryLabel, { color: theme.colors.onPrimary }]}>
+                Add
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </CustomBottomSheet>
+    );
+  },
+);
+
+const AddDebtFab: React.FC<{ onPress: () => void }> = ({ onPress }) => {
+  const theme = useAppTheme();
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: scale.value,
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withTiming(0.94, { duration: 120, easing: Easing.linear });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withTiming(1, { duration: 180, easing: Easing.linear });
+  };
+
+  return (
+    <AnimatedPressable
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      style={[styles.fabContainer, animatedStyle]}
+    >
+      <AdaptiveGlassView
+        style={[
+          styles.fabInner,
+          {
+            borderColor: theme.colors.borderMuted,
+            backgroundColor: theme.mode === 'dark'
+              ? 'rgba(60,60,72,0.75)'
+              : 'rgba(255,255,255,0.85)',
+          },
+        ]}
+      >
+        <Plus size={22} color={theme.colors.primary} />
+        <Text style={[styles.fabLabel, { color: theme.colors.textSecondary }]}>
+          ADD DEBT
+        </Text>
+      </AdaptiveGlassView>
+    </AnimatedPressable>
+  );
+};
+
+const initialIncomingDebts: DebtCardProps[] = [
+  {
+    name: 'Bekzod',
+    description: 'Took for repairment',
+    amount: 1_700_000,
+    currency: 'UZS',
+    period: 'Gives back in 2 days',
+    isIncoming: true,
+    onNotify: () => {},
+    onCancel: () => {},
+  },
+  {
+    name: 'Malika',
+    description: 'Birthday gift',
+    amount: 540_000,
+    currency: 'UZS',
+    period: 'Gives back in 5 days',
+    isIncoming: true,
+    onNotify: () => {},
+    onCancel: () => {},
+  },
+];
+
+const initialOutgoingDebts: DebtCardProps[] = [
+  {
+    name: 'Apple Card',
+    description: 'MacBook Pro Installment',
+    amount: 2_300_000,
+    currency: 'UZS',
+    period: 'Pay in 3 days',
+    isIncoming: false,
+    onPlan: () => {},
+    onPayPartly: () => {},
+  },
+  {
+    name: 'Farruh',
+    description: 'Car service',
+    amount: 780_000,
+    currency: 'UZS',
+    period: 'No period',
+    isIncoming: false,
+    onPlan: () => {},
+    onPayPartly: () => {},
+  },
+];
+
+const DebtsScreen: React.FC = () => {
+  const theme = useAppTheme();
+  const { height } = useWindowDimensions();
+  const modalRef = useRef<AddDebtModalHandle>(null);
+
+  const [incomingDebts, setIncomingDebts] = useState(initialIncomingDebts);
+  const [outgoingDebts, setOutgoingDebts] = useState(initialOutgoingDebts);
+
+  const handleAddDebt = useCallback(
+    (payload: AddDebtPayload) => {
+      const card: DebtCardProps = {
+        name: payload.name || 'Unknown',
+        description: payload.description || 'No description',
+        amount: payload.amount,
+        currency: payload.currency,
+        period: payload.period,
+        isIncoming: payload.isIncoming,
+      };
+
+      if (payload.isIncoming) {
+        setIncomingDebts((prev) => [card, ...prev]);
+      } else {
+        setOutgoingDebts((prev) => [card, ...prev]);
+      }
+    },
+    [],
+  );
+
+  const openModal = useCallback(() => {
+    modalRef.current?.open();
+  }, []);
+
+  return (
+    <>
+      <ScrollView
+        style={[styles.screen, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: Math.max(60, height * 0.12) },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <DebtSection title="Debts" data={incomingDebts} />
+        <DebtSection title="My debts" data={outgoingDebts} />
+      </ScrollView>
+
+      <View pointerEvents="box-none" style={styles.fabWrapper}>
+        <AddDebtFab onPress={openModal} />
+      </View>
+
+      <AddDebtModal ref={modalRef} onSubmit={handleAddDebt} />
+    </>
+  );
+};
+
+export default DebtsScreen;
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
-  summaryCards: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
-    marginBottom: 16,
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    gap: 28,
   },
-  summaryCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-    gap: 10,
+  section: {
+    gap: 16,
   },
-  owedByMeCard: {},
-  owedToMeCard: {},
-  summaryCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  summaryIconContainer: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  summaryIconNegative: {
-    backgroundColor: Colors.dangerBg,
-  },
-  summaryIconPositive: {
-    backgroundColor: Colors.successBg,
-  },
-  summaryLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    color: Colors.textSecondary,
-  },
-  summaryAmount: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  negativeAmount: {
-    color: Colors.danger,
-  },
-  positiveAmount: {
-    color: Colors.success,
-  },
-  summarySubtext: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  netBalanceCard: {
-    marginHorizontal: 16,
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 18,
-    alignItems: 'center',
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    gap: 6,
-  },
-  netBalanceLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  netBalanceAmount: {
-    fontSize: 26,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-  },
-  netBalanceSubtext: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-  },
-  filterTabs: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
+  sectionHeader: {
     gap: 8,
-    marginBottom: 16,
   },
-  filterTab: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  filterTabActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  filterTabText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.textSecondary,
-  },
-  filterTabTextActive: {
-    color: Colors.background,
-  },
-  debtsList: {
-    paddingHorizontal: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 60,
-    gap: 12,
-  },
-  emptyStateIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyStateTitle: {
+  sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textPrimary,
+    fontWeight: '700',
+    letterSpacing: -0.1,
   },
-  emptyStateSubtitle: {
-    fontSize: 13,
-    color: Colors.textSecondary,
-    textAlign: 'center',
+  sectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    width: '100%',
+    opacity: 0.6,
   },
-  debtCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
+  sectionBody: {
+    gap: 18,
+  },
+  cardAnimated: {
+    width: '100%',
+  },
+  cardContainer: {
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: Colors.border,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    gap: 18,
   },
-  debtHeader: {
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 14,
+  },
+  cardInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 14,
-    gap: 12,
+    flex: 1,
+    gap: 14,
   },
-  debtIconContainer: {
+  avatar: {
     width: 44,
     height: 44,
-    borderRadius: 12,
-    justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  debtHeaderInfo: {
+  titleBlock: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
-  debtPerson: {
-    fontSize: 15,
+  cardTitle: {
+    fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
-  debtDescription: {
+  cardSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  amountBlock: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  amountText: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  secondaryAmount: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    fontWeight: '500',
   },
-  debtTypeIndicator: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    backgroundColor: Colors.surfaceElevated,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  debtAmountSection: {
-    marginBottom: 12,
-    gap: 6,
-  },
-  debtAmountRow: {
+  periodRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
+  },
+  periodBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
   },
-  debtAmountLabel: {
+  periodText: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    fontWeight: '600',
+    letterSpacing: 0.4,
   },
-  debtAmount: {
-    fontSize: 18,
+  actionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  actionPressable: {
+    flex: 1,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  actionLabel: {
+    fontSize: 13,
     fontWeight: '600',
   },
-  debtProgressBar: {
-    height: 6,
-    backgroundColor: Colors.overlay.light,
-    borderRadius: 3,
+  modalContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 28,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.1,
+  },
+  modalRow: {
+    width: '100%',
+  },
+  modalInput: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+  },
+  modalInputsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalInputHalf: {
+    flex: 1,
+  },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  togglePill: {
+    flexDirection: 'row',
+    borderRadius: 18,
+    borderWidth: 1,
     overflow: 'hidden',
   },
-  debtProgressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  debtProgressText: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  debtDueSection: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: Colors.surfaceElevated,
-    borderRadius: 10,
-    marginBottom: 12,
-  },
-  debtOverdue: {
-    backgroundColor: Colors.dangerBg,
-    borderWidth: 1,
-    borderColor: Colors.danger + '45',
-  },
-  debtDueInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  debtDueText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  debtDueTextOverdue: {
-    color: Colors.danger,
-  },
-  overdueTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: Colors.dangerBg,
-  },
-  overdueTagText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.danger,
-  },
-  partialTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: Colors.warningBg,
-  },
-  partialTagText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.warning,
-  },
-  debtPayments: {
-    marginTop: 12,
-    gap: 8,
-  },
-  debtPaymentsTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  paymentItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  paymentDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: Colors.textSecondary,
-  },
-  paymentAmount: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  paymentDate: {
-    fontSize: 11,
-    color: Colors.textSecondary,
-  },
-  debtActions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 16,
-  },
-  debtActionButton: {
+  toggleOption: {
     flex: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  payButton: {
-    backgroundColor: Colors.danger,
-  },
-  collectButton: {
-    backgroundColor: Colors.success,
-  },
-  secondaryButton: {
-    backgroundColor: Colors.surfaceElevated,
-  },
-  debtActionText: {
+  toggleLabel: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    letterSpacing: 0.3,
   },
-  secondaryButtonText: {
-    fontSize: 13,
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalPrimaryButton: {
+    flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalPrimaryLabel: {
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  modalSecondaryButton: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalSecondaryLabel: {
+    fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
   },
-  addDebtButton: {
+  fabWrapper: {
+    position: 'absolute',
+    bottom: 36,
+    right: 20,
+    left: 20,
+    alignItems: 'flex-end',
+    pointerEvents: 'box-none',
+  },
+  fabContainer: {
+    alignItems: 'flex-end',
+  },
+  fabInner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginHorizontal: 16,
-    marginTop: 8,
-    backgroundColor: Colors.surface,
-    borderRadius: 14,
+    gap: 10,
+    paddingHorizontal: 20,
     paddingVertical: 14,
     borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: Colors.border,
+    borderRadius: 22,
   },
-  addDebtText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.textPrimary,
-  },
-  bottomSpacer: {
-    height: 90,
+  fabLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.6,
   },
 });

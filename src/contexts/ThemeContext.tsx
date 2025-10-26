@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
+  PropsWithChildren,
   createContext,
   useCallback,
   useContext,
@@ -32,7 +33,7 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export const useTheme = () => useContext(ThemeContext);
 
-export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export function ThemeProvider({ children }: PropsWithChildren) {
   // Start with dark immediately (no undefined state)
   const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
   const [isReady, setIsReady] = useState(false);
@@ -105,7 +106,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       </ThemeContext.Provider>
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {

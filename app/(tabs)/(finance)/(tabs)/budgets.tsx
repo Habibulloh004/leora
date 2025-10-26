@@ -1,547 +1,486 @@
-// app/(tabs)/(finance)/(tabs)/budgets.tsx
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import {
-  AlertTriangle,
-  BarChart2,
-  CalendarRange,
-  Target,
-  TrendingDown,
-  TrendingUp,
-  Wallet,
-} from 'lucide-react-native';
+import { RectButton } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { AlertCircle, Check } from 'lucide-react-native';
+import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg';
 
-import { Colors } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 
-interface HealthIndicator {
-  id: string;
-  label: string;
-  value: string;
-  tone: string;
-}
+type BudgetState = 'exceeding' | 'within' | 'fixed';
 
-interface MonthlyOverview {
-  id: string;
-  label: string;
-  spent: number;
-  limit: number;
-}
-
-interface ActiveBudget {
+type CategoryBudget = {
   id: string;
   name: string;
   spent: number;
   limit: number;
-  trend: number;
-  tone: string;
-}
-
-const BUDGET_SUMMARY = {
-  period: 'January 2025',
-  allocated: 4200,
-  spent: 3610,
-  dailyAverage: 117,
+  state: BudgetState;
 };
 
-const HEALTH_INDICATORS: HealthIndicator[] = [
-  { id: 'on-track', label: 'On track', value: '68%', tone: Colors.success },
-  { id: 'at-risk', label: 'At risk', value: '2 categories', tone: Colors.warning },
-  { id: 'unused', label: 'Unused', value: '$340', tone: Colors.info },
+type MainBudget = {
+  current: number;
+  total: number;
+  currency: string;
+};
+
+const AnimatedRect = Animated.createAnimatedComponent(Rect);
+
+const MAIN_BUDGET: MainBudget = {
+  current: 487_000,
+  total: 780_000,
+  currency: 'UZS',
+};
+
+const CATEGORY_BUDGETS: CategoryBudget[] = [
+  { id: 'food', name: 'Food', spent: 340_000, limit: 300_000, state: 'exceeding' },
+  { id: 'transport', name: 'Transport', spent: 180_000, limit: 250_000, state: 'within' },
+  { id: 'living', name: 'Living', spent: 150_000, limit: 150_000, state: 'fixed' },
 ];
 
-const MONTHLY_OVERVIEW: MonthlyOverview[] = [
-  { id: 'sep', label: 'Sep', spent: 3380, limit: 3600 },
-  { id: 'oct', label: 'Oct', spent: 3525, limit: 3600 },
-  { id: 'nov', label: 'Nov', spent: 3650, limit: 3600 },
-  { id: 'dec', label: 'Dec', spent: 3740, limit: 3900 },
-  { id: 'jan', label: 'Jan', spent: 3610, limit: 4200 },
-];
+const PROGRESS_HEIGHT = 32;
+const PROGRESS_RADIUS = 18;
 
-const ACTIVE_BUDGETS: ActiveBudget[] = [
-  { id: 'groceries', name: 'Groceries', spent: 420, limit: 620, trend: -6, tone: Colors.warning },
-  { id: 'commute', name: 'Transport', spent: 185, limit: 260, trend: -2, tone: Colors.info },
-  { id: 'wellness', name: 'Wellness', spent: 280, limit: 320, trend: 4, tone: Colors.secondary },
-  { id: 'subscriptions', name: 'Subscriptions', spent: 96, limit: 120, trend: 3, tone: Colors.primary },
-  { id: 'dining', name: 'Dining out', spent: 310, limit: 280, trend: 8, tone: Colors.danger },
-];
-
-const formatCurrency = (value: number) =>
+const formatCurrency = (value: number, currency: string) =>
   new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+    currency,
+    maximumFractionDigits: 0,
   }).format(value);
 
-export default function BudgetsTab() {
-  const remaining = BUDGET_SUMMARY.allocated - BUDGET_SUMMARY.spent;
-  const utilization = Math.round((BUDGET_SUMMARY.spent / BUDGET_SUMMARY.allocated) * 100);
+const applyAlpha = (hex: string, alpha: number) => {
+  const normalized = hex.replace('#', '');
+  if (normalized.length !== 6 && normalized.length !== 8) {
+    return hex;
+  }
+  const alphaHex = Math.round(Math.min(Math.max(alpha, 0), 1) * 255)
+    .toString(16)
+    .padStart(2, '0');
+  return `#${normalized.substring(0, 6)}${alphaHex}`;
+};
+
+type ProgressAppearance = {
+  gradientStops: string[];
+  label: string;
+  icon: 'alert' | 'check';
+  textColor: string;
+};
+
+type ProgressBarProps = {
+  percentage: number;
+  appearance: ProgressAppearance;
+};
+
+const AnimatedProgressBar: React.FC<ProgressBarProps> = ({ percentage, appearance }) => {
+  const theme = useAppTheme();
+  const widthValue = useSharedValue(0);
+  const [trackWidth, setTrackWidth] = useState(0);
+  const gradientId = useMemo(() => `progress-${Math.random().toString(36).slice(2, 8)}`, []);
+
+  const clampedPercentage = Math.max(0, Math.min(percentage, 125));
+
+  useEffect(() => {
+    if (!trackWidth) return;
+
+    const ratio = Math.min(clampedPercentage / 100, 1);
+    const targetWidth = trackWidth * ratio;
+    const minWidth = clampedPercentage > 0 ? Math.min(trackWidth, 120) : 0;
+    widthValue.value = withTiming(Math.min(trackWidth, Math.max(targetWidth, minWidth)), {
+      duration: 360,
+    });
+  }, [clampedPercentage, trackWidth, widthValue]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    width: widthValue.value,
+  }));
+
+  const gradientStops = appearance.gradientStops;
+  const gradientDenominator = Math.max(gradientStops.length - 1, 1);
+  const iconColor = appearance.textColor;
+
+  const overlayStyle = useAnimatedStyle(() => ({
+    width: widthValue.value,
+  }));
+
+  return (
+    <View
+      style={styles.progressShellWrapper}
+      onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+    >
+      <AdaptiveGlassView
+        style={[
+          styles.progressShell,
+          {
+            borderColor: applyAlpha(theme.colors.borderMuted, 0.55),
+            backgroundColor: applyAlpha(theme.colors.textSecondary, 0.16),
+          },
+        ]}
+      >
+        {trackWidth > 0 ? (
+          <Svg
+            width={trackWidth}
+            height={PROGRESS_HEIGHT}
+            style={StyleSheet.absoluteFillObject}
+          >
+            <Defs>
+              <LinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                {gradientStops.map((color, index) => (
+                  <Stop
+                    key={`${color}-${index}`}
+                    offset={`${(index / gradientDenominator) * 100}%`}
+                    stopColor={color}
+                  />
+                ))}
+              </LinearGradient>
+            </Defs>
+            <Rect
+              x={0}
+              y={0}
+              rx={PROGRESS_RADIUS}
+              ry={PROGRESS_RADIUS}
+              width={trackWidth}
+              height={PROGRESS_HEIGHT}
+              fill={applyAlpha(theme.colors.backgroundMuted, theme.mode === 'dark' ? 0.38 : 0.18)}
+            />
+            <AnimatedRect
+              animatedProps={animatedProps}
+              x={0}
+              y={0}
+              rx={PROGRESS_RADIUS}
+              ry={PROGRESS_RADIUS}
+              height={PROGRESS_HEIGHT}
+              fill={`url(#${gradientId})`}
+            />
+          </Svg>
+        ) : null}
+
+        <Animated.View style={[styles.progressOverlay, overlayStyle]} pointerEvents="none">
+          <View style={styles.progressLabelGroup}>
+            {appearance.icon === 'alert' ? (
+              <AlertCircle size={16} color={iconColor} />
+            ) : (
+              <Check size={16} color={iconColor} />
+            )}
+            <Text style={[styles.progressLabel, { color: appearance.textColor }]}>
+              {appearance.label}
+            </Text>
+          </View>
+          <Text style={[styles.progressLabel, { color: appearance.textColor }]}>
+            {Math.round(clampedPercentage)}%
+          </Text>
+        </Animated.View>
+      </AdaptiveGlassView>
+    </View>
+  );
+};
+
+const buildProgressAppearance = (
+  theme: ReturnType<typeof useAppTheme>,
+  state: BudgetState,
+): ProgressAppearance => {
+  const neutralStops =
+    theme.mode === 'dark'
+      ? [
+          applyAlpha(theme.colors.white, 0.25),
+          applyAlpha(theme.colors.textSecondary, 0.6),
+          applyAlpha(theme.colors.background, 0.85),
+        ]
+      : [
+          applyAlpha(theme.colors.textSecondary, 0.18),
+          applyAlpha(theme.colors.textSecondary, 0.35),
+          applyAlpha(theme.colors.backgroundMuted, 0.45),
+        ];
+
+  switch (state) {
+    case 'exceeding':
+      return {
+        gradientStops: [...theme.gradients.danger],
+        label: 'Exceeding',
+        icon: 'alert',
+        textColor: theme.mode === 'dark' ? theme.colors.white : theme.colors.onDanger,
+      };
+    case 'fixed':
+      return {
+        gradientStops: [...theme.gradients.success],
+        label: 'Fixed',
+        icon: 'check',
+        textColor: theme.mode === 'dark' ? theme.colors.white : theme.colors.onSuccess,
+      };
+    default:
+      return {
+        gradientStops: neutralStops,
+        label: 'Within',
+        icon: 'check',
+        textColor: theme.mode === 'dark' ? theme.colors.white : theme.colors.textPrimary,
+      };
+  }
+};
+
+const MainBudgetProgress: React.FC<{ budget: MainBudget }> = ({ budget }) => {
+  const theme = useAppTheme();
+  const percentage =
+    budget.total === 0 ? 0 : Math.min((budget.current / budget.total) * 100, 125);
+  const appearance = useMemo(() => buildProgressAppearance(theme, 'within'), [theme]);
+
+  return (
+    <View style={styles.mainSection}>
+      <View style={styles.mainAmountsRow}>
+        <Text style={[styles.mainAmount, { color: theme.colors.textSecondary }]}>
+          {formatCurrency(budget.current, budget.currency)}
+        </Text>
+        <Text style={[styles.mainAmount, { color: theme.colors.textSecondary }]}>
+          / {formatCurrency(budget.total, budget.currency)}
+        </Text>
+      </View>
+
+      <AnimatedProgressBar percentage={percentage} appearance={appearance} />
+    </View>
+  );
+};
+
+interface CategoryBudgetCardProps {
+  category: CategoryBudget;
+  index: number;
+  isLast: boolean;
+}
+
+const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({ category, index, isLast }) => {
+  const theme = useAppTheme();
+  const fade = useSharedValue(0);
+  const translateY = useSharedValue(12);
+
+  const progress = useMemo(() => {
+    if (category.limit === 0) return 0;
+    return Math.min((category.spent / category.limit) * 100, 125);
+  }, [category.limit, category.spent]);
+
+  useEffect(() => {
+    const delayMs = index * 80;
+    const timer = setTimeout(() => {
+      fade.value = withTiming(1, { duration: 280 });
+      translateY.value = withTiming(0, { duration: 280 });
+    }, delayMs);
+    return () => clearTimeout(timer);
+  }, [fade, index, translateY]);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: fade.value,
+    transform: [{ translateY: translateY.value }],
+  }));
+
+  const appearance = useMemo(
+    () => buildProgressAppearance(theme, category.state),
+    [category.state, theme],
+  );
+
+  return (
+    <Animated.View style={[styles.categoryBlock, animatedStyle]}>
+      <View style={styles.categoryHeaderRow}>
+        <Text style={[styles.categoryTitle, { color: theme.colors.textSecondary }]}>
+          {category.name}
+        </Text>
+        <RectButton
+          style={styles.categoryActionButton}
+          rippleColor={applyAlpha(theme.colors.textSecondary, 0.15)}
+          onPress={() => {}}
+        >
+          <Text style={[styles.categoryAction, { color: theme.colors.textSecondary }]}>
+            Set a limit
+          </Text>
+        </RectButton>
+      </View>
+
+      <View style={styles.categoryAmountsRow}>
+        <Text style={[styles.categoryAmount, { color: theme.colors.textSecondary }]}>
+          {formatCurrency(category.spent, MAIN_BUDGET.currency)}
+        </Text>
+        <Text style={[styles.categoryAmount, { color: theme.colors.textSecondary }]}>
+          / {formatCurrency(category.limit, MAIN_BUDGET.currency)}
+        </Text>
+      </View>
+
+      <AnimatedProgressBar percentage={progress} appearance={appearance} />
+
+      {isLast ? null : (
+        <View style={[styles.divider, { backgroundColor: applyAlpha(theme.colors.borderMuted, 0.5) }]} />
+      )}
+    </Animated.View>
+  );
+};
+
+const BudgetsScreen: React.FC = () => {
+  const theme = useAppTheme();
+  const dividerColor = applyAlpha(theme.colors.borderMuted, theme.mode === 'dark' ? 0.4 : 0.6);
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.screen, { backgroundColor: theme.colors.background }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Wallet size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Budget overview</Text>
-          </View>
-          <View style={styles.pill}>
-            <CalendarRange size={14} color={Colors.textSecondary} />
-            <Text style={styles.pillText}>{BUDGET_SUMMARY.period}</Text>
-          </View>
-        </View>
+      <Text style={[styles.sectionHeading, { color: theme.colors.textSecondary }]}>Main budget</Text>
+      <View style={[styles.divider, { backgroundColor: dividerColor }]} />
 
-        <View style={styles.summaryGrid}>
-          <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>Allocated</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(BUDGET_SUMMARY.allocated)}</Text>
-          </View>
+      <MainBudgetProgress budget={MAIN_BUDGET} />
 
-          <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>Spent</Text>
-            <Text style={[styles.summaryValue, styles.negativeText]}>
-              {formatCurrency(BUDGET_SUMMARY.spent)}
-            </Text>
-          </View>
-
-          <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>Remaining</Text>
-            <Text
-              style={[
-                styles.summaryValue,
-                remaining >= 0 ? styles.positiveText : styles.negativeText,
-              ]}
-            >
-              {remaining >= 0 ? formatCurrency(remaining) : `-${formatCurrency(Math.abs(remaining))}`}
-            </Text>
-          </View>
-
-          <View style={styles.summaryCell}>
-            <Text style={styles.summaryLabel}>Daily average</Text>
-            <Text style={styles.summaryValue}>{formatCurrency(BUDGET_SUMMARY.dailyAverage)}</Text>
-          </View>
-        </View>
-
-        <View style={styles.progressSection}>
-          <View style={styles.progressHeader}>
-            <View style={styles.progressTitleRow}>
-              <BarChart2 size={16} color={Colors.textSecondary} />
-              <Text style={styles.progressTitle}>Utilization</Text>
-            </View>
-            <Text style={styles.progressValue}>{utilization}%</Text>
-          </View>
-          <View style={styles.progressTrack}>
-            <View
-              style={[
-                styles.progressFill,
-                {
-                  width: `${Math.min(utilization, 100)}%`,
-                  backgroundColor: utilization > 100 ? Colors.danger : Colors.primary,
-                },
-              ]}
-            />
-          </View>
-          {utilization > 100 ? (
-            <View style={styles.alertRow}>
-              <AlertTriangle size={14} color={Colors.danger} />
-              <Text style={styles.alertText}>Spending above plan. Review categories below.</Text>
-            </View>
-          ) : null}
-        </View>
+      <View style={styles.sectionHeaderRow}>
+        <Text style={[styles.sectionHeading, { color: theme.colors.textSecondary }]}>
+          Categories
+        </Text>
+        <RectButton
+          style={[
+            styles.addCategoryButton,
+            { borderColor: applyAlpha(theme.colors.textSecondary, 0.35) },
+          ]}
+          rippleColor={applyAlpha(theme.colors.textSecondary, 0.15)}
+          onPress={() => {}}
+        >
+          <Text style={[styles.addCategoryText, { color: theme.colors.textSecondary }]}>
+            ADD CATEGORY
+          </Text>
+        </RectButton>
       </View>
+      <View style={[styles.divider, { backgroundColor: dividerColor }]} />
 
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Target size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Budget health</Text>
-          </View>
-          <Text style={styles.secondaryLabel}>Live metrics</Text>
-        </View>
-
-        <View style={styles.healthRow}>
-          {HEALTH_INDICATORS.map((indicator) => (
-            <View
-              key={indicator.id}
-              style={[styles.healthCard, { borderColor: indicator.tone }]}
-            >
-              <Text style={[styles.healthValue, { color: indicator.tone }]}>{indicator.value}</Text>
-              <Text style={styles.healthLabel}>{indicator.label}</Text>
-            </View>
-          ))}
-        </View>
+      <View style={styles.categoriesList}>
+        {CATEGORY_BUDGETS.map((category, index) => (
+          <CategoryBudgetCard
+            key={category.id}
+            category={category}
+            index={index}
+            isLast={index === CATEGORY_BUDGETS.length - 1}
+          />
+        ))}
       </View>
-
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Monthly burn rate</Text>
-          <Text style={styles.secondaryLabel}>Last 5 months</Text>
-        </View>
-
-        <View style={styles.monthList}>
-          {MONTHLY_OVERVIEW.map((month) => {
-            const usage = Math.round((month.spent / month.limit) * 100);
-            return (
-              <View key={month.id} style={styles.monthRow}>
-                <Text style={styles.monthLabel}>{month.label}</Text>
-                <View style={styles.monthProgress}>
-                  <View style={styles.monthTrack}>
-                    <View
-                      style={[
-                        styles.monthFill,
-                        {
-                          width: `${Math.min(usage, 100)}%`,
-                          backgroundColor: usage > 100 ? Colors.danger : Colors.primary,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={styles.monthAmount}>
-                    {formatCurrency(month.spent)} / {formatCurrency(month.limit)}
-                  </Text>
-                </View>
-                <Text
-                  style={[
-                    styles.monthPercentage,
-                    usage > 100
-                      ? styles.negativeText
-                      : usage < 90
-                        ? styles.positiveText
-                        : styles.textDefault,
-                  ]}
-                >
-                  {usage}%
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Active budgets</Text>
-          <Text style={styles.secondaryLabel}>Auto-adjusted weekly</Text>
-        </View>
-
-        <View style={styles.budgetList}>
-          {ACTIVE_BUDGETS.map((budget) => {
-            const usage = Math.round((budget.spent / budget.limit) * 100);
-            const remainingValue = budget.limit - budget.spent;
-            const trendPositive = budget.trend >= 0;
-
-            return (
-              <View key={budget.id} style={styles.budgetRow}>
-                <View style={[styles.budgetIcon, { backgroundColor: budget.tone + '1A' }]}>
-                  <Target size={18} color={budget.tone} />
-                </View>
-
-                <View style={styles.budgetInfo}>
-                  <Text style={styles.budgetName}>{budget.name}</Text>
-                  <Text style={styles.budgetMeta}>
-                    {formatCurrency(budget.spent)} / {formatCurrency(budget.limit)}
-                  </Text>
-                  <View style={styles.budgetProgressTrack}>
-                    <View
-                      style={[
-                        styles.budgetProgressFill,
-                        {
-                          width: `${Math.min(usage, 100)}%`,
-                          backgroundColor: budget.tone,
-                        },
-                      ]}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.budgetRight}>
-                  <View style={styles.remainingPill}>
-                    <Text
-                      style={[
-                        styles.remainingText,
-                        remainingValue >= 0 ? styles.positiveText : styles.negativeText,
-                      ]}
-                    >
-                      {remainingValue >= 0
-                        ? `${formatCurrency(remainingValue)} left`
-                        : `-${formatCurrency(Math.abs(remainingValue))} over`}
-                    </Text>
-                  </View>
-
-                  <View style={styles.trendRow}>
-                    {trendPositive ? (
-                      <TrendingUp size={14} color={Colors.danger} />
-                    ) : (
-                      <TrendingDown size={14} color={Colors.success} />
-                    )}
-                    <Text
-                      style={[
-                        styles.trendText,
-                        trendPositive ? styles.negativeText : styles.positiveText,
-                      ]}
-                    >
-                      {trendPositive ? '+' : ''}
-                      {budget.trend}%
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-
-      <View style={styles.bottomSpacer} />
     </ScrollView>
   );
-}
+};
+
+export default BudgetsScreen;
 
 const styles = StyleSheet.create({
-  container: {
+  screen: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   content: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 40,
+    gap: 18,
   },
-  sectionCard: {
-    borderRadius: 18,
-    backgroundColor: Colors.surface,
+  sectionHeading: {
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    width: '100%',
+  },
+  mainSection: {
+    gap: 12,
+  },
+  mainAmountsRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+  },
+  mainAmount: {
+    fontSize: 16,
+    fontWeight: '500',
+    letterSpacing: 0.2,
+  },
+  progressShellWrapper: {
+    height: PROGRESS_HEIGHT,
+    borderRadius: PROGRESS_RADIUS,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  progressShell: {
+    flex: 1,
+    height: PROGRESS_HEIGHT,
+    borderRadius: PROGRESS_RADIUS,
     borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 18,
-    gap: 16,
+    justifyContent: 'center',
+    overflow: 'hidden',
+    position: 'relative',
   },
-  sectionHeader: {
+  progressOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  progressLabelGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  progressLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+  },
+  sectionHeaderRow: {
+    marginTop: 6,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  sectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  addCategoryButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  addCategoryText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  categoriesList: {
+    gap: 18,
+  },
+  categoryBlock: {
     gap: 10,
   },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  secondaryLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    backgroundColor: Colors.surfaceElevated,
-  },
-  pillText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textTransform: 'capitalize',
-  },
-  summaryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
-  },
-  summaryCell: {
-    width: '48%',
-    gap: 6,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  progressSection: {
-    gap: 12,
-  },
-  progressHeader: {
+  categoryHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  progressTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
+  categoryActionButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
-  progressTitle: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  progressValue: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  progressTrack: {
-    height: 10,
-    borderRadius: 999,
-    backgroundColor: Colors.surfaceElevated,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  alertRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  alertText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  healthRow: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  healthCard: {
-    flex: 1,
-    minWidth: 120,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    backgroundColor: Colors.surfaceElevated,
-    gap: 4,
-  },
-  healthValue: {
+  categoryTitle: {
     fontSize: 16,
     fontWeight: '600',
   },
-  healthLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  monthList: {
-    gap: 12,
-  },
-  monthRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  monthLabel: {
-    width: 40,
+  categoryAction: {
     fontSize: 13,
-    color: Colors.textSecondary,
-  },
-  monthProgress: {
-    flex: 1,
-    gap: 6,
-  },
-  monthTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: Colors.surfaceElevated,
-    overflow: 'hidden',
-  },
-  monthFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  monthAmount: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  monthPercentage: {
-    width: 48,
-    textAlign: 'right',
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  budgetList: {
-    gap: 14,
-  },
-  budgetRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  budgetIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  budgetInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  budgetName: {
-    fontSize: 15,
     fontWeight: '500',
-    color: Colors.textPrimary,
+    letterSpacing: 0.2,
   },
-  budgetMeta: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  budgetProgressTrack: {
-    height: 6,
-    borderRadius: 999,
-    backgroundColor: Colors.surfaceElevated,
-    overflow: 'hidden',
-  },
-  budgetProgressFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  budgetRight: {
-    alignItems: 'flex-end',
+  categoryAmountsRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
     gap: 8,
   },
-  remainingPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: Colors.surfaceElevated,
-  },
-  remainingText: {
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  trendRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  trendText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  positiveText: {
-    color: Colors.success,
-  },
-  negativeText: {
-    color: Colors.danger,
-  },
-  textDefault: {
-    color: Colors.textSecondary,
-  },
-  bottomSpacer: {
-    height: 80,
+  categoryAmount: {
+    fontSize: 15,
+    fontWeight: '500',
+    letterSpacing: 0.2,
   },
 });

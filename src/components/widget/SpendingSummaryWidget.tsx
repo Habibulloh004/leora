@@ -14,7 +14,7 @@ export default function SpendingSummaryWidget() {
 
   return (
     <View style={styles.container}>
-      <AdaptiveGlassView style={[styles.card, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+      <AdaptiveGlassView style={[styles.card, { backgroundColor:   theme.colors.card }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Spending Summary</Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>This month</Text>

@@ -11,12 +11,14 @@ import React, {
 import {
   BottomSheetBackdrop,
   BottomSheetBackdropProps,
+  BottomSheetBackgroundProps,
   BottomSheetModal,
   BottomSheetModalProps,
   BottomSheetScrollView,
   BottomSheetView,
 } from '@gorhom/bottom-sheet';
-import { StyleProp, StyleSheet, ViewStyle, useWindowDimensions } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { Platform, StyleProp, StyleSheet, View, ViewStyle, useWindowDimensions } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 
@@ -105,14 +107,35 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
     (props: BottomSheetBackdropProps) => (
       <BottomSheetBackdrop
         {...props}
-        opacity={0.75}
+        opacity={0.4}
         appearsOnIndex={0}
         disappearsOnIndex={-1}
         pressBehavior="close"
         enableTouchThrough={false}
         style={[props.style, styles.backdrop]}
-      />
+      >
+        <View style={styles.backdropOverlay} />
+      </BottomSheetBackdrop>
     ),
+    []
+  );
+
+  const renderBackground = useCallback(
+    ({ style }: BottomSheetBackgroundProps) => {
+      if (Platform.OS === 'ios') {
+        return (
+          <BlurView
+            style={[style, styles.backgroundBlur]}
+            tint="dark"
+            intensity={60}
+          >
+            <View style={styles.backgroundOverlay} />
+          </BlurView>
+        );
+      }
+
+      return <View style={[style, styles.androidBackground]} />;
+    },
     []
   );
 
@@ -182,7 +205,8 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
       enablePanDownToClose={panDownToClose}
       backdropComponent={renderBackdrop}
       handleIndicatorStyle={handleIndicatorStyles}
-      backgroundStyle={backgroundStyles}
+      backgroundComponent={renderBackground}
+      backgroundStyle={[backgroundStyles, styles.transparentBackground]}
       enableDynamicSizing={dynamicSizingEnabled}
       maxDynamicContentSize={cappedDynamicSize}
       {...(resolvedSnapPoints ? { snapPoints: resolvedSnapPoints } : {})}
@@ -195,11 +219,33 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
 
 const styles = StyleSheet.create({
   backdrop: {
+    backgroundColor: 'transparent',
+    overflow: 'hidden',
+  },
+  backdropOverlay: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.overlay.heavy,
   },
-  background: {
-    backgroundColor: Colors.surface,
+  backgroundBlur: {
+    flex: 1,
+    overflow: 'hidden',
     borderRadius: 24,
+  },
+  backgroundOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(18, 18, 26, 0.45)',
+    borderRadius: 24,
+  },
+  androidBackground: {
+    borderRadius: 24,
+    backgroundColor: Colors.background,
+  },
+  background: {
+    backgroundColor: 'transparent',
+    borderRadius: 24,
+  },
+  transparentBackground: {
+    backgroundColor: 'transparent',
   },
   handleIndicator: {
     backgroundColor: Colors.textTertiary,

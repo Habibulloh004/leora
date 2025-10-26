@@ -214,7 +214,8 @@ const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
         {
           height: totalHeight,
           paddingBottom: Platform.OS === 'ios' ? insets.bottom : 24,
-          borderTopColor: borderColor
+          borderTopColor: borderColor,
+          backgroundColor:Platform.OS==="ios"?"transparent":theme.colors.background
         }
       ]}
     >

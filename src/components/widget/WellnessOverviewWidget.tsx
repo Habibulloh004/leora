@@ -14,7 +14,7 @@ export default function WellnessOverviewWidget() {
 
   return (
     <View style={styles.container}>
-      <AdaptiveGlassView style={[styles.card, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+      <AdaptiveGlassView style={[styles.card, { backgroundColor:   theme.colors.card }]}>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Wellness Overview</Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Self-reported in the last 7 days</Text>
 

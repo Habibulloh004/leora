@@ -61,6 +61,7 @@ export default Layout;
 const styles = StyleSheet.create({
   container: {
     backgroundColor: "#25252B",
+    paddingBottom:32
   },
   tabBar: {
     backgroundColor: '#25252B',

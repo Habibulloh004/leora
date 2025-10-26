@@ -22,7 +22,7 @@ export default function ProductivityInsightsWidget() {
 
   return (
     <View style={styles.container}>
-      <AdaptiveGlassView style={[styles.card, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+      <AdaptiveGlassView style={[styles.card, { backgroundColor:  theme.colors.card }]}>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Productivity Insights</Text>
 
         <View style={styles.metricsRow}>

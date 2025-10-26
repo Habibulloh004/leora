@@ -144,7 +144,7 @@ export default function FinanceReviewScreen() {
   ];
 
   const getEventIcon = (iconType: 'wallet' | 'clock' | 'alert') => {
-    const iconProps = { size: 20, color: theme.colors.textPrimary };
+    const iconProps = { size: 20, color: theme.colors.iconText };
     switch (iconType) {
       case 'wallet':
         return <Wallet {...iconProps} />;
@@ -476,7 +476,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       width: 40,
       height: 40,
       borderRadius: 12,
-      backgroundColor: theme.colors.surfaceElevated,
+      backgroundColor: theme.colors.icon,
       justifyContent: 'center',
       alignItems: 'center',
     },

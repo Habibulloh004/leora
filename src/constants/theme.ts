@@ -252,7 +252,7 @@ export const Fonts: FontFamilies =
 
 export interface ThemeColors {
   background: string;
-  glassTinColor:string,
+  glassTinColor: string,
   backgroundMuted: string;
   surface: string;
   surfaceElevated: string;
@@ -294,7 +294,10 @@ export interface ThemeColors {
   textTertiary: string;
   white: string,
   textLock: string;
-  backgroundLock:string
+  backgroundLock: string;
+  icon: string;
+  iconText: string;
+  iconTextSecondary: string;
 }
 
 export interface Theme {
@@ -328,8 +331,8 @@ const sharedPalette = {
 
 const lightColors: ThemeColors = {
   ...sharedPalette,
-  glassTinColor:"#fff",
-  background: '#dde0e3ff',
+  glassTinColor: "#fff",
+  background: '#F2F2F2',
   backgroundMuted: '#FFFFFF',
   surface: '#FFFFFF',
   surfaceElevated: '#EEF2F6',
@@ -370,12 +373,15 @@ const lightColors: ThemeColors = {
   secondaryDark: sharedPalette.secondaryDark,
   textTertiary: "#0F172A",
   textLock: "#000",
-  backgroundLock:"#fff"
+  backgroundLock: "#fff",
+  icon: "#404046",
+  iconText: "#FFFFFF",
+  iconTextSecondary: "#000000"
 };
 
 const darkColors: ThemeColors = {
   ...sharedPalette,
-  glassTinColor:"393941ff",
+  glassTinColor: "393941ff",
   background: '#25252B',
   backgroundMuted: Colors.backgroundElevated,
   surface: '#252530',
@@ -416,8 +422,11 @@ const darkColors: ThemeColors = {
   secondaryLight: sharedPalette.secondaryLight,
   secondaryDark: sharedPalette.secondaryDark,
   textTertiary: "#FFFFFF",
-  textLock:"#fff",
-  backgroundLock:"#000"
+  textLock: "#fff",
+  backgroundLock: "#000",
+  icon: "#404046",
+  iconText: "#A6A6B9",
+  iconTextSecondary: "#A6A6B9"
 
 };
 

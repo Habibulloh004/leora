@@ -28,8 +28,9 @@
         "NSFaceIDUsageDescription": "LEORA uses Face ID to securely access your financial data.",
         "NSPhotoLibraryUsageDescription": "LEORA needs access to your photo library.",
         "NSPhotoLibraryAddUsageDescription": "LEORA needs permission to save receipts.",
-        "UIStatusBarStyle": "UIStatusBarStyleLightContent",  // ← Add this for white icons
-        "ITSAppUsesNonExemptEncryption": false
+        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
+        "ITSAppUsesNonExemptEncryption": false,
+
       }
     },
     "android": {

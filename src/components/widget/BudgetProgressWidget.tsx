@@ -15,7 +15,7 @@ export default function BudgetProgressWidget() {
   return (
     <View style={styles.container}>
       <AdaptiveGlassView
-        style={[styles.card, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+        style={[styles.card, { backgroundColor: theme.colors.card }]}>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Budget Progress</Text>
         <View style={styles.list}>
           {mockBudgets.map((item) => {

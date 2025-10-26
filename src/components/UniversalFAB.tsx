@@ -295,66 +295,65 @@ export default function UniversalFAB() {
             const Icon = action.icon;
 
             return (
-              <Animated.View
-                key={action.id}
-                style={[styles.actionContainer, buttonStyles[index]]}
-              >
-                <Animated.View style={[styles.labelContainer, labelStyles[index]]}>
-                  <Text style={[styles.label]}>{action.label}</Text>
-                </Animated.View>
+              <React.Fragment key={String(action.id)}>
+                <Animated.View style={[styles.actionContainer, buttonStyles[index]]}>
+                  <Animated.View style={[styles.labelContainer, labelStyles[index]]}>
+                    <Text style={[styles.label, { color: labelColor }]}>{action.label}</Text>
+                  </Animated.View>
 
-                <TouchableOpacity
-                  style={[styles.actionButton, { backgroundColor: actionButtonBgColor }]}
-                  onPress={() => {
-                    toggleExpanded();
-                    setTimeout(() => {
-                      switch (action.id) {
-                        case 'add-task':
-                          router.navigate('/(modals)/add-task');
-                          break;
-                        case 'quick-expense':
-                        case 'add-expense':
-                          console.log('Add Expense');
-                          router.navigate('/(modals)/quick-exp');
-                          break;
-                        case 'start-focus':
-                          router.navigate('/focus-mode');
-                          break;
-                        case 'voice-note':
-                          router.navigate('/(modals)/voice-ai');
-                          break;
-                        case 'planner-task':
-                          openPlannerTaskModal('create');
-                          break;
-                        case 'planner-goal':
-                          openPlannerGoalModal('create');
-                          break;
-                        case 'planner-habit':
-                          openPlannerHabitModal('create');
-                          break;
-                        case 'planner-focus':
-                          openPlannerFocusModal();
-                          break;
-                        case 'finance-income':
-                          openIncomeOutcome({ tab: 'income' });
-                          break;
-                        case 'finance-outcome':
-                          openIncomeOutcome({ tab: 'outcome' });
-                          break;
-                        case 'finance-transfer':
-                          openTransferModal();
-                          break;
-                        case 'finance-debt':
-                          openDebtModal();
-                          break;
-                      }
-                    }, 300);
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Icon color={iconColor} size={24} strokeWidth={2} />
-                </TouchableOpacity>
-              </Animated.View>
+                  <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: actionButtonBgColor }]}
+                    onPress={() => {
+                      toggleExpanded();
+                      setTimeout(() => {
+                        switch (action.id) {
+                          case 'add-task':
+                            router.navigate('/(modals)/add-task');
+                            break;
+                          case 'quick-expense':
+                          case 'add-expense':
+                            console.log('Add Expense');
+                            router.navigate('/(modals)/quick-exp');
+                            break;
+                          case 'start-focus':
+                            router.navigate('/focus-mode');
+                            break;
+                          case 'voice-note':
+                            router.navigate('/(modals)/voice-ai');
+                            break;
+                          case 'planner-task':
+                            openPlannerTaskModal('create');
+                            break;
+                          case 'planner-goal':
+                            openPlannerGoalModal('create');
+                            break;
+                          case 'planner-habit':
+                            openPlannerHabitModal('create');
+                            break;
+                          case 'planner-focus':
+                            openPlannerFocusModal();
+                            break;
+                          case 'finance-income':
+                            openIncomeOutcome({ tab: 'income' });
+                            break;
+                          case 'finance-outcome':
+                            openIncomeOutcome({ tab: 'outcome' });
+                            break;
+                          case 'finance-transfer':
+                            openTransferModal();
+                            break;
+                          case 'finance-debt':
+                            openDebtModal();
+                            break;
+                        }
+                      }, 300);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Icon color={iconColor} size={24} strokeWidth={2} />
+                  </TouchableOpacity>
+                </Animated.View>
+              </React.Fragment>
             );
           })}
 
@@ -455,7 +454,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     letterSpacing: 0.5,
-    color:"white"
   },
   iconStack: {
     width: 28,

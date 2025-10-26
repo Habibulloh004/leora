@@ -86,7 +86,7 @@ export default function DailyTasksWidget({
 
   return (
     <View style={styles.container}>
-      <AdaptiveGlassView style={[styles.widget, { backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card }]}>
+      <AdaptiveGlassView style={[styles.widget, { backgroundColor: theme.colors.card }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Daily tasks</Text>

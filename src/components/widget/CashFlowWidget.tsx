@@ -20,7 +20,7 @@ export default function CashFlowWidget() {
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.card, {
-        backgroundColor: Platform.OS === "ios" ? "transparent" : theme.colors.card,
+        backgroundColor: theme.colors.card,
       }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Cash Flow</Text>

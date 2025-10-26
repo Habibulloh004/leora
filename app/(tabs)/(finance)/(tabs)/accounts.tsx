@@ -1,5 +1,5 @@
 // app/(tabs)/(finance)/(tabs)/accounts.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Platform,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import {
   Archive,
+  Bitcoin,
   CreditCard,
   DollarSign,
   Edit3,
@@ -22,102 +23,16 @@ import {
 
 import { useAppTheme } from '@/constants/theme';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
-
-// ===========================
-// Types & Interfaces
-// ===========================
-
-type AccountType = 'cash' | 'card' | 'savings' | 'usd';
-type TransactionType = 'income' | 'outcome';
-
-interface Transaction {
-  id: string;
-  type: TransactionType;
-  amount: number;
-  time: string;
-  description?: string;
-}
-
-interface Account {
-  id: string;
-  name: string;
-  type: AccountType;
-  balance: number;
-  currency: string;
-  subtitle: string;
-  iconColor: string;
-  // Special properties
-  progress?: number; // For savings accounts (0-100)
-  goal?: number; // For savings accounts
-  usdRate?: number; // For USD conversion
-  transactions?: Transaction[];
-}
-
-// ===========================
-// Mock Data
-// ===========================
-
-const MOCK_ACCOUNTS: Account[] = [
-  {
-    id: '1',
-    name: 'CASH',
-    type: 'cash',
-    balance: 1_500_000,
-    currency: 'UZS',
-    subtitle: 'MAIN BALANCE',
-    iconColor: '#3b82f6',
-    transactions: [
-      { id: 't1', type: 'income', amount: 500000, time: 'Today 14:30' },
-      { id: 't2', type: 'outcome', amount: 150000, time: 'Today 10:15' },
-      { id: 't3', type: 'income', amount: 300000, time: 'Yesterday' },
-      { id: 't4', type: 'outcome', amount: 75000, time: '2 Jan 19:45' },
-    ],
-  },
-  {
-    id: '2',
-    name: 'PLASTIC CARD',
-    type: 'card',
-    balance: 3_200_000,
-    currency: 'UZS',
-    subtitle: 'CREDIT CARD',
-    iconColor: '#8b5cf6',
-    transactions: [
-      { id: 't5', type: 'outcome', amount: 250000, time: 'Today 16:22' },
-      { id: 't6', type: 'income', amount: 1000000, time: 'Yesterday' },
-      { id: 't7', type: 'outcome', amount: 125000, time: '3 days ago' },
-    ],
-  },
-  {
-    id: '3',
-    name: 'SAVINGS',
-    type: 'savings',
-    balance: 8_000_000,
-    currency: 'UZS',
-    subtitle: 'FOR DREAM CAR',
-    iconColor: '#10b981',
-    progress: 80,
-    goal: 10_000_000,
-    transactions: [
-      { id: 't7', type: 'income', amount: 500000, time: '3 days ago' },
-      { id: 't8', type: 'income', amount: 1000000, time: '1 week ago' },
-    ],
-  },
-  {
-    id: '4',
-    name: 'USD BALANCE',
-    type: 'usd',
-    balance: 6_225_000,
-    currency: 'UZS',
-    subtitle: '1 USD = 12,450 UZS',
-    iconColor: '#f59e0b',
-    usdRate: 12450,
-    transactions: [
-      { id: 't9', type: 'income', amount: 1245000, time: 'Today 09:00' },
-      { id: 't10', type: 'outcome', amount: 622500, time: 'Yesterday' },
-      { id: 't11', type: 'income', amount: 498000, time: '2 days ago' },
-    ],
-  },
-];
+import AddAccountSheet, {
+  AddAccountSheetHandle,
+} from '@/components/modals/finance/AddAccountSheet';
+import { useAccountsStore } from '@/stores/useAccountsStore';
+import type {
+  AccountItem,
+  AccountTransaction,
+  AccountKind,
+  AddAccountPayload,
+} from '@/types/accounts';
 
 // ===========================
 // Helper Functions
@@ -134,7 +49,7 @@ const formatCurrency = (amount: number, currency: string = 'UZS'): string => {
   }).format(amount);
 };
 
-const getIconForType = (type: AccountType) => {
+const getIconForType = (type: AccountKind) => {
   switch (type) {
     case 'cash':
       return Wallet;
@@ -144,6 +59,8 @@ const getIconForType = (type: AccountType) => {
       return PiggyBank;
     case 'usd':
       return DollarSign;
+    case 'crypto':
+      return Bitcoin;
     default:
       return Wallet;
   }
@@ -154,7 +71,7 @@ const getIconForType = (type: AccountType) => {
 // ===========================
 
 interface TransactionRowProps {
-  transaction: Transaction;
+  transaction: AccountTransaction;
   theme: ReturnType<typeof useAppTheme>;
   index: number;
   isVisible: boolean;
@@ -225,7 +142,7 @@ const TransactionRow: React.FC<TransactionRowProps> = ({
 // ===========================
 
 interface AccountCardProps {
-  account: Account;
+  account: AccountItem;
   isExpanded: boolean;
   isActionMode: boolean;
   onPress: () => void;
@@ -248,6 +165,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
   theme,
 }) => {
   const Icon = getIconForType(account.type);
+  const transactions = account.transactions ?? [];
 
   // Animation values
   const historyOpacity = useRef(new Animated.Value(0)).current;
@@ -391,10 +309,10 @@ const AccountCard: React.FC<AccountCardProps> = ({
             <View
               style={[
                 styles.iconCircle,
-                { backgroundColor: account.iconColor + '20' },
+                { backgroundColor: theme.colors.icon },
               ]}
             >
-              <Icon size={24} color={account.iconColor} strokeWidth={2} />
+              <Icon size={24} color={theme.colors.iconText} strokeWidth={2} />
             </View>
 
             <View style={styles.cardInfo}>
@@ -462,25 +380,25 @@ const AccountCard: React.FC<AccountCardProps> = ({
             <TouchableOpacity
               style={[
                 styles.actionButton,
-                { backgroundColor: theme.colors.infoBg },
+                { backgroundColor: "transparent" },
               ]}
               onPress={onEdit}
               activeOpacity={0.7}
             >
-              <Edit3 size={18} color={theme.colors.info} strokeWidth={2} />
-              <Text style={[styles.actionText, { color: theme.colors.info }]}>Edit</Text>
+              <Edit3 size={18} color={theme.colors.iconTextSecondary} strokeWidth={2} />
+              <Text style={[styles.actionText, { color: theme.colors.iconTextSecondary }]}>Edit</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.actionButton,
-                { backgroundColor: theme.colors.warningBg },
+                { backgroundColor: "transparent" },
               ]}
               onPress={onArchive}
               activeOpacity={0.7}
             >
-              <Archive size={18} color={theme.colors.warning} strokeWidth={2} />
-              <Text style={[styles.actionText, { color: theme.colors.warning }]}>
+              <Archive size={18} color={theme.colors.iconTextSecondary} strokeWidth={2} />
+              <Text style={[styles.actionText, { color: theme.colors.iconTextSecondary }]}>
                 Archive
               </Text>
             </TouchableOpacity>
@@ -488,20 +406,20 @@ const AccountCard: React.FC<AccountCardProps> = ({
             <TouchableOpacity
               style={[
                 styles.actionButton,
-                { backgroundColor: theme.colors.dangerBg },
+                { backgroundColor: "transparent" },
               ]}
               onPress={onDelete}
               activeOpacity={0.7}
             >
-              <Trash2 size={18} color={theme.colors.danger} strokeWidth={2} />
-              <Text style={[styles.actionText, { color: theme.colors.danger }]}>
+              <Trash2 size={18} color={theme.colors.iconTextSecondary} strokeWidth={2} />
+              <Text style={[styles.actionText, { color: theme.colors.iconTextSecondary }]}>
                 Delete
               </Text>
             </TouchableOpacity>
           </Animated.View>
 
           {/* Transaction History Section - Inside Card */}
-          {isExpanded && account.transactions && !isActionMode && (
+          {isExpanded && !isActionMode && transactions.length > 0 && (
             <Animated.View
               style={[
                 styles.transactionHistoryInner,
@@ -543,7 +461,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
                 </View>
 
                 <View style={styles.transactionsList}>
-                  {account.transactions.map((transaction, index) => (
+                  {transactions.map((transaction, index) => (
                     <View key={transaction.id}>
                       <TransactionRow
                         transaction={transaction}
@@ -551,7 +469,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
                         index={index}
                         isVisible={isExpanded}
                       />
-                      {index < account.transactions!.length - 1 && (
+                      {index < transactions.length - 1 && (
                         <View
                           style={[styles.divider, { backgroundColor: theme.colors.border }]}
                         />
@@ -582,9 +500,15 @@ const AccountCard: React.FC<AccountCardProps> = ({
 
 export default function AccountsTab() {
   const theme = useAppTheme();
-  const [accounts] = useState<Account[]>(MOCK_ACCOUNTS);
+  const accounts = useAccountsStore((state) => state.accounts);
+  const addAccount = useAccountsStore((state) => state.addAccount);
+  const editAccount = useAccountsStore((state) => state.editAccount);
+  const deleteAccount = useAccountsStore((state) => state.deleteAccount);
+  const archiveAccount = useAccountsStore((state) => state.archiveAccount);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionModeId, setActionModeId] = useState<string | null>(null);
+  const addAccountSheetRef = useRef<AddAccountSheetHandle>(null);
+  const visibleAccounts = accounts.filter((account) => !account.isArchived);
 
   const handleCardPress = (id: string) => {
     if (actionModeId === id) {
@@ -605,74 +529,115 @@ export default function AccountsTab() {
     setExpandedId(null);
   };
 
-  const handleEdit = (id: string) => {
-    console.log('Edit account:', id);
-    setActionModeId(null);
-  };
+  const handleEdit = useCallback(
+    (id: string) => {
+      const account = accounts.find((item) => item.id === id && !item.isArchived);
+      if (!account) {
+        return;
+      }
+      setExpandedId(null);
+      setActionModeId(null);
+      addAccountSheetRef.current?.edit(account);
+    },
+    [accounts],
+  );
 
-  const handleArchive = (id: string) => {
-    console.log('Archive account:', id);
-    setActionModeId(null);
-  };
+  const handleArchive = useCallback(
+    (id: string) => {
+      archiveAccount(id);
+      if (expandedId === id) {
+        setExpandedId(null);
+      }
+      setActionModeId(null);
+    },
+    [archiveAccount, expandedId],
+  );
 
-  const handleDelete = (id: string) => {
-    console.log('Delete account:', id);
-    setActionModeId(null);
-  };
+  const handleDelete = useCallback(
+    (id: string) => {
+      deleteAccount(id);
+      if (expandedId === id) {
+        setExpandedId(null);
+      }
+      setActionModeId(null);
+    },
+    [deleteAccount, expandedId],
+  );
 
-  const handleAddNew = () => {
-    console.log('Add new account');
-  };
+  const handleAddAccountSubmit = useCallback(
+    (payload: AddAccountPayload) => {
+      addAccount(payload);
+    },
+    [addAccount],
+  );
+
+  const handleEditAccountSubmit = useCallback(
+    (id: string, payload: AddAccountPayload) => {
+      editAccount(id, payload);
+    },
+    [editAccount],
+  );
+
+  const handleAddNew = useCallback(() => {
+    addAccountSheetRef.current?.expand();
+  }, []);
 
   return (
-    <ScrollView
-      style={styles.scrollView}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-        <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
-          <Text style={[styles.headerTitle, { color: theme.colors.textSecondary }]}>
-            My accounts
-          </Text>
+    <>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
+            <Text style={[styles.headerTitle, { color: theme.colors.textSecondary }]}>
+              My accounts
+            </Text>
+          </View>
+
+
+          {visibleAccounts.map((account) => (
+            <AccountCard
+              key={account.id}
+              account={account}
+              isExpanded={expandedId === account.id}
+              isActionMode={actionModeId === account.id}
+              onPress={() => handleCardPress(account.id)}
+              onLongPress={() => handleLongPress(account.id)}
+              onEdit={() => handleEdit(account.id)}
+              onArchive={() => handleArchive(account.id)}
+              onDelete={() => handleDelete(account.id)}
+              theme={theme}
+            />
+          ))}
+
+          {/* Add New Button */}
+          <AdaptiveGlassView style={styles.glass1}>
+            <TouchableOpacity
+              style={[
+                styles.addNewButton,
+                {
+                  borderColor: theme.colors.border,
+                  backgroundColor: 'transparent',
+                },
+              ]}
+
+              onPress={handleAddNew}
+              activeOpacity={0.7}
+            >
+              <Plus size={24} color={theme.colors.textSecondary} strokeWidth={2} />
+            </TouchableOpacity>
+          </AdaptiveGlassView>
+          <View style={styles.bottomSpacer} />
         </View>
-
-
-        {accounts.map((account) => (
-          <AccountCard
-            key={account.id}
-            account={account}
-            isExpanded={expandedId === account.id}
-            isActionMode={actionModeId === account.id}
-            onPress={() => handleCardPress(account.id)}
-            onLongPress={() => handleLongPress(account.id)}
-            onEdit={() => handleEdit(account.id)}
-            onArchive={() => handleArchive(account.id)}
-            onDelete={() => handleDelete(account.id)}
-            theme={theme}
-          />
-        ))}
-
-        {/* Add New Button */}
-        <AdaptiveGlassView style={styles.glass1}>
-          <TouchableOpacity
-            style={[
-              styles.addNewButton,
-              {
-                borderColor: theme.colors.border,
-                backgroundColor: 'transparent',
-              },
-            ]}
-
-            onPress={handleAddNew}
-            activeOpacity={0.7}
-          >
-            <Plus size={24} color={theme.colors.textSecondary} strokeWidth={2} />
-          </TouchableOpacity>
-        </AdaptiveGlassView>
-        <View style={styles.bottomSpacer} />
-      </View>
-    </ScrollView >
+      </ScrollView>
+      <AddAccountSheet
+        ref={addAccountSheetRef}
+        onSubmit={handleAddAccountSubmit}
+        onEditSubmit={handleEditAccountSubmit}
+      />
+    </>
   );
 }
 

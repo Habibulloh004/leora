@@ -1,12 +1,12 @@
 // src/components/ui/AdaptiveGlassView.tsx
 import React from 'react';
-import { StyleSheet, ViewStyle, View, Platform } from 'react-native';
-import { GlassContainer, GlassView } from 'expo-glass-effect';
+import { StyleSheet, ViewStyle, View, Platform, StyleProp } from 'react-native';
+import { GlassView } from 'expo-glass-effect';
 import { useAppTheme } from '@/constants/theme';
 
 interface AdaptiveGlassViewProps {
-  children: React.ReactNode;
-  style?: ViewStyle | ViewStyle[];
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const AdaptiveGlassView: React.FC<AdaptiveGlassViewProps> = ({
@@ -39,7 +39,7 @@ export const AdaptiveGlassView: React.FC<AdaptiveGlassViewProps> = ({
   const glassStyle = 'clear';
 
   return (
-      <GlassView tintColor={theme.colors.glassTinColor} isInteractive glassEffectStyle={glassStyle} style={[styles.container, style]}>
+      <GlassView tintColor={theme.colors.background} isInteractive glassEffectStyle={glassStyle} style={[styles.container, style]}>
         {children}
       </GlassView>
   );
