@@ -1,12 +1,9 @@
-import WidgetKit
 import SwiftUI
+import WidgetKit
 
 @main
-struct exportWidgets: WidgetBundle {
+struct FocusLiveActivityBundle: WidgetBundle {
     var body: some Widget {
-        // Export widgets here
-        // widget()
-        // widgetControl()
         FocusLiveActivityWidget()
     }
 }

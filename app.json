@@ -23,6 +23,7 @@
       },
       "infoPlist": {
         "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": true,
         "UIViewControllerBasedStatusBarAppearance": false,
         "NSCameraUsageDescription": "LEORA needs access to your camera to capture receipts and documents.",
         "NSMicrophoneUsageDescription": "LEORA needs access to your microphone for voice commands.",

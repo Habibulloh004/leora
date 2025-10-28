@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import * as LiveActivity from 'expo-live-activity';
 
-import { FocusLiveActivityModule } from './FocusLiveActivityModule';
-import type { FocusLiveActivityEndReason } from './FocusLiveActivity.types';
 import { useFocusSettingsStore } from '../useFocusSettingsStore';
 import { type FocusTimerState, useFocusTimerStore } from '../useFocusTimerStore';
 import { formatTimer } from '../utils';
@@ -12,7 +11,9 @@ const APP_NAME = 'LEORA';
 const ANDROID_CHANNEL_ID = 'focus-progress';
 const ANDROID_NOTIFICATION_ID = 'focus-mode-progress';
 
-const resolveEndReason = (elapsedSeconds: number, totalSeconds: number): FocusLiveActivityEndReason => {
+type LiveActivityEndReason = 'completed' | 'cancelled' | 'disabled';
+
+const resolveEndReason = (elapsedSeconds: number, totalSeconds: number): LiveActivityEndReason => {
   if (totalSeconds > 0 && elapsedSeconds >= totalSeconds) return 'completed';
   return 'cancelled';
 };
@@ -22,7 +23,8 @@ const resolveEndReason = (elapsedSeconds: number, totalSeconds: number): FocusLi
  * The hook is a no-op on non-iOS platforms.
  */
 export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => {
-  const dynamicIslandEnabled = useFocusSettingsStore((state) => state.toggles.dynamicIsland);
+  const dynamicIslandPreference = useFocusSettingsStore((state) => state.toggles.dynamicIsland);
+  const dynamicIslandEnabled = dynamicIslandPreference ?? true;
   const notificationsEnabled = useFocusSettingsStore((state) => state.toggles.notifications);
   const breakMinutes = useFocusSettingsStore((state) => state.breakMinutes);
   const sessionsUntilBigBreak = useFocusSettingsStore((state) => state.sessionsUntilBigBreak);
@@ -35,10 +37,10 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
 
   const [isForeground, setIsForeground] = useState(AppState.currentState === 'active');
 
-  const availabilityRef = useRef({ checked: Platform.OS !== 'ios', supported: Platform.OS !== 'ios' });
   const hasActiveActivityRef = useRef(false);
   const startInFlightRef = useRef(false);
   const previousStateRef = useRef<FocusTimerState>('ready');
+  const activityIdRef = useRef<string | null>(null);
   const androidPayloadKeyRef = useRef<string | null>(null);
   const androidNotificationVisibleRef = useRef(false);
   const androidPermissionRequestedRef = useRef(false);
@@ -49,6 +51,29 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
   const breakAfterSeconds = useMemo(() => Math.max(0, Math.round(breakMinutes * 60)), [breakMinutes]);
   const isMuted = useMemo(() => !isSoundEnabled, [isSoundEnabled]);
 
+  const isLiveActivitySupported = useMemo(
+    () => Platform.OS === 'ios' && typeof LiveActivity.startActivity === 'function',
+    [],
+  );
+
+  const liveActivityConfig = useMemo<LiveActivity.LiveActivityConfig>(
+    () => ({
+      backgroundColor: '#111214',
+      titleColor: '#FFFFFF',
+      subtitleColor: '#ADB1C2',
+      progressViewTint: '#16A34A',
+      progressViewLabelColor: '#FFFFFF',
+      timerType: 'digital',
+      padding: {
+        top: 18,
+        bottom: 16,
+        horizontal: 18,
+      },
+      deepLinkUrl: '/focus-mode',
+    }),
+    [],
+  );
+
   useEffect(() => {
     const listener = AppState.addEventListener('change', (nextState) => {
       setIsForeground(nextState === 'active');
@@ -58,124 +83,155 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
   }, []);
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (availabilityRef.current.checked) return;
+    if (!isLiveActivitySupported) return;
 
-    let cancelled = false;
-    (async () => {
-      const supported = await FocusLiveActivityModule.isAvailable();
-      if (!cancelled) {
-        availabilityRef.current = { checked: true, supported };
+    const subscription = LiveActivity.addActivityUpdatesListener?.((event) => {
+      if (!event) return;
+      if (!activityIdRef.current) return;
+      if (event.activityID !== activityIdRef.current) return;
+
+      if (event.activityState === 'ended' || event.activityState === 'dismissed') {
+        hasActiveActivityRef.current = false;
+        activityIdRef.current = null;
       }
-    })();
+    });
 
     return () => {
-      cancelled = true;
+      subscription?.remove?.();
     };
-  }, []);
+  }, [isLiveActivitySupported]);
 
   useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    if (!availabilityRef.current.checked) return;
-    if (!availabilityRef.current.supported) return;
+    if (!isLiveActivitySupported) return;
 
-    let cancelled = false;
+    const totalDuration = Math.max(totalSeconds, 0);
+    const clampedElapsed = Math.max(0, Math.min(elapsedSeconds, totalDuration > 0 ? totalDuration : elapsedSeconds));
+    const remainingSeconds = Math.max(totalDuration - clampedElapsed, 0);
+    const progressRatio = totalDuration > 0 ? Math.min(clampedElapsed / totalDuration, 1) : 0;
+    const sessionLabel = `Session ${sessionIndex}/${sessionCount}`;
+    const breakLabel = breakAfterSeconds > 0 ? `Break after ${formatTimer(breakAfterSeconds)}` : null;
+    const remainingLabel = totalDuration > 0 ? `${formatTimer(remainingSeconds)} left` : null;
+    const totalLabel = totalDuration > 0 ? `Total ${formatTimer(totalDuration)}` : null;
+    const timestampNow = Date.now();
+    const projectedEndDate = remainingSeconds > 0 ? timestampNow + remainingSeconds * 1000 : null;
 
-    const sync = async () => {
-      if (cancelled) return;
+    const createLiveActivityState = (status: FocusTimerState | LiveActivityEndReason): LiveActivity.LiveActivityState => {
+      let statusLabel: string;
+      let progressBar: LiveActivity.LiveActivityState['progressBar'];
 
-      const stopActivity = async (reason: FocusLiveActivityEndReason) => {
-        await FocusLiveActivityModule.stopActivity(reason);
-        hasActiveActivityRef.current = false;
+      switch (status) {
+        case 'running':
+          statusLabel = 'In progress';
+          progressBar = projectedEndDate ? { date: projectedEndDate } : { progress: progressRatio };
+          break;
+        case 'paused':
+          statusLabel = 'Paused';
+          progressBar = { progress: progressRatio };
+          break;
+        case 'ready':
+          statusLabel = progressRatio >= 1 ? 'Session complete' : 'Session stopped';
+          progressBar = { progress: progressRatio };
+          break;
+        case 'completed':
+          statusLabel = 'Session complete';
+          progressBar = { progress: 1 };
+          break;
+        case 'cancelled':
+          statusLabel = 'Session stopped';
+          progressBar = { progress: progressRatio };
+          break;
+        case 'disabled':
+          statusLabel = 'Dynamic Island disabled';
+          progressBar = totalDuration > 0 ? { progress: progressRatio } : undefined;
+          break;
+        default:
+          statusLabel = 'In progress';
+          progressBar = projectedEndDate ? { date: projectedEndDate } : { progress: progressRatio };
+          break;
+      }
+
+      const subtitleSegments = [statusLabel];
+      if (remainingLabel) subtitleSegments.push(remainingLabel);
+      subtitleSegments.push(sessionLabel);
+      if (totalLabel) subtitleSegments.push(totalLabel);
+      if (breakLabel) subtitleSegments.push(breakLabel);
+      if (isMuted) subtitleSegments.push('Muted');
+
+      return {
+        title: taskName || APP_NAME,
+        subtitle: subtitleSegments.join(' • '),
+        progressBar,
       };
+    };
 
-      if (!dynamicIslandEnabled) {
-        if (hasActiveActivityRef.current) {
-          await stopActivity('disabled');
-        }
-        previousStateRef.current = timerState;
-        return;
+    const stopActivity = (reason: LiveActivityEndReason) => {
+      if (!activityIdRef.current) return;
+      const finalState = createLiveActivityState(reason);
+      try {
+        LiveActivity.stopActivity(activityIdRef.current, finalState);
+      } catch (error) {
+        console.warn('[focus-live-activity] Failed to stop Live Activity', error);
       }
+      activityIdRef.current = null;
+      hasActiveActivityRef.current = false;
+    };
 
-      if (isForeground) {
-        if (hasActiveActivityRef.current) {
-          await stopActivity('cancelled');
-        }
-        previousStateRef.current = timerState;
-        return;
-      }
-
-      const nextTotalSeconds = Math.max(totalSeconds, 0);
-      const nextElapsedSeconds = Math.max(0, Math.min(elapsedSeconds, nextTotalSeconds > 0 ? nextTotalSeconds : elapsedSeconds));
-      const isTimerActive = timerState === 'running' || timerState === 'paused';
-
-      if (nextTotalSeconds <= 0) {
-        if (hasActiveActivityRef.current) {
-          await stopActivity('cancelled');
-        }
-        previousStateRef.current = timerState;
-        return;
-      }
-
-      if (!isTimerActive) {
-        if (hasActiveActivityRef.current && previousStateRef.current !== 'ready') {
-          const reason = resolveEndReason(nextElapsedSeconds, nextTotalSeconds);
-          await stopActivity(reason);
-        }
-        previousStateRef.current = timerState;
-        return;
-      }
-
-      if (!hasActiveActivityRef.current && !startInFlightRef.current) {
-        startInFlightRef.current = true;
-
-        try {
-          const started = await FocusLiveActivityModule.startActivity({
-            appName: APP_NAME,
-            taskName,
-            sessionIndex,
-            sessionCount,
-            totalSeconds: nextTotalSeconds,
-            elapsedSeconds: nextElapsedSeconds,
-            breakAfterSeconds,
-            isMuted,
-          });
-
-          if (cancelled) return;
-
-          hasActiveActivityRef.current = started;
-
-          if (!started) {
-            previousStateRef.current = timerState;
-            return;
-          }
-        } finally {
-          startInFlightRef.current = false;
-        }
-      }
-
-      if (hasActiveActivityRef.current) {
-        await FocusLiveActivityModule.updateActivity({
-          taskName,
-          sessionIndex,
-          sessionCount,
-          totalSeconds: nextTotalSeconds,
-          elapsedSeconds: nextElapsedSeconds,
-          breakAfterSeconds,
-          isMuted,
-          isPaused: timerState === 'paused',
-        });
-      }
-
+    if (!dynamicIslandEnabled) {
+      stopActivity('disabled');
       previousStateRef.current = timerState;
-    };
+      return;
+    }
 
-    sync();
+    if (totalDuration <= 0) {
+      stopActivity('cancelled');
+      previousStateRef.current = timerState;
+      return;
+    }
 
-    return () => {
-      cancelled = true;
-    };
+    const isTimerActive = timerState === 'running' || timerState === 'paused';
+
+    if (!isTimerActive) {
+      if (hasActiveActivityRef.current && previousStateRef.current !== 'ready') {
+        const reason = resolveEndReason(clampedElapsed, totalDuration);
+        stopActivity(reason);
+      }
+      previousStateRef.current = timerState;
+      return;
+    }
+
+    const currentState = createLiveActivityState(timerState);
+
+    if (!hasActiveActivityRef.current && !startInFlightRef.current) {
+      startInFlightRef.current = true;
+
+      try {
+        const activityId = LiveActivity.startActivity(currentState, liveActivityConfig);
+
+        if (typeof activityId === 'string' && activityId.length > 0) {
+          hasActiveActivityRef.current = true;
+          activityIdRef.current = activityId;
+        } else {
+          hasActiveActivityRef.current = false;
+          activityIdRef.current = null;
+        }
+      } catch (error) {
+        console.warn('[focus-live-activity] Failed to start Live Activity', error);
+        hasActiveActivityRef.current = false;
+        activityIdRef.current = null;
+      } finally {
+        startInFlightRef.current = false;
+      }
+    } else if (hasActiveActivityRef.current && activityIdRef.current) {
+      try {
+        LiveActivity.updateActivity(activityIdRef.current, currentState);
+      } catch (error) {
+        console.warn('[focus-live-activity] Failed to update Live Activity', error);
+      }
+    }
+
+    previousStateRef.current = timerState;
   }, [
+    isLiveActivitySupported,
     dynamicIslandEnabled,
     timerState,
     elapsedSeconds,
@@ -185,18 +241,23 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
     breakAfterSeconds,
     isMuted,
     taskName,
-    isForeground,
+    liveActivityConfig,
   ]);
 
   useEffect(() => {
     return () => {
-      if (Platform.OS !== 'ios') return;
-      if (!hasActiveActivityRef.current) return;
-      FocusLiveActivityModule.stopActivity('cancelled').finally(() => {
-        hasActiveActivityRef.current = false;
+      if (!isLiveActivitySupported) return;
+      if (!activityIdRef.current) return;
+
+      LiveActivity.stopActivity(activityIdRef.current, {
+        title: taskName || APP_NAME,
+        subtitle: 'Session stopped',
       });
+
+      hasActiveActivityRef.current = false;
+      activityIdRef.current = null;
     };
-  }, []);
+  }, [isLiveActivitySupported, taskName]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;

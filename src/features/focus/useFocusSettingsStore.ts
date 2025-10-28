@@ -90,8 +90,22 @@ export const useFocusSettingsStore = create<FocusSettingsStore>()(
     }),
     {
       name: 'focus-settings-store',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => AsyncStorage),
+      migrate: (persistedState, version) => {
+        if (!persistedState) return persistedState as FocusSettingsStore | undefined;
+        if (version < 2) {
+          const previous = persistedState as FocusSettingsStore;
+          return {
+            ...previous,
+            toggles: {
+              ...previous.toggles,
+              dynamicIsland: true,
+            },
+          };
+        }
+        return persistedState as FocusSettingsStore;
+      },
     },
   ),
 );

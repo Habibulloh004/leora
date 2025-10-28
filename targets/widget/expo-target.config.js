@@ -7,7 +7,7 @@ module.exports = (config) => {
   return {
     type: "widget",
     displayName: "Focus Live Activity",
-    icon: "https://github.com/expo.png",
+    icon: "./Assets.xcassets/AppIcon.appiconset/logo.png",
     entitlements: {
       "com.habibulloh.leora": appGroups,
     },

@@ -45,7 +45,7 @@ export const DEFAULT_TOGGLES: Record<ToggleId, boolean> = {
   notifications: true,
   backgroundMusic: true,
   appBlock: true,
-  dynamicIsland: false,
+  dynamicIsland: true,
 };
 
 export const DEFAULT_MOTIVATION: Record<MotivationId, boolean> = {

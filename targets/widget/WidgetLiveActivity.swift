@@ -2,261 +2,511 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-struct FocusLiveActivityAttributes: ActivityAttributes {
-    public struct ContentState: Codable, Hashable {
-        var taskName: String
-        var sessionIndex: Int
-        var sessionCount: Int
-        var totalSeconds: Int
-        var elapsedSeconds: Int
-        var breakAfterSeconds: Int
-        var isMuted: Bool
-        var isPaused: Bool
-        var updatedAt: Date = .now
+struct LiveActivityAttributes: ActivityAttributes {
+    struct ContentState: Codable, Hashable {
+        var title: String
+        var subtitle: String?
+        var timerEndDateInMilliseconds: Double?
+        var progress: Double?
+        var imageName: String?
+        var dynamicIslandImageName: String?
     }
 
-    var appName: String
+    var name: String
+    var backgroundColor: String?
+    var titleColor: String?
+    var subtitleColor: String?
+    var progressViewTint: String?
+    var progressViewLabelColor: String?
+    var deepLinkUrl: String?
+    var timerType: DynamicIslandTimerType?
+    var padding: Int?
+    var paddingDetails: PaddingDetails?
+    var imagePosition: String?
+    var imageSize: Int?
+    var imageAlign: String?
+
+    enum DynamicIslandTimerType: String, Codable {
+        case circular
+        case digital
+    }
+
+    struct PaddingDetails: Codable, Hashable {
+        var top: Int?
+        var bottom: Int?
+        var left: Int?
+        var right: Int?
+        var vertical: Int?
+        var horizontal: Int?
+    }
 }
 
 struct FocusLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: FocusLiveActivityAttributes.self) { context in
-            ExpandedFocusView(context: context)
-                .activityBackgroundTint(.clear)
-                .activitySystemActionForegroundColor(.white)
+        ActivityConfiguration(for: LiveActivityAttributes.self) { context in
+            FocusLiveActivityExpandedView(state: context.state)
+                .activityBackgroundTint(.black.opacity(0.9))
+                .activitySystemActionForegroundColor(Color.white)
         } dynamicIsland: { context in
-            DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    IslandLeadingView(context: context)
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    IslandTrailingView(context: context)
-                }
+            let tint: Color = .white
+
+            return DynamicIsland {
                 DynamicIslandExpandedRegion(.center) {
-                    IslandCenterView(context: context)
-                }
-                DynamicIslandExpandedRegion(.bottom) {
-                    ControlRowView(state: context.state)
+                    FocusDynamicIslandExpanded(state: context.state, tint: tint)
                 }
             } compactLeading: {
-                Text(formatTimeRemaining(context.state))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                Text(FocusTimeFormatter.elapsedText(from: context.state))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.white)
             } compactTrailing: {
-                ProgressGaugeView(progress: progress(for: context.state))
-                    .frame(width: 22, height: 22)
+                Text("L")
+                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.85))
             } minimal: {
-                ProgressGaugeView(progress: progress(for: context.state))
-                    .frame(width: 26, height: 26)
+                Text(FocusTimeFormatter.elapsedText(from: context.state))
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(Color.white)
             }
         }
     }
 }
 
-private struct ExpandedFocusView: View {
-    let context: ActivityViewContext<FocusLiveActivityAttributes>
+private struct FocusLiveActivityExpandedView: View {
+    let state: LiveActivityAttributes.ContentState
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                .fill(Color.black.opacity(0.9))
+                .background(
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 32, style: .continuous)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
                 )
 
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .center) {
-                    Text(context.attributes.appName.uppercased())
-                        .font(.caption.weight(.semibold))
-                        .kerning(2)
-                        .foregroundStyle(Color.white.opacity(0.8))
-                    Spacer()
-                    Text(context.state.taskName)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(Color.white.opacity(0.72))
-                        .lineLimit(1)
-                }
-
-                ProgressBarView(state: context.state)
-
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(formatTimeRemaining(context.state))
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color.white)
-                        .minimumScaleFactor(0.6)
-                    Text(context.state.isPaused ? "Paused" : "In progress")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(Color.white.opacity(0.7))
-                }
-
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "flag")
-                                .font(.caption2.weight(.semibold))
-                            Text("Session \(context.state.sessionIndex) of \(context.state.sessionCount)")
-                                .font(.caption2.weight(.semibold))
-                        }
-                        .foregroundStyle(Color.white)
-                        Text("Break after: \(formatTime(context.state.breakAfterSeconds))")
-                            .font(.caption2)
-                            .foregroundStyle(Color.white.opacity(0.7))
-                    }
-                    Spacer()
-                    ControlRowView(state: context.state)
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                }
+            VStack(alignment: .leading, spacing: 20) {
+                header
+                progressSection
+                timerSection
+                footer
             }
-            .padding(20)
+            .padding(.vertical, 26)
+            .padding(.horizontal, 28)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
     }
-}
 
-private struct IslandLeadingView: View {
-    let context: ActivityViewContext<FocusLiveActivityAttributes>
+    private var header: some View {
+        HStack {
+            Text("LEORA")
+                .font(.caption.weight(.semibold))
+                .kerning(1.6)
+                .foregroundStyle(Color.white.opacity(0.75))
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(context.attributes.appName.uppercased())
-                .font(.caption2.weight(.bold))
-                .kerning(1.4)
-            Text(formatTimeRemaining(context.state))
-                .font(.title2.weight(.semibold))
-        }
-        .foregroundStyle(Color.white)
-    }
-}
+            Spacer()
 
-private struct IslandTrailingView: View {
-    let context: ActivityViewContext<FocusLiveActivityAttributes>
-
-    var body: some View {
-        VStack(alignment: .trailing, spacing: 4) {
-            Text("Session \(context.state.sessionIndex)/\(context.state.sessionCount)")
-                .font(.caption2.weight(.semibold))
-            Text(context.state.isPaused ? "Paused" : "In progress")
-                .font(.caption2)
-                .foregroundStyle(Color.white.opacity(0.72))
-        }
-        .foregroundStyle(Color.white)
-    }
-}
-
-private struct IslandCenterView: View {
-    let context: ActivityViewContext<FocusLiveActivityAttributes>
-
-    var body: some View {
-        ProgressBarView(state: context.state)
-    }
-}
-
-private struct ControlRowView: View {
-    var state: FocusLiveActivityAttributes.ContentState
-
-    var body: some View {
-        HStack(spacing: 16) {
-            ForEach(controls, id: \.0) { item in
-                VStack(spacing: 6) {
-                    Image(systemName: item.0)
-                        .font(.system(size: 17, weight: .semibold))
-                        .frame(width: 34, height: 34)
-                        .background(Circle().fill(Color.white.opacity(0.9)))
-                        .foregroundStyle(Color.black)
-                    Text(item.1)
-                        .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.75))
-                }
+            HStack(spacing: 14) {
+                Image(systemName: "arrow.up.right.square")
+                Image(systemName: "flag.checkered")
             }
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(Color.white.opacity(0.55))
         }
     }
 
-    private var controls: [(String, String)] {
-        let playPauseIcon = state.isPaused ? "play.fill" : "pause.fill"
-        let playPauseLabel = state.isPaused ? "Resume" : "Pause"
-        let soundIcon = state.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill"
-        let soundLabel = state.isMuted ? "Muted" : "Sound"
-
-        return [
-            ("power", "End"),
-            ("gearshape", "Settings"),
-            (playPauseIcon, playPauseLabel),
-            ("stop.fill", "Stop"),
-            (soundIcon, soundLabel),
-        ]
-    }
-}
-
-private struct ProgressBarView: View {
-    let state: FocusLiveActivityAttributes.ContentState
-
-    var body: some View {
-        VStack(spacing: 8) {
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(height: 6)
-                    Capsule()
-                        .fill(Color.white)
-                        .frame(width: geometry.size.width * CGFloat(progress(for: state)), height: 6)
-                        .animation(.easeInOut(duration: 0.25), value: progress(for: state))
-                }
+    private var progressSection: some View {
+        let parsed = FocusSubtitleParser.parse(state.subtitle)
+        let progressRatio: Double? = {
+            if let explicit = state.progress {
+                return min(max(explicit, 0), 1)
             }
-            .frame(height: 6)
+            guard let total = parsed.totalSeconds, total > 0 else { return nil }
+            let remaining = min(max(parsed.remainingSeconds ?? total, 0), total)
+            let ratio = 1 - Double(remaining) / Double(total)
+            return min(max(ratio, 0), 1)
+        }()
+        let elapsed = parsed.elapsedSeconds ?? 0
+
+        return VStack(spacing: 10) {
+            if let interval = FocusTimeFormatter.timerInterval(from: state) {
+                ProgressView(timerInterval: interval)
+                    .tint(Color.white)
+            } else if let progressRatio {
+                ProgressView(value: progressRatio)
+                    .tint(Color.white)
+            }
 
             HStack {
-                Text(formatTime(state.elapsedSeconds))
+                Text(FocusTimeFormatter.formatted(seconds: elapsed))
                 Spacer()
-                Text(formatTime(state.totalSeconds))
+                Text(FocusTimeFormatter.totalText(from: state))
             }
             .font(.caption2)
-            .foregroundStyle(Color.white.opacity(0.7))
+            .foregroundStyle(Color.white.opacity(0.55))
+        }
+    }
+
+    private var timerSection: some View {
+        let parsed = FocusSubtitleParser.parse(state.subtitle)
+
+        return VStack(alignment: .leading, spacing: 14) {
+            Text(parsed.status)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.white.opacity(0.68))
+
+            Text(state.title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.white.opacity(0.72))
+                .lineLimit(2)
+
+            Text(FocusTimeFormatter.elapsedText(from: state))
+                .font(.system(size: 48, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(Color.white)
+                .minimumScaleFactor(0.6)
+        }
+    }
+
+    private var footer: some View {
+        let parsed = FocusSubtitleParser.parse(state.subtitle)
+        let primaryLine = parsed.sessionLabel ?? parsed.remainingLabel
+
+        var secondarySegments: [String] = []
+        if let remaining = parsed.remainingLabel, remaining != primaryLine {
+            secondarySegments.append(remaining)
+        }
+        if let breakLabel = parsed.breakLabel {
+            secondarySegments.append(breakLabel)
+        }
+        if let total = parsed.totalLabel {
+            secondarySegments.append(total)
+        }
+        let secondaryLine = secondarySegments.joined(separator: " • ")
+
+        return HStack(alignment: .center, spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                if let primary = primaryLine {
+                    Text(primary)
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(Color.white.opacity(0.75))
+                }
+                if !secondaryLine.isEmpty {
+                    Text(secondaryLine)
+                        .font(.caption2)
+                        .foregroundStyle(Color.white.opacity(0.6))
+                }
+                if parsed.isMuted {
+                    Text("Muted")
+                        .font(.caption2)
+                        .foregroundStyle(Color.white.opacity(0.45))
+                }
+            }
+            Spacer()
+
+            HStack(spacing: 24) {
+                FocusControlIcon(symbol: "gearshape.fill")
+                FocusControlIcon(symbol: parsed.isRunning ? "pause.fill" : "play.fill")
+                FocusControlIcon(symbol: "stop.fill")
+            }
         }
     }
 }
 
-private struct ProgressGaugeView: View {
-    let progress: Double
+private struct FocusDynamicIslandExpanded: View {
+    let state: LiveActivityAttributes.ContentState
+    let tint: Color
 
     var body: some View {
-        Gauge(value: progress) {
-            EmptyView()
+        let parsed = FocusSubtitleParser.parse(state.subtitle)
+        let progressRatio: Double = {
+            if let explicit = state.progress {
+                return min(max(explicit, 0), 1)
+            }
+            guard let total = parsed.totalSeconds, total > 0 else { return 0 }
+            let remaining = min(max(parsed.remainingSeconds ?? total, 0), total)
+            let ratio = 1 - Double(remaining) / Double(total)
+            return min(max(ratio, 0), 1)
+        }()
+        let elapsed = parsed.elapsedSeconds ?? 0
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("LEORA")
+                    .font(.caption2.weight(.semibold))
+                    .kerning(1.1)
+                    .foregroundStyle(Color.white.opacity(0.7))
+                Spacer()
+                Text(state.title)
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.55))
+                    .lineLimit(1)
+            }
+
+            if let session = parsed.sessionLabel {
+                Text(session)
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.5))
+            }
+
+            Text(FocusTimeFormatter.elapsedText(from: state))
+                .font(.system(size: 30, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(Color.white)
+
+            ProgressBar(progress: progressRatio, tint: tint)
+                .frame(height: 10)
+
+            HStack {
+                Text(FocusTimeFormatter.formatted(seconds: elapsed))
+                Spacer()
+                Text(FocusTimeFormatter.totalText(from: state))
+            }
+            .font(.caption2)
+            .foregroundStyle(Color.white.opacity(0.55))
         }
-        .gaugeStyle(.accessoryCircular)
-        .tint(Color.white)
+        .padding(.vertical, 16)
+        .padding(.horizontal, 18)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.black.opacity(0.9))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
+                )
+        )
     }
 }
 
-private func progress(for state: FocusLiveActivityAttributes.ContentState) -> Double {
-    guard state.totalSeconds > 0 else { return 0 }
-    return min(max(Double(state.elapsedSeconds) / Double(state.totalSeconds), 0), 1)
+private struct FocusControlIcon: View {
+    let symbol: String
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(Color.white)
+            .frame(width: 44, height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                    )
+            )
+    }
 }
 
-private func formatTime(_ seconds: Int) -> String {
-    let safe = max(seconds, 0)
-    let minutes = safe / 60
-    let remaining = safe % 60
-    return String(format: "%02d:%02d", minutes, remaining)
+private struct ProgressBar: View {
+    var progress: Double
+    var tint: Color
+    var track: Color = Color.white.opacity(0.2)
+
+    private var clamped: Double {
+        min(max(progress, 0), 1)
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let filledWidth = width * clamped
+            Capsule()
+                .fill(track)
+                .overlay(
+                    Capsule()
+                        .fill(tint)
+                        .frame(width: filledWidth)
+                )
+        }
+    }
 }
 
-private func formatTimeRemaining(_ state: FocusLiveActivityAttributes.ContentState) -> String {
-    let remaining = max(state.totalSeconds - state.elapsedSeconds, 0)
-    return formatTime(remaining)
+private enum FocusTimeFormatter {
+    static func timerInterval(from state: LiveActivityAttributes.ContentState) -> ClosedRange<Date>? {
+        guard let milliseconds = state.timerEndDateInMilliseconds else { return nil }
+        let endDate = Date(timeIntervalSince1970: milliseconds / 1000)
+        return Date()...endDate
+    }
+
+    static func elapsedText(from state: LiveActivityAttributes.ContentState) -> String {
+        if let interval = timerInterval(from: state) {
+            let seconds = max(Int(interval.upperBound.timeIntervalSinceNow.rounded()), 0)
+            return format(seconds: seconds)
+        }
+        let parsed = FocusSubtitleParser.parse(state.subtitle)
+        if let remaining = parsed.remainingSeconds {
+            return format(seconds: remaining)
+        }
+        if let progress = state.progress {
+            return String(format: "%02d%%", Int(progress * 100))
+        }
+        return "--:--"
+    }
+
+    static func totalText(from state: LiveActivityAttributes.ContentState) -> String {
+        let parsed = FocusSubtitleParser.parse(state.subtitle)
+        if let total = parsed.totalSeconds {
+            return format(seconds: total)
+        }
+        if let interval = timerInterval(from: state) {
+            let seconds = max(Int(interval.upperBound.timeIntervalSinceNow.rounded()), 0)
+            return format(seconds: seconds)
+        }
+        return "60:00"
+    }
+
+    static func formatted(seconds: Int) -> String {
+        format(seconds: seconds)
+    }
+
+    private static func format(seconds: Int) -> String {
+        let clamped = max(seconds, 0)
+        let minutes = (clamped / 60) % 60
+        let remaining = clamped % 60
+        let hours = clamped / 3600
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, remaining)
+        }
+        return String(format: "%02d:%02d", minutes, remaining)
+    }
 }
 
-#Preview("Focus Live Activity", as: .content, using: FocusLiveActivityAttributes(appName: "LEORA")) {
-    FocusLiveActivityWidget()
-} contentStates: {
-    FocusLiveActivityAttributes.ContentState(
-        taskName: "Working on Leora project",
-        sessionIndex: 2,
-        sessionCount: 4,
-        totalSeconds: 60 * 60,
-        elapsedSeconds: 32 * 60 + 10,
-        breakAfterSeconds: 25 * 60,
-        isMuted: false,
-        isPaused: false
-    )
+private enum FocusSubtitleParser {
+    struct ParsedSubtitle {
+        let status: String
+        let remainingLabel: String?
+        let sessionLabel: String?
+        let totalLabel: String?
+        let breakLabel: String?
+        let isMuted: Bool
+        let isRunning: Bool
+
+        var remainingSeconds: Int? {
+            FocusSubtitleParser.seconds(from: remainingLabel)
+        }
+
+        var totalSeconds: Int? {
+            FocusSubtitleParser.seconds(from: totalLabel)
+        }
+
+        var elapsedSeconds: Int? {
+            guard let total = totalSeconds, let remaining = remainingSeconds else { return nil }
+            return max(total - remaining, 0)
+        }
+    }
+
+    static func parse(_ subtitle: String?) -> ParsedSubtitle {
+        guard let subtitle else {
+            return .init(
+                status: "In progress",
+                remainingLabel: nil,
+                sessionLabel: nil,
+                totalLabel: nil,
+                breakLabel: nil,
+                isMuted: false,
+                isRunning: true
+            )
+        }
+
+        let segments = subtitle
+            .split(separator: "•")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !segments.isEmpty else {
+            return .init(
+                status: "In progress",
+                remainingLabel: nil,
+                sessionLabel: nil,
+                totalLabel: nil,
+                breakLabel: nil,
+                isMuted: false,
+                isRunning: true
+            )
+        }
+
+        let status = segments.first ?? "In progress"
+        var remaining: String?
+        var session: String?
+        var total: String?
+        var breakInfo: String?
+        var muted = false
+
+        for segment in segments.dropFirst() {
+            let lowercased = segment.lowercased()
+
+            if lowercased.contains("muted") {
+                muted = true
+                continue
+            }
+
+            if lowercased.contains("left") {
+                if remaining == nil {
+                    remaining = segment
+                }
+                continue
+            }
+
+            if lowercased.contains("session") {
+                session = segment
+                continue
+            }
+
+            if lowercased.contains("total") {
+                total = segment
+                continue
+            }
+
+            if lowercased.contains("break") {
+                breakInfo = segment
+                continue
+            }
+
+            if session == nil {
+                session = segment
+            } else if breakInfo == nil {
+                breakInfo = segment
+            } else if total == nil {
+                total = segment
+            }
+        }
+
+        let isRunning = !status.localizedCaseInsensitiveContains("paused") && !status.localizedCaseInsensitiveContains("stopped")
+
+        return .init(
+            status: status,
+            remainingLabel: remaining,
+            sessionLabel: session,
+            totalLabel: total,
+            breakLabel: breakInfo,
+            isMuted: muted,
+            isRunning: isRunning
+        )
+    }
+
+    private static func seconds(from label: String?) -> Int? {
+        guard let label else { return nil }
+        guard let timeComponent = label.split(separator: " ").first(where: { $0.contains(":") }) else {
+            return nil
+        }
+
+        let parts = timeComponent.split(separator: ":").compactMap { Int($0) }
+        guard !parts.isEmpty else { return nil }
+
+        if parts.count == 1 {
+            return parts[0]
+        }
+        if parts.count == 2 {
+            return parts[0] * 60 + parts[1]
+        }
+        if parts.count == 3 {
+            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+        }
+
+        return nil
+    }
 }
