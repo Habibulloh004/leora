@@ -48,3 +48,17 @@ Join our community of developers creating universal apps.
 
 - [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
 - [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+
+## Focus Mode Live Activity (iOS) & Notification (Android)
+
+The focus timer now drives a Live Activity (iOS 16.2+) and an Android persistent notification so users can monitor sessions after leaving the app.
+
+**iOS setup (after any change run `npx expo prebuild -p ios --clean`):**
+
+1. The `@bacons/apple-targets` config plugin links the widget inside `targets/widget`. Open the generated workspace in Xcode and you will find the “expo:targets/widget” bundle already configured.
+2. Confirm the app and widget both use the shared App Group `group.com.habibulloh.leora` (added in `app.json` and mirrored in `targets/widget/expo-target.config.js`).
+3. Build and run on an iOS 16.2+ device. When Focus Mode is running with the “Dynamic Island” toggle enabled and you background the app, the Dynamic Island + Lock Screen Live Activity will appear with live progress, session metadata, and controls. Live updates are driven by the `FocusLiveActivityModule` Expo native module and ActivityKit.
+
+**Android experience:**
+
+The first time Focus Mode runs in the background (Android 13+), the system prompts for notification permission. A sticky “Focus Mode” notification shows remaining time, session progress, and break info whenever the timer is active away from the app.

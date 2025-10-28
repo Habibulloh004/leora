@@ -1,18 +1,72 @@
 import React, { useCallback, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { Feather } from '@expo/vector-icons';
+import Animated, { interpolate, interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { useThemeColors } from '@/constants/theme';
 import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
-import { LOCK_OPTIONS, MOTIVATION_OPTIONS, PRESET_MINUTES, TECHNIQUES, MotivationId, LockId } from '@/features/focus/types';
+import { LOCK_OPTIONS, MOTIVATION_OPTIONS, PRESET_MINUTES, TECHNIQUES, TOGGLE_OPTIONS, MotivationId, LockId, ToggleId } from '@/features/focus/types';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const ToggleRow = ({
+  icon,
+  label,
+  value,
+  onToggle,
+  colors,
+}: {
+  icon: keyof typeof MaterialCommunityIcons.glyphMap;
+  label: string;
+  value: boolean;
+  onToggle: () => void;
+  colors: ReturnType<typeof useThemeColors>;
+}) => {
+  const progress = useSharedValue(value ? 1 : 0);
+  const press = useSharedValue(0);
+
+  React.useEffect(() => {
+    progress.value = withTiming(value ? 1 : 0, { duration: 200 });
+  }, [progress, value]);
+
+  const containerStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(press.value, [0, 1], [1, 0.97]) }],
+    backgroundColor: colors.surfaceElevated,
+    borderColor: colors.surfaceElevated,
+  }));
+
+  const trackStyle = useAnimatedStyle(() => ({
+    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.surface, colors.primary]),
+  }));
+
+  const knobStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(progress.value, [0, 1], [0, 22]) }],
+  }));
+
+  return (
+    <AnimatedPressable
+      onPress={onToggle}
+      onPressIn={() => (press.value = withTiming(1, { duration: 80 }))}
+      onPressOut={() => (press.value = withTiming(0, { duration: 120 }))}
+      style={[styles.toggleCard, containerStyle]}
+    >
+      <View style={styles.toggleLeft}>
+        <View style={[styles.iconTile, { backgroundColor: colors.surface }]}>
+          <MaterialCommunityIcons name={icon} size={18} color={colors.textSecondary} />
+        </View>
+        <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>{label}</Text>
+      </View>
+      <Animated.View style={[styles.switchTrack, trackStyle]}>
+        <Animated.View style={[styles.switchKnob, { backgroundColor: colors.white }, knobStyle]} />
+      </Animated.View>
+    </AnimatedPressable>
+  );
+};
 
 const FocusCheckbox = ({
   label,
@@ -109,8 +163,10 @@ export default function FocusSettingsModal() {
   const techniqueKey = useFocusSettingsStore((state) => state.techniqueKey);
   const workMinutes = useFocusSettingsStore((state) => state.workMinutes);
   const breakMinutes = useFocusSettingsStore((state) => state.breakMinutes);
+  const toggles = useFocusSettingsStore((state) => state.toggles);
   const toggleMotivation = useFocusSettingsStore((state) => state.toggleMotivation);
   const toggleLock = useFocusSettingsStore((state) => state.toggleLock);
+  const toggleSetting = useFocusSettingsStore((state) => state.toggleSetting);
   const setTechnique = useFocusSettingsStore((state) => state.setTechnique);
   const setWorkMinutes = useFocusSettingsStore((state) => state.setWorkMinutes);
   const setBreakMinutes = useFocusSettingsStore((state) => state.setBreakMinutes);
@@ -152,6 +208,20 @@ export default function FocusSettingsModal() {
         </View>
 
         <ScrollView style={styles.modalScroll} contentContainerStyle={styles.modalContent} showsVerticalScrollIndicator={false}>
+          <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Focus toggles</Text>
+          <View style={styles.toggleList}>
+            {TOGGLE_OPTIONS.map((toggle) => (
+              <ToggleRow
+                key={toggle.id}
+                icon={toggle.icon}
+                label={toggle.label}
+                value={toggles[toggle.id as ToggleId]}
+                onToggle={() => toggleSetting(toggle.id as ToggleId)}
+                colors={colors}
+              />
+            ))}
+          </View>
+
           <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>Focus duration</Text>
           <View style={styles.presetRow}>
             {PRESET_MINUTES.map((preset) => {
@@ -277,6 +347,7 @@ const styles = StyleSheet.create({
   modalScroll: { flex: 1 },
   modalContent: { paddingHorizontal: 20, paddingBottom: 32, gap: 18 },
   sectionLabel: { fontSize: 13, textTransform: 'uppercase', letterSpacing: 1 },
+  toggleList: { gap: 12 },
   presetRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 12, rowGap: 12 },
   presetButton: { flexBasis: '47%', borderRadius: 14, borderWidth: 1, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' },
   presetButtonLabel: { fontSize: 14, fontWeight: '600' },
@@ -289,6 +360,12 @@ const styles = StyleSheet.create({
   segmentLabel: { fontSize: 14, fontWeight: '600' },
   segmentSummary: { fontSize: 12, marginTop: 2 },
   checkboxGrid: { gap: 12 },
+  toggleCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1 },
+  toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  iconTile: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  toggleLabel: { fontSize: 14, fontWeight: '500' },
+  switchTrack: { width: 48, height: 26, borderRadius: 14, padding: 2, justifyContent: 'center' },
+  switchKnob: { width: 22, height: 22, borderRadius: 11 },
   checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   checkboxBox: { width: 24, height: 24, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   checkboxFill: { alignItems: 'center', justifyContent: 'center' },

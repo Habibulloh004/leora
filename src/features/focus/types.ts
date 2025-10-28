@@ -18,6 +18,7 @@ export const TOGGLE_OPTIONS = [
   { id: 'notifications', label: 'Turn off notification', icon: 'bell-off' },
   { id: 'backgroundMusic', label: 'Background music', icon: 'music' },
   { id: 'appBlock', label: 'App block', icon: 'cellphone-lock' },
+  { id: 'dynamicIsland', label: 'Dynamic Island', icon: 'cellphone' },
 ] as const;
 
 export const MOTIVATION_OPTIONS = [
@@ -44,6 +45,7 @@ export const DEFAULT_TOGGLES: Record<ToggleId, boolean> = {
   notifications: true,
   backgroundMusic: true,
   appBlock: true,
+  dynamicIsland: false,
 };
 
 export const DEFAULT_MOTIVATION: Record<MotivationId, boolean> = {

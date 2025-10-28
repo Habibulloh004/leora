@@ -22,6 +22,7 @@
         "backgroundColor": "#000000"
       },
       "infoPlist": {
+        "NSSupportsLiveActivities": true,
         "UIViewControllerBasedStatusBarAppearance": false,
         "NSCameraUsageDescription": "LEORA needs access to your camera to capture receipts and documents.",
         "NSMicrophoneUsageDescription": "LEORA needs access to your microphone for voice commands.",
@@ -29,8 +30,13 @@
         "NSPhotoLibraryUsageDescription": "LEORA needs access to your photo library.",
         "NSPhotoLibraryAddUsageDescription": "LEORA needs permission to save receipts.",
         "UIStatusBarStyle": "UIStatusBarStyleLightContent",
-        "ITSAppUsesNonExemptEncryption": false,
-
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "com.apple.developer.usernotifications.filtering": true,
+        "com.apple.security.application-groups": [
+          "group.com.habibulloh.leora"
+        ]
       }
     },
     "android": {
@@ -47,7 +53,9 @@
         "USE_FINGERPRINT",
         "VIBRATE",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "plugins": [
@@ -69,7 +77,8 @@
         {
           "faceIDPermission": "Allow LEORA to use Face ID for secure access."
         }
-      ]
+      ],
+      "@bacons/apple-targets"
     ],
     "extra": {
       "router": {
