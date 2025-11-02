@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { mmkvStorageAdapter, storage } from '@/utils/storage';
 import { User, LoginCredentials, RegisterCredentials, ForgotPasswordData } from '@/types/auth.types';
 import { useLockStore } from './useLockStore';
 
@@ -59,8 +60,8 @@ export const useAuthStore = create<AuthStore>()(
             return false;
           }
 
-          // Get all registered users from AsyncStorage
-          const usersJson = await AsyncStorage.getItem('registered-users');
+          // Get all registered users from persistent storage
+          const usersJson = await storage.getItem('registered-users');
           const users: User[] = usersJson ? JSON.parse(usersJson) : [];
 
           // Find user by email or username
@@ -76,7 +77,7 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           // Check password (in real app, this would be hashed)
-          const passwordJson = await AsyncStorage.getItem(`user-password-${user.id}`);
+          const passwordJson = await storage.getItem(`user-password-${user.id}`);
           const storedPassword = passwordJson ? JSON.parse(passwordJson) : null;
 
           if (storedPassword !== password) {
@@ -143,7 +144,7 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           // Get existing users
-          const usersJson = await AsyncStorage.getItem('registered-users');
+          const usersJson = await storage.getItem('registered-users');
           const users: User[] = usersJson ? JSON.parse(usersJson) : [];
 
           // Check if user already exists
@@ -166,10 +167,10 @@ export const useAuthStore = create<AuthStore>()(
 
           // Save user to storage
           users.push(newUser);
-          await AsyncStorage.setItem('registered-users', JSON.stringify(users));
+          await storage.setItem('registered-users', JSON.stringify(users));
 
           // Store password separately (in real app, this would be hashed on backend)
-          await AsyncStorage.setItem(`user-password-${newUser.id}`, JSON.stringify(password));
+          await storage.setItem(`user-password-${newUser.id}`, JSON.stringify(password));
 
           // Auto-login after registration
           set({
@@ -200,7 +201,7 @@ export const useAuthStore = create<AuthStore>()(
 
           // If remember me is disabled, clear user data
           if (!rememberMe) {
-            await AsyncStorage.removeItem('auth-storage');
+            await storage.removeItem('auth-storage');
           }
 
           set({
@@ -225,15 +226,15 @@ export const useAuthStore = create<AuthStore>()(
         set({ isLoading: true, error: null });
 
         try {
-          const usersJson = await AsyncStorage.getItem('registered-users');
+          const usersJson = await storage.getItem('registered-users');
           const users: User[] = usersJson ? JSON.parse(usersJson) : [];
           const filteredUsers = users.filter((u) => u.id !== currentUser.id);
 
-          await AsyncStorage.setItem('registered-users', JSON.stringify(filteredUsers));
-          await AsyncStorage.removeItem(`user-password-${currentUser.id}`);
+          await storage.setItem('registered-users', JSON.stringify(filteredUsers));
+          await storage.removeItem(`user-password-${currentUser.id}`);
 
           // Clear persisted session
-          await AsyncStorage.removeItem('auth-storage');
+          await storage.removeItem('auth-storage');
 
           set({
             user: null,
@@ -269,7 +270,7 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           // Check if user exists
-          const usersJson = await AsyncStorage.getItem('registered-users');
+          const usersJson = await storage.getItem('registered-users');
           const users: User[] = usersJson ? JSON.parse(usersJson) : [];
           const user = users.find((u) => u.email.toLowerCase() === email.toLowerCase());
 
@@ -288,7 +289,7 @@ export const useAuthStore = create<AuthStore>()(
           console.log('Password reset OTP:', otp); // For testing
 
           // Store OTP temporarily
-          await AsyncStorage.setItem('password-reset-otp', JSON.stringify({ email, otp, timestamp: Date.now() }));
+          await storage.setItem('password-reset-otp', JSON.stringify({ email, otp, timestamp: Date.now() }));
 
           set({
             pendingPasswordResetEmail: email,
@@ -313,7 +314,7 @@ export const useAuthStore = create<AuthStore>()(
           // Simulate API delay
           await new Promise((resolve) => setTimeout(resolve, 500));
 
-          const otpDataJson = await AsyncStorage.getItem('password-reset-otp');
+          const otpDataJson = await storage.getItem('password-reset-otp');
           if (!otpDataJson) {
             set({ error: 'OTP expired or invalid', isLoading: false });
             return false;
@@ -324,7 +325,7 @@ export const useAuthStore = create<AuthStore>()(
           // Check if OTP is expired (5 minutes)
           const isExpired = Date.now() - otpData.timestamp > 5 * 60 * 1000;
           if (isExpired) {
-            await AsyncStorage.removeItem('password-reset-otp');
+            await storage.removeItem('password-reset-otp');
             set({ error: 'OTP has expired. Please request a new one.', isLoading: false });
             return false;
           }
@@ -370,7 +371,7 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           // Get user
-          const usersJson = await AsyncStorage.getItem('registered-users');
+          const usersJson = await storage.getItem('registered-users');
           const users: User[] = usersJson ? JSON.parse(usersJson) : [];
           const user = users.find((u) => u.email.toLowerCase() === pendingPasswordResetEmail.toLowerCase());
 
@@ -380,10 +381,10 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           // Update password
-          await AsyncStorage.setItem(`user-password-${user.id}`, JSON.stringify(newPassword));
+          await storage.setItem(`user-password-${user.id}`, JSON.stringify(newPassword));
 
           // Clear password reset data
-          await AsyncStorage.removeItem('password-reset-otp');
+          await storage.removeItem('password-reset-otp');
           set({
             pendingPasswordResetEmail: null,
             passwordResetOtp: null,
@@ -412,10 +413,10 @@ export const useAuthStore = create<AuthStore>()(
           };
 
           // Update in storage
-          AsyncStorage.getItem('registered-users').then((usersJson) => {
+          storage.getItem('registered-users').then((usersJson) => {
             const users: User[] = usersJson ? JSON.parse(usersJson) : [];
             const updatedUsers = users.map((u) => (u.id === updatedUser.id ? updatedUser : u));
-            AsyncStorage.setItem('registered-users', JSON.stringify(updatedUsers));
+            storage.setItem('registered-users', JSON.stringify(updatedUsers));
           });
 
           return { user: updatedUser };
@@ -445,7 +446,7 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'auth-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
       version: 1,
       // Persist only specific fields
       partialize: (state) => ({

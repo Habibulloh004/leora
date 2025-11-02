@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
-import * as LiveActivity from 'expo-live-activity';
+import Constants from 'expo-constants';
+
+import type {
+  ActivityUpdateEvent,
+  LiveActivityConfig,
+  LiveActivityState,
+} from 'expo-live-activity';
 
 import { useFocusSettingsStore } from '../useFocusSettingsStore';
 import { type FocusTimerState, useFocusTimerStore } from '../useFocusTimerStore';
@@ -10,6 +15,52 @@ import { formatTimer } from '../utils';
 const APP_NAME = 'LEORA';
 const ANDROID_CHANNEL_ID = 'focus-progress';
 const ANDROID_NOTIFICATION_ID = 'focus-mode-progress';
+
+type NotificationsModule = typeof import('expo-notifications');
+type LiveActivityModule = {
+  startActivity?: (state: LiveActivityState, config?: LiveActivityConfig) => string | undefined;
+  updateActivity?: (id: string, state: LiveActivityState) => void;
+  stopActivity?: (id: string, state: LiveActivityState) => void;
+  addActivityUpdatesListener?: (
+    listener: (event: ActivityUpdateEvent) => void,
+  ) => { remove?: () => void } | void;
+};
+
+let Notifications: NotificationsModule | null = null;
+let LiveActivity: LiveActivityModule | null = null;
+
+const shouldLoadNotifications = Platform.OS !== 'android' || Constants.appOwnership !== 'expo';
+const shouldLoadLiveActivity = Platform.OS === 'ios' && Constants.appOwnership !== 'expo';
+
+if (shouldLoadNotifications) {
+  try {
+    Notifications = require('expo-notifications') as NotificationsModule;
+  } catch (error) {
+    console.warn(
+      '[focus-live-activity] expo-notifications unavailable; falling back to no-op notifications.',
+      error,
+    );
+  }
+} else if (__DEV__) {
+  console.info(
+    '[focus-live-activity] expo-notifications disabled in Expo Go; notifications will be no-op.',
+  );
+}
+
+if (shouldLoadLiveActivity) {
+  try {
+    LiveActivity = require('expo-live-activity') as LiveActivityModule;
+  } catch (error) {
+    console.warn(
+      '[focus-live-activity] expo-live-activity unavailable; Live Activities will be disabled.',
+      error,
+    );
+  }
+} else if (__DEV__ && Platform.OS === 'ios') {
+  console.info(
+    '[focus-live-activity] Live Activities disabled in Expo Go; use a dev build to test.',
+  );
+}
 
 type LiveActivityEndReason = 'completed' | 'cancelled' | 'disabled';
 
@@ -52,11 +103,11 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
   const isMuted = useMemo(() => !isSoundEnabled, [isSoundEnabled]);
 
   const isLiveActivitySupported = useMemo(
-    () => Platform.OS === 'ios' && typeof LiveActivity.startActivity === 'function',
+    () => Platform.OS === 'ios' && typeof LiveActivity?.startActivity === 'function',
     [],
   );
 
-  const liveActivityConfig = useMemo<LiveActivity.LiveActivityConfig>(
+  const liveActivityConfig = useMemo<LiveActivityConfig>(
     () => ({
       backgroundColor: '#111214',
       titleColor: '#FFFFFF',
@@ -83,18 +134,24 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
   }, []);
 
   useEffect(() => {
-    if (!isLiveActivitySupported) return;
+    if (!isLiveActivitySupported || !LiveActivity?.addActivityUpdatesListener) return;
 
-    const subscription = LiveActivity.addActivityUpdatesListener?.((event) => {
-      if (!event) return;
-      if (!activityIdRef.current) return;
-      if (event.activityID !== activityIdRef.current) return;
+    let subscription: { remove?: () => void } | void;
+    try {
+      subscription = LiveActivity?.addActivityUpdatesListener?.((event) => {
+        if (!event) return;
+        if (!activityIdRef.current) return;
+        if (event.activityID !== activityIdRef.current) return;
 
-      if (event.activityState === 'ended' || event.activityState === 'dismissed') {
-        hasActiveActivityRef.current = false;
-        activityIdRef.current = null;
-      }
-    });
+        if (event.activityState === 'ended' || event.activityState === 'dismissed') {
+          hasActiveActivityRef.current = false;
+          activityIdRef.current = null;
+        }
+      });
+    } catch (error) {
+      console.warn('[focus-live-activity] Failed to attach Live Activity listener.', error);
+      return;
+    }
 
     return () => {
       subscription?.remove?.();
@@ -115,9 +172,9 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
     const timestampNow = Date.now();
     const projectedEndDate = remainingSeconds > 0 ? timestampNow + remainingSeconds * 1000 : null;
 
-    const createLiveActivityState = (status: FocusTimerState | LiveActivityEndReason): LiveActivity.LiveActivityState => {
+    const createLiveActivityState = (status: FocusTimerState | LiveActivityEndReason): LiveActivityState => {
       let statusLabel: string;
-      let progressBar: LiveActivity.LiveActivityState['progressBar'];
+      let progressBar: LiveActivityState['progressBar'];
 
       switch (status) {
         case 'running':
@@ -168,7 +225,7 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
       if (!activityIdRef.current) return;
       const finalState = createLiveActivityState(reason);
       try {
-        LiveActivity.stopActivity(activityIdRef.current, finalState);
+        LiveActivity?.stopActivity?.(activityIdRef.current, finalState);
       } catch (error) {
         console.warn('[focus-live-activity] Failed to stop Live Activity', error);
       }
@@ -205,7 +262,7 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
       startInFlightRef.current = true;
 
       try {
-        const activityId = LiveActivity.startActivity(currentState, liveActivityConfig);
+        const activityId = LiveActivity?.startActivity?.(currentState, liveActivityConfig);
 
         if (typeof activityId === 'string' && activityId.length > 0) {
           hasActiveActivityRef.current = true;
@@ -223,7 +280,7 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
       }
     } else if (hasActiveActivityRef.current && activityIdRef.current) {
       try {
-        LiveActivity.updateActivity(activityIdRef.current, currentState);
+        LiveActivity?.updateActivity?.(activityIdRef.current, currentState);
       } catch (error) {
         console.warn('[focus-live-activity] Failed to update Live Activity', error);
       }
@@ -249,7 +306,7 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
       if (!isLiveActivitySupported) return;
       if (!activityIdRef.current) return;
 
-      LiveActivity.stopActivity(activityIdRef.current, {
+      LiveActivity?.stopActivity?.(activityIdRef.current, {
         title: taskName || APP_NAME,
         subtitle: 'Session stopped',
       });
@@ -261,12 +318,14 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
+    const notifications = Notifications;
+    if (!notifications) return;
     if (androidChannelRegisteredRef.current) return;
     androidChannelRegisteredRef.current = true;
-    Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+    notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
       name: 'Focus Progress',
-      importance: Notifications.AndroidImportance.MAX,
-      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      importance: notifications.AndroidImportance.MAX,
+      lockscreenVisibility: notifications.AndroidNotificationVisibility.PUBLIC,
       sound: null,
       showBadge: false,
     }).catch(() => {
@@ -276,14 +335,18 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
 
   const dismissAndroidNotification = useCallback(() => {
     if (Platform.OS !== 'android') return;
+    const notifications = Notifications;
+    if (!notifications) return;
     if (!androidNotificationVisibleRef.current) return;
-    Notifications.dismissNotificationAsync(ANDROID_NOTIFICATION_ID).catch(() => undefined);
+    notifications.dismissNotificationAsync(ANDROID_NOTIFICATION_ID).catch(() => undefined);
     androidNotificationVisibleRef.current = false;
     androidPayloadKeyRef.current = null;
   }, []);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
+    const notifications = Notifications;
+    if (!notifications) return;
     if (!notificationsEnabled) {
       dismissAndroidNotification();
       return;
@@ -292,10 +355,10 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
     androidPermissionRequestedRef.current = true;
     let cancelled = false;
     (async () => {
-      const settings = await Notifications.getPermissionsAsync();
+      const settings = await notifications.getPermissionsAsync();
       if (cancelled) return;
       if (!settings.granted) {
-        await Notifications.requestPermissionsAsync();
+        await notifications.requestPermissionsAsync();
       }
     })().catch(() => undefined);
     return () => {
@@ -305,6 +368,8 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
+    const notifications = Notifications;
+    if (!notifications) return;
 
     const shouldShow =
       notificationsEnabled &&
@@ -333,8 +398,8 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
     androidPayloadKeyRef.current = payloadKey;
 
     (async () => {
-      await Notifications.dismissNotificationAsync(ANDROID_NOTIFICATION_ID).catch(() => undefined);
-      await Notifications.scheduleNotificationAsync({
+      await notifications.dismissNotificationAsync(ANDROID_NOTIFICATION_ID).catch(() => undefined);
+      await notifications.scheduleNotificationAsync({
         identifier: ANDROID_NOTIFICATION_ID,
         content: {
           title: 'Focus Mode',
@@ -343,7 +408,7 @@ export const useFocusLiveActivitySync = ({ taskName }: { taskName: string }) => 
           data: { scope: 'focus-session' },
           sticky: true,
           autoDismiss: false,
-          priority: Notifications.AndroidNotificationPriority.MAX,
+          priority: notifications.AndroidNotificationPriority.MAX,
         },
         trigger: { channelId: ANDROID_CHANNEL_ID },
       });

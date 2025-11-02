@@ -2,14 +2,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Minus, Plus, HeartPulse, Flag, ListChecks } from 'lucide-react-native';
 import React, { useMemo, useState } from 'react';
-import {
-  ImageBackground,
-  Pressable,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -49,7 +42,7 @@ export default function UniversalFAB() {
   const overlayOpacity = useSharedValue(0);
   const iconProgress = useSharedValue(0);
   const [openModal, setOpenModal] = useState(false);
-  
+
   // Animation values for each button
   const buttonAnimations = [
     useSharedValue(0),
@@ -59,25 +52,16 @@ export default function UniversalFAB() {
   ];
 
   const router = useRouter();
-  const {
-    openIncomeOutcome,
-    openTransferModal,
-    openDebtModal,
-    openPlannerTaskModal,
-    openPlannerGoalModal,
-    openPlannerHabitModal,
-    openPlannerFocusModal,
-  } = useModalStore(
-    useShallow((state) => ({
-      openIncomeOutcome: state.openIncomeOutcome,
-      openTransferModal: state.openTransferModal,
-      openDebtModal: state.openDebtModal,
-      openPlannerTaskModal: state.openPlannerTaskModal,
-      openPlannerGoalModal: state.openPlannerGoalModal,
-      openPlannerHabitModal: state.openPlannerHabitModal,
-      openPlannerFocusModal: state.openPlannerFocusModal,
-    }))
-  );
+  const { openIncomeOutcome, openTransferModal, openDebtModal, openPlannerTaskModal, openPlannerHabitModal } =
+    useModalStore(
+      useShallow((state) => ({
+        openIncomeOutcome: state.openIncomeOutcome,
+        openTransferModal: state.openTransferModal,
+        openDebtModal: state.openDebtModal,
+        openPlannerTaskModal: state.openPlannerTaskModal,
+        openPlannerHabitModal: state.openPlannerHabitModal,
+      }))
+    );
 
   const actions: FABAction[] = useMemo(() => {
     switch (activeTab) {
@@ -253,135 +237,135 @@ export default function UniversalFAB() {
 
   return (
     <>
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}>
-      {/* Full Screen Background Overlay */}
-      <Animated.View
-        pointerEvents={openModal ? "box-only" : "none"}
-        style={[
-          styles.overlayContainer,
-          overlayStyle,
-        ]}
-      >
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPressOut={toggleExpanded}
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'transparent' }}>
+        {/* Full Screen Background Overlay */}
+        <Animated.View
+          pointerEvents={openModal ? "box-only" : "none"}
+          style={[
+            styles.overlayContainer,
+            overlayStyle,
+          ]}
         >
-          <MaskedView
-            maskElement={
-              <LinearGradient
-                colors={['transparent', 'black', 'black']}
-                locations={[0, 0.3, 1]}
-                style={StyleSheet.absoluteFill}
-              />
-            }
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPressOut={toggleExpanded}
           >
-            <BlurView intensity={50} tint={blurTint} style={StyleSheet.absoluteFill} />
-          </MaskedView>
-          <ImageBackground
-            source={require('@assets/images/backgroundModal.png')}
-            style={styles.backgroundImage}
-            resizeMode="cover"
-          >
-            <View style={[styles.overlayTint, { backgroundColor: overlayTintColor }]} />
-          </ImageBackground>
-        </Pressable>
-      </Animated.View>
-      
-      {/* Button fubs */}
-      <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, right: 0 }}>
-        {/* FAB + Actions */}
-        <View style={[styles.container, { bottom: bottomOffset }]} pointerEvents="box-none">
-          {actions.map((action, index) => {
-            const Icon = action.icon;
-
-            return (
-              <React.Fragment key={String(action.id)}>
-                <Animated.View style={[styles.actionContainer, buttonStyles[index]]}>
-                  <Animated.View style={[styles.labelContainer, labelStyles[index]]}>
-                    <Text style={[styles.label, { color: labelColor }]}>{action.label}</Text>
-                  </Animated.View>
-
-                  <TouchableOpacity
-                    style={[styles.actionButton, { backgroundColor: actionButtonBgColor }]}
-                    onPress={() => {
-                      toggleExpanded();
-                      setTimeout(() => {
-                        switch (action.id) {
-                          case 'add-task':
-                            router.navigate('/(modals)/add-task');
-                            break;
-                          case 'quick-expense':
-                          case 'add-expense':
-                            console.log('Add Expense');
-                            router.navigate('/(modals)/quick-exp');
-                            break;
-                          case 'start-focus':
-                            router.navigate('/focus-mode');
-                            break;
-                          case 'voice-note':
-                            router.navigate('/(modals)/voice-ai');
-                            break;
-                          case 'planner-task':
-                            openPlannerTaskModal('create');
-                            break;
-                          case 'planner-goal':
-                            openPlannerGoalModal('create');
-                            break;
-                          case 'planner-habit':
-                            openPlannerHabitModal('create');
-                            break;
-                          case 'planner-focus':
-                            openPlannerFocusModal();
-                            break;
-                          case 'finance-income':
-                            openIncomeOutcome({ tab: 'income' });
-                            break;
-                          case 'finance-outcome':
-                            openIncomeOutcome({ tab: 'outcome' });
-                            break;
-                          case 'finance-transfer':
-                            openTransferModal();
-                            break;
-                          case 'finance-debt':
-                            openDebtModal();
-                            break;
-                        }
-                      }, 300);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <Icon color={iconColor} size={24} strokeWidth={2} />
-                  </TouchableOpacity>
-                </Animated.View>
-              </React.Fragment>
-            );
-          })}
-
-          {/* Main FAB - Shadow wrapper */}
-          <View style={styles.fabShadowWrapper}>
-            <TouchableOpacity
-              style={[styles.fab, { backgroundColor: fabBgColor }]}
-              onPress={toggleExpanded}
-              activeOpacity={0.9}
+            <MaskedView
+              maskElement={
+                <LinearGradient
+                  colors={['transparent', 'black', 'black']}
+                  locations={[0, 0.3, 1]}
+                  style={StyleSheet.absoluteFill}
+                />
+              }
             >
-              <Animated.View style={fabRotationStyle}>
-                <View style={styles.iconStack}>
-                  <Animated.View style={[styles.layeredIcon, plusIconStyle]}>
-                    <Plus color={iconColor} size={28} strokeWidth={2.5} />
+              <BlurView intensity={50} tint={blurTint} style={StyleSheet.absoluteFill} />
+            </MaskedView>
+            <ImageBackground
+              source={require('@assets/images/backgroundModal.png')}
+              style={styles.backgroundImage}
+              resizeMode="cover"
+            >
+              <View style={[styles.overlayTint, { backgroundColor: overlayTintColor }]} />
+            </ImageBackground>
+          </Pressable>
+        </Animated.View>
+
+        {/* Button fubs */}
+        <View pointerEvents="box-none" style={{ position: 'absolute', bottom: 0, right: 0 }}>
+          {/* FAB + Actions */}
+          <View style={[styles.container, { bottom: bottomOffset }]} pointerEvents="box-none">
+            {actions.map((action, index) => {
+              const Icon = action.icon;
+
+              return (
+                <React.Fragment key={String(action.id)}>
+                  <Animated.View style={[styles.actionContainer, buttonStyles[index]]}>
+                    <Animated.View style={[styles.labelContainer, labelStyles[index]]}>
+                      <Text style={[styles.label, { color: labelColor }]}>{action.label}</Text>
+                    </Animated.View>
+
+                    <TouchableOpacity
+                      style={[styles.actionButton, { backgroundColor: actionButtonBgColor }]}
+                      onPress={() => {
+                        toggleExpanded();
+                        setTimeout(() => {
+                          switch (action.id) {
+                            case 'add-task':
+                              router.navigate('/(modals)/add-task');
+                              break;
+                            case 'quick-expense':
+                            case 'add-expense':
+                              console.log('Add Expense');
+                              router.navigate('/(modals)/quick-exp');
+                              break;
+                            case 'start-focus':
+                              router.navigate('/focus-mode');
+                              break;
+                            case 'voice-note':
+                              router.navigate('/(modals)/voice-ai');
+                              break;
+                            case 'planner-task':
+                              openPlannerTaskModal('create');
+                              break;
+                            case 'planner-goal':
+                              router.navigate('/(modals)/add-goal');
+                              break;
+                            case 'planner-habit':
+                              openPlannerHabitModal('create');
+                              break;
+                            case 'planner-focus':
+                              router.navigate('/focus-mode');
+                              break;
+                            case 'finance-income':
+                              openIncomeOutcome({ tab: 'income' });
+                              break;
+                            case 'finance-outcome':
+                              openIncomeOutcome({ tab: 'outcome' });
+                              break;
+                            case 'finance-transfer':
+                              openTransferModal();
+                              break;
+                            case 'finance-debt':
+                              openDebtModal();
+                              break;
+                          }
+                        }, 300);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Icon color={iconColor} size={24} strokeWidth={2} />
+                    </TouchableOpacity>
                   </Animated.View>
-                  <Animated.View style={[styles.layeredIcon, minusIconStyle]}>
-                    <Minus color={iconColor} size={28} strokeWidth={2.5} />
-                  </Animated.View>
-                </View>
-              </Animated.View>
-            </TouchableOpacity>
+                </React.Fragment>
+              );
+            })}
+
+            {/* Main FAB - Shadow wrapper */}
+            <View style={styles.fabShadowWrapper}>
+              <TouchableOpacity
+                style={[styles.fab, { backgroundColor: fabBgColor }]}
+                onPress={toggleExpanded}
+                activeOpacity={0.9}
+              >
+                <Animated.View style={fabRotationStyle}>
+                  <View style={styles.iconStack}>
+                    <Animated.View style={[styles.layeredIcon, plusIconStyle]}>
+                      <Plus color={iconColor} size={28} strokeWidth={2.5} />
+                    </Animated.View>
+                    <Animated.View style={[styles.layeredIcon, minusIconStyle]}>
+                      <Minus color={iconColor} size={28} strokeWidth={2.5} />
+                    </Animated.View>
+                  </View>
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </View>
-    </View>
-    <IncomeOutcomeModal />
-    <TransactionModal />
-    <DebtModal />
+      <IncomeOutcomeModal />
+      <TransactionModal />
+      <DebtModal />
     </>
   );
 }

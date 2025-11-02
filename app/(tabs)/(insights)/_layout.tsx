@@ -1,13 +1,33 @@
 // app/(tabs)/(insights)/_layout.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Stack } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import UniversalFAB from '@/components/UniversalFAB';
 import InsightsModals from '@/components/screens/insights/InsightsModals';
+import { useAppTheme } from '@/constants/theme';
 
 const InsightsLayout = () => {
+  const theme = useAppTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: theme.colors.background,
+        },
+        contentWrapper: {
+          flex: 1,
+          position: 'relative',
+        },
+        content: {
+          backgroundColor: theme.colors.background,
+        },
+      }),
+    [theme],
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <View style={styles.contentWrapper}>
@@ -27,17 +47,3 @@ const InsightsLayout = () => {
 };
 
 export default InsightsLayout;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#25252B',
-  },
-  contentWrapper: {
-    flex: 1,
-    position: 'relative',
-  },
-  content: {
-    backgroundColor: '#25252B',
-  },
-});

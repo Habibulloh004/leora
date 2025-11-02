@@ -1,11 +1,11 @@
 // stores/useFinanceStore.ts
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { Colors } from '@/constants/theme';
 import { Account } from '@/types/finance';
 import { Debt, Transaction } from '@/types/store.types';
+import { mmkvStorageAdapter } from '@/utils/storage';
 
 type TransactionInput = Omit<Transaction, 'id' | 'createdAt'>;
 type DebtInput = Omit<Debt, 'id' | 'createdAt' | 'remainingAmount' | 'status'> & {
@@ -380,7 +380,7 @@ export const useFinanceStore = create<FinanceStore>()(
     }),
     {
       name: 'finance-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
       version: 2,
       migrate: (persistedState: FinancePersistedShape | undefined, version) => {
         if (!persistedState) {

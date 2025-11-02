@@ -1,13 +1,33 @@
 // app/(tabs)/(planner)/_layout.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 
 import UniversalFAB from '@/components/UniversalFAB';
 import PlannerModals from '@/components/screens/planner/PlannerModals';
+import { useAppTheme } from '@/constants/theme';
 
 const PlannerLayout = () => {
+  const theme = useAppTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: theme.colors.background,
+        },
+        contentWrapper: {
+          flex: 1,
+          position: 'relative',
+        },
+        content: {
+          backgroundColor: theme.colors.background,
+        },
+      }),
+    [theme],
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <View style={styles.contentWrapper}>
@@ -27,17 +47,3 @@ const PlannerLayout = () => {
 };
 
 export default PlannerLayout;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#25252B',
-  },
-  contentWrapper: {
-    flex: 1,
-    position: 'relative',
-  },
-  content: {
-    backgroundColor: '#25252B',
-  },
-});

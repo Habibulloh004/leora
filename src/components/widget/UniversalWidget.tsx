@@ -16,7 +16,7 @@ export default function UniversalWidget({
   const hasHydrated = useWidgetStoreHydrated();
   const widget = AVAILABLE_WIDGETS[widgetId];
   
-  // Show loading while store is hydrating from AsyncStorage
+  // Show loading while store is hydrating from persistent storage
   if (!hasHydrated) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>

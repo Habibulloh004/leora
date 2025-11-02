@@ -12,7 +12,6 @@ import { TabProvider, useTab } from '@/contexts/TabContext';
 import { FinanceIcon, HomeIcon, InsightsIcon, MoreIcon, PlannerIcon } from '@assets/icons';
 import PlannerHeader from '@/components/screens/planner/PlannerHeader';
 import InsightsHeader from '@/components/screens/insights/InsightsHeader';
-import MoreHeader from '@/components/screens/more/MoreHeader';
 import FinanceHeader from '@/components/screens/finance/FinanceHeader';
 import { useAppTheme } from '@/constants/theme';
 
@@ -60,12 +59,6 @@ const PlannerTabHeader = () => (
 const InsightsTabHeader = () => (
   <TabHeaderFrame>
     <InsightsHeader />
-  </TabHeaderFrame>
-);
-
-const MoreTabHeader = () => (
-  <TabHeaderFrame>
-    <MoreHeader />
   </TabHeaderFrame>
 );
 
@@ -313,7 +306,7 @@ function TabsContent() {
         <Tabs.Screen
           name="more"
           options={{
-            header: () => <MoreTabHeader />,
+            headerShown: false,
           }}
         />
       </Tabs>

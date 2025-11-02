@@ -201,7 +201,7 @@ export default function ManageWidgetModal() {
     [handleRemoveWidget]
   );
 
-  // Show loading while store is hydrating from AsyncStorage
+  // Show loading while store is hydrating from persistent storage
   if (!hasHydrated) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>

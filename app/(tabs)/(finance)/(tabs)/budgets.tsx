@@ -145,7 +145,7 @@ const AnimatedProgressBar: React.FC<ProgressBarProps> = ({ percentage, appearanc
               ry={PROGRESS_RADIUS}
               width={trackWidth}
               height={PROGRESS_HEIGHT}
-              fill={applyAlpha(theme.colors.backgroundMuted, theme.mode === 'dark' ? 0.38 : 0.18)}
+              fill={applyAlpha(theme.colors.backgroundMuted, theme.mode === 'dark' ? 0.38 : 1)}
             />
             <AnimatedRect
               animatedProps={animatedProps}

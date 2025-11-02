@@ -1,259 +1,277 @@
 // app/(tabs)/(insights)/(tabs)/productivity.tsx - Productivity Tab
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Clock, CheckCircle, Zap } from 'lucide-react-native';
 
+import { Theme, useAppTheme } from '@/constants/theme';
+
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    contentContainer: {
+      padding: theme.spacing.lg,
+    },
+    metricsContainer: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      marginBottom: theme.spacing.lg,
+    },
+    metricCard: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.xl,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: theme.spacing.sm,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    metricValue: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+    },
+    metricLabel: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+      textAlign: 'center',
+    },
+    section: {
+      marginBottom: theme.spacing.lg,
+    },
+    sectionTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+      marginBottom: theme.spacing.md,
+    },
+    peakCard: {
+      backgroundColor: theme.colors.surfaceElevated,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    peakHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    peakTime: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+    },
+    peakBadge: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 4,
+      borderRadius: theme.radius.full,
+    },
+    peakBadgeText: {
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    peakDescription: {
+      fontSize: 14,
+      color: theme.colors.textMuted,
+    },
+    matrixContainer: {
+      gap: theme.spacing.md,
+    },
+    matrixRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+    },
+    matrixCell: {
+      flex: 1,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    matrixLabel: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+    },
+    matrixCount: {
+      fontSize: 12,
+      color: theme.colors.textPrimary,
+    },
+    habitCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+      gap: theme.spacing.md,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.colors.border,
+    },
+    habitContent: {
+      flex: 1,
+    },
+    habitTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+    },
+    habitStreak: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+    },
+    bottomSpacer: {
+      height: theme.spacing.xxxl,
+    },
+  });
+
+const peakConfig = [
+  { time: '9:00-11:00', label: 'Утренний пик', tone: 'success' as const, description: 'Идеально для творческих задач' },
+  { time: '14:00-16:00', label: 'Дневной пик', tone: 'warning' as const, description: 'Лучшее время для встреч' },
+  { time: '19:00-20:00', label: 'Вечерний подъем', tone: 'secondary' as const, description: 'Планирование и рефлексия' },
+];
+
+const matrixConfig = [
+  { label: 'Срочно и важно', count: '2 задачи', tone: 'danger' as const },
+  { label: 'Важно, не срочно', count: '5 задач', tone: 'success' as const },
+  { label: 'Срочно, не важно', count: '3 задачи', tone: 'warning' as const },
+  { label: 'Не срочно, не важно', count: '1 задача', tone: 'muted' as const },
+];
+
+const habitConfig = [
+  { icon: CheckCircle, title: 'Утренняя медитация', streak: '21 день подряд', tone: 'success' as const },
+  { icon: CheckCircle, title: 'Pomodoro техника', streak: '14 дней подряд', tone: 'success' as const },
+  { icon: Clock, title: 'Вечернее планирование', streak: '5 дней подряд', tone: 'warning' as const },
+];
+
 export default function ProductivityTab() {
+  const theme = useAppTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const resolveTone = (tone: 'success' | 'warning' | 'danger' | 'secondary' | 'muted') => {
+    switch (tone) {
+      case 'success':
+        return { background: theme.colors.success, text: theme.colors.onSuccess };
+      case 'warning':
+        return { background: theme.colors.warning, text: theme.colors.onWarning };
+      case 'danger':
+        return { background: theme.colors.danger, text: theme.colors.onDanger };
+      case 'secondary':
+        return { background: theme.colors.secondary, text: theme.colors.onSecondary };
+      case 'muted':
+      default:
+        return { background: theme.colors.surface, text: theme.colors.textPrimary };
+    }
+  };
+
   return (
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       showsVerticalScrollIndicator={false}
     >
-      {/* Productivity Metrics */}
       <View style={styles.metricsContainer}>
         <View style={styles.metricCard}>
-          <Clock color="#00BCD4" size={32} />
+          <Clock color={theme.colors.info} size={32} />
           <Text style={styles.metricValue}>6.5 ч</Text>
           <Text style={styles.metricLabel}>Глубокий фокус</Text>
         </View>
 
         <View style={styles.metricCard}>
-          <CheckCircle color="#4CAF50" size={32} />
+          <CheckCircle color={theme.colors.success} size={32} />
           <Text style={styles.metricValue}>18</Text>
           <Text style={styles.metricLabel}>Задач выполнено</Text>
         </View>
 
         <View style={styles.metricCard}>
-          <Zap color="#FFD700" size={32} />
+          <Zap color={theme.colors.warning} size={32} />
           <Text style={styles.metricValue}>92%</Text>
           <Text style={styles.metricLabel}>Эффективность</Text>
         </View>
       </View>
 
-      {/* Energy Peaks */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Энергетические пики</Text>
-
-        <View style={styles.peakCard}>
-          <View style={styles.peakHeader}>
-            <Text style={styles.peakTime}>9:00-11:00</Text>
-            <View style={styles.peakBadge}>
-              <Text style={styles.peakBadgeText}>Утренний пик</Text>
+        {peakConfig.map((peak) => {
+          const tone = resolveTone(peak.tone);
+          return (
+            <View key={peak.time} style={styles.peakCard}>
+              <View style={styles.peakHeader}>
+                <Text style={styles.peakTime}>{peak.time}</Text>
+                <View style={[styles.peakBadge, { backgroundColor: tone.background }]}>
+                  <Text style={[styles.peakBadgeText, { color: tone.text }]}>{peak.label}</Text>
+                </View>
+              </View>
+              <Text style={styles.peakDescription}>{peak.description}</Text>
             </View>
-          </View>
-          <Text style={styles.peakDescription}>Идеально для творческих задач</Text>
-        </View>
-
-        <View style={styles.peakCard}>
-          <View style={styles.peakHeader}>
-            <Text style={styles.peakTime}>14:00-16:00</Text>
-            <View style={[styles.peakBadge, { backgroundColor: '#FF9800' }]}>
-              <Text style={styles.peakBadgeText}>Дневной пик</Text>
-            </View>
-          </View>
-          <Text style={styles.peakDescription}>Лучшее время для встреч</Text>
-        </View>
-
-        <View style={styles.peakCard}>
-          <View style={styles.peakHeader}>
-            <Text style={styles.peakTime}>19:00-20:00</Text>
-            <View style={[styles.peakBadge, { backgroundColor: '#9C27B0' }]}>
-              <Text style={styles.peakBadgeText}>Вечерний подъем</Text>
-            </View>
-          </View>
-          <Text style={styles.peakDescription}>Планирование и рефлексия</Text>
-        </View>
+          );
+        })}
       </View>
 
-      {/* Eisenhower Matrix */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Матрица Эйзенхауэра</Text>
-
         <View style={styles.matrixContainer}>
           <View style={styles.matrixRow}>
-            <View style={[styles.matrixCell, { backgroundColor: '#F44336' }]}>
-              <Text style={styles.matrixLabel}>Срочно и важно</Text>
-              <Text style={styles.matrixCount}>2 задачи</Text>
-            </View>
-
-            <View style={[styles.matrixCell, { backgroundColor: '#4CAF50' }]}>
-              <Text style={styles.matrixLabel}>Важно, не срочно</Text>
-              <Text style={styles.matrixCount}>5 задач</Text>
-            </View>
+            {matrixConfig.slice(0, 2).map((item) => {
+              const tone = resolveTone(item.tone);
+              return (
+                <View
+                  key={item.label}
+                  style={[
+                    styles.matrixCell,
+                    { backgroundColor: tone.background },
+                  ]}
+                >
+                  <Text style={[styles.matrixLabel, { color: tone.text }]}>{item.label}</Text>
+                  <Text style={[styles.matrixCount, { color: tone.text }]}>{item.count}</Text>
+                </View>
+              );
+            })}
           </View>
-
           <View style={styles.matrixRow}>
-            <View style={[styles.matrixCell, { backgroundColor: '#FF9800' }]}>
-              <Text style={styles.matrixLabel}>Срочно, не важно</Text>
-              <Text style={styles.matrixCount}>3 задачи</Text>
-            </View>
-
-            <View style={[styles.matrixCell, { backgroundColor: '#9E9E9E' }]}>
-              <Text style={styles.matrixLabel}>Не срочно, не важно</Text>
-              <Text style={styles.matrixCount}>1 задача</Text>
-            </View>
+            {matrixConfig.slice(2, 4).map((item) => {
+              const tone = resolveTone(item.tone);
+              return (
+                <View
+                  key={item.label}
+                  style={[
+                    styles.matrixCell,
+                    { backgroundColor: tone.background },
+                  ]}
+                >
+                  <Text style={[styles.matrixLabel, { color: tone.text }]}>{item.label}</Text>
+                  <Text style={[styles.matrixCount, { color: tone.text }]}>{item.count}</Text>
+                </View>
+              );
+            })}
           </View>
         </View>
       </View>
 
-      {/* Productive Habits */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Продуктивные привычки</Text>
-
-        <View style={styles.habitCard}>
-          <CheckCircle color="#4CAF50" size={24} />
-          <View style={styles.habitContent}>
-            <Text style={styles.habitTitle}>Утренняя медитация</Text>
-            <Text style={styles.habitStreak}>21 день подряд</Text>
-          </View>
-        </View>
-
-        <View style={styles.habitCard}>
-          <CheckCircle color="#4CAF50" size={24} />
-          <View style={styles.habitContent}>
-            <Text style={styles.habitTitle}>Pomodoro техника</Text>
-            <Text style={styles.habitStreak}>14 дней подряд</Text>
-          </View>
-        </View>
-
-        <View style={styles.habitCard}>
-          <Clock color="#FF9800" size={24} />
-          <View style={styles.habitContent}>
-            <Text style={styles.habitTitle}>Вечернее планирование</Text>
-            <Text style={styles.habitStreak}>5 дней подряд</Text>
-          </View>
-        </View>
+        {habitConfig.map((habit) => {
+          const Icon = habit.icon;
+          const tone = resolveTone(habit.tone);
+          return (
+            <View key={habit.title} style={styles.habitCard}>
+              <Icon color={tone.background} size={24} />
+              <View style={styles.habitContent}>
+                <Text style={styles.habitTitle}>{habit.title}</Text>
+                <Text style={styles.habitStreak}>{habit.streak}</Text>
+              </View>
+            </View>
+          );
+        })}
       </View>
 
       <View style={styles.bottomSpacer} />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#25252B',
-  },
-  contentContainer: {
-    padding: 16,
-  },
-  metricsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: '#31313A',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  metricValue: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: '#A6A6B9',
-    textAlign: 'center',
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 16,
-  },
-  peakCard: {
-    backgroundColor: '#1A1A1A',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-  },
-  peakHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  peakTime: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  peakBadge: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  peakBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  peakDescription: {
-    fontSize: 14,
-    color: '#A6A6B9',
-  },
-  matrixContainer: {
-    gap: 12,
-  },
-  matrixRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  matrixCell: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 20,
-    minHeight: 100,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  matrixLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  matrixCount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  habitCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#31313A',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    gap: 16,
-  },
-  habitContent: {
-    flex: 1,
-  },
-  habitTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  habitStreak: {
-    fontSize: 14,
-    color: '#4CAF50',
-  },
-  bottomSpacer: {
-    height: 100,
-  },
-});

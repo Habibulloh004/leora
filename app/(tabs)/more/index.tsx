@@ -1,15 +1,16 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { BackHandler, Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
   FadeIn,
   FadeInDown,
-  useAnimatedStyle,
+  useAnimatedProps,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Defs, LinearGradient as SvgLinearGradient, Rect, Stop, Svg } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import {
@@ -22,7 +23,6 @@ import {
   CircleHelp,
   Cloud,
   Crown,
-  Gem,
   Info,
   Languages,
   LifeBuoy,
@@ -40,8 +40,14 @@ import {
 } from 'lucide-react-native';
 
 import UniversalFAB from '@/components/UniversalFAB';
-import { GlassCard, ListItem, SectionHeader } from '@/features/more/components';
+import { ListItem, SectionHeader } from '@/features/more/components';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+
+
+const LEVEL_PROGRESS_HEIGHT = 44;
+const LEVEL_PROGRESS_RADIUS = 22;
+const AnimatedRectSvg = Animated.createAnimatedComponent(Rect);
 
 const useStyles = createThemedStyles((theme) => ({
   safeArea: {
@@ -97,83 +103,86 @@ const useStyles = createThemedStyles((theme) => ({
   },
   premiumBadge: {
     alignSelf: 'flex-start',
-    borderRadius: theme.radius.full,
-    overflow: 'hidden',
-  },
-  premiumBadgeInner: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
+  },
+  premiumBadgeIcon: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
   },
   premiumBadgeText: {
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textSecondary,
     letterSpacing: 0.3,
   },
   progressRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.lg,
+    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 28,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(18, 19, 27, 0.7)' : 'rgba(229, 231, 235, 0.7)',
   },
-  levelBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: theme.radius.lg,
+  levelRingOuter: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  levelRingOuterDim: {
+    opacity: 0.85,
+  },
+  levelRingInner: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  levelText: {
-    fontSize: 15,
+  levelNumber: {
+    fontSize: 16,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
-  progressTrack: {
+  levelNumberDim: {
+    fontWeight: '600',
+  },
+  progressShell: {
     flex: 1,
-    height: 48,
-    borderRadius: theme.radius.lg,
-    justifyContent: 'center',
-    backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.08)',
+    height: LEVEL_PROGRESS_HEIGHT,
+    borderRadius: LEVEL_PROGRESS_RADIUS,
     overflow: 'hidden',
-  },
-  progressFill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    borderRadius: theme.radius.lg,
-  },
-  progressOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
     justifyContent: 'center',
-    alignItems: 'center',
-    gap: 4,
+    position: 'relative',
   },
-  progressLevelLabel: {
+  progressContent: {
+    ...StyleSheet.absoluteFillObject,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  progressLabel: {
     fontSize: 14,
     fontWeight: '700',
+    letterSpacing: -0.1,
   },
-  progressXpRow: {
+  progressXpGroup: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  progressXpText: {
-    fontSize: 13,
-    fontWeight: '600',
+  progressXpCurrent: {
+    fontSize: 15,
+    fontWeight: '700',
   },
-  nextLevelBadge: {
-    width: 42,
-    height: 42,
-    borderRadius: theme.radius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
+  progressXpMax: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   sectionGroup: {
     gap: theme.spacing.sm,
@@ -181,6 +190,7 @@ const useStyles = createThemedStyles((theme) => ({
   listCardContent: {
     paddingHorizontal: 0,
     paddingVertical: 0,
+    gap: 6
   },
   integrationHeader: {
     marginTop: theme.spacing.md,
@@ -204,17 +214,137 @@ const useStyles = createThemedStyles((theme) => ({
     fontSize: 16,
     fontWeight: '700',
   },
+  // qo'shimcha/yangilangan style-lar
+  profileStub: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
 }));
 
 const userProfile = {
-  name: 'Ivan Petrov',
-  email: 'ivan.petrov@email.com',
+  name: 'Oybek Baxtiyorov',
+  email: 'progremmer@gmail.com',
   premiumUntil: '15 March 2025',
-  level: 12,
-  nextLevel: 13,
-  xp: 3500,
-  xpTarget: 4000,
+  level: 1,
+  nextLevel: 2,
+  xp: 300,
+  xpTarget: 1000,
   avatarUri: undefined,
+};
+
+type LevelProgressProps = {
+  level: number;
+  nextLevel: number;
+  currentXp: number;
+  targetXp: number;
+};
+
+const LevelProgress: React.FC<LevelProgressProps> = ({ level, nextLevel, currentXp, targetXp }) => {
+  const theme = useAppTheme();
+  const [trackWidth, setTrackWidth] = useState(0);
+  const widthValue = useSharedValue(0);
+  const gradientId = useMemo(() => `level-progress-${level}-${nextLevel}`, [level, nextLevel]);
+  const styles = useStyles();
+
+  const clampedRatio = targetXp > 0 ? Math.min(Math.max(currentXp / targetXp, 0), 1) : 0;
+
+  useEffect(() => {
+    if (!trackWidth) return;
+    const width = clampedRatio <= 0 ? 0 : Math.max(trackWidth * clampedRatio, 10);
+    widthValue.value = withTiming(Math.min(trackWidth, width), {
+      duration: 420,
+    });
+  }, [clampedRatio, trackWidth, widthValue]);
+
+  const animatedProps = useAnimatedProps(() => ({
+    width: widthValue.value,
+  }));
+
+  const ringBorderColor = theme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(17,24,39,0.08)';
+  const leftRingBg = theme.mode === 'dark' ? 'rgba(21,22,30,0.6)' : 'rgba(226,232,240,0.62)';
+  const rightRingBg = theme.mode === 'dark' ? 'rgba(21,22,30,0.6)' : 'rgba(226,232,240,0.6)';
+  const innerRingColor = theme.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.08)';
+  const innerRingDimColor = theme.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.05)';
+  const levelNumberColor = theme.mode === 'dark' ? '#F8FAFC' : '#111827';
+  const levelNumberDimColor = theme.mode === 'dark' ? 'rgba(248,250,252,0.65)' : 'rgba(55,65,81,0.65)';
+  const trackBaseColor = theme.mode === 'dark' ? 'rgba(203, 213, 225, 0.35)' : 'rgba(203, 213, 225, 0.6)';
+  const gradientStops =
+    theme.mode === 'dark'
+      ? ['#8FA399', '#3d8f76ff', '#22ad98ff'] // dark mode: biroz to‘q-yashil + sovuq kulrang
+      : ['#30ab94ff', '#45b8c0ff', '#42ba54ff']; // light mod
+
+  const labelColor = theme.mode === 'dark' ? '#1E1F2A' : theme.colors.textPrimary;
+  const xpMaxColor = theme.mode === 'dark' ? 'rgba(30,31,42,0.45)' : 'rgba(71,85,105,0.55)';
+
+  return (
+    <AdaptiveGlassView style={{
+      borderRadius: LEVEL_PROGRESS_RADIUS,
+    }}>
+      <View
+        style={[styles.progressShell, { backgroundColor: "transparent" }]}
+        onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
+      >
+        {trackWidth > 0 ? (
+          <Svg width={trackWidth} height={LEVEL_PROGRESS_HEIGHT} style={StyleSheet.absoluteFillObject}>
+            <Defs>
+              <SvgLinearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                {gradientStops.map((stopColor, index) => (
+                  <Stop
+                    key={`${stopColor}-${index}`}
+                    offset={`${(index / Math.max(gradientStops.length - 1, 1)) * 100}%`}
+                    stopColor={stopColor}
+                  />
+                ))}
+              </SvgLinearGradient>
+            </Defs>
+            <Rect
+              x={0}
+              y={0}
+              rx={LEVEL_PROGRESS_RADIUS}
+              ry={LEVEL_PROGRESS_RADIUS}
+              width={trackWidth}
+              height={LEVEL_PROGRESS_HEIGHT}
+              fill={trackBaseColor}
+            />
+            <AnimatedRectSvg
+              animatedProps={animatedProps}
+              x={0}
+              y={0}
+              rx={LEVEL_PROGRESS_RADIUS}
+              ry={LEVEL_PROGRESS_RADIUS}
+              height={LEVEL_PROGRESS_HEIGHT}
+              fill={`url(#${gradientId})`}
+            />
+          </Svg>
+        ) : null}
+
+        <View style={styles.progressContent} pointerEvents="none">
+          <View style={[styles.levelRingOuter, { backgroundColor: leftRingBg, borderColor: ringBorderColor }]}>
+            <View style={[styles.levelRingInner, { backgroundColor: innerRingColor }]}>
+              <Text style={[styles.levelNumber, { color: levelNumberColor }]}>{level}</Text>
+            </View>
+          </View>
+          <Text style={[styles.progressLabel, { color: labelColor }]}>Level {level}</Text>
+          <View style={styles.progressXpGroup}>
+            <Star size={16} color="#FACC15" fill="#FACC15" />
+            <Text style={[styles.progressXpCurrent, { color: labelColor }]}>{currentXp}</Text>
+            <Text style={[styles.progressXpMax, { color: xpMaxColor }]}>/{targetXp}</Text>
+          </View>
+          <View style={[styles.levelRingOuter, styles.levelRingOuterDim, { backgroundColor: rightRingBg, borderColor: ringBorderColor }]}>
+            <View style={[styles.levelRingInner, { backgroundColor: innerRingDimColor }]}>
+              <Text style={[styles.levelNumber, styles.levelNumberDim, { color: levelNumberDimColor }]}>
+                {nextLevel}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+      </View>
+    </AdaptiveGlassView>
+  );
 };
 
 type IconComponent = React.ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
@@ -233,15 +363,7 @@ export default function MoreHomeScreen() {
   const styles = useStyles();
   const theme = useAppTheme();
   const router = useRouter();
-  const progress = useSharedValue(0);
   const [syncEnabled, setSyncEnabled] = useState(true);
-
-  useEffect(() => {
-    progress.value = withTiming(userProfile.xp / userProfile.xpTarget, {
-      duration: 900,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [progress]);
 
   const navigateTo = useCallback(
     (target: string) => {
@@ -266,23 +388,14 @@ export default function MoreHomeScreen() {
     }, [router]),
   );
 
-  const progressFillStyle = useAnimatedStyle(() => {
-    const value = Math.max(Math.min(progress.value, 1), 0);
-    return { width: `${Math.max(value * 100, 6)}%` };
-  });
-
-  const levelBadgeBackground = theme.mode === 'dark' ? 'rgba(120, 133, 255, 0.18)' : 'rgba(79, 70, 229, 0.16)';
-  const nextLevelBorder = theme.mode === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)';
   const logoutGradientColors: [string, string] =
     theme.mode === 'dark' ? ['rgba(59,130,246,0.18)', 'rgba(147,197,253,0.12)'] : ['rgba(79,70,229,0.12)', 'rgba(59,130,246,0.1)'];
-  const badgeGradientColors: [string, string, string] =
-    theme.mode === 'dark' ? ['#38bdf8', '#6366f1', '#fbbf24'] : ['#2563eb', '#6d28d9', '#fdba74'];
 
   const accountItems: SectionItem[] = [
-    { key: 'profile', icon: UserRound, label: 'Profile', destination: 'profile' },
-    { key: 'premium', icon: Crown, label: 'Premium status', destination: 'premium' },
-    { key: 'achievements', icon: Medal, label: 'Achievements', value: '23 / 50', destination: 'achievements' },
-    { key: 'statistics', icon: BarChart3, label: 'Statistics', destination: 'statistics' },
+    { key: 'profile', icon: UserRound, label: 'Profile', destination: 'account/profile' },
+    { key: 'premium', icon: Crown, label: 'Premium status', destination: 'account/premium' },
+    { key: 'achievements', icon: Medal, label: 'Achievements', value: '23 / 50', destination: 'account/achievements' },
+    { key: 'statistics', icon: BarChart3, label: 'Statistics', destination: 'account/statistics' },
   ];
 
   const settingsItems: SectionItem[] = [
@@ -291,10 +404,10 @@ export default function MoreHomeScreen() {
       icon: Palette,
       label: 'Appearance',
       value: theme.mode === 'dark' ? 'Dark' : 'Light',
-      destination: 'settings/appearance',
+      destination: 'settings',
     },
     { key: 'notifications', icon: Bell, label: 'Notifications', value: 'Enabled', destination: 'settings/notifications' },
-    { key: 'assistant', icon: Sparkles, label: 'AI Assistant', value: 'Alpha', destination: 'settings/assistant' },
+    { key: 'assistant', icon: Sparkles, label: 'AI Assistant', value: 'Alpha', destination: 'settings/ai' },
     { key: 'security', icon: ShieldCheck, label: 'Security', destination: 'settings/security' },
     { key: 'language', icon: Languages, label: 'Language and Region', value: 'English', destination: 'settings/language' },
   ];
@@ -320,73 +433,57 @@ export default function MoreHomeScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
       <Animated.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-        <Animated.View entering={FadeIn.duration(450)}>
-          <GlassCard contentStyle={styles.headerCardContent}>
-            <View style={styles.identityRow}>
-              <View style={[styles.avatarWrapper, { backgroundColor: levelBadgeBackground }]}>
-                <LinearGradient
-                  colors={theme.mode === 'dark' ? ['rgba(59,130,246,0.25)', 'rgba(99,102,241,0.15)'] : ['rgba(79,70,229,0.24)', 'rgba(59,130,246,0.12)']}
-                  style={styles.avatarFallback}
-                />
-
-                {userProfile.avatarUri ? (
-                  <Image source={{ uri: userProfile.avatarUri }} style={StyleSheet.absoluteFillObject} />
-                ) : (
-                  <Text style={styles.avatarInitials}>
-                    {userProfile.name
-                      .split(' ')
-                      .map((part) => part[0])
-                      .join('')
-                      .slice(0, 2)
-                      .toUpperCase()}
+        {/* Profile header (drop‑in replacement) */}
+        <AdaptiveGlassView style={{ backgroundColor: theme.colors.card, borderRadius: 16 }}>
+          <Animated.View entering={FadeIn.duration(450)}>
+            <View style={styles.headerCardContent}>
+              {/* Identity: text on the left, profile stub on the right */}
+              <View style={[styles.identityRow, { justifyContent: 'space-between' }]}>
+                <View style={styles.identityText}>
+                  <Text style={[styles.nameText, { color: theme.colors.textPrimary }]}>
+                    {userProfile.name}
                   </Text>
-                )}
-              </View>
-
-              <View style={styles.identityText}>
-                <Text style={[styles.nameText, { color: theme.colors.textPrimary }]}>{userProfile.name}</Text>
-                <Text style={styles.emailText}>{userProfile.email}</Text>
-              </View>
-            </View>
-
-            <View style={styles.premiumBadge}>
-              <LinearGradient colors={badgeGradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.premiumBadgeInner}>
-                <Gem size={16} color="#FFFFFF" />
-                <Text style={styles.premiumBadgeText}>Premium until {userProfile.premiumUntil}</Text>
-              </LinearGradient>
-            </View>
-
-            <View style={styles.progressRow}>
-              <View style={[styles.levelBadge, { backgroundColor: levelBadgeBackground }]}>
-                <Text style={[styles.levelText, { color: theme.colors.textPrimary }]}>{userProfile.level}</Text>
-              </View>
-
-              <View style={styles.progressTrack}>
-                <Animated.View style={[styles.progressFill, progressFillStyle]}>
-                  <LinearGradient colors={['#38bdf8', '#6366f1', '#facc15']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
-                </Animated.View>
-                <View style={styles.progressOverlay} pointerEvents="none">
-                  <Text style={[styles.progressLevelLabel, { color: theme.colors.onPrimary }]}>Level {userProfile.level}</Text>
-                  <View style={styles.progressXpRow}>
-                    <Star size={14} color="#fde047" fill="#fde047" />
-                    <Text style={[styles.progressXpText, { color: theme.colors.onPrimary }]}>
-                      {userProfile.xp} / {userProfile.xpTarget}
-                    </Text>
-                  </View>
+                  <Text style={styles.emailText}>{userProfile.email}</Text>
                 </View>
+
+                {/* Minimal user placeholder like on the mock */}
+                <AdaptiveGlassView
+                  style={[
+                    styles.profileStub,
+                    { backgroundColor: theme.colors.background }
+                  ]}
+                >
+                  <UserRound
+                    size={48}
+                    color={theme.colors.icon}
+                    strokeWidth={1.8}
+                  />
+                </AdaptiveGlassView>
               </View>
 
-              <View style={[styles.nextLevelBadge, { borderColor: nextLevelBorder, backgroundColor: 'rgba(255,255,255,0.04)' }]}>
-                <Text style={[styles.levelText, { color: theme.colors.textPrimary }]}>{userProfile.nextLevel}</Text>
+              {/* Premium badge */}
+              <View style={styles.premiumBadge}>
+                <Image source={require("@assets/images/premium.png")} style={styles.premiumBadgeIcon} />
+                <Text style={styles.premiumBadgeText}>
+                  Premium until {userProfile.premiumUntil}
+                </Text>
               </View>
+
+              <LevelProgress
+                level={userProfile.level}
+                nextLevel={userProfile.nextLevel}
+                currentXp={userProfile.xp}
+                targetXp={userProfile.xpTarget}
+              />
+
             </View>
-          </GlassCard>
-        </Animated.View>
+          </Animated.View>
+        </AdaptiveGlassView>
 
         <Animated.View entering={FadeInDown.springify().delay(50)} style={styles.sectionGroup}>
-          <GlassCard contentStyle={styles.listCardContent}>
+          <View style={styles.listCardContent}>
             {accountItems.map((item, index) => (
               <ListItem
                 key={item.key}
@@ -397,12 +494,12 @@ export default function MoreHomeScreen() {
                 isLast={index === accountItems.length - 1}
               />
             ))}
-          </GlassCard>
+          </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.springify().delay(100)} style={styles.sectionGroup}>
           <SectionHeader title="Settings" />
-          <GlassCard contentStyle={styles.listCardContent}>
+          <View style={styles.listCardContent}>
             {settingsItems.map((item, index) => (
               <ListItem
                 key={item.key}
@@ -413,12 +510,12 @@ export default function MoreHomeScreen() {
                 isLast={index === settingsItems.length - 1}
               />
             ))}
-          </GlassCard>
+          </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.springify().delay(150)} style={styles.sectionGroup}>
           <SectionHeader title="Data" />
-          <GlassCard contentStyle={styles.listCardContent}>
+          <View style={styles.listCardContent}>
             <ListItem
               icon={Cloud}
               label="Synchronization"
@@ -447,10 +544,10 @@ export default function MoreHomeScreen() {
                 isLast={index === dataItems.length - 1}
               />
             ))}
-          </GlassCard>
+          </View>
 
           <SectionHeader title="Integration" style={styles.integrationHeader} />
-          <GlassCard contentStyle={styles.listCardContent}>
+          <View style={styles.listCardContent}>
             {integrationItems.map((item, index) => (
               <ListItem
                 key={item.key}
@@ -461,12 +558,12 @@ export default function MoreHomeScreen() {
                 isLast={index === integrationItems.length - 1}
               />
             ))}
-          </GlassCard>
+          </View>
         </Animated.View>
 
         <Animated.View entering={FadeInDown.springify().delay(200)} style={styles.sectionGroup}>
           <SectionHeader title="Help" />
-          <GlassCard contentStyle={styles.listCardContent}>
+          <View style={styles.listCardContent}>
             {helpItems.map((item, index) => (
               <ListItem
                 key={item.key}
@@ -476,9 +573,9 @@ export default function MoreHomeScreen() {
                 isLast={index === helpItems.length - 1}
               />
             ))}
-          </GlassCard>
+          </View>
 
-          <GlassCard style={styles.logoutCard} contentStyle={styles.logoutContent}>
+          <View style={styles.logoutContent}>
             <Pressable
               onPress={() => router.replace('/auth/login')}
               style={({ pressed }) => [
@@ -494,10 +591,9 @@ export default function MoreHomeScreen() {
               <LogOut size={20} color={theme.colors.textPrimary} />
               <Text style={[styles.logoutText, { color: theme.colors.textPrimary }]}>Log out</Text>
             </Pressable>
-          </GlassCard>
+          </View>
         </Animated.View>
       </Animated.ScrollView>
-
       <UniversalFAB />
     </SafeAreaView>
   );

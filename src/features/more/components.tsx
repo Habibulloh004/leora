@@ -9,13 +9,11 @@ import {
   View,
   ViewStyle,
 } from 'react-native';
-import Animated, { LinearTransition } from 'react-native-reanimated';
 import { ChevronRight } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
 
-const AnimatedWrapper = Animated.createAnimatedComponent(View);
 
 type GlassCardProps = {
   children: React.ReactNode;
@@ -112,8 +110,7 @@ export const ListItem: React.FC<ListItemProps> = ({
   ];
 
   return (
-    <AnimatedWrapper
-      layout={LinearTransition.springify().damping(18).stiffness(180)}
+    <AdaptiveGlassView
       style={[styles.listItemWrapper, disabled && { opacity: 0.6 }]}
     >
       <Pressable
@@ -153,7 +150,7 @@ export const ListItem: React.FC<ListItemProps> = ({
           <ChevronRight size={18} color={theme.colors.textMuted} />
         ) : null}
       </Pressable>
-    </AnimatedWrapper>
+    </AdaptiveGlassView>
   );
 };
 
@@ -182,6 +179,8 @@ const useCardStyles = createThemedStyles((theme) => ({
   },
   listItemWrapper: {
     overflow: 'hidden',
+    backgroundColor: theme.colors.card,
+    borderRadius: 16
   },
   listItem: {
     flexDirection: 'row',
@@ -196,7 +195,7 @@ const useCardStyles = createThemedStyles((theme) => ({
   iconContainer: {
     width: 40,
     height: 40,
-    borderRadius: theme.radius.lg,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },

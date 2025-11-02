@@ -1,7 +1,8 @@
 // stores/useFocusStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { mmkvStorageAdapter } from '@/utils/storage';
 import { FocusSession } from '@/types/store.types';
 
 interface FocusStore {
@@ -102,7 +103,7 @@ export const useFocusStore = create<FocusStore>()(
     }),
     {
       name: 'focus-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
       version: 1,
     }
   )

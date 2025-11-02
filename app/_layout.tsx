@@ -17,6 +17,11 @@ import { useAuthStore } from '@/stores/useAuthStore';
 import LeoraSplashScreen from '@/components/screens/splash/LeoraSplashScreen';
 import { useLockStore } from '@/stores/useLockStore';
 import UserInactiveProvider from '@/providers/UserInactiveProvider';
+import useFocusLiveActivitySync from '@/features/focus/live-activity/useFocusLiveActivitySync';
+import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
+import { TECHNIQUES } from '@/features/focus/types';
+import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
+import * as Linking from 'expo-linking';
 
 enableScreens(true);
 enableFreeze(true);
@@ -110,6 +115,108 @@ function RootNavigator({
   const updateLastActive = useLockStore((state) => state.updateLastActive);
   const router = useRouter();
   const segments = useSegments();
+  const techniqueKey = useFocusSettingsStore((state) => state.techniqueKey);
+  const recordSession = useFocusSettingsStore((state) => state.recordSession);
+  const focusSegments = segments.join('/');
+
+  const ensureRoute = useCallback(
+    (target: string) => {
+      const normalized = target.replace(/^\//, '');
+      if (focusSegments === normalized) return;
+      router.push(target as any);
+    },
+    [focusSegments, router],
+  );
+
+  const focusTaskName = useMemo(() => {
+    const technique = TECHNIQUES.find((item) => item.key === techniqueKey) ?? TECHNIQUES[0];
+    const label = technique.label.trim();
+    if (!label) return 'Focus session';
+    if (label.toLowerCase().includes('focus')) return label;
+    return `Working on ${label}`;
+  }, [techniqueKey]);
+
+  useFocusLiveActivitySync({ taskName: focusTaskName });
+
+  const handleRemoteCompletion = useCallback(
+    (completed: boolean) => {
+      const timerStore = useFocusTimerStore.getState();
+      const elapsed = timerStore.syncElapsed();
+      const focusSeconds = Math.min(elapsed, timerStore.totalSeconds);
+      recordSession(focusSeconds, completed);
+      timerStore.reset();
+    },
+    [recordSession],
+  );
+
+  const handleFocusAction = useCallback(
+    (action?: string) => {
+      if (!action) return;
+      const timerStore = useFocusTimerStore.getState();
+
+      switch (action) {
+        case 'pause':
+          if (timerStore.timerState === 'running') {
+            timerStore.pause();
+          }
+          ensureRoute('/focus-mode');
+          break;
+        case 'resume':
+          if (timerStore.timerState === 'paused') {
+            timerStore.resume();
+          }
+          ensureRoute('/focus-mode');
+          break;
+        case 'start':
+          if (timerStore.timerState === 'ready') {
+            timerStore.start();
+          }
+          ensureRoute('/focus-mode');
+          break;
+        case 'stop':
+          handleRemoteCompletion(false);
+          ensureRoute('/focus-mode');
+          break;
+        case 'finish':
+          handleRemoteCompletion(true);
+          ensureRoute('/focus-mode');
+          break;
+        default:
+          break;
+      }
+    },
+    [ensureRoute, handleRemoteCompletion],
+  );
+
+  const processIncomingUrl = useCallback(
+    (incomingUrl?: string | null) => {
+      if (!incomingUrl) return;
+      const parsed = Linking.parse(incomingUrl);
+      const route = parsed.path ?? parsed.hostname ?? '';
+      const action = typeof parsed.queryParams?.action === 'string' ? parsed.queryParams.action : undefined;
+
+      if (route === 'focus-settings') {
+        ensureRoute('/(modals)/focus-settings');
+        return;
+      }
+
+      if (route === 'focus-action') {
+        handleFocusAction(action);
+        return;
+      }
+
+      if (route === 'focus-mode') {
+        ensureRoute('/focus-mode');
+      }
+    },
+    [ensureRoute, handleFocusAction],
+  );
+
+  useEffect(() => {
+    const subscription = Linking.addEventListener('url', ({ url }) => processIncomingUrl(url));
+    Linking.getInitialURL().then(processIncomingUrl).catch(() => undefined);
+    return () => subscription.remove();
+  }, [processIncomingUrl]);
 
   // Protect routes based on authentication status
   useEffect(() => {
@@ -170,8 +277,6 @@ function RootNavigator({
   }, [palette, theme]);
 
   const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
-  const appOwnership = Constants?.appOwnership ?? 'standalone';
-  const canManageStatusBar = Platform.OS !== 'ios' || appOwnership !== 'expo';
 
   if (!hasBooted && !isAuthenticated) {
     return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
@@ -195,8 +300,15 @@ function RootNavigator({
           options={{
             presentation: 'modal',
             headerTitle: 'Add Task',
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
+            headerStyle: { backgroundColor: palette.surface },
+            headerTintColor: palette.textPrimary,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/add-goal"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -204,8 +316,8 @@ function RootNavigator({
           options={{
             presentation: 'modal',
             headerTitle: 'Quick Expence',
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
+            headerStyle: { backgroundColor: palette.surface },
+            headerTintColor: palette.textPrimary,
           }}
         />
         <Stack.Screen
@@ -235,8 +347,15 @@ function RootNavigator({
             presentation: 'modal',
             headerTitle: 'Voice Mode',
             headerShown: false,
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
+            headerStyle: { backgroundColor: palette.surface },
+            headerTintColor: palette.textPrimary,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/goal-details"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -245,8 +364,8 @@ function RootNavigator({
             headerShown: false,
             presentation: 'modal',
             headerTitle: 'Menage Widget',
-            headerStyle: { backgroundColor: '#25252B' },
-            headerTintColor: '#fff',
+            headerStyle: { backgroundColor: palette.surface },
+            headerTintColor: palette.textPrimary,
           }}
         />
         <Stack.Screen
@@ -281,8 +400,8 @@ function RootNavigator({
           options={{
             presentation: 'modal',
             headerShown: false,
-            headerStyle: { backgroundColor: '#000' },
-            headerTintColor: '#fff',
+            headerStyle: { backgroundColor: palette.surface },
+            headerTintColor: palette.textPrimary,
           }}
         />
       </Stack>

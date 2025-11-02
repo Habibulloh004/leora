@@ -1,10 +1,12 @@
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 import {
   AccountItem,
   AccountKind,
   AddAccountPayload,
 } from '@/types/accounts';
+import { mmkvStorageAdapter } from '@/utils/storage';
 
 const TYPE_COLORS: Record<AccountKind, string> = {
   cash: '#3b82f6',
@@ -145,36 +147,44 @@ interface AccountsStoreState {
   resetAccounts: () => void;
 }
 
-export const useAccountsStore = create<AccountsStoreState>((set) => ({
-  accounts: DEFAULT_ACCOUNTS,
-  addAccount: (payload) =>
-    set((state) => ({
-      accounts: [...state.accounts, createAccountFromPayload(payload)],
-    })),
-  editAccount: (id, payload) =>
-    set((state) => ({
-      accounts: state.accounts.map((account) =>
-        account.id === id ? mergeAccountWithPayload(account, payload) : account,
-      ),
-    })),
-  updateAccount: (id, updates) =>
-    set((state) => ({
-      accounts: state.accounts.map((account) =>
-        account.id === id ? { ...account, ...updates } : account,
-      ),
-    })),
-  deleteAccount: (id) =>
-    set((state) => ({
-      accounts: state.accounts.filter((account) => account.id !== id),
-    })),
-  archiveAccount: (id) =>
-    set((state) => ({
-      accounts: state.accounts.map((account) =>
-        account.id === id ? { ...account, isArchived: true } : account,
-      ),
-    })),
-  resetAccounts: () =>
-    set(() => ({
+export const useAccountsStore = create<AccountsStoreState>()(
+  persist(
+    (set) => ({
       accounts: DEFAULT_ACCOUNTS,
-    })),
-}));
+      addAccount: (payload) =>
+        set((state) => ({
+          accounts: [...state.accounts, createAccountFromPayload(payload)],
+        })),
+      editAccount: (id, payload) =>
+        set((state) => ({
+          accounts: state.accounts.map((account) =>
+            account.id === id ? mergeAccountWithPayload(account, payload) : account,
+          ),
+        })),
+      updateAccount: (id, updates) =>
+        set((state) => ({
+          accounts: state.accounts.map((account) =>
+            account.id === id ? { ...account, ...updates } : account,
+          ),
+        })),
+      deleteAccount: (id) =>
+        set((state) => ({
+          accounts: state.accounts.filter((account) => account.id !== id),
+        })),
+      archiveAccount: (id) =>
+        set((state) => ({
+          accounts: state.accounts.map((account) =>
+            account.id === id ? { ...account, isArchived: true } : account,
+          ),
+        })),
+      resetAccounts: () =>
+        set(() => ({
+          accounts: DEFAULT_ACCOUNTS,
+        })),
+    }),
+    {
+      name: 'accounts-storage', 
+      storage: createJSONStorage(() => mmkvStorageAdapter),
+    }
+  )
+);

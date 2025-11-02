@@ -33,7 +33,6 @@ import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
 import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { TECHNIQUES, TOGGLE_OPTIONS, TechniqueConfig } from '@/features/focus/types';
 import { formatTimer } from '@/features/focus/utils';
-import useFocusLiveActivitySync from '@/features/focus/live-activity/useFocusLiveActivitySync';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -170,12 +169,6 @@ export default function FocusModeScreen() {
     () => TECHNIQUES.find((item) => item.key === techniqueKey) ?? TECHNIQUES[0],
     [techniqueKey],
   );
-  const taskName = useMemo(() => {
-    const label = technique.label.trim();
-    if (!label) return 'Focus session';
-    if (label.toLowerCase().includes('focus')) return label;
-    return `Working on ${label}`;
-  }, [technique.label]);
 
   const [isEditingDuration, setIsEditingDuration] = useState(false);
   const [editMin, setEditMin] = useState('25');
@@ -281,8 +274,6 @@ export default function FocusModeScreen() {
     const achieved = totalSeconds > 0 && elapsedSeconds >= totalSeconds;
     handleSessionComplete(achieved);
   }, [elapsedSeconds, handleSessionComplete, timerState, totalSeconds]);
-
-  useFocusLiveActivitySync({ taskName });
 
   return (
     <>

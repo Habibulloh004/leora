@@ -1,38 +1,11 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { mmkvStorageAdapter } from '@/utils/storage';
 
 export const LOCK_TIMEOUT_MS = 3 * 1000; // 20 seconds
-let mmkvInstance: any = null;
-try {
-  const { MMKV } = require('react-native-mmkv');
-  mmkvInstance = new MMKV({ id: 'lock-storage' });
-} catch (error) {
-  console.warn('[LockStore] MMKV unavailable, falling back to AsyncStorage.');
-}
 
-const storage = createJSONStorage(() => ({
-  getItem: (name: string) => {
-    if (mmkvInstance) {
-      return mmkvInstance.getString(name) ?? null;
-    }
-    return AsyncStorage.getItem(name);
-  },
-  setItem: (name: string, value: string) => {
-    if (mmkvInstance) {
-      mmkvInstance.set(name, value);
-      return Promise.resolve();
-    }
-    return AsyncStorage.setItem(name, value);
-  },
-  removeItem: (name: string) => {
-    if (mmkvInstance) {
-      mmkvInstance.delete(name);
-      return Promise.resolve();
-    }
-    return AsyncStorage.removeItem(name);
-  },
-}));
+const storage = createJSONStorage(() => mmkvStorageAdapter);
 
 interface LockState {
   isLocked: boolean;

@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, {
   PropsWithChildren,
   createContext,
@@ -10,6 +9,7 @@ import React, {
   useRef,
 } from 'react';
 import { View, StyleSheet } from 'react-native';
+import { storage } from '@/utils/storage';
 
 type Theme = 'light' | 'dark';
 
@@ -42,7 +42,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     const hydrateTheme = async () => {
       try {
-        const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+        const storedTheme = await storage.getItem(THEME_STORAGE_KEY);
         if (storedTheme === 'light' || storedTheme === 'dark') {
           if (isMounted.current) {
             setThemeState(storedTheme);
@@ -66,7 +66,7 @@ export function ThemeProvider({ children }: PropsWithChildren) {
 
   const persistTheme = useCallback(async (value: Theme) => {
     try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, value);
+      await storage.setItem(THEME_STORAGE_KEY, value);
     } catch (error) {
       console.warn('Failed to persist theme:', error);
     }

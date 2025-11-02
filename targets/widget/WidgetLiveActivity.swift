@@ -41,33 +41,63 @@ struct LiveActivityAttributes: ActivityAttributes {
     }
 }
 
+private extension Color {
+    static func fromHex(_ hex: String?) -> Color? {
+        guard var hex = hex?.trimmingCharacters(in: .whitespacesAndNewlines), !hex.isEmpty else { return nil }
+        if hex.hasPrefix("#") {
+            hex.removeFirst()
+        }
+        if hex.count == 6 {
+            hex.append("FF")
+        }
+        guard hex.count == 8, let value = UInt64(hex, radix: 16) else { return nil }
+        let red = Double((value >> 24) & 0xFF) / 255
+        let green = Double((value >> 16) & 0xFF) / 255
+        let blue = Double((value >> 8) & 0xFF) / 255
+        let alpha = Double(value & 0xFF) / 255
+        return Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+    }
+}
+
+private struct FocusColorPalette {
+    let background: Color
+    let title: Color
+    let subtitle: Color
+    let accent: Color
+    let track: Color
+    let chrome: Color
+    let badge: Color
+
+    init(attributes: LiveActivityAttributes) {
+        background = Color.fromHex(attributes.backgroundColor) ?? Color.black.opacity(0.92)
+        title = Color.fromHex(attributes.titleColor) ?? .white
+        subtitle = Color.fromHex(attributes.subtitleColor) ?? Color.white.opacity(0.68)
+        let accentBase = Color.fromHex(attributes.progressViewTint) ?? .white
+        accent = accentBase
+        track = accentBase.opacity(0.25)
+        chrome = Color.white.opacity(0.22)
+        badge = Color.white.opacity(0.12)
+    }
+}
+
 struct FocusLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiveActivityAttributes.self) { context in
-            FocusLiveActivityExpandedView(state: context.state)
-                .activityBackgroundTint(.black.opacity(0.9))
-                .activitySystemActionForegroundColor(Color.white)
+            let palette = FocusColorPalette(attributes: context.attributes)
+            FocusLiveActivityExpandedView(state: context.state, palette: palette)
+                .activityBackgroundTint(palette.background)
+                .activitySystemActionForegroundColor(palette.title)
         } dynamicIsland: { context in
-            let tint: Color = .white
+            let palette = FocusColorPalette(attributes: context.attributes)
 
             return DynamicIsland {
-                DynamicIslandExpandedRegion(.center) {
-                    FocusDynamicIslandExpanded(state: context.state, tint: tint)
-                }
+                FocusDynamicIslandExpandedRegions(state: context.state, palette: palette)
             } compactLeading: {
-                Text(FocusTimeFormatter.elapsedText(from: context.state))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.white)
+                FocusCompactTimerLabel(state: context.state, palette: palette)
             } compactTrailing: {
-                Text("L")
-                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.85))
+                FocusTimerGlyph(size: 18, palette: palette)
             } minimal: {
-                Text(FocusTimeFormatter.elapsedText(from: context.state))
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .monospacedDigit()
-                    .foregroundStyle(Color.white)
+                FocusMinimalTimer(state: context.state, palette: palette)
             }
         }
     }
@@ -75,303 +105,397 @@ struct FocusLiveActivityWidget: Widget {
 
 private struct FocusLiveActivityExpandedView: View {
     let state: LiveActivityAttributes.ContentState
+    let palette: FocusColorPalette
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.5)) { timeline in
+            let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
+            FocusExpandedContent(snapshot: snapshot, palette: palette)
+        }
+    }
+}
+
+private struct FocusExpandedContent: View {
+    let snapshot: FocusTimerSnapshot
+    let palette: FocusColorPalette
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color.black.opacity(0.9))
-                .background(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(palette.background)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 32, style: .continuous)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .stroke(palette.chrome, lineWidth: 1)
                 )
 
-            VStack(alignment: .leading, spacing: 20) {
-                header
-                progressSection
-                timerSection
-                footer
+            VStack(spacing: 24) {
+                headerRow
+                progressBlock
+                timerBlock
+                controlsRow
             }
-            .padding(.vertical, 26)
+            .padding(.vertical, 28)
             .padding(.horizontal, 28)
         }
         .padding(.horizontal, 12)
     }
 
-    private var header: some View {
+    private var headerRow: some View {
         HStack {
             Text("LEORA")
                 .font(.caption.weight(.semibold))
-                .kerning(1.6)
-                .foregroundStyle(Color.white.opacity(0.75))
+                .kerning(1.2)
+                .foregroundStyle(palette.title.opacity(0.9))
 
             Spacer()
 
-            HStack(spacing: 14) {
-                Image(systemName: "arrow.up.right.square")
-                Image(systemName: "flag.checkered")
-            }
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(Color.white.opacity(0.55))
+            FocusLinkButton(palette: palette)
         }
     }
 
-    private var progressSection: some View {
-        let parsed = FocusSubtitleParser.parse(state.subtitle)
-        let progressRatio: Double? = {
-            if let explicit = state.progress {
-                return min(max(explicit, 0), 1)
-            }
-            guard let total = parsed.totalSeconds, total > 0 else { return nil }
-            let remaining = min(max(parsed.remainingSeconds ?? total, 0), total)
-            let ratio = 1 - Double(remaining) / Double(total)
-            return min(max(ratio, 0), 1)
-        }()
-        let elapsed = parsed.elapsedSeconds ?? 0
+    private var progressBlock: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(FocusStatusFormatter.display(from: snapshot).uppercased())
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(palette.subtitle.opacity(0.85))
+                .lineLimit(1)
 
-        return VStack(spacing: 10) {
-            if let interval = FocusTimeFormatter.timerInterval(from: state) {
-                ProgressView(timerInterval: interval)
-                    .tint(Color.white)
-            } else if let progressRatio {
-                ProgressView(value: progressRatio)
-                    .tint(Color.white)
-            }
+            FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
+                .frame(height: 10)
 
             HStack {
-                Text(FocusTimeFormatter.formatted(seconds: elapsed))
+                Text("Elapsed \(FocusTimeFormatter.formattedElapsed(snapshot: snapshot, fallback: "--"))")
                 Spacer()
-                Text(FocusTimeFormatter.totalText(from: state))
+                Text("Total \(FocusTimeFormatter.formattedTotal(snapshot: snapshot, fallback: "--"))")
             }
-            .font(.caption2)
-            .foregroundStyle(Color.white.opacity(0.55))
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(palette.subtitle.opacity(0.7))
+            .monospacedDigit()
         }
     }
 
-    private var timerSection: some View {
-        let parsed = FocusSubtitleParser.parse(state.subtitle)
-
-        return VStack(alignment: .leading, spacing: 14) {
-            Text(parsed.status)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.68))
-
-            Text(state.title)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.72))
-                .lineLimit(2)
-
-            Text(FocusTimeFormatter.elapsedText(from: state))
-                .font(.system(size: 48, weight: .bold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.white)
-                .minimumScaleFactor(0.6)
-        }
+    private var timerBlock: some View {
+        Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot))
+            .font(.system(size: 56, weight: .bold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(palette.title)
+            .frame(maxWidth: .infinity, alignment: .center)
     }
 
-    private var footer: some View {
-        let parsed = FocusSubtitleParser.parse(state.subtitle)
-        let primaryLine = parsed.sessionLabel ?? parsed.remainingLabel
+    private var controlsRow: some View {
+        HStack(spacing: 20) {
+            FocusControlIcon(symbol: "gearshape.fill", palette: palette)
+            FocusControlIcon(
+                symbol: snapshot.isRunning ? "pause.fill" : "play.fill",
+                palette: palette,
+                isEmphasized: true
+            )
+            FocusControlIcon(symbol: "stop.fill", palette: palette)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+}
 
-        var secondarySegments: [String] = []
-        if let remaining = parsed.remainingLabel, remaining != primaryLine {
-            secondarySegments.append(remaining)
-        }
-        if let breakLabel = parsed.breakLabel {
-            secondarySegments.append(breakLabel)
-        }
-        if let total = parsed.totalLabel {
-            secondarySegments.append(total)
-        }
-        let secondaryLine = secondarySegments.joined(separator: " • ")
-
-        return HStack(alignment: .center, spacing: 20) {
-            VStack(alignment: .leading, spacing: 6) {
-                if let primary = primaryLine {
-                    Text(primary)
+@DynamicIslandExpandedContentBuilder
+private func FocusDynamicIslandExpandedRegions(
+    state: LiveActivityAttributes.ContentState,
+    palette: FocusColorPalette
+) -> DynamicIslandExpandedContent<some View> {
+    DynamicIslandExpandedRegion(.center, priority: 1) {
+        FocusDynamicIslandTimeline(state: state) { snapshot in
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("LEORA")
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(Color.white.opacity(0.75))
-                }
-                if !secondaryLine.isEmpty {
-                    Text(secondaryLine)
-                        .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.6))
-                }
-                if parsed.isMuted {
-                    Text("Muted")
-                        .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.45))
-                }
-            }
-            Spacer()
+                        .kerning(1.0)
+                        .foregroundStyle(palette.title.opacity(0.9))
 
-            HStack(spacing: 24) {
-                FocusControlIcon(symbol: "gearshape.fill")
-                FocusControlIcon(symbol: parsed.isRunning ? "pause.fill" : "play.fill")
-                FocusControlIcon(symbol: "stop.fill")
+                    Spacer()
+
+                    FocusLinkButton(palette: palette)
+                        .frame(width: 26, height: 26)
+                }
+
+                Text(FocusStatusFormatter.display(from: snapshot).uppercased())
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(palette.subtitle.opacity(0.8))
+                    .lineLimit(1)
+
+                FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
+                    .frame(height: 6)
+
+                Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot))
+                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(palette.title)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+        }
+    }
+
+    DynamicIslandExpandedRegion(.bottom) {
+        FocusDynamicIslandTimeline(state: state) { snapshot in
+            HStack(alignment: .center) {
+                FocusControlIcon(symbol: "gearshape.fill", palette: palette)
+                Spacer(minLength: 24)
+                FocusControlIcon(
+                    symbol: snapshot.isRunning ? "pause.fill" : "play.fill",
+                    palette: palette,
+                    isEmphasized: true
+                )
+                Spacer(minLength: 24)
+                FocusControlIcon(symbol: "stop.fill", palette: palette)
             }
         }
     }
 }
 
-private struct FocusDynamicIslandExpanded: View {
+private struct FocusDynamicIslandTimeline<Content: View>: View {
     let state: LiveActivityAttributes.ContentState
-    let tint: Color
+    let content: (FocusTimerSnapshot) -> Content
 
     var body: some View {
-        let parsed = FocusSubtitleParser.parse(state.subtitle)
-        let progressRatio: Double = {
-            if let explicit = state.progress {
-                return min(max(explicit, 0), 1)
-            }
-            guard let total = parsed.totalSeconds, total > 0 else { return 0 }
-            let remaining = min(max(parsed.remainingSeconds ?? total, 0), total)
-            let ratio = 1 - Double(remaining) / Double(total)
-            return min(max(ratio, 0), 1)
-        }()
-        let elapsed = parsed.elapsedSeconds ?? 0
-
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("LEORA")
-                    .font(.caption2.weight(.semibold))
-                    .kerning(1.1)
-                    .foregroundStyle(Color.white.opacity(0.7))
-                Spacer()
-                Text(state.title)
-                    .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.55))
-                    .lineLimit(1)
-            }
-
-            if let session = parsed.sessionLabel {
-                Text(session)
-                    .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.5))
-            }
-
-            Text(FocusTimeFormatter.elapsedText(from: state))
-                .font(.system(size: 30, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(Color.white)
-
-            ProgressBar(progress: progressRatio, tint: tint)
-                .frame(height: 10)
-
-            HStack {
-                Text(FocusTimeFormatter.formatted(seconds: elapsed))
-                Spacer()
-                Text(FocusTimeFormatter.totalText(from: state))
-            }
-            .font(.caption2)
-            .foregroundStyle(Color.white.opacity(0.55))
+        TimelineView(.animation(minimumInterval: 0.5)) { timeline in
+            let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
+            content(snapshot)
         }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 18)
-        .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color.black.opacity(0.9))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(0.16), lineWidth: 1)
-                )
-        )
+    }
+}
+
+private struct FocusCompactTimerLabel: View {
+    let state: LiveActivityAttributes.ContentState
+    let palette: FocusColorPalette
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1)) { timeline in
+            let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
+            Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot, fallback: "--"))
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(palette.title)
+        }
+    }
+}
+
+private struct FocusMinimalTimer: View {
+    let state: LiveActivityAttributes.ContentState
+    let palette: FocusColorPalette
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 8.0)) { timeline in
+            let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
+            VStack(spacing: 6) {
+                FocusTimerGlyph(size: 16, palette: palette)
+                FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
+                    .frame(width: 34, height: 4)
+            }
+            .padding(.vertical, 4)
+            .padding(.horizontal, 4)
+        }
+    }
+}
+
+private struct FocusTimerGlyph: View {
+    var size: CGFloat
+    var palette: FocusColorPalette
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: size, style: .continuous)
+                .fill(palette.badge)
+            RoundedRectangle(cornerRadius: size, style: .continuous)
+                .stroke(palette.chrome, lineWidth: 1)
+            Image(systemName: "timer")
+                .font(.system(size: size * 0.72, weight: .semibold))
+                .foregroundStyle(palette.accent)
+        }
+        .frame(width: size * 1.8, height: size * 1.8)
     }
 }
 
 private struct FocusControlIcon: View {
     let symbol: String
+    let palette: FocusColorPalette
+    var isEmphasized: Bool = false
 
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: 18, weight: .semibold))
-            .foregroundStyle(Color.white)
-            .frame(width: 44, height: 44)
+            .foregroundStyle(isEmphasized ? Color.black.opacity(0.85) : palette.title)
+            .frame(width: 46, height: 46)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(0.25), lineWidth: 1)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(Color.white.opacity(0.08))
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isEmphasized ? palette.accent : palette.badge)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(isEmphasized ? palette.accent.opacity(0.7) : palette.chrome, lineWidth: 1)
                     )
             )
     }
 }
 
-private struct ProgressBar: View {
-    var progress: Double
-    var tint: Color
-    var track: Color = Color.white.opacity(0.2)
+private struct FocusLinkButton: View {
+    let palette: FocusColorPalette
 
-    private var clamped: Double {
-        min(max(progress, 0), 1)
+    var body: some View {
+        Image(systemName: "arrow.up.right")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(palette.title.opacity(0.85))
+            .frame(width: 28, height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(palette.badge)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(palette.chrome, lineWidth: 1)
+                    )
+            )
     }
+}
+
+private struct FocusLinearProgressBar: View {
+    let progress: Double
+    let palette: FocusColorPalette
 
     var body: some View {
         GeometryReader { geometry in
+            let clamped = CGFloat(min(max(progress, 0), 1))
             let width = geometry.size.width
-            let filledWidth = width * clamped
-            Capsule()
-                .fill(track)
-                .overlay(
-                    Capsule()
-                        .fill(tint)
-                        .frame(width: filledWidth)
-                )
+            let filled = width * clamped
+
+            ZStack(alignment: .leading) {
+                Capsule(style: .continuous)
+                    .fill(palette.track)
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                palette.accent.opacity(0.9),
+                                palette.accent
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    )
+                    .frame(width: max(filled, clamped > 0 ? 3 : 0))
+            }
+            .animation(.easeOut(duration: 0.25), value: progress)
         }
     }
 }
 
+private struct FocusTimerSnapshot {
+    let date: Date
+    let progress: Double
+    let elapsedSeconds: Int?
+    let remainingSeconds: Int?
+    let totalSeconds: Int?
+    let endDate: Date?
+    let subtitle: FocusSubtitleParser.ParsedSubtitle
+
+    var isRunning: Bool {
+        subtitle.isRunning && (remainingSeconds ?? 0) > 0
+    }
+}
+
+private enum FocusTimerAnalyzer {
+    static func snapshot(for state: LiveActivityAttributes.ContentState, at date: Date) -> FocusTimerSnapshot {
+        let subtitle = FocusSubtitleParser.parse(state.subtitle)
+        let rawEndDate = state.timerEndDateInMilliseconds.map { Date(timeIntervalSince1970: $0 / 1000) }
+        let isRunning = subtitle.isRunning
+
+        var remaining: Int? = nil
+        if isRunning, let rawEndDate {
+            remaining = max(Int(rawEndDate.timeIntervalSince(date)), 0)
+        }
+
+        if remaining == nil, let explicit = subtitle.remainingSeconds {
+            remaining = max(explicit, 0)
+        }
+
+        if remaining == nil, let rawEndDate {
+            remaining = max(Int(rawEndDate.timeIntervalSince(date)), 0)
+        }
+
+        let total = subtitle.totalSeconds
+
+        var elapsed: Int? = nil
+        if let total, let remaining {
+            elapsed = max(total - remaining, 0)
+        } else if let explicitElapsed = subtitle.elapsedSeconds {
+            elapsed = max(explicitElapsed, 0)
+        }
+
+        if elapsed == nil, let total, let progress = state.progress {
+            elapsed = max(Int(round(progress * Double(total))), 0)
+        }
+
+        var progressValue: Double
+        if let total, let remaining, total > 0 {
+            progressValue = 1 - Double(remaining) / Double(total)
+        } else if let progress = state.progress {
+            progressValue = progress
+        } else {
+            progressValue = 0
+        }
+
+        if !isRunning, let progress = state.progress {
+            progressValue = progress
+        }
+
+        progressValue = min(max(progressValue, 0), 1)
+
+        let endDate = isRunning ? rawEndDate : nil
+
+        return FocusTimerSnapshot(
+            date: date,
+            progress: progressValue,
+            elapsedSeconds: elapsed,
+            remainingSeconds: remaining,
+            totalSeconds: total,
+            endDate: endDate,
+            subtitle: subtitle
+        )
+    }
+}
+
 private enum FocusTimeFormatter {
-    static func timerInterval(from state: LiveActivityAttributes.ContentState) -> ClosedRange<Date>? {
-        guard let milliseconds = state.timerEndDateInMilliseconds else { return nil }
-        let endDate = Date(timeIntervalSince1970: milliseconds / 1000)
-        return Date()...endDate
+    static func formattedRemaining(snapshot: FocusTimerSnapshot, fallback: String = "--:--") -> String {
+        guard let seconds = snapshot.remainingSeconds else { return fallback }
+        return format(seconds: seconds)
     }
 
-    static func elapsedText(from state: LiveActivityAttributes.ContentState) -> String {
-        if let interval = timerInterval(from: state) {
-            let seconds = max(Int(interval.upperBound.timeIntervalSinceNow.rounded()), 0)
-            return format(seconds: seconds)
-        }
-        let parsed = FocusSubtitleParser.parse(state.subtitle)
-        if let remaining = parsed.remainingSeconds {
-            return format(seconds: remaining)
-        }
-        if let progress = state.progress {
-            return String(format: "%02d%%", Int(progress * 100))
-        }
-        return "--:--"
+    static func formattedElapsed(snapshot: FocusTimerSnapshot, fallback: String = "--:--") -> String {
+        guard let seconds = snapshot.elapsedSeconds else { return fallback }
+        return format(seconds: seconds)
     }
 
-    static func totalText(from state: LiveActivityAttributes.ContentState) -> String {
-        let parsed = FocusSubtitleParser.parse(state.subtitle)
-        if let total = parsed.totalSeconds {
+    static func formattedTotal(snapshot: FocusTimerSnapshot, fallback: String = "--:--") -> String {
+        if let total = snapshot.totalSeconds {
             return format(seconds: total)
         }
-        if let interval = timerInterval(from: state) {
-            let seconds = max(Int(interval.upperBound.timeIntervalSinceNow.rounded()), 0)
-            return format(seconds: seconds)
-        }
-        return "60:00"
+        return fallback
     }
 
-    static func formatted(seconds: Int) -> String {
-        format(seconds: seconds)
-    }
-
-    private static func format(seconds: Int) -> String {
+    static func format(seconds: Int) -> String {
         let clamped = max(seconds, 0)
+        let hours = clamped / 3600
         let minutes = (clamped / 60) % 60
         let remaining = clamped % 60
-        let hours = clamped / 3600
         if hours > 0 {
             return String(format: "%d:%02d:%02d", hours, minutes, remaining)
         }
         return String(format: "%02d:%02d", minutes, remaining)
+    }
+}
+
+private enum FocusStatusFormatter {
+    static func display(from snapshot: FocusTimerSnapshot) -> String {
+        let raw = snapshot.subtitle.status.trimmingCharacters(in: .whitespacesAndNewlines)
+        if raw.isEmpty {
+            return snapshot.isRunning ? "In progress" : "Paused"
+        }
+        return raw
     }
 }
 

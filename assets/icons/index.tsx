@@ -17,3 +17,4 @@ export { PlannerIcon } from './PlannerIcon';
 export { SearchDocIcon } from './SearchDocIcon';
 export { SettingIcon } from './SettingIcon';
 export { TransactionIcon } from './TransactionIcon';
+export { default as PremiumIcon } from './PremiumIcon';

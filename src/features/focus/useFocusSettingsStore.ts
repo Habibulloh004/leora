@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -13,6 +12,7 @@ import {
   TechniqueKey,
   ToggleId,
 } from './types';
+import { mmkvStorageAdapter } from '@/utils/storage';
 
 interface FocusSettingsStore {
   toggles: Record<ToggleId, boolean>;
@@ -91,7 +91,7 @@ export const useFocusSettingsStore = create<FocusSettingsStore>()(
     {
       name: 'focus-settings-store',
       version: 2,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
       migrate: (persistedState, version) => {
         if (!persistedState) return persistedState as FocusSettingsStore | undefined;
         if (version < 2) {

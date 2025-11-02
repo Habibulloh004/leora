@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.habibulloh.leora",
-      "buildNumber": "1",
+      "buildNumber": "1.2.0",
       "splash": {
         "image": "./assets/images/iphone-splash-preview-dark.png",
         "resizeMode": "cover",

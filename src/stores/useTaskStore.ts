@@ -1,7 +1,8 @@
 // stores/useTaskStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { mmkvStorageAdapter } from '@/utils/storage';
 import { Task } from '@/types/store.types';
 
 interface TaskStore {
@@ -91,7 +92,7 @@ export const useTaskStore = create<TaskStore>()(
     }),
     {
       name: 'task-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
       // Optional: Migrate old data if schema changes
       version: 1,
     }

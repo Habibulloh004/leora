@@ -2,12 +2,41 @@
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { withLayoutContext } from 'expo-router';
 import { StyleSheet } from 'react-native';
+import { useMemo } from 'react';
+import { useAppTheme } from '@/constants/theme';
 
 const { Navigator } = createMaterialTopTabNavigator();
-
 export const PlannerTopTabs = withLayoutContext(Navigator);
 
 const PlannerTabsLayout = () => {
+  const theme = useAppTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          backgroundColor: theme.colors.background,
+        },
+        tabBar: {
+          backgroundColor: theme.colors.background,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.border,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        indicator: {
+          backgroundColor: theme.colors.textTertiary,
+          height: 2,
+          borderRadius: 1,
+        },
+        label: {
+          fontSize: 14,
+          fontWeight: '600',
+          textTransform: 'none',
+        },
+      }),
+    [theme],
+  );
+
   return (
     <PlannerTopTabs
       style={styles.container}
@@ -15,10 +44,11 @@ const PlannerTabsLayout = () => {
         tabBarStyle: styles.tabBar,
         tabBarIndicatorStyle: styles.indicator,
         tabBarLabelStyle: styles.label,
-        tabBarActiveTintColor: '#FFFFFF',
-        tabBarInactiveTintColor: '#7E8B9A',
-        tabBarItemStyle: styles.tabItem,
+        tabBarActiveTintColor: theme.colors.textPrimary,
+        tabBarInactiveTintColor: theme.colors.textMuted,
+        // ⭐️ scroll o'chirilgan bo'lsa, kengliklar avtomatik teng taqsimlanadi
         tabBarScrollEnabled: false,
+        // tabBarItemStyle: styles.tabItem, // <-- olib tashlandi
       }}
     >
       <PlannerTopTabs.Screen name="index" options={{ title: 'Tasks' }} />
@@ -29,29 +59,3 @@ const PlannerTabsLayout = () => {
 };
 
 export default PlannerTabsLayout;
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#25252B',
-  },
-  tabBar: {
-    backgroundColor: '#25252B',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1F1F22',
-    elevation: 0,
-    shadowOpacity: 0,    
-  },
-  indicator: {
-    backgroundColor: '#FFFFFF',
-    height: 2,
-    borderRadius: 1,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'none',
-  },
-  tabItem: {
-    width: 'auto',
-  },
-});

@@ -1,140 +1,163 @@
 // app/(tabs)/(planner)/(tabs)/goals.tsx
-import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { SectionList, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 
-const GOALS = [
-  { id: '1', title: 'Launch subscription MVP', progress: 0.68, target: 'Dec 2024', impact: 'Revenue' },
-  { id: '2', title: 'Reach 10K active planners', progress: 0.42, target: 'Mar 2025', impact: 'Engagement' },
-  { id: '3', title: 'Reduce churn below 3%', progress: 0.25, target: 'May 2025', impact: 'Retention' },
-];
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import GoalCard from '@/components/planner/goals/GoalCard';
+import { createThemedStyles } from '@/constants/theme';
+import { GOAL_SECTIONS, type Goal, type GoalSection } from '@/features/planner/goals/data';
 
-export default function PlannerGoalsTab() {
-  return (
-    <View style={styles.container}>
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Strategic goals</Text>
-          <Text style={styles.subtitle}>Progress updates and impact focus</Text>
+const GoalsPage: React.FC = () => {
+  const styles = useStyles();
+  const router = useRouter();
+
+  const sections = useMemo(() => GOAL_SECTIONS, []);
+
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: GoalSection }) => (
+      <View style={styles.sectionHeaderContainer}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>{section.title}</Text>
+            <Text style={styles.sectionSubtitle}>{section.subtitle}</Text>
+          </View>
         </View>
-
-        <View style={styles.grid}>
-          {GOALS.map((goal) => (
-            <GoalCard key={goal.id} {...goal} />
-          ))}
-        </View>
+        <View style={styles.sectionDivider} />
       </View>
+    ),
+    [styles],
+  );
+
+  const handleOpenGoal = useCallback(
+    (goalId: string) => {
+      router.push({ pathname: '/(modals)/goal-details', params: { goalId } });
+    },
+    [router],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: Goal }) => (
+      <GoalCard
+        goal={item}
+        onPress={() => handleOpenGoal(item.id)}
+        onAddValue={() => router.push('/(modals)/add-goal')}
+        onRefresh={() => {}}
+        onEdit={() => router.push('/(modals)/add-goal')}
+      />
+    ),
+    [handleOpenGoal, router],
+  );
+
+  return (
+    <View style={styles.screen}>
+      <SectionList
+        sections={sections}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.listContent}
+        stickySectionHeadersEnabled
+        renderSectionHeader={renderSectionHeader}
+        renderItem={renderItem}
+        ListHeaderComponent={
+          <View style={styles.pageHeader}>
+            <View>
+              <Text style={styles.pageTitle}>Strategic goals</Text>
+              <Text style={styles.pageSubtitle}>Forward momentum for financial and personal wins</Text>
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyStateWrapper}>
+            <AdaptiveGlassView style={styles.emptyStateCard}>
+              <Text style={styles.emptyTitle}>Create your first goal</Text>
+              <Text style={styles.emptySubtitle}>
+                Track milestones, projections, and AI-backed insights once you add your first objective. Use the
+                universal add button to get started.
+              </Text>
+            </AdaptiveGlassView>
+          </View>
+        }
+      />
     </View>
   );
-}
+};
 
-interface GoalCardProps {
-  title: string;
-  progress: number;
-  target: string;
-  impact: string;
-}
-
-function GoalCard({ title, progress, target, impact }: GoalCardProps) {
-  return (
-    <View style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{impact}</Text>
-        </View>
-        <Text style={styles.target}>{target}</Text>
-      </View>
-      <Text style={styles.cardTitle}>{title}</Text>
-
-      <View style={styles.progressContainer}>
-        <View style={styles.progressTrack}>
-          <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%` }]} />
-        </View>
-        <Text style={styles.progressLabel}>{Math.round(progress * 100)}%</Text>
-      </View>
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  container: {
+const useStyles = createThemedStyles((theme) => ({
+  screen: {
     flex: 1,
-    backgroundColor: '#25252B',
+    backgroundColor: theme.colors.background,
   },
-  content: {
-    flex: 1,
-    padding: 16,
-    gap: 20,
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 80,
+    gap: 18,
   },
-  header: {
-    gap: 6,
+  pageHeader: {
+    paddingTop: 20,
+    paddingBottom: 12,
+    gap: 18,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: theme.colors.textPrimary,
+    letterSpacing: 0.4,
   },
-  subtitle: {
+  pageSubtitle: {
+    marginTop: 6,
     fontSize: 14,
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
+    fontWeight: '600',
   },
-  grid: {
-    gap: 16,
+  sectionHeaderContainer: {
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: theme.colors.background,
   },
-  card: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#202025',
-    backgroundColor: '#31313A',
-    padding: 20,
-    gap: 14,
-  },
-  cardHeader: {
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-end',
   },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: 'rgba(124, 58, 237, 0.15)',
-  },
-  badgeText: {
-    color: '#B19BFF',
-    fontSize: 12,
-    fontWeight: '600',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     letterSpacing: 0.3,
   },
-  target: {
-    color: '#7E8B9A',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  cardTitle: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '600',
-    lineHeight: 22,
-  },
-  progressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  progressTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 6,
-    backgroundColor: '#1C1C1F',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 6,
-    backgroundColor: '#8B5CF6',
-  },
-  progressLabel: {
-    color: '#FFFFFF',
+  sectionSubtitle: {
+    marginTop: 4,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '500',
+    color: theme.colors.textMuted,
   },
-});
+  sectionDivider: {
+    marginTop: 12,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.colors.border,
+  },
+  emptyStateWrapper: {
+    paddingVertical: 40,
+  },
+  emptyStateCard: {
+    borderRadius: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+    padding: 24,
+    gap: 14,
+    backgroundColor: theme.colors.card,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textMuted,
+    lineHeight: 20,
+  },
+}));
+
+export default GoalsPage;

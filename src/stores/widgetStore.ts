@@ -1,7 +1,8 @@
 // src/store/widgetStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { mmkvStorageAdapter } from '@/utils/storage';
 import { WidgetType } from '@/config/widgetConfig';
 
 interface WidgetStore {
@@ -61,7 +62,7 @@ export const useWidgetStore = create<WidgetStore>()(
     }),
     {
       name: 'widget-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
       onRehydrateStorage: () => (state) => {
         state?.setHasHydrated(true);
       },

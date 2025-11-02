@@ -1,6 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+
+import { mmkvStorageAdapter } from '@/utils/storage';
 
 export type FocusTimerState = 'ready' | 'running' | 'paused';
 
@@ -146,7 +147,7 @@ export const useFocusTimerStore = create<FocusTimerStore>()(
     {
       name: 'focus-timer-store',
       version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
     },
   ),
 );

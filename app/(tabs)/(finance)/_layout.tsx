@@ -1,17 +1,30 @@
 // app/(tabs)/(finance)/_layout.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Stack } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import UniversalFAB from '@/components/UniversalFAB';
+import { useAppTheme } from '@/constants/theme';
 
 const FinanceLayout = () => {
+  const theme = useAppTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          flex: 1,
+          backgroundColor: theme.colors.background,
+        },
+      }),
+    [theme],
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: '#25252B' },
+          contentStyle: { backgroundColor: theme.colors.background },
         }}
       >
         <Stack.Screen name="(tabs)" />
@@ -22,10 +35,3 @@ const FinanceLayout = () => {
 };
 
 export default FinanceLayout;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#25252B',
-  },
-});

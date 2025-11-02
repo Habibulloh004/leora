@@ -1,7 +1,8 @@
 // stores/useSettingsStore.ts
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import { mmkvStorageAdapter } from '@/utils/storage';
 
 interface SettingsStore {
   theme: 'light' | 'dark' | 'auto';
@@ -75,7 +76,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'settings-storage',
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => mmkvStorageAdapter),
       version: 1,
     }
   )

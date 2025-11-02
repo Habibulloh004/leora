@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { DateTransferIcon, DiagramIcon, DollorEuroIcon, SearchDocIcon, SettingIcon } from '@assets/icons';
+import { Theme, useAppTheme } from '@/constants/theme';
 
 interface FinanceHeaderProps {
   onTransferPress?: () => void;
@@ -10,6 +11,43 @@ interface FinanceHeaderProps {
   onCurrencyPress?: () => void;
 }
 
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    header: {
+      height: 64,
+      backgroundColor: theme.colors.background,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: theme.colors.border,
+    },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    headerActionsRight: {
+      justifyContent: 'flex-end',
+    },
+    headerButton: {
+      padding: 4,
+      borderRadius: 12,
+    },
+    headerTitle: {
+      justifyContent: 'center',
+      alignItems: 'center',
+      flex: 1,
+    },
+    headerTitleText: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: theme.colors.textSecondary,
+      letterSpacing: 2,
+    },
+  });
+
 const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onTransferPress,
   onSearchPress,
@@ -17,14 +55,18 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   onDiagramPress,
   onCurrencyPress,
 }) => {
+  const theme = useAppTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const iconColor = theme.colors.textMuted;
+
   return (
     <View style={styles.header}>
       <View style={styles.headerActions}>
         <TouchableOpacity style={styles.headerButton} onPress={onCurrencyPress}>
-          <DollorEuroIcon color="#A6A6B9" size={24} />
+          <DollorEuroIcon color={iconColor} size={24} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton} onPress={onDiagramPress}>
-          <DiagramIcon color="#A6A6B9" size={24} />
+          <DiagramIcon color={iconColor} size={24} />
         </TouchableOpacity>
       </View>
       <View style={styles.headerTitle}>
@@ -32,13 +74,13 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
       </View>
       <View style={[styles.headerActions, styles.headerActionsRight]}>
         <TouchableOpacity style={styles.headerButton} onPress={onTransferPress}>
-          <DateTransferIcon color="#A6A6B9" size={24} />
+          <DateTransferIcon color={iconColor} size={24} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton} onPress={onSearchPress}>
-          <SearchDocIcon color="#A6A6B9" size={24} />
+          <SearchDocIcon color={iconColor} size={24} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton} onPress={onSettingsPress}>
-          <SettingIcon color="#A6A6B9" size={24} />
+          <SettingIcon color={iconColor} size={24} />
         </TouchableOpacity>
       </View>
     </View>
@@ -46,39 +88,3 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
 };
 
 export default FinanceHeader;
-
-const styles = StyleSheet.create({
-  header: {
-    height: 64,
-    backgroundColor: '#25252B',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#34343D',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  headerActionsRight: {
-    justifyContent: 'flex-end',
-  },
-  headerButton: {
-    padding: 4,
-    borderRadius: 12,
-  },
-  headerTitle: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    flex: 1,
-  },
-  headerTitleText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#A6A6B9',
-    letterSpacing: 2,
-  },
-});

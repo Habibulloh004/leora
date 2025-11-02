@@ -3,496 +3,432 @@ import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   CalendarRange,
-  Clock3,
-  LineChart,
-  PiggyBank,
-  Sparkles,
-  TrendingDown,
+  ChevronDown,
+  ArrowRight,
   TrendingUp,
+  TrendingDown,
+  Lightbulb,
 } from 'lucide-react-native';
 
-import { Colors } from '@/constants/theme';
+import { useAppTheme } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 
-type IconComponent = typeof LineChart;
-
-interface KpiCard {
-  id: string;
-  label: string;
-  value: string;
-  deltaLabel: string;
-  trend: 'up' | 'down';
-  tone: string;
-  icon: IconComponent;
-}
-
-interface PerformancePoint {
-  id: string;
-  label: string;
-  income: number;
-  expense: number;
-}
-
-interface Insight {
-  id: string;
-  title: string;
-  detail: string;
-  tone: string;
-}
-
-const KPI_CARDS: KpiCard[] = [
-  {
-    id: 'net-worth',
-    label: 'Net worth',
-    value: '$178,450',
-    deltaLabel: '+12.4%',
-    trend: 'up',
-    tone: Colors.success,
-    icon: LineChart,
-  },
-  {
-    id: 'savings-rate',
-    label: 'Savings rate',
-    value: '38%',
-    deltaLabel: '+4.1%',
-    trend: 'up',
-    tone: Colors.info,
-    icon: PiggyBank,
-  },
-  {
-    id: 'runway',
-    label: 'Runway',
-    value: '9.4 months',
-    deltaLabel: '-0.3 mo',
-    trend: 'down',
-    tone: Colors.warning,
-    icon: Clock3,
-  },
-];
-
-const PERFORMANCE_TREND: PerformancePoint[] = [
-  { id: 'sep', label: 'Sep', income: 5.4, expense: 3.8 },
-  { id: 'oct', label: 'Oct', income: 5.1, expense: 3.6 },
-  { id: 'nov', label: 'Nov', income: 5.9, expense: 4.1 },
-  { id: 'dec', label: 'Dec', income: 6.2, expense: 4.4 },
-  { id: 'jan', label: 'Jan', income: 6.4, expense: 4.7 },
-];
-
-const INSIGHTS: Insight[] = [
-  {
-    id: 'insight-1',
-    title: 'Recurring costs cooled',
-    detail: 'Subscriptions down 8% after pruning unused services.',
-    tone: Colors.success,
-  },
-  {
-    id: 'insight-2',
-    title: 'Dining trending hot',
-    detail: 'Restaurant spend is 12% above the monthly cap.',
-    tone: Colors.danger,
-  },
-  {
-    id: 'insight-3',
-    title: 'Automation boost',
-    detail: 'An extra $450 redirected into the USD wallet last week.',
-    tone: Colors.info,
-  },
-];
-
-const FORECAST = {
-  horizon: 'Next 90 days',
-  projection: 12400,
-  confidence: 82,
-  guidance: 'Keep variable spend under $4.2k to hit the target.',
+// -------------------------
+// Mock data (rasmdagi qiymatlar)
+// -------------------------
+const STATS = {
+  peak: { label: 'PEAK', value: '340k', extra: '(6 jan)' },
+  average: { label: 'AVERAGE', value: '145k', extra: '(day)' },
+  trend: { label: 'TREND', value: '+12%' },
 };
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
-  }).format(value);
+const COMPARISON = {
+  period: { from: 'December', to: 'January' },
+  rows: [
+    { id: 'inc', label: 'Income:', from: '10.8M', to: '12.5M', delta: '+15%', direction: 'up' as const },
+    { id: 'out', label: 'Outcome:', from: '9.5M', to: '8.7M', delta: '-8%', direction: 'down' as const },
+    { id: 'sav', label: 'Savings:', from: '1.3M', to: '3.8M', delta: '+192%', direction: 'up' as const },
+  ],
+};
+
+const TOP_EXPENSES = [
+  { id: '1', name: 'Food', amount: '3.2M', share: '37%' },
+  { id: '2', name: 'Transport', amount: '2.2M', share: '25%' },
+  { id: '3', name: 'Living', amount: '1.7M', share: '20%' },
+  { id: '4', name: 'Shopping', amount: '1.3M', share: '25%' },
+  { id: '5', name: 'Entertainment', amount: '0.3M', share: '3%' },
+];
+
+const INSIGHTS = [
+  {
+    id: 'i1',
+    title: 'Spends on food increased',
+    detail: 'Suggestion: Cook more at home',
+  },
+  {
+    id: 'i2',
+    title: 'Transport spends decreased',
+    detail: 'Suggestion: Keep using bicycle',
+  },
+  {
+    id: 'i3',
+    title: 'Optimal shopping day: Wednesday',
+    detail: 'Prices less 8–12%',
+  },
+];
 
 export default function AnalyticsTab() {
-  const trendPeak = Math.max(
-    ...PERFORMANCE_TREND.flatMap((point) => [point.income, point.expense]),
-  );
+  const theme = useAppTheme();
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[styles.scroll, { backgroundColor: theme.colors.background }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <LineChart size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Portfolio snapshot</Text>
+      {/* Header */}
+      <View style={styles.headerRow}>
+        <Text style={[styles.headerTitle, { color: theme.colors.textSecondary }]}>
+          Financial analytics
+        </Text>
+
+        <View style={[
+          styles.monthPill,
+          { backgroundColor: theme.colors.card, borderColor: theme.colors.border }
+        ]}>
+          <Text style={[styles.monthText, { color: theme.colors.textSecondary }]}>January</Text>
+          <ChevronDown size={14} color={theme.colors.textSecondary} />
+          <CalendarRange size={16} color={theme.colors.textSecondary} />
+        </View>
+      </View>
+
+      {/* Expense dynamics */}
+      <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          Expense dynamics
+        </Text>
+
+        <View style={styles.statsRow}>
+          {/* Peak */}
+          <View style={styles.statsCol}>
+            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>{STATS.peak.label}:</Text>
+            <Text style={[styles.metaValue, { color: theme.colors.textPrimary }]}>{STATS.peak.value}</Text>
+            <Text style={[styles.metaSub, { color: theme.colors.textMuted }]}>{STATS.peak.extra}</Text>
           </View>
-          <View style={styles.pill}>
-            <CalendarRange size={14} color={Colors.textSecondary} />
-            <Text style={styles.pillText}>Jan 2025</Text>
+
+          {/* Average */}
+          <View style={styles.statsCol}>
+            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>{STATS.average.label}:</Text>
+            <Text style={[styles.metaValue, { color: theme.colors.textPrimary }]}>{STATS.average.value}</Text>
+            <Text style={[styles.metaSub, { color: theme.colors.textMuted }]}>{STATS.average.extra}</Text>
+          </View>
+
+          {/* Trend */}
+          <View style={styles.statsCol}>
+            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>{STATS.trend.label}:</Text>
+            <View style={styles.trendChip}>
+              <TrendingUp size={14} color={theme.colors.success} />
+              <Text style={[styles.trendText, { color: theme.colors.success }]}>{STATS.trend.value}</Text>
+            </View>
           </View>
         </View>
+      </AdaptiveGlassView>
 
-        <View style={styles.kpiGrid}>
-          {KPI_CARDS.map((card) => {
-            const Icon = card.icon;
-            const trendUp = card.trend === 'up';
+      {/* Comparison with the previous month */}
+      <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          Comparison with the previous month
+        </Text>
 
+        <View style={styles.periodRow}>
+          <Text style={[styles.periodText, { color: theme.colors.textSecondary }]}>{COMPARISON.period.from}</Text>
+          <ArrowRight size={14} color={theme.colors.textSecondary} />
+          <Text style={[styles.periodText, { color: theme.colors.textSecondary }]}>{COMPARISON.period.to}</Text>
+        </View>
+
+        <View>
+          {COMPARISON.rows.map((row, idx) => {
+            const isUp = row.direction === 'up';
             return (
-              <View key={card.id} style={styles.kpiCard}>
-                <View style={[styles.kpiIconBadge, { backgroundColor: card.tone + '1A' }]}>
-                  <Icon size={18} color={card.tone} />
+              <View key={row.id} style={styles.compRow}>
+                <Text style={[styles.compLabel, { color: theme.colors.textSecondary }]}>
+                  {row.label}
+                </Text>
+
+                <View style={styles.compMid}>
+                  <Text style={[styles.compValue, { color: theme.colors.textPrimary }]}>{row.from}</Text>
+                  <ArrowRight size={14} color={theme.colors.textMuted} />
+                  <Text style={[styles.compValue, { color: theme.colors.textPrimary }]}>{row.to}</Text>
                 </View>
-                <Text style={styles.kpiLabel}>{card.label}</Text>
-                <Text style={styles.kpiValue}>{card.value}</Text>
-                <View style={styles.kpiDeltaRow}>
-                  {trendUp ? (
-                    <TrendingUp size={14} color={Colors.success} />
+
+                <View
+                  style={[
+                    styles.deltaPill,
+                    {
+                      backgroundColor:
+                        isUp
+                          ? (theme.mode === 'dark' ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.12)')
+                          : (theme.mode === 'dark' ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.12)'),
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                >
+                  {isUp ? (
+                    <TrendingUp size={12} color={theme.colors.success} />
                   ) : (
-                    <TrendingDown size={14} color={Colors.danger} />
+                    <TrendingDown size={12} color={theme.colors.danger} />
                   )}
                   <Text
                     style={[
-                      styles.kpiDelta,
-                      trendUp ? styles.positiveText : styles.negativeText,
+                      styles.deltaText,
+                      { color: isUp ? theme.colors.success : theme.colors.danger },
                     ]}
                   >
-                    {card.deltaLabel}
+                    {row.delta}
                   </Text>
                 </View>
               </View>
             );
           })}
-        </View>
-      </View>
 
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <TrendingUp size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Income vs expenses</Text>
-          </View>
-          <Text style={styles.secondaryLabel}>Last 5 months</Text>
+          {/* Divider lines like in the mock */}
+          <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
         </View>
+      </AdaptiveGlassView>
 
-        <View style={styles.trendLegend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: Colors.success }]} />
-            <Text style={styles.legendLabel}>Income</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: Colors.danger }]} />
-            <Text style={styles.legendLabel}>Expenses</Text>
-          </View>
-        </View>
+      {/* Top 5 categories of expenses */}
+      <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
+        <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
+          Top 5 categories of expenses
+        </Text>
 
-        <View style={styles.trendChart}>
-          {PERFORMANCE_TREND.map((point) => (
-            <View key={point.id} style={styles.trendColumn}>
-              <View style={styles.barGroup}>
-                <View
-                  style={[
-                    styles.trendBar,
-                    styles.expenseBar,
-                    {
-                      height: (point.expense / trendPeak) * 112,
-                    },
-                  ]}
-                />
-                <View
-                  style={[
-                    styles.trendBar,
-                    styles.incomeBar,
-                    {
-                      height: (point.income / trendPeak) * 112,
-                    },
-                  ]}
-                />
+        <View style={styles.categoryList}>
+          {TOP_EXPENSES.map((item, index) => (
+            <View key={item.id} style={styles.categoryRow}>
+              <View style={styles.categoryLeft}>
+                <Text style={[styles.categoryIndex, { color: theme.colors.textSecondary }]}>
+                  {index + 1}.
+                </Text>
+                <Text style={[styles.categoryName, { color: theme.colors.textPrimary }]}>
+                  {item.name}
+                </Text>
               </View>
-              <Text style={styles.trendLabel}>{point.label}</Text>
-              <Text style={styles.trendValue}>{point.income.toFixed(1)}k</Text>
+
+              <Text style={[styles.categoryRight, { color: theme.colors.textSecondary }]}>
+                {item.amount}{' '}
+                <Text style={{ color: theme.colors.textMuted }}>({item.share})</Text>
+              </Text>
             </View>
           ))}
         </View>
+      </AdaptiveGlassView>
 
-        <View style={styles.trendSummary}>
-          <Text style={styles.trendSummaryText}>
-            Momentum stays positive: income grew 5% month-over-month while expenses are
-            flat. Keep pushing the reduction initiatives for February.
-          </Text>
-        </View>
-      </View>
+      {/* AI Insights */}
+      <Text style={[styles.sectionHeaderStandalone, { color: theme.colors.textSecondary }]}>
+        AI Insights
+      </Text>
 
-      <View style={styles.sectionCard}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleRow}>
-            <Sparkles size={18} color={Colors.textSecondary} />
-            <Text style={styles.sectionTitle}>Forecast & insights</Text>
+      {INSIGHTS.map((insight) => (
+        <AdaptiveGlassView
+          key={insight.id}
+          style={[
+            styles.insightCard,
+            {
+              backgroundColor: theme.colors.card,
+              borderColor: theme.colors.border,
+            },
+          ]}
+        >
+          <View style={[styles.bulbCircle, { backgroundColor: theme.colors.icon }]}>
+            <Lightbulb size={18} color={theme.colors.iconText} />
           </View>
-          <Text style={styles.secondaryLabel}>{FORECAST.horizon}</Text>
-        </View>
 
-        <View style={styles.forecastCard}>
-          <View style={styles.forecastRow}>
-            <Text style={styles.forecastLabel}>Projected surplus</Text>
-            <Text style={styles.forecastValue}>{formatCurrency(FORECAST.projection)}</Text>
+          <View style={styles.insightCopy}>
+            <Text style={[styles.insightTitle, { color: theme.colors.textPrimary }]}>
+              {insight.title}
+            </Text>
+            <Text style={[styles.insightDetail, { color: theme.colors.textSecondary }]}>
+              {insight.detail}
+            </Text>
           </View>
-          <View style={styles.confidenceRow}>
-            <Text style={styles.confidenceLabel}>Confidence</Text>
-            <Text style={styles.confidenceValue}>{FORECAST.confidence}%</Text>
-          </View>
-          <View style={styles.confidenceTrack}>
-            <View
-              style={[
-                styles.confidenceFill,
-                { width: `${FORECAST.confidence}%` },
-              ]}
-            />
-          </View>
-          <Text style={styles.guidanceText}>{FORECAST.guidance}</Text>
-        </View>
+        </AdaptiveGlassView>
+      ))}
 
-        <View style={styles.insightList}>
-          {INSIGHTS.map((insight) => (
-            <View key={insight.id} style={styles.insightRow}>
-              <View style={[styles.insightDot, { backgroundColor: insight.tone }]} />
-              <View style={styles.insightCopy}>
-                <Text style={styles.insightTitle}>{insight.title}</Text>
-                <Text style={styles.insightDetail}>{insight.detail}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.bottomSpacer} />
+      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
 
+// -------------------------
+// Styles
+// -------------------------
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  scroll: { flex: 1 },
   content: {
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 16,
+    paddingBottom: 100,
+    gap: 14,
   },
-  sectionCard: {
-    borderRadius: 18,
-    backgroundColor: Colors.surface,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    padding: 18,
-    gap: 16,
-  },
-  sectionHeader: {
+
+  // Header
+  headerRow: {
+    paddingTop: 16,
+    paddingBottom: 6,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  sectionTitleRow: {
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '300',
+    letterSpacing: -0.5,
+  },
+  monthPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  secondaryLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
+    gap: 8,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 14,
-    backgroundColor: Colors.surfaceElevated,
-  },
-  pillText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  kpiGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  kpiCard: {
-    flexBasis: '30%',
-    flexGrow: 1,
-    minWidth: 120,
-    borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
-    padding: 14,
+  },
+  monthText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+
+  // Generic glass section
+  glassCard: {
+    borderRadius: 24,
+    padding: 16,
+    gap: 16,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    opacity: 0.8,
+  },
+
+  // Expense dynamics
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  statsCol: {
+    flex: 1,
+    gap: 6,
+  },
+  metaLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    opacity: 0.9,
+  },
+  metaValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  metaSub: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  trendChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
+  trendText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  // Comparison
+  periodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  periodText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  compRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
     gap: 10,
   },
-  kpiIconBadge: {
+  compLabel: {
+    width: 82,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  compMid: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  compValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: -0.2,
+  },
+  deltaPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  deltaText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  divider: {
+    height: 1,
+    marginTop: 8,
+  },
+
+  // Categories
+  categoryList: { gap: 4 },
+  categoryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  categoryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  categoryIndex: {
+    width: 18,
+    textAlign: 'right',
+    fontSize: 14,
+    fontWeight: '600',
+    opacity: 0.8,
+  },
+  categoryName: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  categoryRight: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+
+  // AI insights
+  sectionHeaderStandalone: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginTop: 6,
+    opacity: 0.8,
+  },
+  insightCard: {
+    borderRadius: 20,
+    padding: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  bulbCircle: {
     width: 36,
     height: 36,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  kpiLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  kpiValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  kpiDeltaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  kpiDelta: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  trendLegend: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  legendDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 6,
-  },
-  legendLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  trendChart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 14,
-  },
-  trendColumn: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 8,
-  },
-  barGroup: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 4,
-    height: 120,
-  },
-  trendBar: {
-    width: 16,
-    borderRadius: 8,
-    backgroundColor: Colors.surfaceElevated,
-  },
-  incomeBar: {
-    backgroundColor: Colors.success,
-  },
-  expenseBar: {
-    backgroundColor: Colors.danger,
-    opacity: 0.85,
-  },
-  trendLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  trendValue: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-  },
-  trendSummary: {
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: Colors.surfaceElevated,
-  },
-  trendSummaryText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
-  forecastCard: {
-    borderRadius: 16,
-    backgroundColor: Colors.surfaceElevated,
-    padding: 16,
-    gap: 12,
-  },
-  forecastRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  forecastLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-  },
-  forecastValue: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.textPrimary,
-  },
-  confidenceRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  confidenceLabel: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-  },
-  confidenceValue: {
-    fontSize: 12,
-    color: Colors.textPrimary,
-    fontWeight: '600',
-  },
-  confidenceTrack: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: Colors.surface,
-    overflow: 'hidden',
-  },
-  confidenceFill: {
-    height: '100%',
-    borderRadius: 999,
-    backgroundColor: Colors.primary,
-  },
-  guidanceText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
-  insightList: {
-    gap: 14,
-  },
-  insightRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  insightDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 6,
-    marginTop: 4,
   },
   insightCopy: {
     flex: 1,
@@ -500,21 +436,11 @@ const styles = StyleSheet.create({
   },
   insightTitle: {
     fontSize: 14,
-    color: Colors.textPrimary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   insightDetail: {
     fontSize: 12,
-    color: Colors.textSecondary,
-    lineHeight: 18,
-  },
-  positiveText: {
-    color: Colors.success,
-  },
-  negativeText: {
-    color: Colors.danger,
-  },
-  bottomSpacer: {
-    height: 80,
+    fontWeight: '500',
+    opacity: 0.9,
   },
 });

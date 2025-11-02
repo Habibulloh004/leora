@@ -2,12 +2,45 @@
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { withLayoutContext } from 'expo-router';
 import { StyleSheet } from 'react-native';
+import { useMemo } from 'react';
+import { useAppTheme } from '@/constants/theme';
 
 const { Navigator } = createMaterialTopTabNavigator();
 
 export const InsightsTopTabs = withLayoutContext(Navigator);
 
 const InsightsTabsLayout = () => {
+  const theme = useAppTheme();
+  const styles = useMemo(
+    () =>
+      StyleSheet.create({
+        container: {
+          backgroundColor: theme.colors.background,
+        },
+        tabBar: {
+          backgroundColor: theme.colors.background,
+          borderBottomWidth: StyleSheet.hairlineWidth,
+          borderBottomColor: theme.colors.border,
+          elevation: 0,
+          shadowOpacity: 0,
+        },
+        indicator: {
+          backgroundColor: theme.colors.primary,
+          height: 2,
+          borderRadius: 1,
+        },
+        label: {
+          fontSize: 14,
+          fontWeight: '600',
+          textTransform: 'none',
+        },
+        tabItem: {
+          width: 'auto',
+        },
+      }),
+    [theme],
+  );
+
   return (
     <InsightsTopTabs
       style={styles.container}
@@ -15,8 +48,8 @@ const InsightsTabsLayout = () => {
         tabBarStyle: styles.tabBar,
         tabBarIndicatorStyle: styles.indicator,
         tabBarLabelStyle: styles.label,
-        tabBarActiveTintColor: '#FFFFFF',
-        tabBarInactiveTintColor: '#7E8B9A',
+        tabBarActiveTintColor: theme.colors.textPrimary,
+        tabBarInactiveTintColor: theme.colors.textMuted,
         tabBarItemStyle: styles.tabItem,
         tabBarScrollEnabled: false,
       }}
@@ -30,29 +63,3 @@ const InsightsTabsLayout = () => {
 };
 
 export default InsightsTabsLayout;
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: '#25252B',
-  },
-  tabBar: {
-    backgroundColor: '#25252B',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#1F1F22',
-    elevation: 0,
-    shadowOpacity: 0,
-  },
-  indicator: {
-    backgroundColor: '#FFFFFF',
-    height: 2,
-    borderRadius: 1,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    textTransform: 'none',
-  },
-  tabItem: {
-    width: 'auto',
-  },
-});
