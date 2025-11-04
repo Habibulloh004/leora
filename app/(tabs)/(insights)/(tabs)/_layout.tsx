@@ -25,7 +25,7 @@ const InsightsTabsLayout = () => {
           shadowOpacity: 0,
         },
         indicator: {
-          backgroundColor: theme.colors.primary,
+          backgroundColor: theme.colors.textPrimary,
           height: 2,
           borderRadius: 1,
         },

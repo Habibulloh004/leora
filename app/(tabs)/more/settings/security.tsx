@@ -1,33 +1,71 @@
-import React, { useMemo, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
+  KeyboardAvoidingView,
+  LayoutChangeEvent,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  AlertCircle,
   Bell,
+  CalendarClock,
+  CameraOff,
+  CheckCircle,
+  Cloud,
+  CloudUpload,
+  Database,
+  EyeOff,
   Fingerprint,
+  HardDrive,
   KeyRound,
   Lock,
-  LogOut,
+  RefreshCcw,
   ShieldCheck,
+  ShieldHalf,
+  Smartphone,
+  Sparkles,
+  Target,
+  Timer,
+  Users,
+  WifiOff,
 } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
 
-type LucideIcon = React.ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
+type SectionKey =
+  | 'security-type'
+  | 'data-security'
+  | 'data-backup'
+  | 'tasks-goals'
+  | 'privacy'
+  | 'sessions'
+  | 'emergency';
 
-type ToggleRowProps = {
-  icon: LucideIcon;
-  label: string;
-  description: string;
-  value: boolean;
-  onChange: (value: boolean) => void;
-};
+const SECTION_KEYS: SectionKey[] = [
+  'security-type',
+  'data-security',
+  'data-backup',
+  'tasks-goals',
+  'privacy',
+  'sessions',
+  'emergency',
+];
+
+const SCROLL_OFFSET = 96;
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -35,249 +73,993 @@ const createStyles = (theme: Theme) =>
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    container: {
-      flex: 1,
+    content: {
       paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.xxxl,
+      paddingTop: theme.spacing.lg,
+      gap: theme.spacing.xl,
+    },
+    heroCard: {
+      padding: theme.spacing.xl,
+      borderRadius: theme.radius.xxl,
+      gap: theme.spacing.md,
+    },
+    heroBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    heroBadgeText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.colors.success,
+      letterSpacing: 0.3,
+    },
+    heroTitle: {
+      fontSize: 22,
+      fontWeight: '800',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.4,
+    },
+    heroDescription: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      lineHeight: 20,
+    },
+    section: {
+      gap: theme.spacing.md,
+    },
+    sectionHeader: {
+      gap: theme.spacing.xs / 1.5,
     },
     sectionTitle: {
-      color: theme.colors.textMuted,
+      fontSize: 17,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.2,
+    },
+    sectionSubtitle: {
       fontSize: 13,
-      letterSpacing: 0.5,
-      marginTop: theme.spacing.md,
-      marginBottom: theme.spacing.sm,
+      color: theme.colors.textMuted,
+      lineHeight: 18,
     },
     card: {
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing.lg,
+      borderRadius: theme.radius.xxl,
+      padding: theme.spacing.lg,
+      gap: theme.spacing.md,
     },
-    pressableWrapper: {
-      borderRadius: theme.radius.xl,
-      overflow: 'hidden',
-    },
-    rowCard: {
+    row: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md + 2,
-      borderRadius: theme.radius.xl,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.cardItem,
+      gap: theme.spacing.md,
     },
     rowLeft: {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
-      marginRight: theme.spacing.sm,
+      gap: theme.spacing.md,
     },
     iconBadge: {
-      width: 40,
-      height: 40,
-      borderRadius: theme.radius.md,
+      width: 42,
+      height: 42,
+      borderRadius: theme.radius.full,
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: theme.spacing.md,
       backgroundColor:
-        theme.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)',
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+        theme.mode === 'dark'
+          ? 'rgba(255,255,255,0.06)'
+          : 'rgba(15,23,42,0.06)',
     },
-    rowTexts: {
-      flexShrink: 1,
+    rowLabels: {
+      flex: 1,
+      gap: 4,
     },
     rowLabel: {
-      color: theme.colors.textPrimary,
-      fontSize: 16,
+      fontSize: 15,
       fontWeight: '700',
+      color: theme.colors.textPrimary,
+      letterSpacing: -0.15,
     },
     rowDescription: {
+      fontSize: 12,
       color: theme.colors.textMuted,
+      lineHeight: 17,
+    },
+    rowMeta: {
       fontSize: 13,
-      marginTop: 2,
-      lineHeight: 18,
+      fontWeight: '600',
+      letterSpacing: 0.3,
+      color: theme.colors.textSecondary,
     },
     chip: {
       paddingHorizontal: theme.spacing.md,
       paddingVertical: 6,
       borderRadius: theme.radius.full,
-      backgroundColor: theme.colors.overlaySoft,
-    },
-    chipActive: {
-      backgroundColor: theme.colors.successBg,
-    },
-    chipInactive: {
-      backgroundColor: theme.colors.overlaySoft,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
+      backgroundColor:
+        theme.mode === 'dark'
+          ? 'rgba(255,255,255,0.08)'
+          : 'rgba(15,23,42,0.08)',
     },
     chipText: {
-      color: theme.colors.textMuted,
       fontSize: 12,
       fontWeight: '700',
       letterSpacing: 0.3,
+      color: theme.colors.textSecondary,
     },
-    chipTextActive: {
-      color: theme.colors.success,
-    },
-    helperCard: {
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.xl,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.cardItem,
-      gap: theme.spacing.sm,
-    },
-    helperRow: {
+    codeGrid: {
       flexDirection: 'row',
-      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: theme.spacing.md,
     },
-    helperIconWrap: {
-      width: 36,
-      height: 36,
-      borderRadius: theme.radius.md,
+    codeInput: {
+      flex: 1,
+      aspectRatio: 1,
+      borderRadius: theme.radius.lg,
+      textAlign: 'center',
+      fontSize: 22,
+      fontWeight: '700',
+      borderWidth: StyleSheet.hairlineWidth,
+      letterSpacing: 2,
+    },
+    codeFooter: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: theme.spacing.sm,
+    },
+    codeStatus: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
+      letterSpacing: 0.3,
+    },
+    link: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: theme.colors.primary,
+    },
+    buttonPrimary: {
+      borderRadius: theme.radius.full,
+      paddingVertical: 12,
       alignItems: 'center',
       justifyContent: 'center',
-      marginRight: theme.spacing.sm,
-      backgroundColor:
-        theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.05)',
-    },
-    helperTitle: {
-      color: theme.colors.textPrimary,
-      fontSize: 15,
-      fontWeight: '600',
-    },
-    helperText: {
-      color: theme.colors.textMuted,
-      fontSize: 13,
-      lineHeight: 18,
-    },
-    helperAction: {
-      marginTop: theme.spacing.sm,
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    helperButton: {
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 10,
-      borderRadius: theme.radius.full,
       backgroundColor: theme.colors.primary,
     },
-    helperButtonText: {
-      color: theme.colors.onPrimary,
+    buttonPrimaryText: {
+      fontSize: 15,
       fontWeight: '700',
+      color: theme.colors.onPrimary,
+    },
+    buttonGhost: {
+      borderRadius: theme.radius.full,
+      paddingVertical: 12,
+      paddingHorizontal: theme.spacing.lg,
+      backgroundColor:
+        theme.mode === 'dark'
+          ? 'rgba(255,255,255,0.08)'
+          : 'rgba(15,23,42,0.08)',
+    },
+    buttonGhostText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.colors.textPrimary,
+    },
+    emergencyButton: {
+      borderRadius: theme.radius.full,
+      paddingVertical: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor:
+        theme.mode === 'dark'
+          ? 'rgba(248,113,113,0.18)'
+          : 'rgba(239,68,68,0.14)',
+    },
+    emergencyText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.colors.danger,
+    },
+    emergencySecondary: {
+      backgroundColor:
+        theme.mode === 'dark'
+          ? 'rgba(129,140,248,0.16)'
+          : 'rgba(79,70,229,0.12)',
+    },
+    emergencySecondaryText: {
+      color:
+        theme.mode === 'dark'
+          ? 'rgba(196,181,253,1)'
+          : theme.colors.primary,
+    },
+    sessionList: {
+      gap: theme.spacing.sm,
+    },
+    sessionRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'baseline',
+    },
+    sessionDevice: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+    },
+    sessionMeta: {
+      fontSize: 12,
+      color: theme.colors.textMuted,
     },
   });
+
+const useSectionRegistry = (
+  scrollViewRef: React.RefObject<ScrollView | null>,
+) => {
+  const sectionYRef = useRef<Partial<Record<SectionKey, number>>>({});
+  const pendingRef = useRef<SectionKey | null>(null);
+
+  const scrollTo = useCallback(
+    (key: SectionKey) => {
+      const position = sectionYRef.current[key];
+      if (typeof position === 'number') {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(position - SCROLL_OFFSET, 0),
+          animated: true,
+        });
+      }
+    },
+    [scrollViewRef],
+  );
+
+  const register = useCallback(
+    (key: SectionKey) => (event: LayoutChangeEvent) => {
+      sectionYRef.current[key] = event.nativeEvent.layout.y;
+      if (pendingRef.current === key) {
+        pendingRef.current = null;
+        requestAnimationFrame(() => scrollTo(key));
+      }
+    },
+    [scrollTo],
+  );
+
+  const schedule = useCallback(
+    (key: SectionKey) => {
+      pendingRef.current = key;
+      requestAnimationFrame(() => scrollTo(key));
+    },
+    [scrollTo],
+  );
+
+  return { register, schedule };
+};
 
 const SecuritySettingsScreen: React.FC = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const rippleColor =
-    theme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.12)';
 
-  const [biometrics, setBiometrics] = useState(true);
-  const [twoFactor, setTwoFactor] = useState(false);
-  const [loginAlerts, setLoginAlerts] = useState(true);
-  const [autoLock, setAutoLock] = useState(true);
+  const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
+  const { register, schedule } = useSectionRegistry(scrollRef);
 
-  const Chip = ({ active, label }: { active: boolean; label: string }) => (
-    <View style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}>
-      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
-    </View>
-  );
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const normalizedSection = (section?.toLowerCase() ?? undefined) as
+    | SectionKey
+    | undefined;
 
-  const ToggleRow = ({ icon: Icon, label, description, value, onChange }: ToggleRowProps) => (
-    <Pressable
-      onPress={() => onChange(!value)}
-      android_ripple={{ color: rippleColor }}
-      style={styles.pressableWrapper}
-    >
-      <AdaptiveGlassView style={styles.rowCard}>
-        <View style={styles.rowLeft}>
-          <View style={styles.iconBadge}>
-            <Icon color={theme.colors.iconText} size={18} />
-          </View>
-          <View style={styles.rowTexts}>
-            <Text style={styles.rowLabel}>{label}</Text>
-            <Text style={styles.rowDescription}>{description}</Text>
-          </View>
-        </View>
-        <Chip active={value} label={value ? 'Enabled' : 'Off'} />
-      </AdaptiveGlassView>
-    </Pressable>
-  );
+  const isIOS = Platform.OS === 'ios';
+  const isAndroid = Platform.OS === 'android';
+
+  const [biometricsEnabled, setBiometricsEnabled] = useState(true);
+  const [faceIdEnabled, setFaceIdEnabled] = useState(isIOS);
+  const [fingerprintEnabled, setFingerprintEnabled] = useState(isAndroid);
+  const [pinEnabled, setPinEnabled] = useState(false);
+  const [securityOff, setSecurityOff] = useState(false);
+  const [askOnLaunch, setAskOnLaunch] = useState(true);
+  const [databaseEncrypted, setDatabaseEncrypted] = useState(true);
+  const [hidePreview, setHidePreview] = useState(true);
+  const [screenshotBlock, setScreenshotBlock] = useState(false);
+  const [fakeAccount, setFakeAccount] = useState(false);
+  const [autoBackup, setAutoBackup] = useState(true);
+  const [taskReminder, setTaskReminder] = useState(true);
+  const [deadlineReminder, setDeadlineReminder] = useState(true);
+  const [goalProgress, setGoalProgress] = useState(true);
+  const [taskReschedule, setTaskReschedule] = useState(false);
+  const [anonymousAnalytics, setAnonymousAnalytics] = useState(true);
+  const [personalizedAds, setPersonalizedAds] = useState(false);
+  const [dataAccess, setDataAccess] = useState(true);
+  const [sharePartners, setSharePartners] = useState(false);
+
+
+  useEffect(() => {
+    if (normalizedSection && SECTION_KEYS.includes(normalizedSection)) {
+      schedule(normalizedSection);
+    }
+  }, [normalizedSection, schedule]);
+
+  const handleChangePassword = useCallback(() => {
+    router.push({
+      pathname: '/(modals)/change-password',
+      params: { source: 'security' },
+    });
+  }, [router]);
+
+  const handleSignOutAll = useCallback(() => {
+    console.log('Sign out all sessions');
+  }, []);
+
+  const handleDeactivateAccount = useCallback(() => {
+    console.log('Deactivate account');
+  }, []);
+
+  const handleWipeData = useCallback(() => {
+    console.log('Wipe all data');
+  }, []);
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        behavior={isIOS ? 'padding' : undefined}
+        style={{ flex: 1 }}
       >
-        <Text style={styles.sectionTitle}>Protection</Text>
-        <View style={styles.card}>
-          <ToggleRow
-            icon={ShieldCheck}
-            label="Two-factor authentication"
-            description="Require a verification code the next time you sign in."
-            value={twoFactor}
-            onChange={setTwoFactor}
-          />
-          <ToggleRow
-            icon={Fingerprint}
-            label="Biometric unlock"
-            description="Use Face ID or Touch ID to unlock sensitive sections."
-            value={biometrics}
-            onChange={setBiometrics}
-          />
-          <ToggleRow
-            icon={Bell}
-            label="Login alerts"
-            description="Send a push notification whenever a new device signs in."
-            value={loginAlerts}
-            onChange={setLoginAlerts}
-          />
-          <ToggleRow
-            icon={Lock}
-            label="Auto-lock"
-            description="Lock the app automatically after 60 seconds of inactivity."
-            value={autoLock}
-            onChange={setAutoLock}
-          />
-        </View>
+        <ScrollView
+          ref={scrollRef}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <AdaptiveGlassView style={styles.heroCard}>
+            <View style={styles.heroBadge}>
+              <CheckCircle size={18} color={theme.colors.success} />
+              <Text style={styles.heroBadgeText}>Security posture good</Text>
+            </View>
+            <Text style={styles.heroTitle}>Protect your LEORA workspace</Text>
+            <Text style={styles.heroDescription}>
+              Enable the controls below to keep personal data safe across
+              devices. Manage biometrics, two-factor verification, and backup
+              routines from one place.
+            </Text>
+          </AdaptiveGlassView>
 
-        <AdaptiveGlassView style={styles.helperCard}>
-          <View style={styles.helperRow}>
-            <View style={styles.helperIconWrap}>
-              <KeyRound size={18} color={theme.colors.iconText} />
+          <View style={styles.section} onLayout={register('security-type')}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Security type</Text>
+              <Text style={styles.sectionSubtitle}>
+                Configure how the app unlocks and how quickly it locks again.
+              </Text>
             </View>
-            <View>
-              <Text style={styles.helperTitle}>Password hygiene</Text>
-              <Text style={styles.helperText}>Last changed 48 days ago</Text>
-            </View>
-          </View>
-          <Text style={styles.helperText}>
-            Rotating your password every 90 days keeps your financial data safer. Generate a random
-            16-character passphrase and store it in a manager you trust.
-          </Text>
-          <View style={styles.helperAction}>
-            <Text style={styles.helperText}>Sessions: 3 active</Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
-              <Pressable android_ripple={{ color: rippleColor }}>
-                <View style={styles.helperButton}>
-                  <Text style={styles.helperButtonText}>Update password</Text>
+            <AdaptiveGlassView style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <ShieldCheck size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Biometrics</Text>
+                    <Text style={styles.rowDescription}>
+                      Use Face ID or fingerprint to unlock instantly.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={biometricsEnabled}
+                  onValueChange={setBiometricsEnabled}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              {isIOS && (
+                <View style={styles.row}>
+                  <View style={styles.rowLeft}>
+                    <View style={styles.iconBadge}>
+                      <Lock size={18} color={theme.colors.iconText} />
+                    </View>
+                    <View style={styles.rowLabels}>
+                      <Text style={styles.rowLabel}>Face ID</Text>
+                      <Text style={styles.rowDescription}>
+                        Require Face ID whenever launching the app.
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={faceIdEnabled}
+                    onValueChange={setFaceIdEnabled}
+                    disabled={!biometricsEnabled}
+                    trackColor={{
+                      false: 'rgba(148,163,184,0.35)',
+                      true: theme.colors.primary,
+                    }}
+                    thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                  />
+                </View>
+              )}
+
+              {isAndroid && (
+                <View style={styles.row}>
+                  <View style={styles.rowLeft}>
+                    <View style={styles.iconBadge}>
+                      <Fingerprint size={18} color={theme.colors.iconText} />
+                    </View>
+                    <View style={styles.rowLabels}>
+                      <Text style={styles.rowLabel}>Fingerprint</Text>
+                      <Text style={styles.rowDescription}>
+                        Unlock with your saved fingerprint on this device.
+                      </Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={fingerprintEnabled}
+                    onValueChange={setFingerprintEnabled}
+                    disabled={!biometricsEnabled}
+                    trackColor={{
+                      false: 'rgba(148,163,184,0.35)',
+                      true: theme.colors.primary,
+                    }}
+                    thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                  />
+                </View>
+              )}
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <KeyRound size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>PIN code</Text>
+                    <Text style={styles.rowDescription}>
+                      Set a 4-digit fallback when biometrics are unavailable.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={pinEnabled}
+                  onValueChange={setPinEnabled}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <Pressable onPress={handleChangePassword}>
+                <View style={styles.row}>
+                  <View style={styles.rowLeft}>
+                    <View style={styles.iconBadge}>
+                      <Lock size={18} color={theme.colors.iconText} />
+                    </View>
+                    <View style={styles.rowLabels}>
+                      <Text style={styles.rowLabel}>Password</Text>
+                      <Text style={styles.rowDescription}>
+                        Change the main account password.
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.rowMeta}>Edit</Text>
                 </View>
               </Pressable>
-              <Pressable android_ripple={{ color: rippleColor }}>
-                <View style={styles.helperIconWrap}>
-                  <LogOut size={18} color={theme.colors.iconText} />
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <WifiOff size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Turn security off</Text>
+                    <Text style={styles.rowDescription}>
+                      Disable all security checks on launch.
+                    </Text>
+                  </View>
                 </View>
-              </Pressable>
-            </View>
+                <Switch
+                  value={securityOff}
+                  onValueChange={setSecurityOff}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Timer size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Ask when launch</Text>
+                    <Text style={styles.rowDescription}>
+                      Prompt for security credentials on every start.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={askOnLaunch}
+                  onValueChange={setAskOnLaunch}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Smartphone size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Autoblock after</Text>
+                    <Text style={styles.rowDescription}>
+                      Locks the app automatically after 1 minute of inactivity.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.rowMeta}>1 min</Text>
+              </View>
+            </AdaptiveGlassView>
           </View>
-        </AdaptiveGlassView>
-      </ScrollView>
+
+          <View style={styles.section} onLayout={register('data-security')}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Data security</Text>
+              <Text style={styles.sectionSubtitle}>
+                Protect stored data and sensitive information in the UI.
+              </Text>
+            </View>
+            <AdaptiveGlassView style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Database size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Database encryption</Text>
+                    <Text style={styles.rowDescription}>
+                      Encrypt data at rest with AES-256.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={databaseEncrypted}
+                  onValueChange={setDatabaseEncrypted}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <EyeOff size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Hide balances on preview</Text>
+                    <Text style={styles.rowDescription}>
+                      Blur financial numbers until the app is unlocked.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={hidePreview}
+                  onValueChange={setHidePreview}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <CameraOff size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Screenshot block</Text>
+                    <Text style={styles.rowDescription}>
+                      Prevent screenshots on sensitive screens.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={screenshotBlock}
+                  onValueChange={setScreenshotBlock}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <AlertCircle size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Fake account</Text>
+                    <Text style={styles.rowDescription}>
+                      Display a decoy workspace when under pressure.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={fakeAccount}
+                  onValueChange={setFakeAccount}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+            </AdaptiveGlassView>
+          </View>
+
+          <View style={styles.section} onLayout={register('data-backup')}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Data backup</Text>
+              <Text style={styles.sectionSubtitle}>
+                Control how often LEORA syncs and stores encrypted backups.
+              </Text>
+            </View>
+            <AdaptiveGlassView style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Cloud size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Automatic backup</Text>
+                    <Text style={styles.rowDescription}>
+                      Securely save your data in the cloud.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={autoBackup}
+                  onValueChange={setAutoBackup}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Timer size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Frequency</Text>
+                    <Text style={styles.rowDescription}>
+                      Automatically backs up every day.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.rowMeta}>Every day</Text>
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <HardDrive size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Storage</Text>
+                    <Text style={styles.rowDescription}>
+                      Selected storage location for secure backups.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.rowMeta}>iCloud</Text>
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <CloudUpload size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Last sync</Text>
+                    <Text style={styles.rowDescription}>
+                      Timestamp for the most recent backup.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.rowMeta}>3 days ago</Text>
+              </View>
+
+              <Pressable onPress={() => console.log('Create backup now')}>
+                <AdaptiveGlassView style={styles.buttonGhost}>
+                  <Text style={styles.buttonGhostText}>Create backup now</Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+
+          <View
+            style={styles.section}
+            onLayout={register('tasks-goals')}
+          >
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Task & goals</Text>
+              <Text style={styles.sectionSubtitle}>
+                Decide when security reminders apply to planning tools.
+              </Text>
+            </View>
+            <AdaptiveGlassView style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Bell size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Task reminder</Text>
+                    <Text style={styles.rowDescription}>
+                      Notify 15 minutes before a secure task.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={taskReminder}
+                  onValueChange={setTaskReminder}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <CalendarClock size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Deadline</Text>
+                    <Text style={styles.rowDescription}>
+                      Remind you one day before due dates.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={deadlineReminder}
+                  onValueChange={setDeadlineReminder}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Target size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Goal progress</Text>
+                    <Text style={styles.rowDescription}>
+                      Record secure progress updates daily.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={goalProgress}
+                  onValueChange={setGoalProgress}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <RefreshCcw size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Task reschedule suggestion</Text>
+                    <Text style={styles.rowDescription}>
+                      Suggest rescheduling if a secure task is missed.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={taskReschedule}
+                  onValueChange={setTaskReschedule}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+            </AdaptiveGlassView>
+          </View>
+
+          <View style={styles.section} onLayout={register('privacy')}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Privacy</Text>
+              <Text style={styles.sectionSubtitle}>
+                Control the analytics and data sharing options in LEORA.
+              </Text>
+            </View>
+            <AdaptiveGlassView style={styles.card}>
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <ShieldHalf size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Anonymous analytics</Text>
+                    <Text style={styles.rowDescription}>
+                      Share usage metrics without personal data.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={anonymousAnalytics}
+                  onValueChange={setAnonymousAnalytics}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Sparkles size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Personalized advertising</Text>
+                    <Text style={styles.rowDescription}>
+                      Allow relevant suggestions based on activity.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={personalizedAds}
+                  onValueChange={setPersonalizedAds}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Lock size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Data delete access</Text>
+                    <Text style={styles.rowDescription}>
+                      Allow deleting data from connected widgets.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={dataAccess}
+                  onValueChange={setDataAccess}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Users size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Share data with partners</Text>
+                    <Text style={styles.rowDescription}>
+                      Allow aggregated insights with selected partners.
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={sharePartners}
+                  onValueChange={setSharePartners}
+                  trackColor={{
+                    false: 'rgba(148,163,184,0.35)',
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={Platform.OS === 'android' ? '#ffffff' : undefined}
+                />
+              </View>
+            </AdaptiveGlassView>
+          </View>
+
+          <View style={styles.section} onLayout={register('sessions')}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Active sessions</Text>
+              <Text style={styles.sectionSubtitle}>
+                Review signed-in devices and revoke access if something looks
+                suspicious.
+              </Text>
+            </View>
+            <AdaptiveGlassView style={styles.card}>
+              <View style={styles.sessionList}>
+                <View style={styles.sessionRow}>
+                  <Text style={styles.sessionDevice}>iPhone 14 Pro</Text>
+                  <Text style={styles.sessionMeta}>Current device</Text>
+                </View>
+                <View style={styles.sessionRow}>
+                  <Text style={styles.sessionDevice}>iPad Air</Text>
+                  <Text style={styles.sessionMeta}>Yesterday, 19:30</Text>
+                </View>
+                <View style={styles.sessionRow}>
+                  <Text style={styles.sessionDevice}>MacBook Pro</Text>
+                  <Text style={styles.sessionMeta}>3 days ago</Text>
+                </View>
+              </View>
+
+              <Pressable onPress={handleSignOutAll}>
+                <AdaptiveGlassView style={styles.buttonGhost}>
+                  <Text style={styles.buttonGhostText}>End all other sessions</Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+
+          <View style={styles.section} onLayout={register('emergency')}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Emergency actions</Text>
+              <Text style={styles.sectionSubtitle}>
+                Quick responses when your device is lost or compromised.
+              </Text>
+            </View>
+            <AdaptiveGlassView style={styles.card}>
+              <Pressable onPress={handleDeactivateAccount}>
+                <AdaptiveGlassView style={styles.emergencyButton}>
+                  <Text style={styles.emergencyText}>Deactivate account</Text>
+                </AdaptiveGlassView>
+              </Pressable>
+              <Pressable onPress={handleWipeData}>
+                <AdaptiveGlassView
+                  style={[styles.emergencyButton, styles.emergencySecondary]}
+                >
+                  <Text
+                    style={[
+                      styles.emergencyText,
+                      styles.emergencySecondaryText,
+                    ]}
+                  >
+                    Wipe all data
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

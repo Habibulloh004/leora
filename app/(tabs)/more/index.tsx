@@ -53,6 +53,7 @@ const useStyles = createThemedStyles((theme) => ({
   safeArea: {
     flex: 1,
     backgroundColor: theme.colors.background,
+    paddingBottom: 32,
   },
   scrollContent: {
     paddingHorizontal: theme.spacing.xl,
@@ -206,9 +207,9 @@ const useStyles = createThemedStyles((theme) => ({
     alignItems: 'center',
     justifyContent: 'center',
     gap: theme.spacing.sm,
-    paddingVertical: theme.spacing.md,
-    borderRadius: theme.radius.full,
-    overflow: 'hidden',
+    paddingVertical: theme.spacing.lg,
+    borderRadius: theme.radius.xl,
+    backgroundColor:theme.colors.card
   },
   logoutText: {
     fontSize: 16,
@@ -367,6 +368,15 @@ export default function MoreHomeScreen() {
 
   const navigateTo = useCallback(
     (target: string) => {
+      if (target.includes('?')) {
+        const [path, query] = target.split('?');
+        const params = Object.fromEntries(new URLSearchParams(query));
+        router.push({
+          pathname: `/(tabs)/more/${path}`,
+          params,
+        });
+        return;
+      }
       router.push(`/(tabs)/more/${target}`);
     },
     [router],
@@ -408,28 +418,28 @@ export default function MoreHomeScreen() {
     },
     { key: 'notifications', icon: Bell, label: 'Notifications', value: 'Enabled', destination: 'settings/notifications' },
     { key: 'assistant', icon: Sparkles, label: 'AI Assistant', value: 'Alpha', destination: 'settings/ai' },
-    { key: 'security', icon: ShieldCheck, label: 'Security', destination: 'settings/security' },
+    { key: 'security', icon: ShieldCheck, label: 'Security', destination: 'settings/security?section=security-type' },
     { key: 'language', icon: Languages, label: 'Language and Region', value: 'English', destination: 'settings/language' },
   ];
 
   const dataItems: SectionItem[] = [
-    { key: 'backup', icon: RefreshCw, label: 'Backup / Restore', destination: 'data/backup' },
-    { key: 'export', icon: Share, label: 'Export data', destination: 'data/export' },
-    { key: 'cache', icon: Trash2, label: 'Clear cache', value: '45 MB', destination: 'data/cache' },
+    { key: 'backup', icon: RefreshCw, label: 'Backup / Restore', destination: 'data?section=backup' },
+    { key: 'export', icon: Share, label: 'Export data', destination: 'data?section=export' },
+    { key: 'cache', icon: Trash2, label: 'Clear cache', value: '45 MB', destination: 'data?section=storage' },
   ];
 
   const integrationItems: SectionItem[] = [
-    { key: 'calendars', icon: Calendar, label: 'Calendars', value: '2 / 3', destination: 'integrations/calendars' },
-    { key: 'banks', icon: Building2, label: 'Banks', value: '0 / 5', destination: 'integrations/banks' },
-    { key: 'apps', icon: AppWindow, label: 'Apps', value: '3 / 8', destination: 'integrations/apps' },
-    { key: 'devices', icon: MonitorSmartphone, label: 'Devices', value: '1 / 2', destination: 'integrations/devices' },
+    { key: 'calendars', icon: Calendar, label: 'Calendars', value: '2 / 3', destination: 'integrations?section=calendars' },
+    { key: 'banks', icon: Building2, label: 'Banks', value: '0 / 4', destination: 'integrations?section=banks' },
+    { key: 'apps', icon: AppWindow, label: 'Apps', value: '2 / 8', destination: 'integrations?section=applications' },
+    { key: 'devices', icon: MonitorSmartphone, label: 'Devices', value: '1 / 2', destination: 'integrations?section=devices' },
   ];
 
   const helpItems: SectionItem[] = [
-    { key: 'manual', icon: BookOpen, label: 'Manual', destination: 'help/manual' },
-    { key: 'faq', icon: CircleHelp, label: 'FAQ', destination: 'help/faq' },
-    { key: 'support', icon: LifeBuoy, label: 'Support', destination: 'help/support' },
-    { key: 'about', icon: Info, label: 'About LEORA', destination: 'help/about' },
+    { key: 'manual', icon: BookOpen, label: 'Manual', destination: 'support?section=manuals' },
+    { key: 'faq', icon: CircleHelp, label: 'FAQ', destination: 'support?section=popular' },
+    { key: 'support', icon: LifeBuoy, label: 'Support', destination: 'support?section=contact' },
+    { key: 'about', icon: Info, label: 'About LEORA', destination: 'about' },
   ];
 
   return (
@@ -575,23 +585,14 @@ export default function MoreHomeScreen() {
             ))}
           </View>
 
-          <View style={styles.logoutContent}>
-            <Pressable
-              onPress={() => router.replace('/auth/login')}
-              style={({ pressed }) => [
+            <AdaptiveGlassView
+              style={[
                 styles.logoutButton,
-                {
-                  opacity: pressed ? 0.9 : 1,
-                  transform: [{ scale: pressed ? 0.97 : 1 }],
-                  backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)',
-                },
               ]}
             >
-              <LinearGradient colors={logoutGradientColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
               <LogOut size={20} color={theme.colors.textPrimary} />
               <Text style={[styles.logoutText, { color: theme.colors.textPrimary }]}>Log out</Text>
-            </Pressable>
-          </View>
+            </AdaptiveGlassView>
         </Animated.View>
       </Animated.ScrollView>
       <UniversalFAB />
