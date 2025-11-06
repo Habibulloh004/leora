@@ -338,7 +338,7 @@ const lightColors: ThemeColors = {
   surfaceElevated: '#EEF2F6',
   surfaceMuted: '#DFE5EC',
   card: '#FFFFFF',
-  cardItem: '#efececff',
+  cardItem: '#F6F6F8',
   textPrimary: '#0F172A',
   textSecondary: '#475467',
   textMuted: '#64748B',

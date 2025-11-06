@@ -50,7 +50,7 @@ const MOCK_GOALS: Goal[] = [
 const GoalItem = ({ goal, hasData }: GoalItemProps) => {
   const theme = useAppTheme();
   const width: DimensionValue = hasData ? `${goal.progress}%` : '6%';
-  const barColor = hasData ? theme.colors.cardItem : `${theme.colors.textSecondary}26`;
+  const barColor = hasData ? theme.colors.textSecondary : `${theme.colors.textSecondary}26`;
   const titleColor = hasData ? theme.colors.textPrimary : theme.colors.textMuted;
   const metaColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
 

@@ -109,11 +109,11 @@ export default function ProductivityInsightsWidget({
             <View key={point.label} style={styles.trendItem}>
               <View style={[styles.trendBarContainer, {
                 backgroundColor: "transparent",
-                borderColor: theme.colors.cardItem
+                borderColor: theme.colors.textSecondary
               }]}>
                 <View style={[styles.trendBar, {
                   height: `${Math.max(6, Math.min(point.value, 100))}%`,
-                  backgroundColor: hasData ? theme.colors.cardItem : `${theme.colors.textSecondary}30`
+                  backgroundColor: hasData ? theme.colors.textSecondary : `${theme.colors.textSecondary}30`
                 }]} />
               </View>
               <Text style={[styles.trendLabel, { color: theme.colors.textSecondary }]}>{point.label}</Text>

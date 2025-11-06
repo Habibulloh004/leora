@@ -65,7 +65,7 @@ export default function BudgetProgressWidget({
                       styles.progressFill,
                       {
                         width: hasData ? `${Math.min(progress * 100, 100)}%` : '6%',
-                        backgroundColor: hasData ? theme.colors.cardItem : `${theme.colors.textSecondary}30`,
+                        backgroundColor: hasData ? theme.colors.textSecondary : `${theme.colors.textSecondary}30`,
                       },
                     ]}
                   />
