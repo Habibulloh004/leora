@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Dot, Flame } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
@@ -18,47 +18,94 @@ const MOCK_STATS: WeeklyStats = {
   streak: 7,
 };
 
-export default function WeeklyReviewWidget() {
+interface WeeklyReviewWidgetProps {
+  stats?: WeeklyStats;
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+const PLACEHOLDER_STATS: WeeklyStats = {
+  tasksCompleted: 0,
+  totalTasks: 0,
+  focusHours: 0,
+  streak: 0,
+};
+
+export default function WeeklyReviewWidget({
+  stats,
+  hasData = true,
+  dateLabel = '',
+}: WeeklyReviewWidgetProps) {
   const theme = useAppTheme();
-  const completionRate = Math.round((MOCK_STATS.tasksCompleted / MOCK_STATS.totalTasks) * 100);
+  const data = hasData ? (stats ?? MOCK_STATS) : PLACEHOLDER_STATS;
+  const completionRate = hasData
+    ? Math.round((data.tasksCompleted / Math.max(data.totalTasks, 1)) * 100)
+    : null;
+  const summaryText = hasData
+    ? `Great week! You completed ${data.tasksCompleted} of ${data.totalTasks} tasks.`
+    : 'Complete sessions to unlock weekly insights.';
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.widget, { backgroundColor:   theme.colors.card }]}>
-        <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-          <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Weekly Review</Text>
-            <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Jan 6-12</Text>
+          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+            <View style={styles.titleContainer}>
+              <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Weekly Review</Text>
+              <Dot color={theme.colors.textSecondary} />
+              <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+                {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                }).format(new Date()) : '—')}
+              </Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: theme.colors.cardItem }]}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{completionRate}%</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Completion</Text>
-          </View>
-
-          <View style={[styles.statCard, { backgroundColor: theme.colors.cardItem }]}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{MOCK_STATS.focusHours}h</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Focus Time</Text>
-          </View>
-
-          <View style={[styles.statCard, styles.fullWidth, { backgroundColor: theme.colors.cardItem }]}>
-            <View style={styles.streakRow}>
-              <Flame size={16} color={theme.colors.warning} />
-              <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{MOCK_STATS.streak} days</Text>
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: theme.colors.cardItem }]}>
+              <Text style={[
+                styles.statValue,
+                { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted },
+              ]}
+              >
+                {completionRate != null ? `${completionRate}%` : '--'}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Completion</Text>
             </View>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Current streak</Text>
-          </View>
-        </View>
 
-        <Text style={[styles.summary, { color: theme.colors.textSecondary }]}>
-          Great week! You completed {MOCK_STATS.tasksCompleted} of {MOCK_STATS.totalTasks} tasks.
-        </Text>
+            <View style={[styles.statCard, { backgroundColor: theme.colors.cardItem }]}>
+              <Text style={[
+                styles.statValue,
+                { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted },
+              ]}
+              >
+                {hasData ? `${data.focusHours}h` : '--'}
+              </Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Focus Time</Text>
+            </View>
+
+            <View style={[styles.statCard, styles.fullWidth, { backgroundColor: theme.colors.cardItem }]}>
+              <View style={styles.streakRow}>
+                <Flame size={16} color={theme.colors.warning} />
+                <Text style={[
+                  styles.statValue,
+                  { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted },
+                ]}
+                >
+                  {hasData ? `${data.streak} days` : '--'}
+                </Text>
+              </View>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Current streak</Text>
+            </View>
+          </View>
+
+          <Text style={[styles.summary, { color: theme.colors.textSecondary }]}>
+            {summaryText}
+          </Text>
       </AdaptiveGlassView>
     </View>
   );

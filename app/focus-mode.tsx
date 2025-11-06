@@ -28,7 +28,7 @@ import Svg, { Circle, Defs, G, RadialGradient, Stop } from 'react-native-svg';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-import { useThemeColors } from '@/constants/theme';
+import { useAppTheme, useThemeColors } from '@/constants/theme';
 import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
 import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { TECHNIQUES, TOGGLE_OPTIONS, TechniqueConfig } from '@/features/focus/types';
@@ -81,7 +81,11 @@ const FocusToggle = ({
     transform: [{ scale: interpolate(press.value, [0, 1], [1, 0.97]) }],
   }));
   const trackStyle = useAnimatedStyle(() => ({
-    backgroundColor: interpolateColor(progress.value, [0, 1], [colors.surface, colors.primary]),
+    backgroundColor: interpolateColor(
+      progress.value,
+      [0, 1],
+      [colors.surfaceElevated, colors.primary]
+    ),
   }));
   const knobStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: interpolate(progress.value, [0, 1], [0, 22], Extrapolation.CLAMP) }],
@@ -125,12 +129,20 @@ const TimerRing = ({
         <Defs>
           <RadialGradient id="dialGrad" cx="50%" cy="45%" r="65%">
             <Stop offset="0%" stopColor={colors.surface} stopOpacity={1} />
-            <Stop offset="100%" stopColor={colors.background} stopOpacity={1} />
+            <Stop offset="100%" stopColor={colors.surfaceElevated} stopOpacity={1} />
           </RadialGradient>
         </Defs>
         <Circle fill="url(#dialGrad)" cx={CX} cy={CY} r={INNER_DISK_RADIUS} />
         <G rotation={-90} originX={CX} originY={CY}>
-          <Circle stroke={colors.surfaceElevated} fill="transparent" cx={CX} cy={CY} r={INNER_RADIUS} strokeWidth={STROKE_WIDTH} strokeDasharray={CIRCUMFERENCE} />
+          <Circle
+            stroke={colors.border}
+            fill="transparent"
+            cx={CX}
+            cy={CY}
+            r={INNER_RADIUS}
+            strokeWidth={STROKE_WIDTH}
+            strokeDasharray={CIRCUMFERENCE}
+          />
           <AnimatedCircle
             stroke={colors.primary}
             fill="transparent"
@@ -153,6 +165,7 @@ const TimerRing = ({
 
 export default function FocusModeScreen() {
   const colors = useThemeColors();
+  const theme = useAppTheme();
   const router = useRouter();
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
@@ -269,30 +282,54 @@ export default function FocusModeScreen() {
     router.push('/(modals)/focus-settings');
   }, [router]);
 
+  const handleBack = useCallback(() => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  }, [router]);
+
   const handleFinish = useCallback(() => {
     if (timerState === 'ready') return;
     const achieved = totalSeconds > 0 && elapsedSeconds >= totalSeconds;
     handleSessionComplete(achieved);
   }, [elapsedSeconds, handleSessionComplete, timerState, totalSeconds]);
 
+  const isDarkMode = theme.mode === 'dark';
+  const timerTextColor = isDarkMode ? colors.white : colors.textPrimary;
+  const editInputBorderColor = isDarkMode ? 'rgba(255,255,255,0.24)' : colors.border;
+  const timerActionBackground = colors.primary;
+  const timerActionIconColor = colors.onPrimary;
+
   return (
     <>
       <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'right', 'left']}>
         <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding', default: undefined })} style={styles.flex}>
           <View style={styles.flex}>
-          <View style={styles.header}>
-            <View style={[styles.headerIcon, { backgroundColor: colors.surface }]}>
-              {toggles.appBlock || toggles.notifications ? (
-                <MaterialCommunityIcons name="lock" size={18} color={colors.textSecondary} />
-              ) : (
-                <MaterialCommunityIcons name="lock-open-variant" size={18} color={colors.textSecondary} />
-              )}
+            <View style={styles.header}>
+              <View style={styles.headerLeft}>
+                <Pressable
+                  onPress={handleBack}
+                  style={[styles.headerIcon, styles.headerBack, { backgroundColor: colors.surface }]}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back"
+                >
+                  <Feather name="chevron-left" size={18} color={colors.textSecondary} />
+                </Pressable>
+                <View style={[styles.headerIcon, { backgroundColor: colors.surface }]}>
+                  {toggles.appBlock || toggles.notifications ? (
+                    <MaterialCommunityIcons name="lock" size={18} color={colors.textSecondary} />
+                  ) : (
+                    <MaterialCommunityIcons name="lock-open-variant" size={18} color={colors.textSecondary} />
+                  )}
+                </View>
+              </View>
+              <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>FOCUS MODE</Text>
+              <Pressable style={[styles.headerIcon, { backgroundColor: colors.surface }]} onPress={openSettings}>
+                <Feather name="settings" size={18} color={colors.textSecondary} />
+              </Pressable>
             </View>
-            <Text style={[styles.headerTitle, { color: colors.textSecondary }]}>FOCUS MODE</Text>
-            <Pressable style={[styles.headerIcon, { backgroundColor: colors.surface }]} onPress={openSettings}>
-              <Feather name="settings" size={18} color={colors.textSecondary} />
-            </Pressable>
-          </View>
 
           <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
             <View style={styles.hero}>
@@ -311,10 +348,14 @@ export default function FocusModeScreen() {
                         style={[
                           styles.timerValue,
                           {
-                            color: colors.white,
-                            textShadowColor: '#000',
-                            textShadowOffset: { width: 0, height: 2 },
-                            textShadowRadius: 6,
+                            color: timerTextColor,
+                            ...(isDarkMode
+                              ? {
+                                  textShadowColor: '#000',
+                                  textShadowOffset: { width: 0, height: 2 },
+                                  textShadowRadius: 6,
+                                }
+                              : null),
                           },
                         ]}
                       >
@@ -329,17 +370,17 @@ export default function FocusModeScreen() {
                         keyboardType="number-pad"
                         maxLength={3}
                         autoFocus
-                        style={[styles.editTimerInput, { color: colors.white }]}
+                        style={[styles.editTimerInput, { color: timerTextColor, borderColor: editInputBorderColor }]}
                         placeholder="00"
                         placeholderTextColor={colors.textTertiary}
                       />
-                      <Text style={[styles.editTimerColon, { color: colors.white }]}>:</Text>
+                      <Text style={[styles.editTimerColon, { color: timerTextColor }]}>:</Text>
                       <TextInput
                         value={editSec}
                         onChangeText={(t) => setEditSec(t.replace(/[^0-9]/g, ''))}
                         keyboardType="number-pad"
                         maxLength={2}
-                        style={[styles.editTimerInput, { color: colors.white }]}
+                        style={[styles.editTimerInput, { color: timerTextColor, borderColor: editInputBorderColor }]}
                         placeholder="00"
                         placeholderTextColor={colors.textTertiary}
                       />
@@ -367,9 +408,9 @@ export default function FocusModeScreen() {
 
                   <Pressable
                     onPress={primaryAction.action}
-                    style={[styles.timerAction, { backgroundColor: isEditingDuration ? colors.primary : colors.surface }]}
+                    style={[styles.timerAction, { backgroundColor: timerActionBackground }]}
                   >
-                    <Feather name={primaryAction.icon as any} size={28} color={isEditingDuration ? colors.onPrimary : colors.white} />
+                    <Feather name={primaryAction.icon as any} size={28} color={timerActionIconColor} />
                   </Pressable>
                 </View>
               </View>
@@ -433,7 +474,9 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 8 },
+  headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  headerBack: { width: 40 },
   headerTitle: { fontSize: 13, letterSpacing: 2, fontWeight: '600' },
   content: { flex: 1 },
   contentContainer: { paddingHorizontal: 18, paddingBottom: 32, flexGrow: 1 },
@@ -447,7 +490,7 @@ const styles = StyleSheet.create({
   statusInside: { fontSize: 13, marginBottom: 6, letterSpacing: 0.3 },
   timerValue: { fontSize: 48, fontWeight: '600', letterSpacing: 2 },
   editTimerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 6, marginBottom: 2 },
-  editTimerInput: { width: 64, textAlign: 'center', fontSize: 44, fontWeight: '600', borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.18)', paddingVertical: 2 },
+  editTimerInput: { width: 64, textAlign: 'center', fontSize: 44, fontWeight: '600', borderBottomWidth: 1, paddingVertical: 2 },
   editTimerColon: { fontSize: 40, fontWeight: '600' },
   timerMetaRow: { flexDirection: 'row', gap: 42, marginTop: 8 },
   timerMetaCol: { alignItems: 'center' },

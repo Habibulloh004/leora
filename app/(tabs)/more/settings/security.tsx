@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as LocalAuthentication from 'expo-local-authentication';
 import {
   AlertCircle,
   Bell,
@@ -45,6 +46,11 @@ import {
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
+import {
+  DEFAULT_AUTO_LOCK_MS,
+  DEFAULT_UNLOCK_GRACE_MS,
+  useLockStore,
+} from '@/stores/useLockStore';
 
 type SectionKey =
   | 'security-type'
@@ -67,6 +73,21 @@ const SECTION_KEYS: SectionKey[] = [
 
 const SCROLL_OFFSET = 96;
 
+const AUTO_LOCK_OPTIONS = [
+  { label: '30 sec', value: 30 * 1000 },
+  { label: '1 min', value: 60 * 1000 },
+  { label: '5 min', value: 5 * 60 * 1000 },
+  { label: '10 min', value: 10 * 60 * 1000 },
+  { label: 'Never', value: 0 },
+] as const;
+
+const UNLOCK_GRACE_OPTIONS = [
+  { label: 'Immediately', value: 0 },
+  { label: '15 sec', value: 15 * 1000 },
+  { label: '30 sec', value: 30 * 1000 },
+  { label: '1 min', value: 60 * 1000 },
+] as const;
+
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     safe: {
@@ -75,7 +96,7 @@ const createStyles = (theme: Theme) =>
     },
     content: {
       paddingHorizontal: theme.spacing.lg,
-      paddingBottom: theme.spacing.xxxl,
+      paddingBottom: theme.spacing.xxxl + 32,
       paddingTop: theme.spacing.lg,
       gap: theme.spacing.xl,
     },
@@ -186,6 +207,24 @@ const createStyles = (theme: Theme) =>
       fontWeight: '700',
       letterSpacing: 0.3,
       color: theme.colors.textSecondary,
+    },
+    chipActive: {
+      backgroundColor:
+        theme.mode === 'dark'
+          ? 'rgba(226,232,240,0.18)'
+          : 'rgba(71,85,105,0.16)',
+    },
+    chipActiveText: {
+      color: theme.colors.textPrimary,
+    },
+    chipDisabled: {
+      opacity: 0.4,
+    },
+    chipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'flex-end',
+      gap: theme.spacing.sm,
     },
     codeGrid: {
       flexDirection: 'row',
@@ -347,11 +386,33 @@ const SecuritySettingsScreen: React.FC = () => {
   const isIOS = Platform.OS === 'ios';
   const isAndroid = Platform.OS === 'android';
 
-  const [biometricsEnabled, setBiometricsEnabled] = useState(true);
-  const [faceIdEnabled, setFaceIdEnabled] = useState(isIOS);
-  const [fingerprintEnabled, setFingerprintEnabled] = useState(isAndroid);
-  const [pinEnabled, setPinEnabled] = useState(false);
-  const [securityOff, setSecurityOff] = useState(false);
+  const lockEnabled = useLockStore((state) => state.lockEnabled);
+  const setLockEnabledStore = useLockStore((state) => state.setLockEnabled);
+  const setBiometricsEnabledStore = useLockStore((state) => state.setBiometricsEnabled);
+  const resetPinStore = useLockStore((state) => state.resetPin);
+  const autoLockTimeoutMs = useLockStore((state) => state.autoLockTimeoutMs);
+  const unlockGraceMs = useLockStore((state) => state.unlockGraceMs);
+  const setAutoLockTimeoutMsStore = useLockStore((state) => state.setAutoLockTimeoutMs);
+  const setUnlockGraceMsStore = useLockStore((state) => state.setUnlockGraceMs);
+  const biometricsEnabledStore = useLockStore((state) => state.biometricsEnabled);
+  const storedPin = useLockStore((state) => state.pin);
+
+  const securityOff = !lockEnabled;
+
+  const [biometricInfo, setBiometricInfo] = useState({
+    available: false,
+    enrolled: false,
+    supportsFaceId: false,
+    supportsFingerprint: false,
+  });
+  const [biometricLoading, setBiometricLoading] = useState(true);
+  const [biometricsEnabled, setBiometricsEnabledState] = useState(
+    () => biometricsEnabledStore,
+  );
+  const [faceIdEnabled, setFaceIdEnabled] = useState(false);
+  const [fingerprintEnabled, setFingerprintEnabled] = useState(false);
+  const [pinEnabled, setPinEnabled] = useState(() => Boolean(storedPin));
+  const [hasPassword, setHasPassword] = useState(() => Boolean(storedPin));
   const [askOnLaunch, setAskOnLaunch] = useState(true);
   const [databaseEncrypted, setDatabaseEncrypted] = useState(true);
   const [hidePreview, setHidePreview] = useState(true);
@@ -367,6 +428,69 @@ const SecuritySettingsScreen: React.FC = () => {
   const [dataAccess, setDataAccess] = useState(true);
   const [sharePartners, setSharePartners] = useState(false);
 
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        const hasHardware = await LocalAuthentication.hasHardwareAsync();
+        const supported = hasHardware
+          ? await LocalAuthentication.supportedAuthenticationTypesAsync()
+          : [];
+        const enrolled = hasHardware
+          ? await LocalAuthentication.isEnrolledAsync()
+          : false;
+        const supportsFaceId = supported.includes(
+          LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION,
+        );
+        const supportsFingerprint = supported.includes(
+          LocalAuthentication.AuthenticationType.FINGERPRINT,
+        );
+        if (isMounted) {
+          setBiometricInfo({
+            available: hasHardware,
+            enrolled,
+            supportsFaceId,
+            supportsFingerprint,
+          });
+          const shouldEnable =
+            hasHardware &&
+            enrolled &&
+            biometricsEnabledStore &&
+            !securityOff;
+          setBiometricsEnabledState(shouldEnable);
+          setFaceIdEnabled(shouldEnable && supportsFaceId);
+          setFingerprintEnabled(shouldEnable && supportsFingerprint);
+          if (!hasHardware || !enrolled) {
+            setBiometricsEnabledStore(false);
+          }
+        }
+      } catch (error) {
+        if (__DEV__) {
+          console.warn('Unable to fetch biometric capabilities', error);
+        }
+        if (isMounted) {
+          setBiometricInfo({
+            available: false,
+            enrolled: false,
+            supportsFaceId: false,
+            supportsFingerprint: false,
+          });
+          setBiometricsEnabledState(false);
+          setFaceIdEnabled(false);
+          setFingerprintEnabled(false);
+          setBiometricsEnabledStore(false);
+        }
+      } finally {
+        if (isMounted) {
+          setBiometricLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [biometricsEnabledStore, securityOff, setBiometricsEnabledStore]);
 
   useEffect(() => {
     if (normalizedSection && SECTION_KEYS.includes(normalizedSection)) {
@@ -374,12 +498,192 @@ const SecuritySettingsScreen: React.FC = () => {
     }
   }, [normalizedSection, schedule]);
 
-  const handleChangePassword = useCallback(() => {
-    router.push({
-      pathname: '/(modals)/change-password',
-      params: { source: 'security' },
-    });
-  }, [router]);
+  const biometricUnavailable =
+    !biometricInfo.available || !biometricInfo.enrolled;
+  const supportsFaceId = biometricInfo.supportsFaceId;
+  const supportsFingerprint = biometricInfo.supportsFingerprint;
+  const securityControlsDisabled = securityOff;
+  const faceIdRowDisabled =
+    !supportsFaceId || biometricUnavailable || securityControlsDisabled;
+  const fingerprintRowDisabled =
+    !supportsFingerprint || biometricUnavailable || securityControlsDisabled;
+  const faceIdDescription = supportsFaceId
+    ? 'Require Face ID whenever launching the app.'
+    : 'Face ID is not available on this device.';
+  const fingerprintDescription = supportsFingerprint
+    ? 'Unlock with your saved fingerprint on this device.'
+    : 'Fingerprint unlock is not supported on this device.';
+
+  const autoLockLabel = useMemo(() => {
+    if (autoLockTimeoutMs <= 0) {
+      return 'Never';
+    }
+    const preset = AUTO_LOCK_OPTIONS.find(
+      (option) => option.value === autoLockTimeoutMs,
+    );
+    if (preset) return preset.label;
+    if (autoLockTimeoutMs % (60 * 1000) === 0) {
+      return `${Math.round(autoLockTimeoutMs / (60 * 1000))} min`;
+    }
+    return `${Math.round(autoLockTimeoutMs / 1000)} sec`;
+  }, [autoLockTimeoutMs]);
+
+  const unlockGraceLabel = useMemo(() => {
+    const preset = UNLOCK_GRACE_OPTIONS.find(
+      (option) => option.value === unlockGraceMs,
+    );
+    if (preset) return preset.label;
+    if (unlockGraceMs % (60 * 1000) === 0) {
+      return `${Math.round(unlockGraceMs / (60 * 1000))} min`;
+    }
+    return `${Math.round(unlockGraceMs / 1000)} sec`;
+  }, [unlockGraceMs]);
+
+  const handleOpenPasswordModal = useCallback(
+    (mode: 'create' | 'update') => {
+      router.push({
+        pathname: '/(modals)/change-password',
+        params: { source: 'security', mode },
+      });
+      if (mode === 'create') {
+        setHasPassword(true);
+      }
+    },
+    [router, setHasPassword],
+  );
+
+  const handlePinToggle = useCallback(
+    (value: boolean) => {
+      setPinEnabled(value);
+      if (!value) {
+        resetPinStore();
+        return;
+      }
+      if (value && !hasPassword) {
+        handleOpenPasswordModal('create');
+      }
+      setLockEnabledStore(true);
+    },
+    [hasPassword, handleOpenPasswordModal, resetPinStore, setLockEnabledStore],
+  );
+
+  const handleToggleBiometrics = useCallback(
+    (value: boolean) => {
+      if (securityControlsDisabled || biometricUnavailable) {
+        setBiometricsEnabledState(false);
+        setBiometricsEnabledStore(false);
+        return;
+      }
+      setBiometricsEnabledState(value);
+      setBiometricsEnabledStore(value);
+      if (!value) {
+        setFaceIdEnabled(false);
+        setFingerprintEnabled(false);
+      } else {
+        setLockEnabledStore(true);
+      }
+    },
+    [
+      biometricUnavailable,
+      securityControlsDisabled,
+      setLockEnabledStore,
+      setBiometricsEnabledStore,
+    ],
+  );
+
+  const handleToggleSecurityOff = useCallback(
+    (value: boolean) => {
+      if (value) {
+        setLockEnabledStore(false);
+        setBiometricsEnabledState(false);
+        setBiometricsEnabledStore(false);
+        setFaceIdEnabled(false);
+        setFingerprintEnabled(false);
+        setPinEnabled(false);
+        resetPinStore();
+      } else {
+        setLockEnabledStore(true);
+        if (autoLockTimeoutMs <= 0) {
+          setAutoLockTimeoutMsStore(DEFAULT_AUTO_LOCK_MS);
+        }
+        if (unlockGraceMs < 0) {
+          setUnlockGraceMsStore(DEFAULT_UNLOCK_GRACE_MS);
+        }
+      }
+    },
+    [
+      autoLockTimeoutMs,
+      resetPinStore,
+      setAutoLockTimeoutMsStore,
+      setBiometricsEnabledState,
+      setBiometricsEnabledStore,
+      setFaceIdEnabled,
+      setFingerprintEnabled,
+      setLockEnabledStore,
+      setPinEnabled,
+      setUnlockGraceMsStore,
+      unlockGraceMs,
+    ],
+  );
+
+  const handleSelectAutoLock = useCallback(
+    (value: number) => {
+      if (securityControlsDisabled) {
+        return;
+      }
+      setAutoLockTimeoutMsStore(value);
+    },
+    [securityControlsDisabled, setAutoLockTimeoutMsStore],
+  );
+
+  const handleSelectUnlockGrace = useCallback(
+    (value: number) => {
+      if (securityControlsDisabled) {
+        return;
+      }
+      setUnlockGraceMsStore(value);
+    },
+    [securityControlsDisabled, setUnlockGraceMsStore],
+  );
+
+  useEffect(() => {
+    if (!supportsFaceId) {
+      setFaceIdEnabled(false);
+    }
+    if (!supportsFingerprint) {
+      setFingerprintEnabled(false);
+    }
+  }, [supportsFaceId, supportsFingerprint]);
+
+  useEffect(() => {
+    if (securityControlsDisabled || biometricUnavailable) {
+      setBiometricsEnabledState(false);
+      setFaceIdEnabled(false);
+      setFingerprintEnabled(false);
+      return;
+    }
+    setBiometricsEnabledState(biometricsEnabledStore);
+  }, [
+    biometricUnavailable,
+    biometricsEnabledStore,
+    securityControlsDisabled,
+  ]);
+
+  useEffect(() => {
+    if (!biometricsEnabled) {
+      setFaceIdEnabled(false);
+      setFingerprintEnabled(false);
+      return;
+    }
+    setFaceIdEnabled(supportsFaceId);
+    setFingerprintEnabled(supportsFingerprint);
+  }, [biometricsEnabled, supportsFaceId, supportsFingerprint]);
+
+  useEffect(() => {
+    const pinPresent = Boolean(storedPin);
+    setPinEnabled(pinPresent);
+    setHasPassword((prev) => prev || pinPresent);
+  }, [storedPin]);
 
   const handleSignOutAll = useCallback(() => {
     console.log('Sign out all sessions');
@@ -440,7 +744,8 @@ const SecuritySettingsScreen: React.FC = () => {
                 </View>
                 <Switch
                   value={biometricsEnabled}
-                  onValueChange={setBiometricsEnabled}
+                  onValueChange={handleToggleBiometrics}
+                  disabled={biometricLoading || biometricUnavailable || securityControlsDisabled}
                   trackColor={{
                     false: 'rgba(148,163,184,0.35)',
                     true: theme.colors.primary,
@@ -458,14 +763,14 @@ const SecuritySettingsScreen: React.FC = () => {
                     <View style={styles.rowLabels}>
                       <Text style={styles.rowLabel}>Face ID</Text>
                       <Text style={styles.rowDescription}>
-                        Require Face ID whenever launching the app.
+                        {faceIdDescription}
                       </Text>
                     </View>
                   </View>
                   <Switch
                     value={faceIdEnabled}
                     onValueChange={setFaceIdEnabled}
-                    disabled={!biometricsEnabled}
+                    disabled={!biometricsEnabled || faceIdRowDisabled}
                     trackColor={{
                       false: 'rgba(148,163,184,0.35)',
                       true: theme.colors.primary,
@@ -484,14 +789,14 @@ const SecuritySettingsScreen: React.FC = () => {
                     <View style={styles.rowLabels}>
                       <Text style={styles.rowLabel}>Fingerprint</Text>
                       <Text style={styles.rowDescription}>
-                        Unlock with your saved fingerprint on this device.
+                        {fingerprintDescription}
                       </Text>
                     </View>
                   </View>
                   <Switch
                     value={fingerprintEnabled}
                     onValueChange={setFingerprintEnabled}
-                    disabled={!biometricsEnabled}
+                    disabled={!biometricsEnabled || fingerprintRowDisabled}
                     trackColor={{
                       false: 'rgba(148,163,184,0.35)',
                       true: theme.colors.primary,
@@ -515,7 +820,8 @@ const SecuritySettingsScreen: React.FC = () => {
                 </View>
                 <Switch
                   value={pinEnabled}
-                  onValueChange={setPinEnabled}
+                  onValueChange={handlePinToggle}
+                  disabled={securityControlsDisabled}
                   trackColor={{
                     false: 'rgba(148,163,184,0.35)',
                     true: theme.colors.primary,
@@ -524,7 +830,11 @@ const SecuritySettingsScreen: React.FC = () => {
                 />
               </View>
 
-              <Pressable onPress={handleChangePassword}>
+              <Pressable
+                onPress={() =>
+                  handleOpenPasswordModal(hasPassword ? 'update' : 'create')
+                }
+              >
                 <View style={styles.row}>
                   <View style={styles.rowLeft}>
                     <View style={styles.iconBadge}>
@@ -533,11 +843,15 @@ const SecuritySettingsScreen: React.FC = () => {
                     <View style={styles.rowLabels}>
                       <Text style={styles.rowLabel}>Password</Text>
                       <Text style={styles.rowDescription}>
-                        Change the main account password.
+                        {hasPassword
+                          ? 'Change the main account password.'
+                          : 'Create a password to secure your data.'}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.rowMeta}>Edit</Text>
+                  <Text style={styles.rowMeta}>
+                    {hasPassword ? 'Change' : 'Create'}
+                  </Text>
                 </View>
               </Pressable>
 
@@ -555,7 +869,7 @@ const SecuritySettingsScreen: React.FC = () => {
                 </View>
                 <Switch
                   value={securityOff}
-                  onValueChange={setSecurityOff}
+                  onValueChange={handleToggleSecurityOff}
                   trackColor={{
                     false: 'rgba(148,163,184,0.35)',
                     true: theme.colors.primary,
@@ -579,6 +893,7 @@ const SecuritySettingsScreen: React.FC = () => {
                 <Switch
                   value={askOnLaunch}
                   onValueChange={setAskOnLaunch}
+                  disabled={securityControlsDisabled}
                   trackColor={{
                     false: 'rgba(148,163,184,0.35)',
                     true: theme.colors.primary,
@@ -595,11 +910,80 @@ const SecuritySettingsScreen: React.FC = () => {
                   <View style={styles.rowLabels}>
                     <Text style={styles.rowLabel}>Autoblock after</Text>
                     <Text style={styles.rowDescription}>
-                      Locks the app automatically after 1 minute of inactivity.
+                      Choose how long the app stays unlocked when inactive.
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.rowMeta}>1 min</Text>
+                <Text style={styles.rowMeta}>{autoLockLabel}</Text>
+              </View>
+              <View style={styles.chipRow}>
+                {AUTO_LOCK_OPTIONS.map((option) => {
+                  const active = option.value === autoLockTimeoutMs;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      accessibilityRole="button"
+                      disabled={securityControlsDisabled}
+                      onPress={() => handleSelectAutoLock(option.value)}
+                      style={[
+                        styles.chip,
+                        active && styles.chipActive,
+                        securityControlsDisabled && styles.chipDisabled,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          active && styles.chipActiveText,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.rowLeft}>
+                  <View style={styles.iconBadge}>
+                    <Timer size={18} color={theme.colors.iconText} />
+                  </View>
+                  <View style={styles.rowLabels}>
+                    <Text style={styles.rowLabel}>Unlock grace period</Text>
+                    <Text style={styles.rowDescription}>
+                      Decide how soon the lock appears after leaving the app.
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.rowMeta}>{unlockGraceLabel}</Text>
+              </View>
+              <View style={styles.chipRow}>
+                {UNLOCK_GRACE_OPTIONS.map((option) => {
+                  const active = option.value === unlockGraceMs;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      accessibilityRole="button"
+                      disabled={securityControlsDisabled}
+                      onPress={() => handleSelectUnlockGrace(option.value)}
+                      style={[
+                        styles.chip,
+                        active && styles.chipActive,
+                        securityControlsDisabled && styles.chipDisabled,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.chipText,
+                          active && styles.chipActiveText,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
               </View>
             </AdaptiveGlassView>
           </View>

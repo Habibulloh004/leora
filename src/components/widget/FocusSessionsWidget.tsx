@@ -1,6 +1,6 @@
 // src/components/widget/FocusSessionsWidget.tsx
 import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Dot, Timer } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
@@ -18,8 +18,41 @@ const MOCK_SESSIONS: FocusSession[] = [
   { id: '3', task: 'Project Planning', duration: 25, completed: false },
 ];
 
-export default function FocusSessionsWidget() {
+const PLACEHOLDER_SESSIONS: FocusSession[] = [
+  { id: 'p1', task: 'No sessions logged', duration: 0, completed: false },
+  { id: 'p2', task: 'Calendar is free', duration: 0, completed: false },
+];
+
+interface FocusSessionsWidgetProps {
+  sessions?: FocusSession[];
+  summary?: {
+    completed: number;
+    totalMinutes: number;
+    nextSessionMinutes?: number | null;
+  };
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+export default function FocusSessionsWidget({
+  sessions,
+  summary,
+  hasData = true,
+  dateLabel = 'Today',
+}: FocusSessionsWidgetProps) {
   const theme = useAppTheme();
+  const list = hasData ? (sessions ?? MOCK_SESSIONS) : PLACEHOLDER_SESSIONS;
+  const completedCount = hasData
+    ? summary?.completed ?? list.filter((item) => item.completed).length
+    : 0;
+  const totalMinutes = hasData
+    ? summary?.totalMinutes ?? list.reduce((minutes, item) => minutes + item.duration, 0)
+    : 0;
+  const nextSessionMinutes = hasData
+    ? summary?.nextSessionMinutes ?? list.find((item) => !item.completed)?.duration ?? null
+    : null;
+  const primaryLabelColor = hasData ? theme.colors.textPrimary : theme.colors.textMuted;
+  const secondaryLabelColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
 
   return (
     <View style={styles.container}>
@@ -28,7 +61,7 @@ export default function FocusSessionsWidget() {
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Focus Sessions</Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Today</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{dateLabel}</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
@@ -37,31 +70,48 @@ export default function FocusSessionsWidget() {
 
         <View style={styles.stats}>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>2</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Completed</Text>
+            <Text style={[styles.statValue, { color: primaryLabelColor }]}>
+              {hasData ? completedCount : '--'}
+            </Text>
+            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>Completed</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>50m</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Total Time</Text>
+            <Text style={[styles.statValue, { color: primaryLabelColor }]}>
+              {hasData ? `${totalMinutes}m` : '--'}
+            </Text>
+            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>Total Time</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>25m</Text>
-            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Next Session</Text>
+            <Text style={[styles.statValue, { color: primaryLabelColor }]}>
+              {hasData
+                ? nextSessionMinutes != null
+                  ? `${nextSessionMinutes}m`
+                  : '—'
+                : '--'}
+            </Text>
+            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>Next Session</Text>
           </View>
         </View>
 
         <View style={styles.sessionsContainer}>
-          {MOCK_SESSIONS.map(session => (
-            <View key={session.id} style={[styles.sessionItem, { borderBottomColor: theme.colors.border }]}>
+          {list.map((session) => (
+            <View
+              key={session.id}
+              style={[styles.sessionItem, { borderBottomColor: theme.colors.border }]}
+            >
               <Timer size={20} color={session.completed ? theme.colors.success : theme.colors.textSecondary} />
               <Text style={[
                 styles.sessionTask,
-                { color: theme.colors.textPrimary },
-                session.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
+                {
+                  color: hasData ? theme.colors.textPrimary : theme.colors.textMuted,
+                },
+                session.completed && hasData && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
               ]}>
                 {session.task}
               </Text>
-              <Text style={[styles.sessionDuration, { color: theme.colors.textSecondary }]}>{session.duration}m</Text>
+              <Text style={[styles.sessionDuration, { color: secondaryLabelColor }]}>
+                {hasData ? `${session.duration}m` : '--'}
+              </Text>
             </View>
           ))}
         </View>

@@ -7,39 +7,27 @@
     "icon": "./assets/images/icon.png",
     "scheme": "leora",
     "userInterfaceStyle": "automatic",
+
     "splash": {
       "image": "./assets/images/iphone-splash-preview-dark.png",
       "resizeMode": "cover",
       "backgroundColor": "#000000"
     },
+
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.habibulloh.leora",
       "buildNumber": "1.2.0",
-      "splash": {
-        "image": "./assets/images/iphone-splash-preview-dark.png",
-        "resizeMode": "cover",
-        "backgroundColor": "#000000"
-      },
       "infoPlist": {
-        "NSSupportsLiveActivities": true,
-        "NSSupportsLiveActivitiesFrequentUpdates": true,
         "UIViewControllerBasedStatusBarAppearance": false,
         "NSCameraUsageDescription": "LEORA needs access to your camera to capture receipts and documents.",
         "NSMicrophoneUsageDescription": "LEORA needs access to your microphone for voice commands.",
-        "NSFaceIDUsageDescription": "LEORA uses Face ID to securely access your financial data.",
+        "NSFaceIDUsageDescription": "LEORA uses Face ID to securely access your data.",
         "NSPhotoLibraryUsageDescription": "LEORA needs access to your photo library.",
-        "NSPhotoLibraryAddUsageDescription": "LEORA needs permission to save receipts.",
-        "UIStatusBarStyle": "UIStatusBarStyleLightContent",
-        "ITSAppUsesNonExemptEncryption": false
-      },
-      "entitlements": {
-        "com.apple.developer.usernotifications.filtering": true,
-        "com.apple.security.application-groups": [
-          "group.com.habibulloh.leora"
-        ]
+        "NSPhotoLibraryAddUsageDescription": "LEORA needs permission to save images."
       }
     },
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
@@ -54,11 +42,10 @@
         "USE_FINGERPRINT",
         "VIBRATE",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT"
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
+
     "plugins": [
       "expo-router",
       [
@@ -78,8 +65,7 @@
         {
           "faceIDPermission": "Allow LEORA to use Face ID for secure access."
         }
-      ],
-      "@bacons/apple-targets"
+      ]
     ],
     "extra": {
       "router": {
@@ -89,6 +75,7 @@
         "projectId": "5fa3a555-1519-4da3-9e1a-0879915b84d9"
       }
     },
+
     "owner": "habibulloh"
   }
 }

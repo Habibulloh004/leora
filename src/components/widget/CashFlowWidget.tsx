@@ -1,9 +1,21 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 
-const mockCashFlow = [
+interface CashFlowDay {
+  label: string;
+  income: number;
+  expense: number;
+}
+
+interface CashFlowWidgetProps {
+  days?: CashFlowDay[];
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+const MOCK_CASH_FLOW: CashFlowDay[] = [
   { label: 'Mon', income: 220, expense: 180 },
   { label: 'Tue', income: 180, expense: 210 },
   { label: 'Wed', income: 260, expense: 190 },
@@ -11,10 +23,23 @@ const mockCashFlow = [
   { label: 'Fri', income: 200, expense: 140 },
 ];
 
-export default function CashFlowWidget() {
+const PLACEHOLDER_CASH_FLOW: CashFlowDay[] = [
+  { label: 'Mon', income: 0, expense: 0 },
+  { label: 'Tue', income: 0, expense: 0 },
+  { label: 'Wed', income: 0, expense: 0 },
+  { label: 'Thu', income: 0, expense: 0 },
+  { label: 'Fri', income: 0, expense: 0 },
+];
+
+export default function CashFlowWidget({
+  days,
+  hasData = true,
+  dateLabel = '',
+}: CashFlowWidgetProps) {
   const theme = useAppTheme();
-  const totalIncome = mockCashFlow.reduce((sum, day) => sum + day.income, 0);
-  const totalExpense = mockCashFlow.reduce((sum, day) => sum + day.expense, 0);
+  const timeline = hasData ? (days ?? MOCK_CASH_FLOW) : PLACEHOLDER_CASH_FLOW;
+  const totalIncome = hasData ? timeline.reduce((sum, day) => sum + day.income, 0) : 0;
+  const totalExpense = hasData ? timeline.reduce((sum, day) => sum + day.expense, 0) : 0;
   const net = totalIncome - totalExpense;
 
   return (
@@ -24,32 +49,62 @@ export default function CashFlowWidget() {
       }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Cash Flow</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Last 5 days</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }).format(new Date()) : '—')}
+          </Text>
         </View>
 
         <View style={styles.summaryRow}>
           <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Income</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.success }]}>${totalIncome}</Text>
+          <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Income</Text>
+            <Text style={[
+              styles.summaryValue,
+              { color: hasData ? theme.colors.success : theme.colors.textMuted },
+            ]}
+            >
+              {hasData ? `$${totalIncome}` : '--'}
+            </Text>
           </View>
           <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
             <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Expenses</Text>
-            <Text style={[styles.summaryValue, { color: theme.colors.danger }]}>${totalExpense}</Text>
+            <Text style={[
+              styles.summaryValue,
+              { color: hasData ? theme.colors.danger : theme.colors.textMuted },
+            ]}
+            >
+              {hasData ? `$${totalExpense}` : '--'}
+            </Text>
           </View>
           <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
             <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Net</Text>
-            <Text style={[styles.summaryValue, { color: net >= 0 ? theme.colors.success : theme.colors.danger }]}>
-              ${net}
+            <Text style={[
+              styles.summaryValue,
+              {
+                color: hasData
+                  ? net >= 0 ? theme.colors.success : theme.colors.danger
+                  : theme.colors.textMuted,
+              },
+            ]}
+            >
+              {hasData ? `$${net}` : '--'}
             </Text>
           </View>
         </View>
 
         <View style={styles.table}>
-          {mockCashFlow.map((day) => (
+          {timeline.map((day) => (
             <View key={day.label} style={styles.tableRow}>
               <Text style={[styles.dayLabel, { color: theme.colors.textSecondary }]}>{day.label}</Text>
-              <Text style={[styles.tableValue, { color: theme.colors.success }]}>+${day.income}</Text>
-              <Text style={[styles.tableValue, { color: theme.colors.danger }]}>-${day.expense}</Text>
+              <Text style={[styles.tableValue, { color: hasData ? theme.colors.success : theme.colors.textMuted }]}>
+                {hasData ? `+$${day.income}` : '--'}
+              </Text>
+              <Text style={[styles.tableValue, { color: hasData ? theme.colors.danger : theme.colors.textMuted }]}>
+                {hasData ? `-$${day.expense}` : '--'}
+              </Text>
             </View>
           ))}
         </View>

@@ -10,9 +10,7 @@ import React, {
 import { AppState, AppStateStatus, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { LOCK_TIMEOUT_MS, useLockStore } from '@/stores/useLockStore';
-
-const INACTIVE_ROUTE = '/(modals)/inactive';
+import { useLockStore } from '@/stores/useLockStore';
 const LOCK_ROUTE = '/(modals)/lock';
 
 interface UserInactiveContextValue {
@@ -29,14 +27,14 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
   const router = useRouter();
   const isLoggedIn = useLockStore((state) => state.isLoggedIn);
   const isLocked = useLockStore((state) => state.isLocked);
-  const isInactive = useLockStore((state) => state.isInactive);
   const setLocked = useLockStore((state) => state.setLocked);
-  const setInactive = useLockStore((state) => state.setInactive);
   const updateLastActive = useLockStore((state) => state.updateLastActive);
   const setLastBackgrounded = useLockStore((state) => state.setLastBackgrounded);
   const lastBackgrounded = useLockStore((state) => state.lastBackgrounded);
   const lockEnabled = useLockStore((state) => state.lockEnabled);
   const lastActive = useLockStore((state) => state.lastActive);
+  const autoLockTimeoutMs = useLockStore((state) => state.autoLockTimeoutMs);
+  const unlockGraceMs = useLockStore((state) => state.unlockGraceMs);
 
   const currentModalRef = useRef<string | null>(null);
   const lastAppStateRef = useRef<AppStateStatus>(AppState.currentState ?? 'active');
@@ -46,6 +44,8 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
     if (currentModalRef.current) {
       if (router.canGoBack()) {
         router.back();
+      } else {
+        router.replace('/(tabs)');
       }
       currentModalRef.current = null;
     }
@@ -70,12 +70,8 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
 
   const handleActivity = useCallback(() => {
     if (!isLoggedIn || isLocked) return;
-    setInactive(false);
     updateLastActive();
-    if (currentModalRef.current === INACTIVE_ROUTE) {
-      dismissModal();
-    }
-  }, [dismissModal, isLocked, isLoggedIn, setInactive, updateLastActive]);
+  }, [isLocked, isLoggedIn, updateLastActive]);
 
   // Track when component is mounted
   useEffect(() => {
@@ -89,24 +85,27 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
     if (!isLoggedIn) {
       dismissModal();
       setLocked(false);
-      setInactive(false);
       setLastBackgrounded(null);
       return;
     }
-  }, [dismissModal, isLoggedIn, setInactive, setLastBackgrounded, setLocked]);
+  }, [dismissModal, isLoggedIn, setLastBackgrounded, setLocked]);
 
   useEffect(() => {
     if (!isLoggedIn || !lockEnabled) {
       return;
     }
 
+    if (autoLockTimeoutMs <= 0) {
+      return;
+    }
+
     const shouldLock =
-      typeof lastActive === 'number' && Date.now() - lastActive >= LOCK_TIMEOUT_MS;
+      typeof lastActive === 'number' && Date.now() - lastActive >= autoLockTimeoutMs;
 
     if (shouldLock && !isLocked) {
       setLocked(true);
     }
-  }, [isLoggedIn, isLocked, lastActive, lockEnabled, setLocked]);
+  }, [autoLockTimeoutMs, isLoggedIn, isLocked, lastActive, lockEnabled, setLocked]);
 
   useEffect(() => {
     const handleAppStateChange = (nextState: AppStateStatus) => {
@@ -118,46 +117,34 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
       const prevState = lastAppStateRef.current;
 
       if (nextState === 'inactive') {
-        if (lockEnabled) {
-          setInactive(true);
-          updateLastActive({ keepInactive: true });
-          presentModal(INACTIVE_ROUTE);
-        } else {
-          setInactive(false);
-          dismissModal();
-          updateLastActive({ keepInactive: true });
-        }
+        updateLastActive();
       }
 
       if (nextState === 'background') {
         setLastBackgrounded(Date.now());
-        if (lockEnabled) {
-          setInactive(true);
-        } else {
-          setInactive(false);
-        }
+        updateLastActive();
       }
 
       if (prevState === 'background' && nextState === 'active') {
         const elapsed = lastBackgrounded ? Date.now() - lastBackgrounded : 0;
-        const shouldLock = lockEnabled && elapsed >= LOCK_TIMEOUT_MS;
+        const exceededAutoLock =
+          autoLockTimeoutMs > 0 ? elapsed >= autoLockTimeoutMs : false;
+        const exceededUnlockGrace = elapsed >= unlockGraceMs;
+        const shouldLock =
+          lockEnabled && (exceededAutoLock || exceededUnlockGrace);
 
         if (shouldLock) {
           setLocked(true);
-          setInactive(false);
           presentModal(LOCK_ROUTE);
           setLastBackgrounded(null);
-          updateLastActive({ keepInactive: true });
+          updateLastActive();
         } else {
           setLocked(false);
-          setInactive(false);
           dismissModal();
           updateLastActive();
           setLastBackgrounded(null);
         }
       } else if (prevState === 'inactive' && nextState === 'active') {
-        setInactive(false);
-        dismissModal();
         updateLastActive();
       }
 
@@ -167,14 +154,15 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
   }, [
+    dismissModal,
+    autoLockTimeoutMs,
     isLoggedIn,
     lastBackgrounded,
     lockEnabled,
-    dismissModal,
     presentModal,
-    setInactive,
     setLastBackgrounded,
     setLocked,
+    unlockGraceMs,
     updateLastActive,
   ]);
 
@@ -183,16 +171,14 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
 
     if (isLocked && lockEnabled) {
       presentModal(LOCK_ROUTE);
-    } else if (isInactive && lockEnabled) {
-      presentModal(INACTIVE_ROUTE);
-    } else if (currentModalRef.current) {
-      dismissModal();
+    } else if (currentModalRef.current === LOCK_ROUTE) {
+      currentModalRef.current = null;
     }
 
     if (isLocked && !lockEnabled) {
       setLocked(false);
     }
-  }, [dismissModal, isInactive, isLoggedIn, isLocked, lockEnabled, presentModal, setLocked]);
+  }, [isLoggedIn, isLocked, lockEnabled, presentModal, setLocked]);
 
   const value = useMemo(
     () => ({

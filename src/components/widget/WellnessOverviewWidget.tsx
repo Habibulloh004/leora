@@ -1,30 +1,66 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 
-const mockWellness = [
+interface WellnessMetric {
+  label: string;
+  value: number;
+}
+
+interface WellnessOverviewWidgetProps {
+  metrics?: WellnessMetric[];
+  statusMessage?: string;
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+const MOCK_WELLNESS: WellnessMetric[] = [
   { label: 'Energy', value: 76 },
   { label: 'Mood', value: 82 },
   { label: 'Sleep quality', value: 71 },
 ];
 
-export default function WellnessOverviewWidget() {
+const PLACEHOLDER_WELLNESS: WellnessMetric[] = [
+  { label: 'Energy', value: 0 },
+  { label: 'Mood', value: 0 },
+  { label: 'Sleep quality', value: 0 },
+];
+
+export default function WellnessOverviewWidget({
+  metrics,
+  statusMessage,
+  hasData = true,
+  dateLabel = '',
+}: WellnessOverviewWidgetProps) {
   const theme = useAppTheme();
+  const metricList = hasData ? (metrics ?? MOCK_WELLNESS) : PLACEHOLDER_WELLNESS;
+  const footerText = hasData
+    ? statusMessage ?? 'Balanced week — keep up the routines'
+    : 'Log your wellness check-ins to unlock insights';
+  const valueColor = hasData ? theme.colors.primary : theme.colors.textMuted;
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.card, { backgroundColor:   theme.colors.card }]}>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Wellness Overview</Text>
-        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>Self-reported in the last 7 days</Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          }).format(new Date()) : '—')}
+        </Text>
 
         <View style={styles.scores}>
-          {mockWellness.map((item) => (
+          {metricList.map((item) => (
             <View key={item.label} style={[styles.scoreCard, {
               backgroundColor: theme.colors.surfaceElevated,
               borderColor: theme.colors.border
             }]}>
-              <Text style={[styles.scoreValue, { color: theme.colors.primary }]}>{item.value}</Text>
+              <Text style={[styles.scoreValue, { color: valueColor }]}>
+                {hasData ? item.value : '--'}
+              </Text>
               <Text style={[styles.scoreLabel, { color: theme.colors.textSecondary }]}>{item.label}</Text>
             </View>
           ))}
@@ -34,8 +70,10 @@ export default function WellnessOverviewWidget() {
           backgroundColor: theme.colors.surfaceElevated,
           borderColor: theme.colors.border
         }]}>
-          <View style={[styles.footerIndicator, { backgroundColor: theme.colors.success }]} />
-          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>Balanced week — keep up the routines</Text>
+          <View style={[styles.footerIndicator, {
+            backgroundColor: hasData ? theme.colors.success : theme.colors.textMuted,
+          }]} />
+          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>{footerText}</Text>
         </View>
       </AdaptiveGlassView>
     </View>

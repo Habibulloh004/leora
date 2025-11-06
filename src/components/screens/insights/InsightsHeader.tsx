@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useModalStore } from '@/stores/useModalStore';
+import { useThemeColors } from '@/constants/theme';
 
 interface InsightsHeaderProps {
   title?: string;
@@ -12,6 +13,7 @@ interface InsightsHeaderProps {
 
 export default function InsightsHeader({ title = 'INSIGHTS' }: InsightsHeaderProps) {
   const router = useRouter();
+  const colors = useThemeColors();
   const { openInsightsReportModal } = useModalStore(
     useShallow((state) => ({
       openInsightsReportModal: state.openInsightsReportModal,
@@ -19,24 +21,41 @@ export default function InsightsHeader({ title = 'INSIGHTS' }: InsightsHeaderPro
   );
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: colors.background, borderBottomColor: colors.border },
+      ]}
+    >
       <View style={styles.actions}>
-        <Pressable onPress={() => {}} style={styles.iconButton}>
-          <Ionicons name="refresh" size={24} color="#A6A6B9" />
+        <Pressable
+          onPress={() => {}}
+          style={[styles.iconButton, { backgroundColor: colors.background }]}
+        >
+          <Ionicons name="refresh" size={24} color={colors.textSecondary} />
         </Pressable>
-        <Pressable onPress={openInsightsReportModal} style={styles.iconButton}>
-          <Ionicons name="bar-chart-outline" size={24} color="#A6A6B9" />
+        <Pressable
+          onPress={openInsightsReportModal}
+          style={[styles.iconButton, { backgroundColor: colors.background }]}
+        >
+          <Ionicons name="bar-chart-outline" size={24} color={colors.textSecondary} />
         </Pressable>
       </View>
       <View>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
       </View>
       <View style={styles.actions}>
-        <Pressable onPress={() => {}} style={styles.iconButton}>
-          <Ionicons name="sparkles-outline" size={24} color="#A6A6B9" />
+        <Pressable
+          onPress={() => {}}
+          style={[styles.iconButton, { backgroundColor: colors.background }]}
+        >
+          <Ionicons name="sparkles-outline" size={24} color={colors.textSecondary} />
         </Pressable>
-        <Pressable onPress={() => router.navigate('/(tabs)/more')} style={styles.iconButton}>
-          <Ionicons name="settings-outline" size={24} color="#A6A6B9" />
+        <Pressable
+          onPress={() => router.navigate('/(tabs)/more')}
+          style={[styles.iconButton, { backgroundColor: colors.background }]}
+        >
+          <Ionicons name="settings-outline" size={24} color={colors.textSecondary} />
         </Pressable>
       </View>
     </View>
@@ -46,18 +65,15 @@ export default function InsightsHeader({ title = 'INSIGHTS' }: InsightsHeaderPro
 const styles = StyleSheet.create({
   container: {
     height: 60,
-    backgroundColor: '#25252B',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#34343D',
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#A6A6B9',
     letterSpacing: 1,
   },
   actions: {
@@ -71,5 +87,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 4,
   },
 });

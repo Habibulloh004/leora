@@ -10,14 +10,13 @@ import { Asset } from 'expo-asset';
 import * as Font from 'expo-font';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import Constants from 'expo-constants';
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { getTheme } from '@/constants/theme';
 import { useAuthStore } from '@/stores/useAuthStore';
 import LeoraSplashScreen from '@/components/screens/splash/LeoraSplashScreen';
 import { useLockStore } from '@/stores/useLockStore';
-import UserInactiveProvider from '@/providers/UserInactiveProvider';
-import useFocusLiveActivitySync from '@/features/focus/live-activity/useFocusLiveActivitySync';
+import { UserInactiveProvider } from '@/providers/UserInactiveProvider';
+import { useFocusLiveActivitySync } from '@/features/focus/live-activity/useFocusLiveActivitySync';
 import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { TECHNIQUES } from '@/features/focus/types';
 import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
@@ -352,6 +351,16 @@ function RootNavigator({
           }}
         />
         <Stack.Screen
+          name="(modals)/voice-new"
+          options={{
+            presentation: 'modal',
+            headerTitle: 'Voice Mode',
+            headerShown: false,
+            headerStyle: { backgroundColor: palette.surface },
+            headerTintColor: palette.textPrimary,
+          }}
+        />
+        <Stack.Screen
           name="(modals)/goal-details"
           options={{
             presentation: 'modal',
@@ -376,13 +385,6 @@ function RootNavigator({
           }}
         />
         <Stack.Screen
-          name="(modals)/inactive"
-          options={{
-            headerShown: false,
-            animation: 'none',
-          }}
-        />
-        <Stack.Screen
           name="(modals)/lock"
           options={{
             headerShown: false,
@@ -402,6 +404,20 @@ function RootNavigator({
             headerShown: false,
             headerStyle: { backgroundColor: palette.surface },
             headerTintColor: palette.textPrimary,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/change-password"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/forgot-passcode"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
           }}
         />
       </Stack>

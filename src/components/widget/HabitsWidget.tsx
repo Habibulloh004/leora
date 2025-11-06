@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BookOpen, Brain, CheckCircle2, Dot, Dumbbell, Flame } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
@@ -18,15 +18,43 @@ const MOCK_HABITS: Habit[] = [
   { id: '3', name: 'Read 30 min', streak: 8, completed: false, icon: BookOpen },
 ];
 
-export default function HabitsWidget() {
+interface HabitsWidgetProps {
+  habits?: Habit[];
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+const PLACEHOLDER_HABITS: Habit[] = [
+  { id: 'ph-1', name: 'No habits tracked today', streak: 0, completed: false, icon: Dumbbell },
+  { id: 'ph-2', name: 'Log a habit to get started', streak: 0, completed: false, icon: Brain },
+];
+
+export default function HabitsWidget({
+  habits: incomingHabits = MOCK_HABITS,
+  hasData = true,
+  dateLabel = 'Today',
+}: HabitsWidgetProps) {
   const theme = useAppTheme();
-  const [habits, setHabits] = useState<Habit[]>(MOCK_HABITS);
+  const [habits, setHabits] = useState<Habit[]>(incomingHabits);
+
+  useEffect(() => {
+    if (hasData) {
+      setHabits(incomingHabits);
+    } else {
+      setHabits([]);
+    }
+  }, [hasData, incomingHabits]);
 
   const toggleHabit = (id: string) => {
+    if (!hasData) {
+      return;
+    }
     setHabits(prev =>
       prev.map(h => (h.id === id ? { ...h, completed: !h.completed } : h))
     );
   };
+
+  const displayedHabits = hasData ? habits : PLACEHOLDER_HABITS;
 
   return (
     <View style={styles.container}>
@@ -35,7 +63,7 @@ export default function HabitsWidget() {
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Habits</Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Today</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{dateLabel}</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
@@ -43,35 +71,42 @@ export default function HabitsWidget() {
         </View>
 
         <View style={styles.habitsContainer}>
-          {habits.map((habit) => {
+          {displayedHabits.map((habit) => {
             const Icon = habit.icon;
+            const isPlaceholder = !hasData;
             return (
               <TouchableOpacity
                 key={habit.id}
                 style={[styles.habitItem, { borderBottomColor: theme.colors.border }]}
-                onPress={() => toggleHabit(habit.id)}
-                activeOpacity={0.7}
+                onPress={hasData ? () => toggleHabit(habit.id) : undefined}
+                activeOpacity={hasData ? 0.7 : 1}
               >
                 <View style={[styles.habitIconBadge, { backgroundColor: theme.colors.surfaceElevated }]}>
-                  <Icon size={18} color={theme.colors.textPrimary} />
+                  <Icon size={18} color={isPlaceholder ? theme.colors.textMuted : theme.colors.textPrimary} />
                 </View>
                 <View style={styles.habitContent}>
                   <Text style={[
                     styles.habitName,
-                    { color: theme.colors.textPrimary },
-                    habit.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
+                    { color: isPlaceholder ? theme.colors.textMuted : theme.colors.textPrimary },
+                    habit.completed && hasData && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
                   ]}>
                     {habit.name}
                   </Text>
                   <View style={styles.habitMeta}>
                     <Flame size={14} color={theme.colors.warning} />
-                    <Text style={[styles.habitStreak, { color: theme.colors.textSecondary }]}>{habit.streak} day streak</Text>
+                    <Text style={[
+                      styles.habitStreak,
+                      { color: isPlaceholder ? theme.colors.textMuted : theme.colors.textSecondary },
+                    ]}
+                    >
+                      {hasData ? `${habit.streak} day streak` : 'No streak yet'}
+                    </Text>
                   </View>
                 </View>
                 <CheckCircle2
                   size={20}
-                  color={habit.completed ? theme.colors.success : theme.colors.border}
-                  fill={habit.completed ? theme.colors.success : 'transparent'}
+                  color={habit.completed && hasData ? theme.colors.success : theme.colors.border}
+                  fill={habit.completed && hasData ? theme.colors.success : 'transparent'}
                 />
               </TouchableOpacity>
             );

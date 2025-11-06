@@ -1,22 +1,17 @@
 import type { Task } from '@/types/home';
 import { CheckIcon } from '@assets/icons';
 import { Dot } from 'lucide-react-native';
-import React, { useState } from 'react';
-import {
-  Platform,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
-import { GlassView } from 'expo-glass-effect';
 
 interface DailyTasksWidgetProps {
   initialTasks?: Task[];
   onTaskToggle?: (taskId: string) => void;
   onMenuPress?: () => void;
+  hasData?: boolean;
+  dateLabel?: string;
 }
 
 const MOCK_TASKS: Task[] = [
@@ -29,20 +24,24 @@ const MOCK_TASKS: Task[] = [
 interface TaskItemProps {
   task: Task;
   onToggle: () => void;
+  disabled?: boolean;
+  isPlaceholder?: boolean;
 }
 
-const TaskItem = ({ task, onToggle }: TaskItemProps) => {
+const TaskItem = ({ task, onToggle, disabled = false, isPlaceholder = false }: TaskItemProps) => {
   const theme = useAppTheme();
+  const textColor = isPlaceholder ? theme.colors.textMuted : theme.colors.textPrimary;
+  const dotColor = isPlaceholder ? `${theme.colors.textSecondary}40` : theme.colors.textSecondary;
 
   return (
     <TouchableOpacity
       style={[styles.taskItem, { borderBottomColor: theme.colors.border }]}
-      onPress={onToggle}
-      activeOpacity={0.7}
+      onPress={disabled ? undefined : onToggle}
+      activeOpacity={disabled ? 1 : 0.7}
     >
       <TouchableOpacity
-        onPress={onToggle}
-        activeOpacity={0.7}
+        onPress={disabled ? undefined : onToggle}
+        activeOpacity={disabled ? 1 : 0.7}
         style={styles.checkboxHit}
       >
         <View style={[
@@ -50,21 +49,21 @@ const TaskItem = ({ task, onToggle }: TaskItemProps) => {
           { borderColor: theme.colors.border },
           task.completed && { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.surfaceElevated }
         ]}>
-          {task.completed && <CheckIcon color={theme.colors.textPrimary} size={18} />}
+          {task.completed && !disabled && <CheckIcon color={theme.colors.textPrimary} size={18} />}
         </View>
       </TouchableOpacity>
 
       <View style={styles.taskContent}>
         <Text style={[
           styles.taskTitle,
-          { color: theme.colors.textPrimary },
-          task.completed && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
+          { color: textColor },
+          task.completed && !disabled && { textDecorationLine: 'line-through', color: theme.colors.textMuted }
         ]}>
           {task.title}
         </Text>
       </View>
 
-      <Text style={[styles.taskTime, { color: theme.colors.textSecondary }]}>{task.time}</Text>
+      <Text style={[styles.taskTime, { color: dotColor }]}>{task.time}</Text>
     </TouchableOpacity>
   );
 };
@@ -73,16 +72,37 @@ export default function DailyTasksWidget({
   initialTasks = MOCK_TASKS,
   onTaskToggle,
   onMenuPress,
+  hasData = true,
+  dateLabel = 'Today',
 }: DailyTasksWidgetProps) {
   const theme = useAppTheme();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
+  useEffect(() => {
+    if (hasData) {
+      setTasks(initialTasks);
+    } else {
+      setTasks([]);
+    }
+  }, [hasData, initialTasks]);
+
   const handleTaskToggle = (taskId: string) => {
+    if (!hasData) {
+      return;
+    }
     setTasks(prev =>
       prev.map(t => (t.id === taskId ? { ...t, completed: !t.completed } : t))
     );
     onTaskToggle?.(taskId);
   };
+
+  const placeholderTasks: Task[] = [
+    { id: 'p1', title: 'No tasks scheduled', time: '--', completed: false },
+    { id: 'p2', title: 'Enjoy a break', time: '--', completed: false },
+    { id: 'p3', title: 'Add a new task', time: '--', completed: false },
+  ];
+
+  const displayedTasks = hasData ? tasks : placeholderTasks;
 
   return (
     <View style={styles.container}>
@@ -91,18 +111,20 @@ export default function DailyTasksWidget({
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Daily tasks</Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Monday</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{dateLabel}</Text>
           </View>
           <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.tasksContainer}>
-          {tasks.map(task => (
+          {displayedTasks.map((task) => (
             <TaskItem
               key={task.id}
               task={task}
               onToggle={() => handleTaskToggle(task.id)}
+              disabled={!hasData}
+              isPlaceholder={!hasData}
             />
           ))}
         </View>

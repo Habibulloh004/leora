@@ -23,6 +23,10 @@ export interface ProgressData {
   focus: number;
 }
 
+export type HomeDataStatus = 'success' | 'warning' | 'danger' | 'muted';
+
+export type CalendarIndicatorsMap = Record<string, HomeDataStatus[]>;
+
 export interface FABActionType {
   id: string;
   icon: any;

@@ -179,12 +179,11 @@ export default function TransactionModal() {
     accountPickerRef.current?.present();
   }, []);
 
-  const handleSelectDate = useCallback((dateString: string) => {
-    const nextDate = new Date(dateString);
-    if (!Number.isNaN(nextDate.getTime())) {
-      setTransferDate(nextDate);
+  const handleSelectDate = useCallback((nextDate: Date) => {
+    if (!(nextDate instanceof Date) || Number.isNaN(nextDate.getTime())) {
+      return;
     }
-    dateModalRef.current?.dismiss();
+    setTransferDate(nextDate);
   }, []);
 
   const handleClose = useCallback(() => {
@@ -340,7 +339,11 @@ export default function TransactionModal() {
         </KeyboardAvoidingView>
       </CustomModal>
 
-      <DateChangeModal ref={dateModalRef} onSelectDate={handleSelectDate} />
+      <DateChangeModal
+        ref={dateModalRef}
+        selectedDate={transferDate}
+        onSelectDate={handleSelectDate}
+      />
 
       <CustomModal
         ref={accountPickerRef}

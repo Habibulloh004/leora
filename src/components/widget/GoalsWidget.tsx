@@ -1,6 +1,6 @@
 import type { Goal } from '@/types/home';
 import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View, type DimensionValue } from 'react-native';
 import { Dot } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
@@ -8,10 +8,13 @@ import { useAppTheme } from '@/constants/theme';
 interface GoalsWidgetProps {
   goals?: Goal[];
   onMenuPress?: () => void;
+  hasData?: boolean;
+  dateLabel?: string;
 }
 
 interface GoalItemProps {
   goal: Goal;
+  hasData: boolean;
 }
 
 const MOCK_GOALS: Goal[] = [
@@ -44,29 +47,67 @@ const MOCK_GOALS: Goal[] = [
   },
 ];
 
-const GoalItem = ({ goal }: GoalItemProps) => {
+const GoalItem = ({ goal, hasData }: GoalItemProps) => {
   const theme = useAppTheme();
+  const width: DimensionValue = hasData ? `${goal.progress}%` : '6%';
+  const barColor = hasData ? theme.colors.primary : `${theme.colors.textSecondary}26`;
+  const titleColor = hasData ? theme.colors.textPrimary : theme.colors.textMuted;
+  const metaColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
 
   return (
     <View style={styles.goalItem}>
       <View style={styles.goalHeader}>
-        <Text style={[styles.goalTitle, { color: theme.colors.textPrimary }]}>{goal.title}</Text>
-        <Text style={[styles.goalProgress, { color: theme.colors.textSecondary }]}>{goal.progress}%</Text>
+        <Text style={[styles.goalTitle, { color: titleColor }]}>{goal.title}</Text>
+        <Text style={[styles.goalProgress, { color: metaColor }]}>{hasData ? `${goal.progress}%` : '--'}</Text>
       </View>
 
       <View style={[styles.progressBarContainer, { backgroundColor: theme.colors.surfaceElevated }]}>
-        <View style={[styles.progressBar, { width: `${goal.progress}%`, backgroundColor: theme.colors.primary }]} />
+        <View style={[styles.progressBar, { width, backgroundColor: barColor }]} />
       </View>
 
       <Text style={[styles.goalTarget, { color: theme.colors.textMuted }]}>
-        {goal.current.toLocaleString()} / {goal.target.toLocaleString()} {goal.unit}
+        {hasData
+          ? `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} ${goal.unit}`
+          : 'Add a goal to start tracking progress.'}
       </Text>
     </View>
   );
 };
 
-export default function GoalsWidget({ goals = MOCK_GOALS, onMenuPress }: GoalsWidgetProps) {
+const PLACEHOLDER_GOALS: Goal[] = [
+  {
+    id: 'placeholder-goal-1',
+    title: 'No goals tracked yet',
+    progress: 0,
+    current: 0,
+    target: 0,
+    unit: '',
+    category: 'personal',
+  },
+  {
+    id: 'placeholder-goal-2',
+    title: 'Tap to add a new goal',
+    progress: 0,
+    current: 0,
+    target: 0,
+    unit: '',
+    category: 'personal',
+  },
+];
+
+export default function GoalsWidget({
+  goals = MOCK_GOALS,
+  onMenuPress,
+  hasData = true,
+  dateLabel = '',
+}: GoalsWidgetProps) {
   const theme = useAppTheme();
+  const displayedGoals = hasData ? goals : PLACEHOLDER_GOALS;
+  const resolvedLabel = dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date()) : '—');
 
   return (
     <View style={styles.container}>
@@ -75,15 +116,15 @@ export default function GoalsWidget({ goals = MOCK_GOALS, onMenuPress }: GoalsWi
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Goals</Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>2025</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedLabel}</Text>
           </View>
           <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
         </View>
 
-        {goals.map((goal) => (
-          <GoalItem key={goal.id} goal={goal} />
+        {displayedGoals.map((goal) => (
+          <GoalItem key={goal.id} goal={goal} hasData={hasData} />
         ))}
       </AdaptiveGlassView>
     </View>

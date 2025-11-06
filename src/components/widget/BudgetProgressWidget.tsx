@@ -1,31 +1,62 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 
-const mockBudgets = [
+interface BudgetItem {
+  label: string;
+  used: number;
+  total: number;
+}
+
+interface BudgetProgressWidgetProps {
+  budgets?: BudgetItem[];
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+const MOCK_BUDGETS: BudgetItem[] = [
   { label: 'Housing', used: 820, total: 1000 },
   { label: 'Groceries', used: 310, total: 400 },
   { label: 'Entertainment', used: 140, total: 250 },
 ];
 
-export default function BudgetProgressWidget() {
+const PLACEHOLDER_BUDGETS: BudgetItem[] = [
+  { label: 'No budgets configured', used: 0, total: 0 },
+  { label: 'Add a budget to track', used: 0, total: 0 },
+];
+
+export default function BudgetProgressWidget({
+  budgets,
+  hasData = true,
+  dateLabel = '',
+}: BudgetProgressWidgetProps) {
   const theme = useAppTheme();
+  const list = hasData ? (budgets ?? MOCK_BUDGETS) : PLACEHOLDER_BUDGETS;
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView
         style={[styles.card, { backgroundColor: theme.colors.card }]}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Budget Progress</Text>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Budget Progress</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }).format(new Date()) : '—')}
+          </Text>
+        </View>
         <View style={styles.list}>
-          {mockBudgets.map((item) => {
-            const progress = item.used / item.total;
+          {list.map((item) => {
+            const progress = item.total > 0 ? item.used / item.total : 0;
             return (
               <View key={item.label} style={styles.row}>
                 <View style={styles.rowHeader}>
                   <Text style={[styles.rowLabel, { color: theme.colors.textSecondary }]}>{item.label}</Text>
-                  <Text style={[styles.rowValue, { color: theme.colors.textPrimary }]}>
-                    ${item.used} / ${item.total}
+                  <Text style={[styles.rowValue, { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted }]}>
+                    {hasData ? `$${item.used} / $${item.total}` : '--'}
                   </Text>
                 </View>
                 <View style={[styles.progressBackground, { backgroundColor: theme.colors.surfaceElevated }]}>
@@ -33,8 +64,8 @@ export default function BudgetProgressWidget() {
                     style={[
                       styles.progressFill,
                       {
-                        width: `${Math.min(progress * 100, 100)}%`,
-                        backgroundColor: theme.colors.success,
+                        width: hasData ? `${Math.min(progress * 100, 100)}%` : '6%',
+                        backgroundColor: hasData ? theme.colors.success : `${theme.colors.textSecondary}30`,
                       },
                     ]}
                   />
@@ -57,9 +88,19 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 16,
   },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   title: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  subtitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   list: {
     gap: 14,

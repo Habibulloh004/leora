@@ -303,7 +303,7 @@ export default function UniversalFAB() {
                               router.navigate('/focus-mode');
                               break;
                             case 'voice-note':
-                              router.navigate('/(modals)/voice-ai');
+                              router.navigate('/(modals)/voice-new');
                               break;
                             case 'planner-task':
                               openPlannerTaskModal('create');

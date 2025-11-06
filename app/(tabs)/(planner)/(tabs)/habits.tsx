@@ -27,6 +27,15 @@ import {
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
+import {
+  addMonths,
+  buildCalendarDays,
+  buildWeekStrip,
+  monthFormatter,
+  startOfDay,
+  startOfMonth,
+  useCalendarWeeks,
+} from '@/utils/calendar';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -116,91 +125,6 @@ const INITIAL_HABITS: Habit[] = [
 // -------------------------------------
 // Date helpers
 // -------------------------------------
-const dayFormatter = new Intl.DateTimeFormat('en-US', { day: '2-digit' });
-const weekdayFormatter = new Intl.DateTimeFormat('en-US', { weekday: 'short' });
-const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
-const TODAY = startOfDay(new Date());
-
-type WeekDayItem = {
-  key: string;
-  label: string;
-  number: string;
-  date: Date;
-  isSelected: boolean;
-};
-
-type CalendarDayItem = {
-  key: string;
-  label: string;
-  date: Date;
-  isCurrentMonth: boolean;
-  isSelected: boolean;
-  isToday: boolean;
-};
-
-function startOfDay(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
-function addDays(date: Date, amount: number): Date {
-  const next = new Date(date);
-  next.setDate(date.getDate() + amount);
-  return next;
-}
-
-function addMonths(date: Date, amount: number): Date {
-  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
-}
-
-function startOfWeek(date: Date): Date {
-  const current = startOfDay(date);
-  const day = current.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Monday start
-  current.setDate(current.getDate() + diff);
-  return current;
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
-}
-
-function buildWeekStrip(selectedDate: Date): WeekDayItem[] {
-  const start = startOfWeek(selectedDate);
-  return Array.from({ length: 7 }).map((_, idx) => {
-    const date = addDays(start, idx);
-    return {
-      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
-      label: weekdayFormatter.format(date),
-      number: dayFormatter.format(date),
-      date,
-      isSelected: isSameDay(date, selectedDate),
-    };
-  });
-}
-
-function buildCalendarDays(monthDate: Date, selectedDate: Date): CalendarDayItem[] {
-  const firstVisible = startOfWeek(startOfMonth(monthDate));
-  return Array.from({ length: 42 }).map((_, idx) => {
-    const date = addDays(firstVisible, idx);
-    return {
-      key: date.toISOString(),
-      label: dayFormatter.format(date),
-      date,
-      isCurrentMonth: date.getMonth() === monthDate.getMonth(),
-      isSelected: isSameDay(date, selectedDate),
-      isToday: isSameDay(date, TODAY),
-    };
-  });
-}
-
 const pct = (a: number, b: number) => Math.round((a / Math.max(b, 1)) * 100);
 
 
@@ -268,11 +192,7 @@ export default function PlannerHabitsTab() {
   const [yearGridStart, setYearGridStart] = useState<number>(initYear - (initYear % 12));
 
   // 42 kunni 6 haftaga bo‘lib qo‘yamiz: 7 ta ustun har doim chiqadi (yakshanba ham!)
-  const weeks = useMemo(() => {
-    const rows: CalendarDayItem[][] = [];
-    for (let i = 0; i < calendarDays.length; i += 7) rows.push(calendarDays.slice(i, i + 7));
-    return rows;
-  }, [calendarDays]);
+  const weeks = useCalendarWeeks(calendarDays);
 
   const monthName = useMemo(
     () => new Intl.DateTimeFormat('en-US', { month: 'long' }).format(visibleMonth),

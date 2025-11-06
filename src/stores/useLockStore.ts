@@ -3,7 +3,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { mmkvStorageAdapter } from '@/utils/storage';
 
-export const LOCK_TIMEOUT_MS = 3 * 1000; // 20 seconds
+const sanitizePin = (pin: string) => pin.replace(/\D/g, '').slice(0, 4);
+
+export const DEFAULT_AUTO_LOCK_MS = 60 * 1000; // 1 minute
+export const DEFAULT_UNLOCK_GRACE_MS = 30 * 1000; // 30 seconds
 
 const storage = createJSONStorage(() => mmkvStorageAdapter);
 
@@ -16,6 +19,8 @@ interface LockState {
   lastBackgrounded: number | null;
   lockEnabled: boolean;
   biometricsEnabled: boolean;
+  autoLockTimeoutMs: number;
+  unlockGraceMs: number;
   setLocked: (locked: boolean) => void;
   lockNow: () => void;
   setLoggedIn: (loggedIn: boolean) => void;
@@ -27,6 +32,8 @@ interface LockState {
   resetPin: () => void;
   setLockEnabled: (enabled: boolean) => void;
   setBiometricsEnabled: (enabled: boolean) => void;
+  setAutoLockTimeoutMs: (value: number) => void;
+  setUnlockGraceMs: (value: number) => void;
 }
 
 export const useLockStore = create<LockState>()(
@@ -40,6 +47,8 @@ export const useLockStore = create<LockState>()(
       lastBackgrounded: null,
       lockEnabled: false,
       biometricsEnabled: false,
+      autoLockTimeoutMs: DEFAULT_AUTO_LOCK_MS,
+      unlockGraceMs: DEFAULT_UNLOCK_GRACE_MS,
       setLocked: (locked) =>
         set((state) => ({
           isLocked: state.lockEnabled ? locked : false,
@@ -68,11 +77,16 @@ export const useLockStore = create<LockState>()(
       verifyPin: (input) => {
         const currentPin = get().pin;
         if (!currentPin) return false;
-        return input === currentPin;
+        return sanitizePin(input) === currentPin;
       },
       setInactive: (inactive) => set({ isInactive: inactive }),
       setLastBackgrounded: (value) => set({ lastBackgrounded: value }),
-      setPin: (pin) => set({ pin }),
+      setPin: (pin) => {
+        const normalized = sanitizePin(pin);
+        if (normalized.length === 4) {
+          set({ pin: normalized, lockEnabled: true });
+        }
+      },
       resetPin: () =>
         set({
           pin: null,
@@ -94,6 +108,10 @@ export const useLockStore = create<LockState>()(
         set((state) => ({
           biometricsEnabled: state.lockEnabled ? enabled : false,
         })),
+      setAutoLockTimeoutMs: (value) =>
+        set({ autoLockTimeoutMs: value <= 0 ? 0 : Math.max(5 * 1000, value) }),
+      setUnlockGraceMs: (value) =>
+        set({ unlockGraceMs: Math.max(0, value) }),
     }),
     {
       name: 'lock-storage',
@@ -105,13 +123,15 @@ export const useLockStore = create<LockState>()(
         pin: state.pin,
         lockEnabled: state.lockEnabled,
         biometricsEnabled: state.biometricsEnabled,
+        autoLockTimeoutMs: state.autoLockTimeoutMs,
+        unlockGraceMs: state.unlockGraceMs,
       }),
     }
   )
 );
 
 const evaluateLockHydration = () => {
-  const { lockEnabled, lastActive } = useLockStore.getState();
+  const { lockEnabled, lastActive, autoLockTimeoutMs } = useLockStore.getState();
 
   if (!lockEnabled) {
     useLockStore.setState({ isLocked: false });
@@ -119,7 +139,11 @@ const evaluateLockHydration = () => {
   }
 
   if (typeof lastActive === 'number') {
-    const shouldLock = Date.now() - lastActive >= LOCK_TIMEOUT_MS;
+    if (autoLockTimeoutMs <= 0) {
+      useLockStore.setState({ isLocked: false });
+      return;
+    }
+    const shouldLock = Date.now() - lastActive >= autoLockTimeoutMs;
     if (shouldLock) {
       useLockStore.setState({ isLocked: true });
       return;

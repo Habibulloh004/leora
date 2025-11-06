@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   Easing,
@@ -11,12 +11,12 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useAppTheme } from '@/constants/theme';
+import type { ProgressData } from '@/types/home';
 
 interface Props {
   scrollY: SharedValue<number>;
-  tasks?: number;
-  budget?: number;
-  focus?: number;
+  data?: ProgressData | null;
+  isLoading?: boolean;
 }
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
@@ -75,12 +75,12 @@ CircularProgress.displayName = 'CircularProgress';
 
 export default function ProgressIndicators({
   scrollY,
-  tasks = 50,
-  budget = 62,
-  focus = 52,
+  data,
+  isLoading = false,
 }: Props) {
   const theme = useAppTheme();
   const SCROLL_THRESHOLD = 100;
+  const hasData = Boolean(data);
 
   const containerStyle = useAnimatedStyle(() => {
     const collapse = interpolate(
@@ -161,44 +161,63 @@ export default function ProgressIndicators({
     };
   });
 
-  const colorForValue = (value: number) => {
-    if (value >= 80) return '#00E676';
-    if (value >= 65) return '#4CAF50';
-    if (value >= 50) return '#FFC107';
-    if (value >= 35) return '#FF9800';
-    return '#F44336';
-  };
+  const colorForValue = useCallback(
+    (value: number, hasContent: boolean) => {
+      if (!hasContent) {
+        return theme.colors.border;
+      }
+      if (value >= 66) {
+        return theme.colors.success;
+      }
+      if (value >= 34) {
+        return theme.colors.warning;
+      }
+      return theme.colors.danger;
+    },
+    [theme.colors.border, theme.colors.danger, theme.colors.success, theme.colors.warning],
+  );
 
-  const progressItems = [
-    { label: 'TASKS', value: tasks, color: colorForValue(tasks) },
-    { label: 'BUDGET', value: budget, color: colorForValue(budget) },
-    { label: 'FOCUS', value: focus, color: colorForValue(focus) },
-  ];
+  const progressItems = useMemo(
+    () => [
+      { key: 'tasks', label: 'TASKS', value: data?.tasks ?? 0 },
+      { key: 'budget', label: 'BUDGET', value: data?.budget ?? 0 },
+      { key: 'focus', label: 'FOCUS', value: data?.focus ?? 0 },
+    ],
+    [data],
+  );
 
   const styles = createStyles(theme);
 
   return (
     <Animated.View style={[styles.container, containerStyle]}>
       <Animated.View style={[styles.innerContainer, progressAnimatedStyle]}>
-        {progressItems.map((item, index) => (
-          <View key={index} style={styles.itemWrapper}>
-            <Animated.View style={[styles.circleContainer, circleContainerStyle]}>
-              <CircularProgress
-                progress={item.value}
-                color={item.color}
-                trackColor={theme.colors.card}
-              />
+        {progressItems.map((item) => {
+          const progressValue = hasData ? item.value : 0;
+          const circleColor = colorForValue(item.value, hasData);
+          const valueText = hasData ? `${Math.round(item.value)}%` : '--%';
+          const valueColor = hasData ? theme.colors.textPrimary : theme.colors.textSecondary;
+          const labelColor = hasData ? theme.colors.textSecondary : theme.colors.textTertiary;
 
-              <Animated.Text style={[styles.percentText, percentStyle, { color: theme.colors.textPrimary }]}>
-                {Math.round(item.value)}%
+          return (
+            <View key={item.key} style={styles.itemWrapper}>
+              <Animated.View style={[styles.circleContainer, circleContainerStyle]}>
+                <CircularProgress
+                  progress={progressValue}
+                  color={circleColor}
+                  trackColor={theme.mode === "light" ? theme.colors.cardItem : theme.colors.card}
+                />
+
+                <Animated.Text style={[styles.percentText, percentStyle, { color: valueColor }]}>
+                  {isLoading ? '--%' : valueText}
+                </Animated.Text>
+              </Animated.View>
+
+              <Animated.Text style={[styles.labelText, labelStyle, { color: labelColor }]}>
+                {item.label}
               </Animated.Text>
-            </Animated.View>
-
-            <Animated.Text style={[styles.labelText, labelStyle, { color: theme.colors.textSecondary }]}>
-              {item.label}
-            </Animated.Text>
-          </View>
-        ))}
+            </View>
+          );
+        })}
       </Animated.View>
     </Animated.View>
   );

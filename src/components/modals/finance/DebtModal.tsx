@@ -130,10 +130,8 @@ export default function DebtModal() {
     setAmount(sanitized);
   }, []);
 
-  const handleSelectDate = useCallback((dateString: string) => {
-    const selected = new Date(dateString);
-    if (Number.isNaN(selected.getTime())) {
-      dateModalRef.current?.dismiss();
+  const handleSelectDate = useCallback((selected: Date) => {
+    if (!(selected instanceof Date) || Number.isNaN(selected.getTime())) {
       return;
     }
 
@@ -144,7 +142,6 @@ export default function DebtModal() {
     }
 
     setActiveDateField(null);
-    dateModalRef.current?.dismiss();
   }, [activeDateField]);
 
   const handleOpenDate = useCallback((field: ActiveDateField) => {
@@ -370,7 +367,15 @@ export default function DebtModal() {
         </KeyboardAvoidingView>
       </CustomModal>
 
-      <DateChangeModal ref={dateModalRef} onSelectDate={handleSelectDate} />
+      <DateChangeModal
+        ref={dateModalRef}
+        selectedDate={
+          activeDateField === 'expected'
+            ? expectedDate ?? startDate
+            : startDate
+        }
+        onSelectDate={handleSelectDate}
+      />
     </>
   );
 }

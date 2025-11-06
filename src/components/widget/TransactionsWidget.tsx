@@ -1,6 +1,6 @@
 // src/components/widget/TransactionsWidget.tsx
 import React from 'react';
-import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ArrowDownLeft, ArrowUpRight, Dot } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
@@ -20,8 +20,29 @@ const MOCK_TRANSACTIONS: Transaction[] = [
   { id: '3', type: 'expense', amount: 15000, currency: 'UZS', category: 'Transport', date: 'Yesterday' },
 ];
 
-export default function TransactionsWidget() {
+const PLACEHOLDER_TRANSACTIONS: Transaction[] = [
+  { id: 'placeholder-1', type: 'expense', amount: 0, currency: '', category: 'No activity logged', date: '--' },
+  { id: 'placeholder-2', type: 'income', amount: 0, currency: '', category: 'Start tracking transactions', date: '--' },
+];
+
+interface TransactionsWidgetProps {
+  transactions?: Transaction[];
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+export default function TransactionsWidget({
+  transactions,
+  hasData = true,
+  dateLabel = '',
+}: TransactionsWidgetProps) {
   const theme = useAppTheme();
+  const list = hasData ? (transactions ?? MOCK_TRANSACTIONS) : PLACEHOLDER_TRANSACTIONS;
+  const resolvedLabel = dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date()) : '—');
 
   return (
     <View style={styles.container}>
@@ -30,7 +51,7 @@ export default function TransactionsWidget() {
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Transactions</Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Recent</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedLabel}</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
@@ -38,14 +59,14 @@ export default function TransactionsWidget() {
         </View>
 
         <View style={styles.transactionsContainer}>
-          {MOCK_TRANSACTIONS.map(transaction => (
+          {list.map((transaction) => (
             <View key={transaction.id} style={[styles.transactionItem, { borderBottomColor: theme.colors.border }]}>
               <View style={[
                 styles.iconContainer,
                 {
                   backgroundColor: transaction.type === 'income'
                     ? (theme.mode === 'dark' ? '#4CAF5020' : '#4CAF5030')
-                    : (theme.mode === 'dark' ? '#F4433620' : '#F4433630')
+                    : (theme.mode === 'dark' ? '#F4433620' : '#F4433630'),
                 }
               ]}>
                 {transaction.type === 'income' ? (
@@ -64,10 +85,17 @@ export default function TransactionsWidget() {
               </View>
               <Text style={[
                 styles.transactionAmount,
-                { color: transaction.type === 'income' ? theme.colors.success : theme.colors.danger }
+                {
+                  color: hasData
+                    ? transaction.type === 'income'
+                      ? theme.colors.success
+                      : theme.colors.danger
+                    : theme.colors.textMuted,
+                }
               ]}>
-                {transaction.type === 'income' ? '+' : '-'}
-                {transaction.amount.toLocaleString()} {transaction.currency}
+                {hasData
+                  ? `${transaction.type === 'income' ? '+' : '-'}${transaction.amount.toLocaleString()} ${transaction.currency}`
+                  : '--'}
               </Text>
             </View>
           ))}

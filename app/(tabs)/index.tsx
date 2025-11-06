@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useCallback, useMemo } from 'react';
+import { RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   useAnimatedScrollHandler,
   useSharedValue,
@@ -11,26 +11,34 @@ import GreetingCard from '@/components/screens/home/GreetingCard';
 import Header from '@/components/screens/home/Header';
 import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import UniversalFAB from '@/components/UniversalFAB';
+import { useHomeDashboard } from '@/hooks/useHomeDashboard';
 import { useWidgetStore } from '@/stores/widgetStore';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/constants/theme';
+import { startOfDay } from '@/utils/calendar';
+import { EditSquareIcon, DiagramIcon } from '@assets/icons';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
-  const [refreshing, setRefreshing] = useState(false);
   const router = useRouter();
   const theme = useAppTheme();
+  const {
+    selectedDate,
+    selectDate,
+    progress,
+    widgetData,
+    loading,
+    refreshing,
+    calendarIndicators,
+    refresh,
+  } = useHomeDashboard();
 
   // Subscribe to Zustand store - will automatically re-render when activeWidgets changes
   const activeWidgets = useWidgetStore((state) => state.activeWidgets);
 
   const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    // Simulate refresh
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
-  }, []);
+    refresh();
+  }, [refresh]);
 
   const onScroll = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -38,12 +46,36 @@ export default function HomeScreen() {
     },
   });
 
-  const handleEditModeChange = (isEditMode: boolean) => {
-    console.log('Edit mode toggled:', isEditMode);
-  };
+  const handleDateChange = useCallback(
+    (date: Date) => {
+      selectDate(date);
+    },
+    [selectDate],
+  );
 
-  const styles = createStyles(theme);
+  const handleOpenWidgetEditor = useCallback(() => {
+    router.navigate('/(modals)/menage-widget');
+  }, [router]);
 
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  const refreshColors = useMemo(() => {
+    const spinner = theme.mode === 'dark' ? theme.colors.white : theme.colors.cardItem;
+    const track = theme.mode === 'dark' ? theme.colors.card : theme.colors.white;
+    const label = theme.colors.textPrimary;
+    return { spinner, track, label };
+  }, [theme]);
+  
+  const dateLabel = useMemo(() => {
+    const isToday = startOfDay(selectedDate).getTime() === startOfDay(new Date()).getTime();
+    if (isToday) {
+      return 'Today';
+    }
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }).format(selectedDate);
+  }, [selectedDate]);
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -51,6 +83,9 @@ export default function HomeScreen() {
           onNotificationPress={() => router.navigate('/(modals)/notifications')}
           scrollY={scrollY}
           onSearchPress={() => router.navigate('/(modals)/search')}
+          selectedDate={selectedDate}
+          onSelectDate={handleDateChange}
+          calendarIndicators={calendarIndicators}
         />
         <Animated.ScrollView
           onScroll={onScroll}
@@ -58,17 +93,77 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
           stickyHeaderIndices={[0]}
           contentContainerStyle={styles.scrollContent}
-        >
-          <ProgressIndicators scrollY={scrollY} tasks={50} budget={90} focus={75} />
-          <GreetingCard onEditModeChange={handleEditModeChange} />
-
-          {/* Render active widgets from Zustand store - will update in real-time */}
-          {activeWidgets.map((widgetId) => (
-            <UniversalWidget
-              key={widgetId}
-              widgetId={widgetId}
+          refreshControl={(
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              progressViewOffset={80}
+              style={{ zIndex: 1000, elevation: 1000 }}
+              tintColor={refreshColors.spinner}
+              titleColor={refreshColors.label}
+              colors={[refreshColors.spinner]}
+              progressBackgroundColor={refreshColors.track}
             />
-          ))}
+          )}
+        >
+          <ProgressIndicators
+            scrollY={scrollY}
+            data={progress}
+            isLoading={loading}
+          />
+          <GreetingCard date={selectedDate} />
+
+          <View style={styles.widgetsSection}>
+            <View style={styles.widgetsHeader}>
+              <Text style={[styles.widgetsTitle, { color: theme.colors.textPrimary }]}>
+                Widgets
+              </Text>
+              <TouchableOpacity
+                onPress={handleOpenWidgetEditor}
+                style={[
+                  styles.widgetsEditButton,
+                  {
+                    backgroundColor: theme.mode === 'dark'
+                      ? 'rgba(255,255,255,0.08)'
+                      : 'rgba(15,23,42,0.08)',
+                  },
+                ]}
+                activeOpacity={0.8}
+              >
+                <EditSquareIcon color={theme.colors.textSecondary} size={14} />
+                <Text style={[styles.widgetsEditText, { color: theme.colors.textSecondary }]}>
+                  Edit
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {activeWidgets.length === 0 ? (
+              <View
+                style={[
+                  styles.widgetEmptyState,
+                  { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+                ]}
+              >
+                <DiagramIcon color={theme.colors.textSecondary} size={24} />
+                <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
+                  No widgets available
+                </Text>
+                <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+                  Tap Edit to add widgets to your dashboard.
+                </Text>
+              </View>
+            ) : (
+              activeWidgets.map((widgetId) => (
+                <UniversalWidget
+                  key={widgetId}
+                  widgetId={widgetId}
+                  isLoading={loading}
+                  dataState={widgetData[widgetId]}
+                  dateLabel={dateLabel}
+                />
+              ))
+            )}
+          </View>
 
           <View style={styles.bottomSpacer} />
         </Animated.ScrollView>
@@ -92,5 +187,53 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   },
   bottomSpacer: {
     height: 200,
+  },
+  stickyTop: {
+    backgroundColor: theme.colors.background,
+    overflow: 'hidden',
+  },
+  widgetsSection: {
+
+  },
+  widgetsHeader: {
+    paddingHorizontal: 20,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  widgetsTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  widgetsEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  widgetsEditText: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  widgetEmptyState: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+    marginHorizontal: 16,
+    alignItems: 'center',
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: 'center',
   },
 });

@@ -1,37 +1,73 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 
-const mockCategories = [
+interface SpendingCategory {
+  label: string;
+  amount: number;
+}
+
+interface SpendingSummaryWidgetProps {
+  categories?: SpendingCategory[];
+  total?: number;
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+const MOCK_CATEGORIES: SpendingCategory[] = [
   { label: 'Food & Dining', amount: 245 },
   { label: 'Transport', amount: 120 },
   { label: 'Shopping', amount: 98 },
 ];
 
-export default function SpendingSummaryWidget() {
+const PLACEHOLDER_CATEGORIES: SpendingCategory[] = [
+  { label: 'No spending tracked', amount: 0 },
+  { label: 'Log a purchase to begin', amount: 0 },
+];
+
+export default function SpendingSummaryWidget({
+  categories,
+  total,
+  hasData = true,
+  dateLabel = '',
+}: SpendingSummaryWidgetProps) {
   const theme = useAppTheme();
+  const list = hasData ? (categories ?? MOCK_CATEGORIES) : PLACEHOLDER_CATEGORIES;
+  const totalSpent = hasData
+    ? total ?? list.reduce((sum, item) => sum + item.amount, 0)
+    : 0;
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.card, { backgroundColor:   theme.colors.card }]}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Spending Summary</Text>
-          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>This month</Text>
+          <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            }).format(new Date()) : '—')}
+          </Text>
         </View>
 
         <View style={styles.body}>
-          {mockCategories.map((item) => (
+          {list.map((item) => (
             <View key={item.label} style={styles.row}>
               <Text style={[styles.rowLabel, { color: theme.colors.textSecondary }]}>{item.label}</Text>
-              <Text style={[styles.rowValue, { color: theme.colors.danger }]}>-${item.amount}</Text>
+              <Text style={[styles.rowValue, { color: hasData ? theme.colors.danger : theme.colors.textMuted }]}>
+                {hasData ? `-$${item.amount}` : '--'}
+              </Text>
             </View>
           ))}
         </View>
 
         <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
           <Text style={[styles.footerLabel, { color: theme.colors.textSecondary }]}>Total spent</Text>
-          <Text style={[styles.footerValue, { color: theme.colors.textPrimary }]}>-$463</Text>
+          <Text style={[styles.footerValue, { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted }]}>
+            {hasData ? `-$${totalSpent}` : '--'}
+          </Text>
         </View>
       </AdaptiveGlassView>
     </View>

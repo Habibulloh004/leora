@@ -30,7 +30,7 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     if (onBack) {
       onBack();
     } else {
-      router.back();
+      router.push("/(tabs)/more");
     }
   };
 
@@ -40,7 +40,6 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     }
   };
 
-  const showBack = Boolean(onBack);
   const showEdit = Boolean(onEdit);
 
   return (
@@ -56,24 +55,22 @@ const ProfileHeader: React.FC<ProfileHeaderProps> = ({
     >
       <View style={styles.headerRow}>
         <View style={styles.sideSlot}>
-          {showBack ? (
-            <AdaptiveGlassView style={styles.glassButton}>
-              <Pressable
-                onPress={handleBack}
-                hitSlop={12}
-                style={({ pressed }) => [
-                  styles.iconButton,
-                  {
-                    backgroundColor:
-                      theme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)',
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <ChevronLeft size={20} color={theme.colors.textPrimary} />
-              </Pressable>
-            </AdaptiveGlassView>
-          ) : null}
+          <AdaptiveGlassView style={styles.glassButton}>
+            <Pressable
+              onPress={handleBack}
+              hitSlop={12}
+              style={({ pressed }) => [
+                styles.iconButton,
+                {
+                  backgroundColor:
+                    theme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)',
+                  opacity: pressed ? 0.7 : 1,
+                },
+              ]}
+            >
+              <ChevronLeft size={20} color={theme.colors.textPrimary} />
+            </Pressable>
+          </AdaptiveGlassView>
         </View>
 
         <View style={styles.titleBlock} pointerEvents="none">

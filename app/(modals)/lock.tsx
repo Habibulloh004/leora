@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Alert,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 import { Theme, useAppTheme } from '@/constants/theme';
 import { useLockStore } from '@/stores/useLockStore';
@@ -68,6 +69,7 @@ const generateRecoveryCode = () => {
 };
 
 export default function LockScreen() {
+  const router = useRouter();
   const isLocked = useLockStore((state) => state.isLocked);
   const setLocked = useLockStore((state) => state.setLocked);
   const updateLastActive = useLockStore((state) => state.updateLastActive);
@@ -106,6 +108,7 @@ export default function LockScreen() {
   const attemptedBiometricRef = useRef(false);
   const recoveryCodeRef = useRef<string | null>(null);
   const recoveryExpiryRef = useRef<number | null>(null);
+  const wasLockedRef = useRef(isLocked);
 
   const contactOptions = useMemo<RecoveryContactOption[]>(() => {
     const options: RecoveryContactOption[] = [];
@@ -143,13 +146,12 @@ export default function LockScreen() {
     recoveryExpiryRef.current = null;
   };
 
-  const openRecoveryFlow = () => {
-    resetRecoveryState();
-    if (contactOptions.length === 1) {
-      setSelectedContact(contactOptions[0]);
-    }
-    setRecoveryVisible(true);
-  };
+  const openRecoveryFlow = useCallback(() => {
+    router.push({
+      pathname: '/(modals)/forgot-passcode',
+      params: { source: 'lock' },
+    });
+  }, [router]);
 
   const closeRecoveryFlow = () => {
     setRecoveryVisible(false);
@@ -254,6 +256,19 @@ export default function LockScreen() {
       setBiometricType(null);
     }
   }, [biometricsEnabled, isLocked]);
+
+  useEffect(() => {
+    if (wasLockedRef.current && !isLocked) {
+      requestAnimationFrame(() => {
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/(tabs)');
+        }
+      });
+    }
+    wasLockedRef.current = isLocked;
+  }, [isLocked, router]);
 
   const animateIn = () => {
     Animated.parallel([

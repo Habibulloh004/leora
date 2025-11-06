@@ -227,13 +227,11 @@ export default function IncomeOutcomeModal() {
     setAmount(sanitized);
   }, []);
 
-  const handleSelectDate = useCallback((dateString: string) => {
-    const nextDate = new Date(dateString);
-    if (Number.isNaN(nextDate.getTime())) {
+  const handleSelectDate = useCallback((nextDate: Date) => {
+    if (!(nextDate instanceof Date) || Number.isNaN(nextDate.getTime())) {
       return;
     }
     setTransactionDate(nextDate);
-    dateModalRef.current?.dismiss();
   }, []);
 
   const handleOpenCategoryModal = useCallback((state: CategoryModalState) => {
@@ -547,7 +545,11 @@ export default function IncomeOutcomeModal() {
         </KeyboardAvoidingView>
       </CustomModal>
 
-      <DateChangeModal ref={dateModalRef} onSelectDate={handleSelectDate} />
+      <DateChangeModal
+        ref={dateModalRef}
+        selectedDate={transactionDate}
+        onSelectDate={handleSelectDate}
+      />
 
       <CustomModal
         ref={categoryModalRef}

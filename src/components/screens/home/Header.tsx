@@ -1,10 +1,4 @@
-import DateChangeModal from '@/components/modals/DateChangeModal';
-import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
-import { useAuthStore } from '@/stores/useAuthStore';
-import { useAppTheme } from '@/constants/theme';
-import { useRouter } from 'expo-router';
-import React, { useMemo, useRef } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -12,12 +6,25 @@ import Animated, {
   SharedValue,
   useAnimatedStyle,
 } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
+
+import DateChangeModal from '@/components/modals/DateChangeModal';
+import { BottomSheetHandle } from '@/components/modals/BottomSheet';
+import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useAppTheme } from '@/constants/theme';
+import type { CalendarIndicatorsMap } from '@/types/home';
+import { startOfDay, addDays, toISODateKey } from '@/utils/calendar';
+import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 
 interface HeaderProps {
   scrollY?: SharedValue<number>;
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
   hasNotifications?: boolean;
+  selectedDate: Date;
+  onSelectDate: (date: Date) => void;
+  calendarIndicators: CalendarIndicatorsMap;
 }
 
 export default function Header({
@@ -25,11 +32,55 @@ export default function Header({
   onSearchPress,
   onNotificationPress,
   hasNotifications = true,
+  selectedDate,
+  onSelectDate,
+  calendarIndicators,
 }: HeaderProps) {
   const dateSheetRef = useRef<BottomSheetHandle>(null);
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const theme = useAppTheme();
+  const selectedIso = useMemo(() => toISODateKey(selectedDate), [selectedDate]);
+  const isTodaySelected = useMemo(() => {
+    const todayIso = toISODateKey(startOfDay(new Date()));
+    return selectedIso === todayIso;
+  }, [selectedIso]);
+  const hasSnapshot = useMemo(
+    () => calendarIndicators[selectedIso]?.some((status) => status !== 'muted') ?? false,
+    [calendarIndicators, selectedIso],
+  );
+  const dateColor = hasSnapshot ? theme.colors.textPrimary : theme.colors.textSecondary;
+  const primaryLabel = useMemo(() => {
+    if (isTodaySelected) {
+      return 'TODAY';
+    }
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }).format(selectedDate).toUpperCase();
+  }, [isTodaySelected, selectedDate]);
+  const canNavigateForward = !isTodaySelected;
+
+  const handleConfirmDate = useCallback(
+    (date: Date) => {
+      onSelectDate(date);
+    },
+    [onSelectDate],
+  );
+
+  const handlePreviousDay = useCallback(() => {
+    const nextDate = addDays(selectedDate, -1);
+    onSelectDate(nextDate);
+  }, [onSelectDate, selectedDate]);
+
+  const handleNextDay = useCallback(() => {
+    if (!canNavigateForward) {
+      return;
+    }
+    const nextDate = addDays(selectedDate, 1);
+    onSelectDate(nextDate);
+  }, [canNavigateForward, onSelectDate, selectedDate]);
 
   const initials = useMemo(() => {
     const source = user?.fullName || user?.username || 'U';
@@ -67,7 +118,7 @@ export default function Header({
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel="Open profile"
-          onPress={() => router.navigate('/profile')}
+          onPress={() => router.navigate('/(tabs)/more/account/profile')}
           style={[styles.avatar, { backgroundColor: theme.colors.surfaceElevated }]}
           activeOpacity={0.8}
         >
@@ -75,12 +126,65 @@ export default function Header({
         </TouchableOpacity>
       </View>
 
-      <Pressable onPress={() => dateSheetRef.current?.present()}>
-        <View style={styles.dateContainer}>
-          <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>Monday</Text>
-          <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>September 8</Text>
-        </View>
-      </Pressable>
+      <View style={styles.dateWrapper}>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Previous day"
+          onPress={handlePreviousDay}
+          style={[
+            styles.navButton,
+            {
+              backgroundColor: theme.mode === 'dark'
+                ? 'rgba(255,255,255,0.08)'
+                : 'rgba(15,23,42,0.08)',
+            },
+          ]}
+          activeOpacity={0.8}
+        >
+          <ChevronLeft size={16} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+
+        <Pressable
+          onPress={() => dateSheetRef.current?.present()}
+          style={[
+            styles.dateCenter,
+            {
+              backgroundColor: theme.mode === 'dark'
+                ? 'rgba(255,255,255,0.1)'
+                : 'rgba(15,23,42,0.08)',
+              borderColor: `${theme.colors.border}66`,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.dateLabel,
+              { color: dateColor },
+            ]}
+          >
+            {primaryLabel}
+          </Text>
+        </Pressable>
+
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Next day"
+          onPress={handleNextDay}
+          disabled={!canNavigateForward}
+          style={[
+            styles.navButton,
+            {
+              backgroundColor: theme.mode === 'dark'
+                ? 'rgba(255,255,255,0.08)'
+                : 'rgba(15,23,42,0.08)',
+              opacity: canNavigateForward ? 1 : 0.4,
+            },
+          ]}
+          activeOpacity={canNavigateForward ? 0.8 : 1}
+        >
+          <ChevronRight size={16} color={theme.colors.textPrimary} />
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.actions}>
         <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
@@ -92,7 +196,12 @@ export default function Header({
           {hasNotifications && <View style={styles.notificationDot} />}
         </TouchableOpacity>
       </View>
-      <DateChangeModal ref={dateSheetRef} />
+      <DateChangeModal
+        ref={dateSheetRef}
+        selectedDate={selectedDate}
+        indicators={calendarIndicators}
+        onSelectDate={handleConfirmDate}
+      />
     </Animated.View>
   );
 }
@@ -127,14 +236,40 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     justifyContent: 'center',
     alignItems: 'center',
   },
-  dateContainer: {
+  dateWrapper: {
     flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'column',
+    gap: 8,
+  },
+  navButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
   },
-  dateText: {
+  dateCenter: {
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    minWidth: 120,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateLabel: {
     fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1.1,
+    textTransform: 'uppercase',
+  },
+  dateSubLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 1,
+    marginTop: 2,
   },
   logo: {
     fontSize: 18,

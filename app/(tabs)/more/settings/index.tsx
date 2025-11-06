@@ -75,13 +75,12 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md + 2,
       borderRadius: theme.radius.xl,
-      borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.colors.border,
-      backgroundColor: theme.colors.cardItem,
+      backgroundColor: theme.colors.card,
     },
     optionSelected: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.colors.highlight,
+      borderColor: theme.colors.textSecondary,
+      backgroundColor: theme.colors.card,
     },
     optionLeft: {
       flexDirection: 'row',
@@ -96,8 +95,7 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
       justifyContent: 'center',
       marginRight: theme.spacing.md,
-      backgroundColor:
-        theme.mode === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)',
+      backgroundColor: theme.colors.cardItem,
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.colors.border,
     },
@@ -124,8 +122,8 @@ const createStyles = (theme: Theme) =>
       borderColor: 'transparent',
     },
     optionRightSelected: {
-      backgroundColor: theme.colors.primary,
-      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.cardItem,
+      borderColor: theme.colors.cardItem,
     },
     optionRightPlaceholder: {
       borderColor: theme.colors.border,
@@ -191,7 +189,6 @@ const ThemeSettingsScreen: React.FC = () => {
                 key={option.value}
                 onPress={() => handleSelect(option.value)}
                 android_ripple={{ color: rippleColor }}
-                style={styles.pressableWrapper}
               >
                 <AdaptiveGlassView
                   style={[
@@ -214,7 +211,7 @@ const ThemeSettingsScreen: React.FC = () => {
                       selected ? styles.optionRightSelected : styles.optionRightPlaceholder,
                     ]}
                   >
-                    {selected ? <Check size={16} color={appTheme.colors.onPrimary} /> : null}
+                    {selected ? <Check size={16} color={appTheme.colors.textSecondary} /> : null}
                   </View>
                 </AdaptiveGlassView>
               </Pressable>

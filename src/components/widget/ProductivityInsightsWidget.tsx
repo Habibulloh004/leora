@@ -1,15 +1,34 @@
 import React from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 
-const mockMetrics = [
+type ProductivityMetric = {
+  label: string;
+  value: string;
+  suffix?: string;
+};
+
+type ProductivityTrendPoint = {
+  label: string;
+  value: number;
+};
+
+interface ProductivityInsightsWidgetProps {
+  metrics?: ProductivityMetric[];
+  trend?: ProductivityTrendPoint[];
+  trendDelta?: number;
+  hasData?: boolean;
+  dateLabel?: string;
+}
+
+const MOCK_METRICS: ProductivityMetric[] = [
   { label: 'Focus score', value: '82', suffix: '/100' },
   { label: 'Tasks completed', value: '14', suffix: '/18' },
   { label: 'Deep work hrs', value: '6.5', suffix: 'h' },
 ];
 
-const mockTrend = [
+const MOCK_TREND: ProductivityTrendPoint[] = [
   { label: 'Mon', value: 68 },
   { label: 'Tue', value: 74 },
   { label: 'Wed', value: 80 },
@@ -17,24 +36,64 @@ const mockTrend = [
   { label: 'Fri', value: 89 },
 ];
 
-export default function ProductivityInsightsWidget() {
+const PLACEHOLDER_METRICS: ProductivityMetric[] = [
+  { label: 'Focus score', value: '--' },
+  { label: 'Tasks completed', value: '--' },
+  { label: 'Deep work hrs', value: '--' },
+];
+
+const PLACEHOLDER_TREND: ProductivityTrendPoint[] = [
+  { label: 'Mon', value: 10 },
+  { label: 'Tue', value: 12 },
+  { label: 'Wed', value: 8 },
+  { label: 'Thu', value: 14 },
+  { label: 'Fri', value: 9 },
+];
+
+export default function ProductivityInsightsWidget({
+  metrics,
+  trend,
+  trendDelta,
+  hasData = true,
+  dateLabel = '',
+}: ProductivityInsightsWidgetProps) {
   const theme = useAppTheme();
+  const metricList = hasData ? (metrics ?? MOCK_METRICS) : PLACEHOLDER_METRICS;
+  const trendPoints = hasData ? (trend ?? MOCK_TREND) : PLACEHOLDER_TREND;
+  const delta = hasData ? trendDelta : undefined;
+  const hintColor = hasData
+    ? (delta ?? 0) >= 0 ? theme.colors.success : theme.colors.danger
+    : theme.colors.textMuted;
+  const hintLabel = hasData
+    ? `${delta && delta >= 0 ? '+' : ''}${delta ?? 0} vs last week`
+    : 'No trend yet';
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.card, { backgroundColor:  theme.colors.card }]}>
         <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Productivity Insights</Text>
+        <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>
+          {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          }).format(new Date()) : '—')}
+        </Text>
 
         <View style={styles.metricsRow}>
-          {mockMetrics.map((metric) => (
+          {metricList.map((metric) => (
             <View key={metric.label} style={[styles.metric, {
               backgroundColor: theme.colors.surfaceElevated,
               borderColor: theme.colors.border
             }]}>
               <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>{metric.label}</Text>
-              <Text style={[styles.metricValue, { color: theme.colors.textPrimary }]}>
+              <Text style={[styles.metricValue, { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted }]}>
                 {metric.value}
-                <Text style={[styles.metricSuffix, { color: theme.colors.textSecondary }]}>{metric.suffix}</Text>
+                {metric.suffix && hasData && (
+                  <Text style={[styles.metricSuffix, { color: theme.colors.textSecondary }]}>
+                    {metric.suffix}
+                  </Text>
+                )}
               </Text>
             </View>
           ))}
@@ -42,19 +101,19 @@ export default function ProductivityInsightsWidget() {
 
         <View style={styles.trendHeader}>
           <Text style={[styles.trendTitle, { color: theme.colors.textPrimary }]}>Focus trend</Text>
-          <Text style={[styles.trendHint, { color: theme.colors.success }]}>+7 vs last week</Text>
+          <Text style={[styles.trendHint, { color: hintColor }]}>{hintLabel}</Text>
         </View>
 
         <View style={styles.trendBars}>
-          {mockTrend.map((point) => (
+          {trendPoints.map((point) => (
             <View key={point.label} style={styles.trendItem}>
               <View style={[styles.trendBarContainer, {
                 backgroundColor: theme.colors.surfaceElevated,
                 borderColor: theme.colors.border
               }]}>
                 <View style={[styles.trendBar, {
-                  height: `${point.value}%`,
-                  backgroundColor: theme.colors.primary
+                  height: `${Math.max(6, Math.min(point.value, 100))}%`,
+                  backgroundColor: hasData ? theme.colors.primary : `${theme.colors.textSecondary}30`
                 }]} />
               </View>
               <Text style={[styles.trendLabel, { color: theme.colors.textSecondary }]}>{point.label}</Text>
@@ -78,6 +137,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  dateLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
   },
   metricsRow: {
     flexDirection: 'row',

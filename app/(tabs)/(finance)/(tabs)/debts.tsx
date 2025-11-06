@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   BellRing,
   Calendar,
-  CircleDollarSign,
   HandCoins,
   LucideIcon,
   Plus,
