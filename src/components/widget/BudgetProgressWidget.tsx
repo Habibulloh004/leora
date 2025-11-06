@@ -59,13 +59,13 @@ export default function BudgetProgressWidget({
                     {hasData ? `$${item.used} / $${item.total}` : '--'}
                   </Text>
                 </View>
-                <View style={[styles.progressBackground, { backgroundColor: theme.colors.surfaceElevated }]}>
+                <View style={[styles.progressBackground, { backgroundColor: theme.colors.background }]}>
                   <View
                     style={[
                       styles.progressFill,
                       {
                         width: hasData ? `${Math.min(progress * 100, 100)}%` : '6%',
-                        backgroundColor: hasData ? theme.colors.success : `${theme.colors.textSecondary}30`,
+                        backgroundColor: hasData ? theme.colors.cardItem : `${theme.colors.textSecondary}30`,
                       },
                     ]}
                   />

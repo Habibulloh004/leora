@@ -62,7 +62,7 @@ export default function ProductivityInsightsWidget({
   const trendPoints = hasData ? (trend ?? MOCK_TREND) : PLACEHOLDER_TREND;
   const delta = hasData ? trendDelta : undefined;
   const hintColor = hasData
-    ? (delta ?? 0) >= 0 ? theme.colors.success : theme.colors.danger
+    ? (delta ?? 0) >= 0 ? theme.colors.textSecondary : theme.colors.danger
     : theme.colors.textMuted;
   const hintLabel = hasData
     ? `${delta && delta >= 0 ? '+' : ''}${delta ?? 0} vs last week`
@@ -83,7 +83,7 @@ export default function ProductivityInsightsWidget({
         <View style={styles.metricsRow}>
           {metricList.map((metric) => (
             <View key={metric.label} style={[styles.metric, {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.cardItem,
               borderColor: theme.colors.border
             }]}>
               <Text style={[styles.metricLabel, { color: theme.colors.textSecondary }]}>{metric.label}</Text>
@@ -108,12 +108,12 @@ export default function ProductivityInsightsWidget({
           {trendPoints.map((point) => (
             <View key={point.label} style={styles.trendItem}>
               <View style={[styles.trendBarContainer, {
-                backgroundColor: theme.colors.surfaceElevated,
-                borderColor: theme.colors.border
+                backgroundColor: "transparent",
+                borderColor: theme.colors.cardItem
               }]}>
                 <View style={[styles.trendBar, {
                   height: `${Math.max(6, Math.min(point.value, 100))}%`,
-                  backgroundColor: hasData ? theme.colors.primary : `${theme.colors.textSecondary}30`
+                  backgroundColor: hasData ? theme.colors.cardItem : `${theme.colors.textSecondary}30`
                 }]} />
               </View>
               <Text style={[styles.trendLabel, { color: theme.colors.textSecondary }]}>{point.label}</Text>

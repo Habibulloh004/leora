@@ -56,7 +56,7 @@ export default function SpendingSummaryWidget({
           {list.map((item) => (
             <View key={item.label} style={styles.row}>
               <Text style={[styles.rowLabel, { color: theme.colors.textSecondary }]}>{item.label}</Text>
-              <Text style={[styles.rowValue, { color: hasData ? theme.colors.danger : theme.colors.textMuted }]}>
+              <Text style={[styles.rowValue, { color: hasData ? theme.colors.textSecondary : theme.colors.textMuted }]}>
                 {hasData ? `-$${item.amount}` : '--'}
               </Text>
             </View>

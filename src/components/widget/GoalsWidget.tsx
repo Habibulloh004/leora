@@ -50,7 +50,7 @@ const MOCK_GOALS: Goal[] = [
 const GoalItem = ({ goal, hasData }: GoalItemProps) => {
   const theme = useAppTheme();
   const width: DimensionValue = hasData ? `${goal.progress}%` : '6%';
-  const barColor = hasData ? theme.colors.primary : `${theme.colors.textSecondary}26`;
+  const barColor = hasData ? theme.colors.cardItem : `${theme.colors.textSecondary}26`;
   const titleColor = hasData ? theme.colors.textPrimary : theme.colors.textMuted;
   const metaColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
 
@@ -61,7 +61,7 @@ const GoalItem = ({ goal, hasData }: GoalItemProps) => {
         <Text style={[styles.goalProgress, { color: metaColor }]}>{hasData ? `${goal.progress}%` : '--'}</Text>
       </View>
 
-      <View style={[styles.progressBarContainer, { backgroundColor: theme.colors.surfaceElevated }]}>
+      <View style={[styles.progressBarContainer, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.progressBar, { width, backgroundColor: barColor }]} />
       </View>
 
@@ -121,7 +121,7 @@ export default function GoalsWidget({
           <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
           </TouchableOpacity>
-        </View>
+        </View> 
 
         {displayedGoals.map((goal) => (
           <GoalItem key={goal.id} goal={goal} hasData={hasData} />

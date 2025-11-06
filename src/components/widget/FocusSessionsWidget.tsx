@@ -99,7 +99,7 @@ export default function FocusSessionsWidget({
               key={session.id}
               style={[styles.sessionItem, { borderBottomColor: theme.colors.border }]}
             >
-              <Timer size={20} color={session.completed ? theme.colors.success : theme.colors.textSecondary} />
+              <Timer size={20} color={session.completed ? theme.colors.textSecondary : theme.colors.textPrimary} />
               <Text style={[
                 styles.sessionTask,
                 {

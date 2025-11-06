@@ -81,7 +81,7 @@ export default function HabitsWidget({
                 onPress={hasData ? () => toggleHabit(habit.id) : undefined}
                 activeOpacity={hasData ? 0.7 : 1}
               >
-                <View style={[styles.habitIconBadge, { backgroundColor: theme.colors.surfaceElevated }]}>
+                <View style={[styles.habitIconBadge, { backgroundColor: theme.colors.cardItem }]}>
                   <Icon size={18} color={isPlaceholder ? theme.colors.textMuted : theme.colors.textPrimary} />
                 </View>
                 <View style={styles.habitContent}>
@@ -105,8 +105,8 @@ export default function HabitsWidget({
                 </View>
                 <CheckCircle2
                   size={20}
-                  color={habit.completed && hasData ? theme.colors.success : theme.colors.border}
-                  fill={habit.completed && hasData ? theme.colors.success : 'transparent'}
+                  color={habit.completed && hasData ? theme.colors.textPrimary : theme.colors.textSecondary}
+                  fill={habit.completed && hasData ? "transparent" : 'transparent'}
                 />
               </TouchableOpacity>
             );

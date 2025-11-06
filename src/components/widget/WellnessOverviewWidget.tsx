@@ -38,7 +38,7 @@ export default function WellnessOverviewWidget({
   const footerText = hasData
     ? statusMessage ?? 'Balanced week — keep up the routines'
     : 'Log your wellness check-ins to unlock insights';
-  const valueColor = hasData ? theme.colors.primary : theme.colors.textMuted;
+  const valueColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
 
   return (
     <View style={styles.container}>
@@ -55,7 +55,7 @@ export default function WellnessOverviewWidget({
         <View style={styles.scores}>
           {metricList.map((item) => (
             <View key={item.label} style={[styles.scoreCard, {
-              backgroundColor: theme.colors.surfaceElevated,
+              backgroundColor: theme.colors.cardItem,
               borderColor: theme.colors.border
             }]}>
               <Text style={[styles.scoreValue, { color: valueColor }]}>
@@ -67,11 +67,11 @@ export default function WellnessOverviewWidget({
         </View>
 
         <View style={[styles.footer, {
-          backgroundColor: theme.colors.surfaceElevated,
+          backgroundColor: theme.colors.cardItem,
           borderColor: theme.colors.border
         }]}>
           <View style={[styles.footerIndicator, {
-            backgroundColor: hasData ? theme.colors.success : theme.colors.textMuted,
+            backgroundColor: hasData ? theme.colors.textSecondary : theme.colors.textMuted,
           }]} />
           <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>{footerText}</Text>
         </View>

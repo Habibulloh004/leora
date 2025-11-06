@@ -64,15 +64,14 @@ export default function TransactionsWidget({
               <View style={[
                 styles.iconContainer,
                 {
-                  backgroundColor: transaction.type === 'income'
-                    ? (theme.mode === 'dark' ? '#4CAF5020' : '#4CAF5030')
-                    : (theme.mode === 'dark' ? '#F4433620' : '#F4433630'),
+                  backgroundColor: theme.colors.cardItem,
+                  borderRadius:10
                 }
               ]}>
                 {transaction.type === 'income' ? (
-                  <ArrowDownLeft size={20} color={theme.colors.success} />
+                  <ArrowDownLeft size={20} color={theme.colors.textPrimary} />
                 ) : (
-                  <ArrowUpRight size={20} color={theme.colors.danger} />
+                  <ArrowUpRight size={20} color={theme.colors.textSecondary} />
                 )}
               </View>
               <View style={styles.transactionContent}>
@@ -88,8 +87,8 @@ export default function TransactionsWidget({
                 {
                   color: hasData
                     ? transaction.type === 'income'
-                      ? theme.colors.success
-                      : theme.colors.danger
+                      ? theme.colors.textPrimary
+                      : theme.colors.textSecondary
                     : theme.colors.textMuted,
                 }
               ]}>

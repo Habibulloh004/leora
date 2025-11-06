@@ -59,33 +59,33 @@ export default function CashFlowWidget({
         </View>
 
         <View style={styles.summaryRow}>
-          <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
+          <View style={[styles.summaryItem, { backgroundColor: theme.colors.cardItem, borderColor: theme.colors.border }]}>
           <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Income</Text>
             <Text style={[
               styles.summaryValue,
-              { color: hasData ? theme.colors.success : theme.colors.textMuted },
+              { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted },
             ]}
             >
               {hasData ? `$${totalIncome}` : '--'}
             </Text>
           </View>
-          <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
+          <View style={[styles.summaryItem, { backgroundColor: theme.colors.cardItem, borderColor: theme.colors.border }]}>
             <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Expenses</Text>
             <Text style={[
               styles.summaryValue,
-              { color: hasData ? theme.colors.danger : theme.colors.textMuted },
+              { color: hasData ? theme.colors.textSecondary : theme.colors.textMuted },
             ]}
             >
               {hasData ? `$${totalExpense}` : '--'}
             </Text>
           </View>
-          <View style={[styles.summaryItem, { backgroundColor: theme.colors.surfaceElevated, borderColor: theme.colors.border }]}>
+          <View style={[styles.summaryItem, { backgroundColor: theme.colors.cardItem, borderColor: theme.colors.border }]}>
             <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Net</Text>
             <Text style={[
               styles.summaryValue,
               {
                 color: hasData
-                  ? net >= 0 ? theme.colors.success : theme.colors.danger
+                  ? net >= 0 ? theme.colors.textPrimary : theme.colors.textSecondary
                   : theme.colors.textMuted,
               },
             ]}
@@ -99,10 +99,10 @@ export default function CashFlowWidget({
           {timeline.map((day) => (
             <View key={day.label} style={styles.tableRow}>
               <Text style={[styles.dayLabel, { color: theme.colors.textSecondary }]}>{day.label}</Text>
-              <Text style={[styles.tableValue, { color: hasData ? theme.colors.success : theme.colors.textMuted }]}>
+              <Text style={[styles.tableValue, { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted }]}>
                 {hasData ? `+$${day.income}` : '--'}
               </Text>
-              <Text style={[styles.tableValue, { color: hasData ? theme.colors.danger : theme.colors.textMuted }]}>
+              <Text style={[styles.tableValue, { color: hasData ? theme.colors.textSecondary : theme.colors.textMuted }]}>
                 {hasData ? `-$${day.expense}` : '--'}
               </Text>
             </View>
