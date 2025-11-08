@@ -13,6 +13,7 @@ import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 import type { CalendarIndicatorsMap } from '@/types/home';
 import { startOfDay, addDays, toISODateKey } from '@/utils/calendar';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
@@ -40,6 +41,7 @@ export default function Header({
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const theme = useAppTheme();
+  const { strings, locale } = useLocalization();
   const selectedIso = useMemo(() => toISODateKey(selectedDate), [selectedDate]);
   const isTodaySelected = useMemo(() => {
     const todayIso = toISODateKey(startOfDay(new Date()));
@@ -52,14 +54,15 @@ export default function Header({
   const dateColor = hasSnapshot ? theme.colors.textPrimary : theme.colors.textSecondary;
   const primaryLabel = useMemo(() => {
     if (isTodaySelected) {
-      return 'TODAY';
+      return strings.home.header.todayLabel;
     }
-    return new Intl.DateTimeFormat('en-US', {
+    const formatted = new Intl.DateTimeFormat(locale, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
-    }).format(selectedDate).toUpperCase();
-  }, [isTodaySelected, selectedDate]);
+    }).format(selectedDate);
+    return formatted.toLocaleUpperCase(locale);
+  }, [isTodaySelected, locale, selectedDate, strings.home.header.todayLabel]);
   const canNavigateForward = !isTodaySelected;
 
   const handleConfirmDate = useCallback(
@@ -117,7 +120,7 @@ export default function Header({
       <View style={styles.ProfileLogo}>
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Open profile"
+          accessibilityLabel={strings.home.header.openProfile}
           onPress={() => router.navigate('/(tabs)/more/account/profile')}
           style={[styles.avatar, { backgroundColor: theme.colors.surfaceElevated }]}
           activeOpacity={0.8}
@@ -129,7 +132,7 @@ export default function Header({
       <View style={styles.dateWrapper}>
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Previous day"
+          accessibilityLabel={strings.home.header.previousDay}
           onPress={handlePreviousDay}
           style={[
             styles.navButton,
@@ -168,7 +171,7 @@ export default function Header({
 
         <TouchableOpacity
           accessibilityRole="button"
-          accessibilityLabel="Next day"
+          accessibilityLabel={strings.home.header.nextDay}
           onPress={handleNextDay}
           disabled={!canNavigateForward}
           style={[

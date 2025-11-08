@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 type ProductivityMetric = {
   label: string;
@@ -22,11 +23,11 @@ interface ProductivityInsightsWidgetProps {
   dateLabel?: string;
 }
 
-const MOCK_METRICS: ProductivityMetric[] = [
-  { label: 'Focus score', value: '82', suffix: '/100' },
-  { label: 'Tasks completed', value: '14', suffix: '/18' },
-  { label: 'Deep work hrs', value: '6.5', suffix: 'h' },
-];
+const DEFAULT_METRICS = [
+  { key: 'focusScore', value: '82', suffix: '/100' },
+  { key: 'tasksCompleted', value: '14', suffix: '/18' },
+  { key: 'deepWork', value: '6.5', suffix: 'h' },
+] as const;
 
 const MOCK_TREND: ProductivityTrendPoint[] = [
   { label: 'Mon', value: 68 },
@@ -36,11 +37,7 @@ const MOCK_TREND: ProductivityTrendPoint[] = [
   { label: 'Fri', value: 89 },
 ];
 
-const PLACEHOLDER_METRICS: ProductivityMetric[] = [
-  { label: 'Focus score', value: '--' },
-  { label: 'Tasks completed', value: '--' },
-  { label: 'Deep work hrs', value: '--' },
-];
+const PLACEHOLDER_METRICS = DEFAULT_METRICS.map((item) => ({ key: item.key, value: '--' }));
 
 const PLACEHOLDER_TREND: ProductivityTrendPoint[] = [
   { label: 'Mon', value: 10 },
@@ -58,26 +55,43 @@ export default function ProductivityInsightsWidget({
   dateLabel = '',
 }: ProductivityInsightsWidgetProps) {
   const theme = useAppTheme();
-  const metricList = hasData ? (metrics ?? MOCK_METRICS) : PLACEHOLDER_METRICS;
-  const trendPoints = hasData ? (trend ?? MOCK_TREND) : PLACEHOLDER_TREND;
+  const { strings, locale } = useLocalization();
+  const metricList = hasData
+    ? (metrics ?? DEFAULT_METRICS.map((item) => ({
+        label: strings.widgets.productivityInsights.metrics[item.key],
+        value: item.value,
+        suffix: item.suffix,
+      })))
+    : PLACEHOLDER_METRICS.map((item) => ({
+        label: strings.widgets.productivityInsights.metrics[item.key],
+        value: '--',
+      }));
+  const trendPoints = hasData
+    ? (trend ?? MOCK_TREND)
+    : PLACEHOLDER_TREND;
   const delta = hasData ? trendDelta : undefined;
   const hintColor = hasData
     ? (delta ?? 0) >= 0 ? theme.colors.textSecondary : theme.colors.danger
     : theme.colors.textMuted;
   const hintLabel = hasData
-    ? `${delta && delta >= 0 ? '+' : ''}${delta ?? 0} vs last week`
-    : 'No trend yet';
+    ? `${delta && delta >= 0 ? '+' : ''}${delta ?? 0} ${strings.widgets.productivityInsights.vsLastWeek}`
+    : strings.widgets.productivityInsights.noTrend;
+  const resolvedDateLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.card, { backgroundColor:  theme.colors.card }]}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Productivity Insights</Text>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          {strings.widgets.productivityInsights.title}
+        </Text>
         <Text style={[styles.dateLabel, { color: theme.colors.textSecondary }]}>
-          {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          }).format(new Date()) : '—')}
+          {resolvedDateLabel}
         </Text>
 
         <View style={styles.metricsRow}>
@@ -100,7 +114,9 @@ export default function ProductivityInsightsWidget({
         </View>
 
         <View style={styles.trendHeader}>
-          <Text style={[styles.trendTitle, { color: theme.colors.textPrimary }]}>Focus trend</Text>
+          <Text style={[styles.trendTitle, { color: theme.colors.textPrimary }]}>
+            {strings.widgets.productivityInsights.trendTitle}
+          </Text>
           <Text style={[styles.trendHint, { color: hintColor }]}>{hintLabel}</Text>
         </View>
 

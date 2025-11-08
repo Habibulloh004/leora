@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
+
+type CashFlowDayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri';
 
 interface CashFlowDay {
+  key?: CashFlowDayKey;
   label: string;
   income: number;
   expense: number;
@@ -15,21 +19,15 @@ interface CashFlowWidgetProps {
   dateLabel?: string;
 }
 
-const MOCK_CASH_FLOW: CashFlowDay[] = [
-  { label: 'Mon', income: 220, expense: 180 },
-  { label: 'Tue', income: 180, expense: 210 },
-  { label: 'Wed', income: 260, expense: 190 },
-  { label: 'Thu', income: 150, expense: 170 },
-  { label: 'Fri', income: 200, expense: 140 },
-];
+const DEFAULT_TIMELINE: Array<{ key: CashFlowDayKey; income: number; expense: number }> = [
+  { key: 'mon', income: 220, expense: 180 },
+  { key: 'tue', income: 180, expense: 210 },
+  { key: 'wed', income: 260, expense: 190 },
+  { key: 'thu', income: 150, expense: 170 },
+  { key: 'fri', income: 200, expense: 140 },
+] as const;
 
-const PLACEHOLDER_CASH_FLOW: CashFlowDay[] = [
-  { label: 'Mon', income: 0, expense: 0 },
-  { label: 'Tue', income: 0, expense: 0 },
-  { label: 'Wed', income: 0, expense: 0 },
-  { label: 'Thu', income: 0, expense: 0 },
-  { label: 'Fri', income: 0, expense: 0 },
-];
+const PLACEHOLDER_KEYS: CashFlowDayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri'];
 
 export default function CashFlowWidget({
   days,
@@ -37,10 +35,35 @@ export default function CashFlowWidget({
   dateLabel = '',
 }: CashFlowWidgetProps) {
   const theme = useAppTheme();
-  const timeline = hasData ? (days ?? MOCK_CASH_FLOW) : PLACEHOLDER_CASH_FLOW;
+  const { strings, locale } = useLocalization();
+
+  const timeline = useMemo(() => {
+    if (hasData) {
+      if (days) {
+        return days;
+      }
+      return DEFAULT_TIMELINE.map((item) => ({
+        label: strings.widgets.cashFlow.days[item.key],
+        income: item.income,
+        expense: item.expense,
+      }));
+    }
+    return PLACEHOLDER_KEYS.map((key) => ({
+      label: strings.widgets.cashFlow.days[key],
+      income: 0,
+      expense: 0,
+    }));
+  }, [days, hasData, strings]);
   const totalIncome = hasData ? timeline.reduce((sum, day) => sum + day.income, 0) : 0;
   const totalExpense = hasData ? timeline.reduce((sum, day) => sum + day.expense, 0) : 0;
   const net = totalIncome - totalExpense;
+  const resolvedDateLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
@@ -48,19 +71,19 @@ export default function CashFlowWidget({
         backgroundColor: theme.colors.card,
       }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Cash Flow</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            {strings.widgets.cashFlow.title}
+          </Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            }).format(new Date()) : '—')}
+            {resolvedDateLabel}
           </Text>
         </View>
 
         <View style={styles.summaryRow}>
           <View style={[styles.summaryItem, { backgroundColor: theme.colors.cardItem, borderColor: theme.colors.border }]}>
-          <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Income</Text>
+          <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
+            {strings.widgets.cashFlow.summary.income}
+          </Text>
             <Text style={[
               styles.summaryValue,
               { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted },
@@ -70,7 +93,9 @@ export default function CashFlowWidget({
             </Text>
           </View>
           <View style={[styles.summaryItem, { backgroundColor: theme.colors.cardItem, borderColor: theme.colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Expenses</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
+              {strings.widgets.cashFlow.summary.expenses}
+            </Text>
             <Text style={[
               styles.summaryValue,
               { color: hasData ? theme.colors.textSecondary : theme.colors.textMuted },
@@ -80,7 +105,9 @@ export default function CashFlowWidget({
             </Text>
           </View>
           <View style={[styles.summaryItem, { backgroundColor: theme.colors.cardItem, borderColor: theme.colors.border }]}>
-            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>Net</Text>
+            <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>
+              {strings.widgets.cashFlow.summary.net}
+            </Text>
             <Text style={[
               styles.summaryValue,
               {

@@ -420,6 +420,20 @@ function RootNavigator({
             headerShown: false,
           }}
         />
+        <Stack.Screen
+          name="progress/[metric]"
+          options={{
+            headerShown: false,
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="progress/[metric]/info"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
       </Stack>
       {/* {canManageStatusBar && (
         <StatusBar  style={statusBarStyle} backgroundColor={palette.background} animated />

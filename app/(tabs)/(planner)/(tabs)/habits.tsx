@@ -1,5 +1,5 @@
 // app/(tabs)/(planner)/(tabs)/habits.tsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   LayoutAnimation,
   Platform,
@@ -36,6 +36,7 @@ import {
   startOfMonth,
   useCalendarWeeks,
 } from '@/utils/calendar';
+import { useSelectedDayStore } from '@/stores/selectedDayStore';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -135,9 +136,23 @@ export default function PlannerHabitsTab() {
   const theme = useAppTheme();
   const styles = useStyles();
   const [habits, setHabits] = useState<Habit[]>(INITIAL_HABITS);
-  const [selectedDate, setSelectedDate] = useState<Date>(() => startOfDay(new Date()));
-  const [visibleMonth, setVisibleMonth] = useState<Date>(() => startOfMonth(new Date()));
+  const storedSelectedDate = useSelectedDayStore((state) => state.selectedDate);
+  const normalizedInitialDate = useMemo(
+    () => startOfDay(storedSelectedDate ?? new Date()),
+    [storedSelectedDate],
+  );
+  const [selectedDate, setSelectedDate] = useState<Date>(normalizedInitialDate);
+  const [visibleMonth, setVisibleMonth] = useState<Date>(() => startOfMonth(normalizedInitialDate));
   const [showCalendar, setShowCalendar] = useState(false);
+
+  useEffect(() => {
+    const normalized = startOfDay(storedSelectedDate ?? new Date());
+    setSelectedDate((prev) => (prev.getTime() === normalized.getTime() ? prev : normalized));
+    setVisibleMonth((prev) => {
+      const month = startOfMonth(normalized);
+      return prev.getTime() === month.getTime() ? prev : month;
+    });
+  }, [storedSelectedDate]);
 
   const weekDays = useMemo(() => buildWeekStrip(selectedDate), [selectedDate]);
   const calendarDays = useMemo(

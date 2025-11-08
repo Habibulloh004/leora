@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BackHandler, Image, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { BackHandler, Image, Modal, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -43,6 +43,8 @@ import UniversalFAB from '@/components/UniversalFAB';
 import { ListItem, SectionHeader } from '@/features/more/components';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useLocalization } from '@/localization/useLocalization';
 
 
 const LEVEL_PROGRESS_HEIGHT = 44;
@@ -211,6 +213,13 @@ const useStyles = createThemedStyles((theme) => ({
     borderRadius: theme.radius.xl,
     backgroundColor:theme.colors.card
   },
+  logoutPressable: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.sm,
+    width: '100%',
+  },
   logoutText: {
     fontSize: 16,
     fontWeight: '700',
@@ -222,6 +231,40 @@ const useStyles = createThemedStyles((theme) => ({
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: theme.radius.xl,
+    padding: theme.spacing.xl,
+    gap: theme.spacing.md,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+  },
+  modalMessage: {
+    fontSize: 14,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
+  },
+  modalButton: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.radius.lg,
+  },
+  modalButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 }));
 
@@ -241,9 +284,10 @@ type LevelProgressProps = {
   nextLevel: number;
   currentXp: number;
   targetXp: number;
+  label: string;
 };
 
-const LevelProgress: React.FC<LevelProgressProps> = ({ level, nextLevel, currentXp, targetXp }) => {
+const LevelProgress: React.FC<LevelProgressProps> = ({ level, nextLevel, currentXp, targetXp, label }) => {
   const theme = useAppTheme();
   const [trackWidth, setTrackWidth] = useState(0);
   const widthValue = useSharedValue(0);
@@ -328,7 +372,9 @@ const LevelProgress: React.FC<LevelProgressProps> = ({ level, nextLevel, current
               <Text style={[styles.levelNumber, { color: levelNumberColor }]}>{level}</Text>
             </View>
           </View>
-          <Text style={[styles.progressLabel, { color: labelColor }]}>Level {level}</Text>
+          <Text style={[styles.progressLabel, { color: labelColor }]}>
+            {label} {level}
+          </Text>
           <View style={styles.progressXpGroup}>
             <Star size={16} color="#FACC15" fill="#FACC15" />
             <Text style={[styles.progressXpCurrent, { color: labelColor }]}>{currentXp}</Text>
@@ -363,8 +409,11 @@ type SectionItem = {
 export default function MoreHomeScreen() {
   const styles = useStyles();
   const theme = useAppTheme();
+  const { strings } = useLocalization();
   const router = useRouter();
+  const logout = useAuthStore((state) => state.logout);
   const [syncEnabled, setSyncEnabled] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const navigateTo = useCallback(
     (target: string) => {
@@ -398,49 +447,81 @@ export default function MoreHomeScreen() {
     }, [router]),
   );
 
+  const handleLogout = useCallback(() => {
+    setShowLogoutConfirm(true);
+  }, []);
+
+  const closeLogoutModal = useCallback(() => {
+    setShowLogoutConfirm(false);
+  }, []);
+
+  const confirmLogout = useCallback(async () => {
+    setShowLogoutConfirm(false);
+    await logout();
+    router.replace('/(auth)/login');
+  }, [logout, router]);
+
   const logoutGradientColors: [string, string] =
     theme.mode === 'dark' ? ['rgba(59,130,246,0.18)', 'rgba(147,197,253,0.12)'] : ['rgba(79,70,229,0.12)', 'rgba(59,130,246,0.1)'];
 
-  const accountItems: SectionItem[] = [
-    { key: 'profile', icon: UserRound, label: 'Profile', destination: 'account/profile' },
-    { key: 'premium', icon: Crown, label: 'Premium status', destination: 'account/premium' },
-    { key: 'achievements', icon: Medal, label: 'Achievements', value: '23 / 50', destination: 'account/achievements' },
-    { key: 'statistics', icon: BarChart3, label: 'Statistics', destination: 'account/statistics' },
-  ];
+  const accountItems: SectionItem[] = useMemo(() => [
+    { key: 'profile', icon: UserRound, label: strings.more.accountItems.profile, destination: 'account/profile' },
+    { key: 'premium', icon: Crown, label: strings.more.accountItems.premium, destination: 'account/premium' },
+    { key: 'achievements', icon: Medal, label: strings.more.accountItems.achievements, value: '23 / 50', destination: 'account/achievements' },
+    { key: 'statistics', icon: BarChart3, label: strings.more.accountItems.statistics, destination: 'account/statistics' },
+  ], [strings]);
 
-  const settingsItems: SectionItem[] = [
+  const settingsItems: SectionItem[] = useMemo(() => [
     {
       key: 'appearance',
       icon: Palette,
-      label: 'Appearance',
-      value: theme.mode === 'dark' ? 'Dark' : 'Light',
+      label: strings.more.settingsItems.appearance,
+      value: theme.mode === 'dark' ? strings.more.values.themeDark : strings.more.values.themeLight,
       destination: 'settings',
     },
-    { key: 'notifications', icon: Bell, label: 'Notifications', value: 'Enabled', destination: 'settings/notifications' },
-    { key: 'assistant', icon: Sparkles, label: 'AI Assistant', value: 'Alpha', destination: 'settings/ai' },
-    { key: 'security', icon: ShieldCheck, label: 'Security', destination: 'settings/security?section=security-type' },
-    { key: 'language', icon: Languages, label: 'Language and Region', value: 'English', destination: 'settings/language' },
-  ];
+    {
+      key: 'notifications',
+      icon: Bell,
+      label: strings.more.settingsItems.notifications,
+      value: strings.more.values.enabled,
+      destination: 'settings/notifications',
+    },
+    {
+      key: 'assistant',
+      icon: Sparkles,
+      label: strings.more.settingsItems.aiAssistant,
+      value: strings.more.values.aiAlpha,
+      destination: 'settings/ai',
+    },
+    { key: 'security', icon: ShieldCheck, label: strings.more.settingsItems.security, destination: 'settings/security?section=security-type' },
+    {
+      key: 'language',
+      icon: Languages,
+      label: strings.more.settingsItems.language,
+      value: strings.more.values.languageLabel,
+      destination: 'settings/language',
+    },
+  ], [strings, theme.mode]);
 
-  const dataItems: SectionItem[] = [
-    { key: 'backup', icon: RefreshCw, label: 'Backup / Restore', destination: 'data?section=backup' },
-    { key: 'export', icon: Share, label: 'Export data', destination: 'data?section=export' },
-    { key: 'cache', icon: Trash2, label: 'Clear cache', value: '45 MB', destination: 'data?section=storage' },
-  ];
+  const dataItems: SectionItem[] = useMemo(() => [
+    { key: 'backup', icon: RefreshCw, label: strings.more.dataItems.backup, destination: 'data?section=backup' },
+    { key: 'export', icon: Share, label: strings.more.dataItems.export, destination: 'data?section=export' },
+    { key: 'cache', icon: Trash2, label: strings.more.dataItems.cache, value: '45 MB', destination: 'data?section=storage' },
+  ], [strings]);
 
-  const integrationItems: SectionItem[] = [
-    { key: 'calendars', icon: Calendar, label: 'Calendars', value: '2 / 3', destination: 'integrations?section=calendars' },
-    { key: 'banks', icon: Building2, label: 'Banks', value: '0 / 4', destination: 'integrations?section=banks' },
-    { key: 'apps', icon: AppWindow, label: 'Apps', value: '2 / 8', destination: 'integrations?section=applications' },
-    { key: 'devices', icon: MonitorSmartphone, label: 'Devices', value: '1 / 2', destination: 'integrations?section=devices' },
-  ];
+  const integrationItems: SectionItem[] = useMemo(() => [
+    { key: 'calendars', icon: Calendar, label: strings.more.integrationItems.calendars, value: '2 / 3', destination: 'integrations?section=calendars' },
+    { key: 'banks', icon: Building2, label: strings.more.integrationItems.banks, value: '0 / 4', destination: 'integrations?section=banks' },
+    { key: 'apps', icon: AppWindow, label: strings.more.integrationItems.apps, value: '2 / 8', destination: 'integrations?section=applications' },
+    { key: 'devices', icon: MonitorSmartphone, label: strings.more.integrationItems.devices, value: '1 / 2', destination: 'integrations?section=devices' },
+  ], [strings]);
 
-  const helpItems: SectionItem[] = [
-    { key: 'manual', icon: BookOpen, label: 'Manual', destination: 'support?section=manuals' },
-    { key: 'faq', icon: CircleHelp, label: 'FAQ', destination: 'support?section=popular' },
-    { key: 'support', icon: LifeBuoy, label: 'Support', destination: 'support?section=contact' },
-    { key: 'about', icon: Info, label: 'About LEORA', destination: 'about' },
-  ];
+  const helpItems: SectionItem[] = useMemo(() => [
+    { key: 'manual', icon: BookOpen, label: strings.more.helpItems.manual, destination: 'support?section=manuals' },
+    { key: 'faq', icon: CircleHelp, label: strings.more.helpItems.faq, destination: 'support?section=popular' },
+    { key: 'support', icon: LifeBuoy, label: strings.more.helpItems.support, destination: 'support?section=contact' },
+    { key: 'about', icon: Info, label: strings.more.helpItems.about, destination: 'about' },
+  ], [strings]);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['left', 'right', 'bottom']}>
@@ -477,16 +558,17 @@ export default function MoreHomeScreen() {
               <View style={styles.premiumBadge}>
                 <Image source={require("@assets/images/premium.png")} style={styles.premiumBadgeIcon} />
                 <Text style={styles.premiumBadgeText}>
-                  Premium until {userProfile.premiumUntil}
+                  {strings.more.premiumBadge} {userProfile.premiumUntil}
                 </Text>
               </View>
 
-              <LevelProgress
-                level={userProfile.level}
-                nextLevel={userProfile.nextLevel}
-                currentXp={userProfile.xp}
-                targetXp={userProfile.xpTarget}
-              />
+      <LevelProgress
+        level={userProfile.level}
+        nextLevel={userProfile.nextLevel}
+        currentXp={userProfile.xp}
+        targetXp={userProfile.xpTarget}
+        label={strings.more.values.level}
+      />
 
             </View>
           </Animated.View>
@@ -508,7 +590,7 @@ export default function MoreHomeScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.springify().delay(100)} style={styles.sectionGroup}>
-          <SectionHeader title="Settings" />
+          <SectionHeader title={strings.more.sections.settings} />
           <View style={styles.listCardContent}>
             {settingsItems.map((item, index) => (
               <ListItem
@@ -524,12 +606,12 @@ export default function MoreHomeScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.springify().delay(150)} style={styles.sectionGroup}>
-          <SectionHeader title="Data" />
+          <SectionHeader title={strings.more.sections.data} />
           <View style={styles.listCardContent}>
             <ListItem
               icon={Cloud}
-              label="Synchronization"
-              value={syncEnabled ? 'On' : 'Off'}
+              label={strings.more.dataItems.synchronization}
+              value={syncEnabled ? strings.more.values.on : strings.more.values.off}
               disabled
               showChevron={false}
               rightAccessory={
@@ -556,7 +638,7 @@ export default function MoreHomeScreen() {
             ))}
           </View>
 
-          <SectionHeader title="Integration" style={styles.integrationHeader} />
+          <SectionHeader title={strings.more.sections.integration} style={styles.integrationHeader} />
           <View style={styles.listCardContent}>
             {integrationItems.map((item, index) => (
               <ListItem
@@ -572,7 +654,7 @@ export default function MoreHomeScreen() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.springify().delay(200)} style={styles.sectionGroup}>
-          <SectionHeader title="Help" />
+          <SectionHeader title={strings.more.sections.help} />
           <View style={styles.listCardContent}>
             {helpItems.map((item, index) => (
               <ListItem
@@ -585,17 +667,61 @@ export default function MoreHomeScreen() {
             ))}
           </View>
 
-            <AdaptiveGlassView
-              style={[
-                styles.logoutButton,
-              ]}
-            >
-              <LogOut size={20} color={theme.colors.textPrimary} />
-              <Text style={[styles.logoutText, { color: theme.colors.textPrimary }]}>Log out</Text>
+            <AdaptiveGlassView style={styles.logoutButton}>
+              <Pressable
+                style={styles.logoutPressable}
+                android_ripple={{ color: 'rgba(0,0,0,0.1)' }}
+                onPress={handleLogout}
+              >
+                <LogOut size={20} color={theme.colors.textPrimary} />
+                <Text style={[styles.logoutText, { color: theme.colors.textPrimary }]}>
+                  {strings.more.logout}
+                </Text>
+              </Pressable>
             </AdaptiveGlassView>
         </Animated.View>
       </Animated.ScrollView>
       <UniversalFAB />
+      <Modal
+        transparent
+        animationType="fade"
+        visible={showLogoutConfirm}
+        onRequestClose={closeLogoutModal}
+      >
+        <View style={[styles.modalBackdrop, { backgroundColor: theme.colors.backdrop }]}>
+          <AdaptiveGlassView style={[styles.modalCard, { backgroundColor: theme.colors.card }]}>
+            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+              {strings.more.confirmLogout.title}
+            </Text>
+            <Text style={[styles.modalMessage, { color: theme.colors.textSecondary }]}>
+              {strings.more.confirmLogout.message}
+            </Text>
+            <View style={styles.modalActions}>
+              <Pressable
+                style={[styles.modalButton, { backgroundColor: theme.colors.overlaySoft }]}
+                onPress={closeLogoutModal}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.colors.textPrimary }]}>
+                  {strings.more.confirmLogout.cancel}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.modalButton,
+                  {
+                    backgroundColor: theme.mode === 'dark' ? theme.colors.danger : theme.colors.primary,
+                  },
+                ]}
+                onPress={confirmLogout}
+              >
+                <Text style={[styles.modalButtonText, { color: theme.colors.onPrimary }]}>
+                  {strings.more.confirmLogout.confirm}
+                </Text>
+              </Pressable>
+            </View>
+          </AdaptiveGlassView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

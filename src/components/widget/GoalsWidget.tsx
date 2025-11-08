@@ -1,9 +1,10 @@
 import type { Goal } from '@/types/home';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View, type DimensionValue } from 'react-native';
 import { Dot } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface GoalsWidgetProps {
   goals?: Goal[];
@@ -15,6 +16,7 @@ interface GoalsWidgetProps {
 interface GoalItemProps {
   goal: Goal;
   hasData: boolean;
+  placeholderText: string;
 }
 
 const MOCK_GOALS: Goal[] = [
@@ -47,7 +49,7 @@ const MOCK_GOALS: Goal[] = [
   },
 ];
 
-const GoalItem = ({ goal, hasData }: GoalItemProps) => {
+const GoalItem = ({ goal, hasData, placeholderText }: GoalItemProps) => {
   const theme = useAppTheme();
   const width: DimensionValue = hasData ? `${goal.progress}%` : '6%';
   const barColor = hasData ? theme.colors.textSecondary : `${theme.colors.textSecondary}26`;
@@ -65,35 +67,16 @@ const GoalItem = ({ goal, hasData }: GoalItemProps) => {
         <View style={[styles.progressBar, { width, backgroundColor: barColor }]} />
       </View>
 
-      <Text style={[styles.goalTarget, { color: theme.colors.textMuted }]}>
-        {hasData
-          ? `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} ${goal.unit}`
-          : 'Add a goal to start tracking progress.'}
-      </Text>
-    </View>
+  <Text style={[styles.goalTarget, { color: theme.colors.textMuted }]}>
+    {hasData
+      ? `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} ${goal.unit}`
+      : placeholderText}
+  </Text>
+</View>
   );
 };
 
-const PLACEHOLDER_GOALS: Goal[] = [
-  {
-    id: 'placeholder-goal-1',
-    title: 'No goals tracked yet',
-    progress: 0,
-    current: 0,
-    target: 0,
-    unit: '',
-    category: 'personal',
-  },
-  {
-    id: 'placeholder-goal-2',
-    title: 'Tap to add a new goal',
-    progress: 0,
-    current: 0,
-    target: 0,
-    unit: '',
-    category: 'personal',
-  },
-];
+const PLACEHOLDER_KEYS = ['first', 'second'] as const;
 
 export default function GoalsWidget({
   goals = MOCK_GOALS,
@@ -102,19 +85,37 @@ export default function GoalsWidget({
   dateLabel = '',
 }: GoalsWidgetProps) {
   const theme = useAppTheme();
-  const displayedGoals = hasData ? goals : PLACEHOLDER_GOALS;
-  const resolvedLabel = dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date()) : '—');
+  const { strings, locale } = useLocalization();
+  const placeholderGoals = useMemo(
+    () =>
+      PLACEHOLDER_KEYS.map((key, index) => ({
+        id: `placeholder-goal-${index}`,
+        title: strings.widgets.goals.placeholders[index],
+        progress: 0,
+        current: 0,
+        target: 0,
+        unit: '',
+        category: 'personal' as Goal['category'],
+      })),
+    [strings],
+  );
+  const displayedGoals = hasData ? goals : placeholderGoals;
+  const resolvedLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.widget, { backgroundColor: theme.colors.card }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Goals</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+              {strings.widgets.goals.title}
+            </Text>
             <Dot color={theme.colors.textSecondary} />
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedLabel}</Text>
           </View>
@@ -124,7 +125,12 @@ export default function GoalsWidget({
         </View> 
 
         {displayedGoals.map((goal) => (
-          <GoalItem key={goal.id} goal={goal} hasData={hasData} />
+          <GoalItem
+            key={goal.id}
+            goal={goal}
+            hasData={hasData}
+            placeholderText={strings.widgets.goals.placeholderText}
+          />
         ))}
       </AdaptiveGlassView>
     </View>

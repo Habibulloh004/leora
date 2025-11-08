@@ -11,10 +11,11 @@ import { Check, Globe } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
-import { useSettingsStore } from '@/stores/useSettingsStore';
+import { useSettingsStore, type SupportedLanguage } from '@/stores/useSettingsStore';
+import { useLocalization } from '@/localization/useLocalization';
 
 type LanguageOption = {
-  value: string;
+  value: SupportedLanguage;
   label: string;
   nativeLabel: string;
 };
@@ -24,6 +25,7 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
   { value: 'ru', label: 'Russian', nativeLabel: 'Русский' },
   { value: 'uz', label: 'Uzbek', nativeLabel: 'Oʻzbekcha' },
   { value: 'ar', label: 'Arabic', nativeLabel: 'العربية' },
+  { value: 'tr', label: 'Turkish', nativeLabel: 'Türkçe' },
 ];
 
 const createStyles = (theme: Theme) =>
@@ -49,7 +51,6 @@ const createStyles = (theme: Theme) =>
     },
     pressableWrapper: {
       borderRadius: theme.radius.xl,
-      overflow: 'hidden',
     },
     optionCard: {
       flexDirection: 'row',
@@ -58,9 +59,8 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md + 2,
       borderRadius: theme.radius.xl,
-      borderWidth: StyleSheet.hairlineWidth,
       borderColor: theme.colors.border,
-      backgroundColor: theme.colors.cardItem,
+      backgroundColor: theme.colors.card,
     },
     optionSelected: {
       borderColor: theme.colors.primary,
@@ -144,6 +144,7 @@ const createStyles = (theme: Theme) =>
 
 const LanguageSettingsScreen: React.FC = () => {
   const appTheme = useAppTheme();
+  const { strings } = useLocalization();
   const styles = useMemo(() => createStyles(appTheme), [appTheme]);
   const rippleColor =
     appTheme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.12)';
@@ -152,7 +153,7 @@ const LanguageSettingsScreen: React.FC = () => {
   const setLanguage = useSettingsStore((state) => state.setLanguage);
 
   const handleSelect = useCallback(
-    (value: string) => {
+    (value: SupportedLanguage) => {
       setLanguage(value);
     },
     [setLanguage],
@@ -165,7 +166,7 @@ const LanguageSettingsScreen: React.FC = () => {
         contentContainerStyle={{ paddingBottom: 32 }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionTitle}>Language</Text>
+        <Text style={styles.sectionTitle}>{strings.language.sectionTitle}</Text>
         <View style={styles.card}>
           {LANGUAGE_OPTIONS.map((option) => {
             const selected = option.value === selectedLanguage;
@@ -208,10 +209,9 @@ const LanguageSettingsScreen: React.FC = () => {
         </View>
 
         <AdaptiveGlassView style={styles.helperCard}>
-          <Text style={styles.helperTitle}>Note</Text>
+          <Text style={styles.helperTitle}>{strings.language.helperTitle}</Text>
           <Text style={styles.helperText}>
-            Language changes will apply across insights, coach messages, and future updates. Some
-            experimental features may stay in English until localisation is complete.
+            {strings.language.helperDescription}
           </Text>
         </AdaptiveGlassView>
       </ScrollView>

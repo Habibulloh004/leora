@@ -14,7 +14,6 @@ import PlannerHeader from '@/components/screens/planner/PlannerHeader';
 import InsightsHeader from '@/components/screens/insights/InsightsHeader';
 import FinanceHeader from '@/components/screens/finance/FinanceHeader';
 import { useAppTheme } from '@/constants/theme';
-import { useLocalization } from '@/localization/useLocalization';
 
 const { width } = Dimensions.get('window');
 const TAB_COUNT = 5 as const;
@@ -22,20 +21,18 @@ const TAB_COUNT = 5 as const;
 type IconProps = { color?: string; size?: number; strokeWidth?: number };
 type IconType = React.ComponentType<IconProps>;
 
-type TabName = 'index' | 'finance' | 'planner' | 'insights' | 'more';
-type TabLabelKey = 'home' | 'finance' | 'planner' | 'insights' | 'more';
 type TabItem = {
-  name: TabName;
-  labelKey: TabLabelKey;
+  name: 'index' | 'finance' | 'planner' | 'insights' | 'more';
+  label: string;
   icon: IconType;
 };
 
 const TABS: readonly TabItem[] = [
-  { name: 'index', labelKey: 'home', icon: HomeIcon },
-  { name: 'finance', labelKey: 'finance', icon: FinanceIcon },
-  { name: 'planner', labelKey: 'planner', icon: PlannerIcon },
-  { name: 'insights', labelKey: 'insights', icon: InsightsIcon },
-  { name: 'more', labelKey: 'more', icon: MoreIcon },
+  { name: 'index', label: 'Home', icon: HomeIcon },
+  { name: 'finance', label: 'Finance', icon: FinanceIcon },
+  { name: 'planner', label: 'Planner', icon: PlannerIcon },
+  { name: 'insights', label: 'Insights', icon: InsightsIcon },
+  { name: 'more', label: 'More', icon: MoreIcon },
 ] as const;
 
 const TabHeaderFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -174,7 +171,6 @@ GlowIndicator.displayName = 'GlowIndicator';
 /** We avoid useEffect. We trigger springs only when targetX actually changes. */
 const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
   const theme = useAppTheme();
-  const { strings } = useLocalization();
   const insets = useSafeAreaInsets();
   const tabWidth = width / TAB_COUNT;
   const indicatorWidth = tabWidth * 0.5;
@@ -225,7 +221,6 @@ const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
         {TABS.map((tab, index) => {
           const isFocused = state.index === index;
           const route = state.routes[index];
-          const tabLabel = strings.tabs[tab.labelKey];
 
           const onPress = () => {
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
@@ -240,7 +235,7 @@ const CustomTabBar = memo(function CustomTabBar({ state, navigation }: any) {
             <TabButton
               key={tab.name}
               isFocused={isFocused}
-              label={tabLabel}
+              label={tab.label}
               Icon={tab.icon}
               onPress={onPress}
               onLongPress={onLongPress}

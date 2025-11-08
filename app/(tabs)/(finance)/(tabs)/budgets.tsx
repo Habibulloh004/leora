@@ -12,6 +12,8 @@ import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useSelectedDayStore } from '@/stores/selectedDayStore';
+import { startOfDay } from '@/utils/calendar';
 
 type BudgetState = 'exceeding' | 'within' | 'fixed';
 
@@ -316,6 +318,20 @@ const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({ category, index
 const BudgetsScreen: React.FC = () => {
   const theme = useAppTheme();
   const dividerColor = applyAlpha(theme.colors.borderMuted, theme.mode === 'dark' ? 0.4 : 0.6);
+  const selectedDate = useSelectedDayStore((state) => state.selectedDate);
+  const selectedDateLabel = useMemo(() => {
+    const normalized = startOfDay(selectedDate ?? new Date());
+    const today = startOfDay(new Date());
+    if (normalized.getTime() === today.getTime()) {
+      return 'Today\'s budget overview';
+    }
+    const formatted = new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }).format(normalized);
+    return `Budget overview for ${formatted}`;
+  }, [selectedDate]);
 
   return (
     <ScrollView
@@ -323,6 +339,7 @@ const BudgetsScreen: React.FC = () => {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <Text style={[styles.dateCaption, { color: theme.colors.textSecondary }]}>{selectedDateLabel}</Text>
       <Text style={[styles.sectionHeading, { color: theme.colors.textSecondary }]}>Main budget</Text>
       <View style={[styles.divider, { backgroundColor: dividerColor }]} />
 
@@ -372,6 +389,11 @@ const styles = StyleSheet.create({
     paddingTop: 28,
     paddingBottom: 40,
     gap: 18,
+  },
+  dateCaption: {
+    fontSize: 12,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
   },
   sectionHeading: {
     fontSize: 16,

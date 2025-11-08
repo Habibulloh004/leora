@@ -1,84 +1,38 @@
 import React, { useCallback, useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
-  Easing,
   Extrapolation,
   interpolate,
   SharedValue,
-  useAnimatedProps,
   useAnimatedStyle,
-  withTiming,
 } from 'react-native-reanimated';
-import Svg, { Circle } from 'react-native-svg';
+import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/constants/theme';
+import { CircularProgress } from '@/components/shared/CircularProgress';
+import { getProgressColor } from '@/features/progress/colorUtils';
+import { useSelectedDayStore } from '@/stores/selectedDayStore';
+import { useLocalization } from '@/localization/useLocalization';
 import type { ProgressData } from '@/types/home';
 
 interface Props {
   scrollY: SharedValue<number>;
   data?: ProgressData | null;
   isLoading?: boolean;
+  selectedDate: Date;
 }
 
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
-
-interface CircularProgressProps {
-  progress: number;
-  color: string;
-  trackColor: string;
-}
-
-const CircularProgress = React.memo(({ progress, color, trackColor }: CircularProgressProps) => {
-  const size = 96;
-  const strokeWidth = 7;
-  const center = size / 2;
-  const radius = (size - strokeWidth) / 2;
-  const circumference = 2 * Math.PI * radius;
-
-  const animatedProps = useAnimatedProps(() => {
-    const strokeDashoffset = circumference - (progress / 100) * circumference;
-    return {
-      strokeDashoffset: withTiming(strokeDashoffset, {
-        duration: 800,
-        easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-      }),
-    };
-  });
-
-  return (
-    <Svg width={size} height={size}>
-      <Circle
-        cx={center}
-        cy={center}
-        r={radius}
-        stroke={trackColor}
-        strokeWidth={strokeWidth}
-        fill="none"
-      />
-      <AnimatedCircle
-        cx={center}
-        cy={center}
-        r={radius}
-        stroke={color}
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={circumference}
-        strokeLinecap="round"
-        rotation="-90"
-        origin={`${center}, ${center}`}
-        animatedProps={animatedProps}
-      />
-    </Svg>
-  );
-});
-
-CircularProgress.displayName = 'CircularProgress';
+type MetricKey = keyof ProgressData;
 
 export default function ProgressIndicators({
   scrollY,
   data,
   isLoading = false,
+  selectedDate,
 }: Props) {
+  const router = useRouter();
   const theme = useAppTheme();
+  const { strings } = useLocalization();
+  const setSelectedDay = useSelectedDayStore((state) => state.setSelectedDate);
   const SCROLL_THRESHOLD = 100;
   const hasData = Boolean(data);
 
@@ -161,29 +115,37 @@ export default function ProgressIndicators({
     };
   });
 
-  const colorForValue = useCallback(
-    (value: number, hasContent: boolean) => {
-      if (!hasContent) {
-        return theme.colors.border;
-      }
-      if (value >= 66) {
-        return theme.colors.success;
-      }
-      if (value >= 34) {
-        return theme.colors.warning;
-      }
-      return theme.colors.danger;
-    },
-    [theme.colors.border, theme.colors.danger, theme.colors.success, theme.colors.warning],
-  );
-
   const progressItems = useMemo(
     () => [
-      { key: 'tasks', label: 'TASKS', value: data?.tasks ?? 0 },
-      { key: 'budget', label: 'BUDGET', value: data?.budget ?? 0 },
-      { key: 'focus', label: 'FOCUS', value: data?.focus ?? 0 },
+      { key: 'tasks' as const, label: strings.home.progress.tasks, value: data?.tasks ?? 0 },
+      { key: 'budget' as const, label: strings.home.progress.budget, value: data?.budget ?? 0 },
+      { key: 'focus' as const, label: strings.home.progress.habit, value: data?.focus ?? 0 },
     ],
-    [data],
+    [data, strings.home.progress.budget, strings.home.progress.habit, strings.home.progress.tasks],
+  );
+
+  const metricRoutes = useMemo<Record<MetricKey, string>>(
+    () => ({
+      tasks: '/(tabs)/(planner)/(tabs)',
+      budget: '/(tabs)/(finance)/(tabs)/budgets',
+      focus: '/(tabs)/(planner)/(tabs)/habits',
+    }),
+    [],
+  );
+
+  const handleNavigate = useCallback(
+    (key: MetricKey) => {
+      const target = metricRoutes[key];
+      if (!target) return;
+      setSelectedDay(selectedDate);
+      router.push({
+        pathname: target,
+        params: {
+          date: selectedDate.toISOString(),
+        },
+      });
+    },
+    [metricRoutes, router, selectedDate, setSelectedDay],
   );
 
   const styles = createStyles(theme);
@@ -193,18 +155,27 @@ export default function ProgressIndicators({
       <Animated.View style={[styles.innerContainer, progressAnimatedStyle]}>
         {progressItems.map((item) => {
           const progressValue = hasData ? item.value : 0;
-          const circleColor = colorForValue(item.value, hasData);
+          const circleColor = getProgressColor(theme, item.value, hasData);
           const valueText = hasData ? `${Math.round(item.value)}%` : '--%';
           const valueColor = hasData ? theme.colors.textPrimary : theme.colors.textSecondary;
           const labelColor = hasData ? theme.colors.textSecondary : theme.colors.textTertiary;
 
+          const trackColor = theme.mode === 'light' ? theme.colors.cardItem : theme.colors.card;
+
           return (
-            <View key={item.key} style={styles.itemWrapper}>
+            <Pressable
+              key={item.key}
+              style={styles.itemWrapper}
+              onPress={() => handleNavigate(item.key)}
+              android_ripple={{ color: `${theme.colors.primary}22`, borderless: true }}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.label} ${strings.home.progress.progressSuffix}`}
+            >
               <Animated.View style={[styles.circleContainer, circleContainerStyle]}>
                 <CircularProgress
                   progress={progressValue}
                   color={circleColor}
-                  trackColor={theme.mode === "light" ? theme.colors.cardItem : theme.colors.card}
+                  trackColor={trackColor}
                 />
 
                 <Animated.Text style={[styles.percentText, percentStyle, { color: valueColor }]}>
@@ -215,7 +186,7 @@ export default function ProgressIndicators({
               <Animated.Text style={[styles.labelText, labelStyle, { color: labelColor }]}>
                 {item.label}
               </Animated.Text>
-            </View>
+            </Pressable>
           );
         })}
       </Animated.View>

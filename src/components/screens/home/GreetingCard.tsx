@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface GreetingCardProps {
   userName?: string;
@@ -14,21 +15,22 @@ export default function GreetingCard({
 }: GreetingCardProps) {
   const theme = useAppTheme();
   const displayDate = date ?? new Date();
+  const { strings, locale } = useLocalization();
 
-  const getGreeting = () => {
+  const greetingText = useMemo(() => {
     const hour = displayDate.getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  };
+    if (hour < 12) return strings.home.greeting.morning;
+    if (hour < 18) return strings.home.greeting.afternoon;
+    return strings.home.greeting.evening;
+  }, [displayDate, strings.home.greeting.afternoon, strings.home.greeting.evening, strings.home.greeting.morning]);
 
-  const getFormattedDate = () => {
-    return displayDate.toLocaleDateString('en-US', {
+  const formattedDate = useMemo(() => {
+    return displayDate.toLocaleDateString(locale, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
     });
-  };
+  }, [displayDate, locale]);
 
   const styles = createStyles(theme);
 
@@ -37,9 +39,9 @@ export default function GreetingCard({
       <View style={styles.content}>
         <View>
           <Text style={[styles.greeting, { color: theme.colors.textPrimary }]}>
-            {getGreeting()}, {userName}
+            {greetingText}, {userName}
           </Text>
-          <Text style={[styles.date, { color: theme.colors.textMuted }]}>{getFormattedDate()}</Text>
+          <Text style={[styles.date, { color: theme.colors.textMuted }]}>{formattedDate}</Text>
         </View>
       </View>
     </AdaptiveGlassView>

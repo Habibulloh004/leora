@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface WellnessMetric {
   label: string;
@@ -15,17 +16,7 @@ interface WellnessOverviewWidgetProps {
   dateLabel?: string;
 }
 
-const MOCK_WELLNESS: WellnessMetric[] = [
-  { label: 'Energy', value: 76 },
-  { label: 'Mood', value: 82 },
-  { label: 'Sleep quality', value: 71 },
-];
-
-const PLACEHOLDER_WELLNESS: WellnessMetric[] = [
-  { label: 'Energy', value: 0 },
-  { label: 'Mood', value: 0 },
-  { label: 'Sleep quality', value: 0 },
-];
+const METRIC_KEYS = ['energy', 'mood', 'sleep'] as const;
 
 export default function WellnessOverviewWidget({
   metrics,
@@ -34,22 +25,42 @@ export default function WellnessOverviewWidget({
   dateLabel = '',
 }: WellnessOverviewWidgetProps) {
   const theme = useAppTheme();
-  const metricList = hasData ? (metrics ?? MOCK_WELLNESS) : PLACEHOLDER_WELLNESS;
+  const { strings, locale } = useLocalization();
+  const metricList = useMemo(() => {
+    if (hasData) {
+      if (metrics) {
+        return metrics;
+      }
+      return METRIC_KEYS.map((key, index) => ({
+        label: strings.widgets.wellnessOverview.metrics[key],
+        value: [76, 82, 71][index],
+      }));
+    }
+    return METRIC_KEYS.map((key) => ({
+      label: strings.widgets.wellnessOverview.metrics[key],
+      value: 0,
+    }));
+  }, [hasData, metrics, strings]);
   const footerText = hasData
-    ? statusMessage ?? 'Balanced week — keep up the routines'
-    : 'Log your wellness check-ins to unlock insights';
+    ? statusMessage ?? strings.widgets.wellnessOverview.messages.balanced
+    : strings.widgets.wellnessOverview.messages.logPrompt;
   const valueColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
+  const resolvedDateLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.card, { backgroundColor:   theme.colors.card }]}>
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Wellness Overview</Text>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+          {strings.widgets.wellnessOverview.title}
+        </Text>
         <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-          {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-          }).format(new Date()) : '—')}
+          {resolvedDateLabel}
         </Text>
 
         <View style={styles.scores}>

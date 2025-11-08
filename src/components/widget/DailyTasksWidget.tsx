@@ -5,6 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface DailyTasksWidgetProps {
   initialTasks?: Task[];
@@ -73,9 +74,10 @@ export default function DailyTasksWidget({
   onTaskToggle,
   onMenuPress,
   hasData = true,
-  dateLabel = 'Today',
+  dateLabel = '',
 }: DailyTasksWidgetProps) {
   const theme = useAppTheme();
+  const { strings } = useLocalization();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
   useEffect(() => {
@@ -96,22 +98,26 @@ export default function DailyTasksWidget({
     onTaskToggle?.(taskId);
   };
 
-  const placeholderTasks: Task[] = [
-    { id: 'p1', title: 'No tasks scheduled', time: '--', completed: false },
-    { id: 'p2', title: 'Enjoy a break', time: '--', completed: false },
-    { id: 'p3', title: 'Add a new task', time: '--', completed: false },
-  ];
+  const placeholderTasks: Task[] = strings.widgets.dailyTasks.placeholders.map((title, index) => ({
+    id: `p${index + 1}`,
+    title,
+    time: '--',
+    completed: false,
+  }));
 
   const displayedTasks = hasData ? tasks : placeholderTasks;
+  const resolvedDateLabel = dateLabel || strings.home.header.todayLabel;
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.widget, { backgroundColor: theme.colors.card }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Daily tasks</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+              {strings.widgets.dailyTasks.title}
+            </Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{dateLabel}</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedDateLabel}</Text>
           </View>
           <TouchableOpacity onPress={onMenuPress} activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>

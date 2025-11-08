@@ -49,6 +49,8 @@ import {
   PlannerTaskSection,
   usePlannerTasksStore,
 } from '@/features/planner/useTasksStore';
+import { useSelectedDayStore } from '@/stores/selectedDayStore';
+import { startOfDay } from '@/utils/calendar';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -134,24 +136,44 @@ export default function PlannerTasksTab() {
   const restoreTask = usePlannerTasksStore((state) => state.restoreTask);
   const removeFromHistory = usePlannerTasksStore((state) => state.removeFromHistory);
 
+  const selectedDay = useSelectedDayStore((state) => state.selectedDate);
+  const normalizedSelectedDay = useMemo(() => startOfDay(selectedDay ?? new Date()), [selectedDay]);
+  const dayStart = normalizedSelectedDay.getTime();
+  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+
+  const tasksForDay = useMemo(() => {
+    return tasks.filter((task) => {
+      if (task.dueAt == null) return true;
+      return task.dueAt >= dayStart && task.dueAt < dayEnd;
+    });
+  }, [dayEnd, dayStart, tasks]);
+
+  const historyForDay = useMemo(() => {
+    return history.filter((task) => {
+      const reference = task.dueAt ?? task.deletedAt;
+      if (!reference) return false;
+      return reference >= dayStart && reference < dayEnd;
+    });
+  }, [dayEnd, dayStart, history]);
+
   const grouped = useMemo(() => {
     const base: Record<PlannerTaskSection, PlannerTask[]> = {
       morning: [],
       afternoon: [],
       evening: [],
     };
-    tasks.forEach((task) => {
+    tasksForDay.forEach((task) => {
       base[task.section].push(task);
     });
     return base;
-  }, [tasks]);
+  }, [tasksForDay]);
 
   const sortedHistory = useMemo(
     () =>
-      [...history].sort(
+      [...historyForDay].sort(
         (a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0),
       ),
-    [history],
+    [historyForDay],
   );
 
   const doneCount = (arr: PlannerTask[]) => arr.filter((t) => t.status === 'completed').length;
@@ -231,6 +253,18 @@ export default function PlannerTasksTab() {
     [addTask],
   );
 
+  const plansLabel = useMemo(() => {
+    const today = startOfDay(new Date());
+    if (normalizedSelectedDay.getTime() === today.getTime()) {
+      return 'today';
+    }
+    return new Intl.DateTimeFormat('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }).format(normalizedSelectedDay);
+  }, [normalizedSelectedDay]);
+
   return (
     <>
       <ScrollView
@@ -241,7 +275,7 @@ export default function PlannerTasksTab() {
         {/* Top bar */}
         <View style={styles.topBar}>
           <Text style={[styles.topTitle, { color: theme.colors.textSecondary }]}>
-            Plans for today
+            {`Plans for ${plansLabel}`}
           </Text>
           <Pressable style={styles.filterBtn}>
             <Text style={[styles.filterText, { color: theme.colors.textSecondary }]}>Filter</Text>

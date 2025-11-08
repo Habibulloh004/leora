@@ -4,6 +4,7 @@ import { BookOpen, Brain, Dumbbell } from 'lucide-react-native';
 
 import type { WidgetType } from '@/config/widgetConfig';
 import type { Goal, ProgressData, Task } from '@/types/home';
+import { toISODateKey } from '@/utils/calendar';
 
 interface Habit {
   id: string;
@@ -678,4 +679,16 @@ export const HOME_DASHBOARD_DATA: Record<string, DailySnapshot> = {
   '2025-11-03': nov3Snapshot,
   '2025-11-04': nov4Snapshot,
   '2025-11-05': nov5Snapshot,
+};
+
+export const getSnapshotForDate = (input?: Date | string | null): DailySnapshot | undefined => {
+  if (!input) {
+    return undefined;
+  }
+
+  const dateKey = input instanceof Date
+    ? toISODateKey(input)
+    : String(input).split('T')[0]!;
+
+  return HOME_DASHBOARD_DATA[dateKey];
 };

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface SpendingCategory {
   label: string;
@@ -15,16 +16,11 @@ interface SpendingSummaryWidgetProps {
   dateLabel?: string;
 }
 
-const MOCK_CATEGORIES: SpendingCategory[] = [
-  { label: 'Food & Dining', amount: 245 },
-  { label: 'Transport', amount: 120 },
-  { label: 'Shopping', amount: 98 },
-];
-
-const PLACEHOLDER_CATEGORIES: SpendingCategory[] = [
-  { label: 'No spending tracked', amount: 0 },
-  { label: 'Log a purchase to begin', amount: 0 },
-];
+const DEFAULT_CATEGORIES = [
+  { key: 'food', amount: 245 },
+  { key: 'transport', amount: 120 },
+  { key: 'shopping', amount: 98 },
+] as const;
 
 export default function SpendingSummaryWidget({
   categories,
@@ -33,22 +29,42 @@ export default function SpendingSummaryWidget({
   dateLabel = '',
 }: SpendingSummaryWidgetProps) {
   const theme = useAppTheme();
-  const list = hasData ? (categories ?? MOCK_CATEGORIES) : PLACEHOLDER_CATEGORIES;
+  const { strings, locale } = useLocalization();
+  const list = useMemo(() => {
+    if (hasData) {
+      if (categories) {
+        return categories;
+      }
+      return DEFAULT_CATEGORIES.map((item) => ({
+        label: strings.widgets.spendingSummary.categories[item.key],
+        amount: item.amount,
+      }));
+    }
+    return strings.widgets.spendingSummary.placeholders.map((label, index) => ({
+      label,
+      amount: 0,
+    }));
+  }, [categories, hasData, strings]);
   const totalSpent = hasData
     ? total ?? list.reduce((sum, item) => sum + item.amount, 0)
     : 0;
+  const resolvedDateLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.card, { backgroundColor:   theme.colors.card }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Spending Summary</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            {strings.widgets.spendingSummary.title}
+          </Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            }).format(new Date()) : '—')}
+            {resolvedDateLabel}
           </Text>
         </View>
 
@@ -64,7 +80,9 @@ export default function SpendingSummaryWidget({
         </View>
 
         <View style={[styles.footer, { borderTopColor: theme.colors.border }]}>
-          <Text style={[styles.footerLabel, { color: theme.colors.textSecondary }]}>Total spent</Text>
+          <Text style={[styles.footerLabel, { color: theme.colors.textSecondary }]}>
+            {strings.widgets.spendingSummary.total}
+          </Text>
           <Text style={[styles.footerValue, { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted }]}>
             {hasData ? `-$${totalSpent}` : '--'}
           </Text>

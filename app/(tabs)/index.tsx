@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/constants/theme';
 import { startOfDay } from '@/utils/calendar';
 import { EditSquareIcon, DiagramIcon } from '@assets/icons';
+import { useLocalization } from '@/localization/useLocalization';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
@@ -35,6 +36,7 @@ export default function HomeScreen() {
 
   // Subscribe to Zustand store - will automatically re-render when activeWidgets changes
   const activeWidgets = useWidgetStore((state) => state.activeWidgets);
+  const { strings, locale } = useLocalization();
 
   const onRefresh = useCallback(() => {
     refresh();
@@ -68,14 +70,14 @@ export default function HomeScreen() {
   const dateLabel = useMemo(() => {
     const isToday = startOfDay(selectedDate).getTime() === startOfDay(new Date()).getTime();
     if (isToday) {
-      return 'Today';
+      return strings.home.header.todayLabel;
     }
-    return new Intl.DateTimeFormat('en-US', {
+    return new Intl.DateTimeFormat(locale, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
     }).format(selectedDate);
-  }, [selectedDate]);
+  }, [locale, selectedDate, strings.home.header.todayLabel]);
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
@@ -110,14 +112,15 @@ export default function HomeScreen() {
             scrollY={scrollY}
             data={progress}
             isLoading={loading}
+            selectedDate={selectedDate}
           />
           <GreetingCard date={selectedDate} />
 
           <View style={styles.widgetsSection}>
             <View style={styles.widgetsHeader}>
-              <Text style={[styles.widgetsTitle, { color: theme.colors.textPrimary }]}>
-                Widgets
-              </Text>
+            <Text style={[styles.widgetsTitle, { color: theme.colors.textPrimary }]}>
+              {strings.home.widgets.title}
+            </Text>
               <TouchableOpacity
                 onPress={handleOpenWidgetEditor}
                 style={[
@@ -132,7 +135,7 @@ export default function HomeScreen() {
               >
                 <EditSquareIcon color={theme.colors.textSecondary} size={14} />
                 <Text style={[styles.widgetsEditText, { color: theme.colors.textSecondary }]}>
-                  Edit
+                  {strings.home.widgets.edit}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -146,10 +149,10 @@ export default function HomeScreen() {
               >
                 <DiagramIcon color={theme.colors.textSecondary} size={24} />
                 <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>
-                  No widgets available
+                  {strings.home.widgets.emptyTitle}
                 </Text>
                 <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                  Tap Edit to add widgets to your dashboard.
+                  {strings.home.widgets.emptySubtitle}
                 </Text>
               </View>
             ) : (

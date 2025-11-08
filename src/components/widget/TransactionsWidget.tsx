@@ -1,9 +1,10 @@
 // src/components/widget/TransactionsWidget.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { ArrowDownLeft, ArrowUpRight, Dot } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface Transaction {
   id: string;
@@ -20,10 +21,7 @@ const MOCK_TRANSACTIONS: Transaction[] = [
   { id: '3', type: 'expense', amount: 15000, currency: 'UZS', category: 'Transport', date: 'Yesterday' },
 ];
 
-const PLACEHOLDER_TRANSACTIONS: Transaction[] = [
-  { id: 'placeholder-1', type: 'expense', amount: 0, currency: '', category: 'No activity logged', date: '--' },
-  { id: 'placeholder-2', type: 'income', amount: 0, currency: '', category: 'Start tracking transactions', date: '--' },
-];
+const PLACEHOLDER_TYPES: Array<'expense' | 'income'> = ['expense', 'income'];
 
 interface TransactionsWidgetProps {
   transactions?: Transaction[];
@@ -37,19 +35,36 @@ export default function TransactionsWidget({
   dateLabel = '',
 }: TransactionsWidgetProps) {
   const theme = useAppTheme();
-  const list = hasData ? (transactions ?? MOCK_TRANSACTIONS) : PLACEHOLDER_TRANSACTIONS;
-  const resolvedLabel = dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date()) : '—');
+  const { strings, locale } = useLocalization();
+  const placeholderTransactions = useMemo(
+    () =>
+      strings.widgets.transactions.placeholders.map((category, index) => ({
+        id: `placeholder-${index}`,
+        type: PLACEHOLDER_TYPES[index] ?? 'expense',
+        amount: 0,
+        currency: '',
+        category,
+        date: '--',
+      })),
+    [strings],
+  );
+  const list = hasData ? (transactions ?? MOCK_TRANSACTIONS) : placeholderTransactions;
+  const resolvedLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.widget, { backgroundColor:   theme.colors.card }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-          <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Transactions</Text>
+            <View style={styles.titleContainer}>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+              {strings.widgets.transactions.title}
+            </Text>
             <Dot color={theme.colors.textSecondary} />
             <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedLabel}</Text>
           </View>

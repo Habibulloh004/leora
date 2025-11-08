@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface BudgetItem {
   label: string;
@@ -15,16 +16,13 @@ interface BudgetProgressWidgetProps {
   dateLabel?: string;
 }
 
-const MOCK_BUDGETS: BudgetItem[] = [
-  { label: 'Housing', used: 820, total: 1000 },
-  { label: 'Groceries', used: 310, total: 400 },
-  { label: 'Entertainment', used: 140, total: 250 },
-];
+const DEFAULT_KEYS = [
+  { key: 'housing', used: 820, total: 1000 },
+  { key: 'groceries', used: 310, total: 400 },
+  { key: 'entertainment', used: 140, total: 250 },
+] as const;
 
-const PLACEHOLDER_BUDGETS: BudgetItem[] = [
-  { label: 'No budgets configured', used: 0, total: 0 },
-  { label: 'Add a budget to track', used: 0, total: 0 },
-];
+const PLACEHOLDER_KEYS: Array<'empty' | 'add'> = ['empty', 'add'];
 
 export default function BudgetProgressWidget({
   budgets,
@@ -32,20 +30,44 @@ export default function BudgetProgressWidget({
   dateLabel = '',
 }: BudgetProgressWidgetProps) {
   const theme = useAppTheme();
-  const list = hasData ? (budgets ?? MOCK_BUDGETS) : PLACEHOLDER_BUDGETS;
+  const { strings, locale } = useLocalization();
+
+  const list = useMemo(() => {
+    if (hasData) {
+      if (budgets) {
+        return budgets;
+      }
+      return DEFAULT_KEYS.map((item) => ({
+        label: strings.widgets.budgetProgress.defaults[item.key],
+        used: item.used,
+        total: item.total,
+      }));
+    }
+    return PLACEHOLDER_KEYS.map((key) => ({
+      label: strings.widgets.budgetProgress.placeholders[key],
+      used: 0,
+      total: 0,
+    }));
+  }, [budgets, hasData, strings]);
+
+  const resolvedDateLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView
         style={[styles.card, { backgroundColor: theme.colors.card }]}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Budget Progress</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            {strings.widgets.budgetProgress.title}
+          </Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-            {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            }).format(new Date()) : '—')}
+            {resolvedDateLabel}
           </Text>
         </View>
         <View style={styles.list}>

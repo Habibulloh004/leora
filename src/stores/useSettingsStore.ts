@@ -4,11 +4,13 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 import { mmkvStorageAdapter } from '@/utils/storage';
 
+export type SupportedLanguage = 'en' | 'ru' | 'uz' | 'ar' | 'tr';
+
 interface SettingsStore {
   theme: 'light' | 'dark' | 'auto';
   currency: string;
   currencySymbol: string;
-  language: string;
+  language: SupportedLanguage;
   notifications: {
     enabled: boolean;
     taskReminders: boolean;
@@ -25,7 +27,7 @@ interface SettingsStore {
   // Actions
   setTheme: (theme: 'light' | 'dark' | 'auto') => void;
   setCurrency: (currency: string, symbol: string) => void;
-  setLanguage: (language: string) => void;
+  setLanguage: (language: SupportedLanguage) => void;
   updateNotificationSettings: (settings: Partial<SettingsStore['notifications']>) => void;
   updateFocusModeSettings: (settings: Partial<SettingsStore['focusMode']>) => void;
   resetToDefaults: () => void;

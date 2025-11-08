@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BookOpen, Brain, CheckCircle2, Dot, Dumbbell, Flame } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface Habit {
   id: string;
@@ -24,17 +25,15 @@ interface HabitsWidgetProps {
   dateLabel?: string;
 }
 
-const PLACEHOLDER_HABITS: Habit[] = [
-  { id: 'ph-1', name: 'No habits tracked today', streak: 0, completed: false, icon: Dumbbell },
-  { id: 'ph-2', name: 'Log a habit to get started', streak: 0, completed: false, icon: Brain },
-];
+const PLACEHOLDER_ICONS = [Dumbbell, Brain];
 
 export default function HabitsWidget({
   habits: incomingHabits = MOCK_HABITS,
   hasData = true,
-  dateLabel = 'Today',
+  dateLabel = '',
 }: HabitsWidgetProps) {
   const theme = useAppTheme();
+  const { strings } = useLocalization();
   const [habits, setHabits] = useState<Habit[]>(incomingHabits);
 
   useEffect(() => {
@@ -54,16 +53,30 @@ export default function HabitsWidget({
     );
   };
 
-  const displayedHabits = hasData ? habits : PLACEHOLDER_HABITS;
+  const placeholderHabits = useMemo(
+    () =>
+      strings.widgets.habits.placeholders.map((name, index) => ({
+        id: `placeholder-${index}`,
+        name,
+        streak: 0,
+        completed: false,
+        icon: PLACEHOLDER_ICONS[index] ?? Dumbbell,
+      })),
+    [strings],
+  );
+  const displayedHabits = hasData ? habits : placeholderHabits;
+  const resolvedDateLabel = dateLabel || strings.home.header.todayLabel;
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.widget,{backgroundColor: theme.colors.card}]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Habits</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+              {strings.widgets.habits.title}
+            </Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{dateLabel}</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedDateLabel}</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
@@ -99,7 +112,9 @@ export default function HabitsWidget({
                       { color: isPlaceholder ? theme.colors.textMuted : theme.colors.textSecondary },
                     ]}
                     >
-                      {hasData ? `${habit.streak} day streak` : 'No streak yet'}
+                      {hasData
+                        ? `${habit.streak} ${strings.widgets.habits.streakLabel}`
+                        : strings.widgets.habits.noStreak}
                     </Text>
                   </View>
                 </View>

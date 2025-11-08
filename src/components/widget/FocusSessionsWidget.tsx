@@ -4,6 +4,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Dot, Timer } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface FocusSession {
   id: string;
@@ -18,10 +19,7 @@ const MOCK_SESSIONS: FocusSession[] = [
   { id: '3', task: 'Project Planning', duration: 25, completed: false },
 ];
 
-const PLACEHOLDER_SESSIONS: FocusSession[] = [
-  { id: 'p1', task: 'No sessions logged', duration: 0, completed: false },
-  { id: 'p2', task: 'Calendar is free', duration: 0, completed: false },
-];
+const PLACEHOLDER_KEYS: Array<'none' | 'free'> = ['none', 'free'];
 
 interface FocusSessionsWidgetProps {
   sessions?: FocusSession[];
@@ -38,10 +36,17 @@ export default function FocusSessionsWidget({
   sessions,
   summary,
   hasData = true,
-  dateLabel = 'Today',
+  dateLabel = '',
 }: FocusSessionsWidgetProps) {
   const theme = useAppTheme();
-  const list = hasData ? (sessions ?? MOCK_SESSIONS) : PLACEHOLDER_SESSIONS;
+  const { strings } = useLocalization();
+  const placeholderSessions = PLACEHOLDER_KEYS.map((key, index) => ({
+    id: `placeholder-${index}`,
+    task: strings.widgets.focusSessions.placeholders[key],
+    duration: 0,
+    completed: false,
+  }));
+  const list = hasData ? (sessions ?? MOCK_SESSIONS) : placeholderSessions;
   const completedCount = hasData
     ? summary?.completed ?? list.filter((item) => item.completed).length
     : 0;
@@ -54,14 +59,18 @@ export default function FocusSessionsWidget({
   const primaryLabelColor = hasData ? theme.colors.textPrimary : theme.colors.textMuted;
   const secondaryLabelColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
 
+  const resolvedDateLabel = dateLabel || strings.home.header.todayLabel;
+
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.widget, { backgroundColor: theme.colors.card }]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <View style={styles.titleContainer}>
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Focus Sessions</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+              {strings.widgets.focusSessions.title}
+            </Text>
             <Dot color={theme.colors.textSecondary} />
-            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{dateLabel}</Text>
+            <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedDateLabel}</Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
             <Text style={[styles.menu, { color: theme.colors.textSecondary }]}>⋯</Text>
@@ -73,13 +82,17 @@ export default function FocusSessionsWidget({
             <Text style={[styles.statValue, { color: primaryLabelColor }]}>
               {hasData ? completedCount : '--'}
             </Text>
-            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>Completed</Text>
+            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>
+              {strings.widgets.focusSessions.stats.completed}
+            </Text>
           </View>
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: primaryLabelColor }]}>
               {hasData ? `${totalMinutes}m` : '--'}
             </Text>
-            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>Total Time</Text>
+            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>
+              {strings.widgets.focusSessions.stats.totalTime}
+            </Text>
           </View>
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: primaryLabelColor }]}>
@@ -89,7 +102,9 @@ export default function FocusSessionsWidget({
                   : '—'
                 : '--'}
             </Text>
-            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>Next Session</Text>
+            <Text style={[styles.statLabel, { color: secondaryLabelColor }]}>
+              {strings.widgets.focusSessions.stats.nextSession}
+            </Text>
           </View>
         </View>
 

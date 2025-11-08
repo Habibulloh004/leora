@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Dot, Flame } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface WeeklyStats {
   tasksCompleted: number;
@@ -37,27 +38,35 @@ export default function WeeklyReviewWidget({
   dateLabel = '',
 }: WeeklyReviewWidgetProps) {
   const theme = useAppTheme();
+  const { strings, locale } = useLocalization();
   const data = hasData ? (stats ?? MOCK_STATS) : PLACEHOLDER_STATS;
   const completionRate = hasData
     ? Math.round((data.tasksCompleted / Math.max(data.totalTasks, 1)) * 100)
     : null;
   const summaryText = hasData
-    ? `Great week! You completed ${data.tasksCompleted} of ${data.totalTasks} tasks.`
-    : 'Complete sessions to unlock weekly insights.';
+    ? strings.widgets.weeklyReview.summary.success
+        .replace('{completed}', String(data.tasksCompleted))
+        .replace('{total}', String(data.totalTasks))
+    : strings.widgets.weeklyReview.summary.empty;
+  const resolvedLabel = dateLabel || (hasData
+    ? new Intl.DateTimeFormat(locale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(new Date())
+    : '—');
 
   return (
     <View style={styles.container}>
       <AdaptiveGlassView style={[styles.widget, { backgroundColor:   theme.colors.card }]}>
           <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
             <View style={styles.titleContainer}>
-              <Text style={[styles.title, { color: theme.colors.textSecondary }]}>Weekly Review</Text>
+              <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+                {strings.widgets.weeklyReview.title}
+              </Text>
               <Dot color={theme.colors.textSecondary} />
               <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
-                {dateLabel || (hasData ? new Intl.DateTimeFormat('en-US', {
-                  month: 'short',
-                  day: 'numeric',
-                  year: 'numeric',
-                }).format(new Date()) : '—')}
+                {resolvedLabel}
               </Text>
           </View>
           <TouchableOpacity activeOpacity={0.7}>
@@ -74,7 +83,9 @@ export default function WeeklyReviewWidget({
               >
                 {completionRate != null ? `${completionRate}%` : '--'}
               </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Completion</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                {strings.widgets.weeklyReview.stats.completion}
+              </Text>
             </View>
 
             <View style={[styles.statCard, { backgroundColor: theme.colors.cardItem }]}>
@@ -85,7 +96,9 @@ export default function WeeklyReviewWidget({
               >
                 {hasData ? `${data.focusHours}h` : '--'}
               </Text>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Focus Time</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                {strings.widgets.weeklyReview.stats.focusTime}
+              </Text>
             </View>
 
             <View style={[styles.statCard, styles.fullWidth, { backgroundColor: theme.colors.cardItem }]}>
@@ -96,10 +109,12 @@ export default function WeeklyReviewWidget({
                   { color: hasData ? theme.colors.textPrimary : theme.colors.textMuted },
                 ]}
                 >
-                  {hasData ? `${data.streak} days` : '--'}
+                  {hasData ? `${data.streak} ${strings.widgets.weeklyReview.streakUnit}` : '--'}
                 </Text>
               </View>
-              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Current streak</Text>
+              <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>
+                {strings.widgets.weeklyReview.stats.currentStreak}
+              </Text>
             </View>
           </View>
 
