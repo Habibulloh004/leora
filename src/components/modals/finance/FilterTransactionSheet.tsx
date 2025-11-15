@@ -73,6 +73,8 @@ export interface FilterTransactionSheetHandle {
 interface FilterTransactionSheetProps {
   onApply?: (filters: FilterState) => void;
   onReset?: () => void;
+  accountOptions?: FilterOption[];
+  categoryOptions?: FilterOption[];
 }
 
 const createInitialState = (): FilterState => ({
@@ -87,7 +89,7 @@ const createInitialState = (): FilterState => ({
 const FilterTransactionSheet = forwardRef<
   FilterTransactionSheetHandle,
   FilterTransactionSheetProps
->(({ onApply, onReset }, ref) => {
+>(({ onApply, onReset, accountOptions, categoryOptions }, ref) => {
   const theme = useAppTheme();
   const sheetRef = useRef<BottomSheetHandle>(null);
   const [filters, setFilters] = useState<FilterState>(() => createInitialState());
@@ -172,7 +174,7 @@ const FilterTransactionSheet = forwardRef<
 
         <FilterSection title="Category" themeColor={theme.colors.textSecondary}>
           <FilterOptionRow
-            options={CATEGORY_OPTIONS}
+            options={categoryOptions?.length ? categoryOptions : CATEGORY_OPTIONS}
             selectedId={filters.category}
             onSelect={(value) => handleOptionSelect('category', value)}
             themeColors={theme.colors}
@@ -182,7 +184,7 @@ const FilterTransactionSheet = forwardRef<
 
         <FilterSection title="Accounts" themeColor={theme.colors.textSecondary}>
           <FilterOptionRow
-            options={ACCOUNT_OPTIONS}
+            options={accountOptions?.length ? accountOptions : ACCOUNT_OPTIONS}
             selectedId={filters.account}
             onSelect={(value) => handleOptionSelect('account', value)}
             themeColors={theme.colors}

@@ -16,79 +16,10 @@ import {
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
+import { useMorePagesLocalization } from '@/localization/more/pages';
 
 type SectionKey = 'popular' | 'manuals' | 'videos' | 'contact';
-
-type PopularQuestion = {
-  id: string;
-  title: string;
-};
-
-type ManualItem = {
-  id: string;
-  title: string;
-  duration: string;
-};
-
-type VideoItem = {
-  id: string;
-  title: string;
-  duration: string;
-  isChannel?: boolean;
-};
-
-type SupportChannel = {
-  id: string;
-  icon: React.ReactNode;
-  title: string;
-  subtitle?: string;
-  cta?: string;
-  tone?: 'positive' | 'warning';
-};
-
-const SECTION_METADATA: Record<SectionKey, { title: string; subTitle: string }> = {
-  popular: {
-    title: 'Popular questions',
-    subTitle: 'Your teammates looked into these recently',
-  },
-  manuals: {
-    title: 'Manuals',
-    subTitle: 'Step-by-step guides to master LEORA',
-  },
-  videos: {
-    title: 'Video tutorials',
-    subTitle: 'Learn faster with concise walkthroughs',
-  },
-  contact: {
-    title: 'Contact support',
-    subTitle: 'Reach out and we will be right with you',
-  },
-};
-
-const POPULAR_QUESTIONS: PopularQuestion[] = [
-  { id: 'voice-transaction', title: 'How to add transaction with voice?' },
-  { id: 'premium-offers', title: 'What Premium offers?' },
-  { id: 'focus-mode', title: 'How focus mode works?' },
-  { id: 'export-data', title: 'Can we export data?' },
-  { id: 'change-currency', title: 'How to change the currency?' },
-];
-
-const MANUAL_ITEMS: ManualItem[] = [
-  { id: 'quick-start', title: 'Quick start', duration: '5 mins' },
-  { id: 'financials', title: 'Financials controlling', duration: '9 mins' },
-  { id: 'planning', title: 'Planning and goals', duration: '11 mins' },
-  { id: 'habit', title: 'Habit forming', duration: '7 mins' },
-  { id: 'ai-functions', title: 'AI functions', duration: '6 mins' },
-  { id: 'pro-guides', title: 'Professionals guides', duration: '12 mins' },
-];
-
-const VIDEO_ITEMS: VideoItem[] = [
-  { id: 'intro', title: 'First steps into LEORA', duration: '3:45' },
-  { id: 'voice', title: 'Voice typing', duration: '2:15' },
-  { id: 'budget', title: 'Budget settings', duration: '4:30' },
-  { id: 'focus', title: 'Focus Mode', duration: '3:00' },
-  { id: 'channel', title: 'Youtube channel', duration: '', isChannel: true },
-];
+const SUPPORT_SECTIONS: SectionKey[] = ['popular', 'manuals', 'videos', 'contact'];
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -320,23 +251,24 @@ const useSectionRegistry = () => {
 const SupportScreen: React.FC = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { support: copy } = useMorePagesLocalization();
   const router = useRouter();
 
   const { section } = useLocalSearchParams<{ section?: string }>();
   const normalizedSection = (section?.toLowerCase() ?? 'popular') as SectionKey;
 
   const [activeSection, setActiveSection] = useState<SectionKey>(
-    SECTION_METADATA[normalizedSection] ? normalizedSection : 'popular',
+    copy.sections[normalizedSection] ? normalizedSection : 'popular',
   );
 
   const { scrollRef, register, schedule } = useSectionRegistry();
 
   useEffect(() => {
-    if (SECTION_METADATA[normalizedSection]) {
+    if (copy.sections[normalizedSection]) {
       setActiveSection(normalizedSection);
       schedule(normalizedSection);
     }
-  }, [normalizedSection, schedule]);
+  }, [copy.sections, normalizedSection, schedule]);
 
   const handleFilter = useCallback(
     (target: SectionKey) => {
@@ -350,9 +282,9 @@ const SupportScreen: React.FC = () => {
   const renderPopular = useCallback(
     () => (
       <View style={styles.sectionCard}>
-        {POPULAR_QUESTIONS.map((item) => (
-          <AdaptiveGlassView key={item.id} style={styles.accordionRow}>
-            <Text style={styles.accordionText}>{item.title}</Text>
+        {copy.popularQuestions.map((question, index) => (
+          <AdaptiveGlassView key={`${question}-${index}`} style={styles.accordionRow}>
+            <Text style={styles.accordionText}>{question}</Text>
             <ArrowRight size={16} color={theme.colors.textSecondary} />
           </AdaptiveGlassView>
         ))}
@@ -361,14 +293,14 @@ const SupportScreen: React.FC = () => {
         </Pressable>
       </View>
     ),
-    [styles.accordionRow, styles.accordionText, styles.sectionCard, styles.supportCTA, theme.colors.textSecondary],
+    [copy.popularQuestions, styles.accordionRow, styles.accordionText, styles.sectionCard, styles.supportCTA, theme.colors.textSecondary],
   );
 
   const renderManuals = useCallback(
     () => (
       <View style={styles.sectionCard}>
-        {MANUAL_ITEMS.map((item) => (
-          <AdaptiveGlassView key={item.id} style={styles.manualRow}>
+        {copy.manuals.map((item, index) => (
+          <AdaptiveGlassView key={`${item.title}-${index}`} style={styles.manualRow}>
             <View style={styles.rowLeft}>
               <AdaptiveGlassView style={styles.iconWrap}>
                 <BookOpen size={18} color={theme.colors.iconText} />
@@ -384,6 +316,7 @@ const SupportScreen: React.FC = () => {
       </View>
     ),
     [
+      copy.manuals,
       styles.sectionCard,
       styles.manualRow,
       styles.rowLeft,
@@ -398,8 +331,8 @@ const SupportScreen: React.FC = () => {
   const renderVideos = useCallback(
     () => (
       <View style={styles.sectionCard}>
-        {VIDEO_ITEMS.map((item) => (
-          <AdaptiveGlassView key={item.id} style={styles.videoRow}>
+        {copy.videos.map((item, index) => (
+          <AdaptiveGlassView key={`${item.title}-${index}`} style={styles.videoRow}>
             <View style={styles.rowLeft}>
               <AdaptiveGlassView style={styles.iconWrap}>
                 {item.isChannel ? (
@@ -415,60 +348,35 @@ const SupportScreen: React.FC = () => {
         ))}
       </View>
     ),
-    [styles.sectionCard, styles.videoRow, styles.rowLeft, styles.iconWrap, styles.rowTitle, styles.rowMeta, theme.colors.iconText],
+    [copy.videos, styles.sectionCard, styles.videoRow, styles.rowLeft, styles.iconWrap, styles.rowTitle, styles.rowMeta, theme.colors.iconText],
   );
 
   const renderSupport = useCallback(() => {
-    const channels: SupportChannel[] = [
-      {
-        id: 'chat',
-        icon: <MessageCircle size={18} color={theme.colors.iconText} />,
-        title: 'Chat support',
-        subtitle: 'Average response time: 5 min',
-        cta: 'Start',
-        tone: 'positive',
-      },
-      {
-        id: 'email',
-        icon: <Mail size={18} color={theme.colors.iconText} />,
-        title: 'Email support@leora.app',
-        cta: 'Email',
-      },
-      {
-        id: 'telegram',
-        icon: <MessageCircle size={18} color={theme.colors.iconText} />,
-        title: 'Telegram @leora_support',
-        cta: 'Open',
-      },
-      {
-        id: 'premium',
-        icon: <Star size={18} color={theme.colors.iconText} />,
-        title: 'Premium support',
-        subtitle: '< 1 hour',
-        cta: 'Priority',
-        tone: 'positive',
-      },
-      {
-        id: 'free',
-        icon: <ShieldCheck size={18} color={theme.colors.iconText} />,
-        title: 'Free support',
-        subtitle: '< 24 hours',
-        cta: 'Standard',
-        tone: 'warning',
-      },
-    ];
-
     return (
       <View style={styles.supportRow}>
-        {channels.map((channel) => (
-          <AdaptiveGlassView key={channel.id} style={styles.supportRowItem}>
-            <View style={styles.rowLeft}>
-              <AdaptiveGlassView style={styles.iconWrap}>{channel.icon}</AdaptiveGlassView>
-              <View>
-                <Text style={styles.rowTitle}>{channel.title}</Text>
-                {channel.subtitle ? <Text style={styles.rowMeta}>{channel.subtitle}</Text> : null}
+        {copy.channels.map((channel, index) => {
+          const icon =
+            channel.title.toLowerCase().includes('email') ? (
+              <Mail size={18} color={theme.colors.iconText} />
+            ) : channel.title.toLowerCase().includes('telegram') ? (
+              <MessageCircle size={18} color={theme.colors.iconText} />
+            ) : channel.title.toLowerCase().includes('premium') ? (
+              <Star size={18} color={theme.colors.iconText} />
+            ) : channel.title.toLowerCase().includes('free') ? (
+              <ShieldCheck size={18} color={theme.colors.iconText} />
+            ) : (
+              <MessageCircle size={18} color={theme.colors.iconText} />
+            );
+
+          return (
+            <AdaptiveGlassView key={`${channel.title}-${index}`} style={styles.supportRowItem}>
+              <View style={styles.rowLeft}>
+                <AdaptiveGlassView style={styles.iconWrap}>{icon}</AdaptiveGlassView>
+                <View>
+                  <Text style={styles.rowTitle}>{channel.title}</Text>
+                  {channel.subtitle ? <Text style={styles.rowMeta}>{channel.subtitle}</Text> : null}
+                </View>
               </View>
-            </View>
             {channel.cta ? (
               <Text
                 style={[
@@ -481,23 +389,26 @@ const SupportScreen: React.FC = () => {
               </Text>
             ) : null}
           </AdaptiveGlassView>
-        ))}
+        )})}
 
         <View style={styles.footerActions}>
           <Pressable >
             <AdaptiveGlassView style={styles.footerButton}>
-              <Text style={styles.footerButtonText}>Report error</Text>
+              <Text style={styles.footerButtonText}>{copy.footer.report}</Text>
             </AdaptiveGlassView>
           </Pressable>
           <Pressable>
             <AdaptiveGlassView style={styles.footerButton}>
-              <Text style={styles.footerButtonText}>Suggest a feature</Text>
+              <Text style={styles.footerButtonText}>{copy.footer.suggest}</Text>
             </AdaptiveGlassView>
           </Pressable>
         </View>
       </View>
     );
   }, [
+    copy.channels,
+    copy.footer.report,
+    copy.footer.suggest,
     styles.supportRow,
     styles.supportRowItem,
     styles.rowLeft,
@@ -538,11 +449,11 @@ const SupportScreen: React.FC = () => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {(Object.keys(SECTION_METADATA) as SectionKey[]).map((key) => (
+        {SUPPORT_SECTIONS.map((key) => (
           <View key={key} style={{ gap: 12 }} onLayout={register(key)}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{SECTION_METADATA[key].title}</Text>
-              <Text style={styles.sectionSubtitle}>{SECTION_METADATA[key].subTitle}</Text>
+              <Text style={styles.sectionTitle}>{copy.sections[key].title}</Text>
+              <Text style={styles.sectionSubtitle}>{copy.sections[key].subtitle}</Text>
             </View>
             {renderSection(key)}
           </View>

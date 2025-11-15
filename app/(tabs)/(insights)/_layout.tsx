@@ -38,6 +38,8 @@ const InsightsLayout = () => {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="history" />
+          <Stack.Screen name="questions" />
         </Stack>
         <UniversalFAB />
       </View>

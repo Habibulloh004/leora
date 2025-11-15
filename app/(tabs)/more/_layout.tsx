@@ -4,6 +4,7 @@ import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useAppTheme, useThemeColors } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 import MoreHeader from './_components/MoreHeader';
 import ProfileHeader from './_components/ProfileHeader';
 
@@ -23,6 +24,8 @@ const MoreHeaderComponent = () => (
 
 export default function MoreLayout() {
   const colors = useThemeColors();
+  const { strings } = useLocalization();
+  const moreStrings = strings.more;
 
   return (
     <Stack
@@ -53,7 +56,7 @@ export default function MoreLayout() {
         options={{
           header: ({ navigation, back }) => (
             <ProfileHeader
-              title="Integrations"
+              title={moreStrings.sections.integration}
               changeTitle=""
               onBack={back ? () => navigation.goBack() : undefined}
             />
@@ -65,7 +68,7 @@ export default function MoreLayout() {
         options={{
           header: ({ navigation, back }) => (
             <ProfileHeader
-              title="Data"
+              title={moreStrings.sections.data}
               changeTitle=""
               onBack={back ? () => navigation.goBack() : undefined}
             />
@@ -77,7 +80,7 @@ export default function MoreLayout() {
         options={{
           header: ({ navigation, back }) => (
             <ProfileHeader
-              title="About"
+              title={moreStrings.helpItems.about}
               changeTitle=""
               onBack={back ? () => navigation.goBack() : undefined}
             />
@@ -89,7 +92,7 @@ export default function MoreLayout() {
         options={{
           header: ({ navigation, back }) => (
             <ProfileHeader
-              title="Support"
+              title={moreStrings.helpItems.support}
               changeTitle=""
               onBack={back ? () => navigation.goBack() : undefined}
             />

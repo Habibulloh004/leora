@@ -7,6 +7,7 @@ import Animated, {
   useAnimatedStyle,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { Image } from 'expo-image';
 
 import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
@@ -17,12 +18,12 @@ import { useLocalization } from '@/localization/useLocalization';
 import type { CalendarIndicatorsMap } from '@/types/home';
 import { startOfDay, addDays, toISODateKey } from '@/utils/calendar';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
+import { useNotificationsStore } from '@/stores/useNotificationsStore';
 
 interface HeaderProps {
   scrollY?: SharedValue<number>;
   onSearchPress?: () => void;
   onNotificationPress?: () => void;
-  hasNotifications?: boolean;
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
   calendarIndicators: CalendarIndicatorsMap;
@@ -32,7 +33,6 @@ export default function Header({
   scrollY,
   onSearchPress,
   onNotificationPress,
-  hasNotifications = true,
   selectedDate,
   onSelectDate,
   calendarIndicators,
@@ -42,6 +42,9 @@ export default function Header({
   const user = useAuthStore((state) => state.user);
   const theme = useAppTheme();
   const { strings, locale } = useLocalization();
+  const unreadCount = useNotificationsStore(
+    (state) => state.notifications.filter((notification) => !notification.read).length,
+  );
   const selectedIso = useMemo(() => toISODateKey(selectedDate), [selectedDate]);
   const isTodaySelected = useMemo(() => {
     const todayIso = toISODateKey(startOfDay(new Date()));
@@ -114,6 +117,11 @@ export default function Header({
   });
 
   const styles = createStyles(theme);
+  const avatarNode = user?.profileImage ? (
+    <Image source={user.profileImage} style={styles.avatarImage} contentFit="cover" />
+  ) : (
+    <Text style={[styles.logo, { color: theme.colors.textPrimary }]}>{initials}</Text>
+  );
 
   return (
     <Animated.View style={[styles.header, animatedStyle]}>
@@ -121,11 +129,11 @@ export default function Header({
         <TouchableOpacity
           accessibilityRole="button"
           accessibilityLabel={strings.home.header.openProfile}
-          onPress={() => router.navigate('/(tabs)/more/account/profile')}
+          onPress={() => router.navigate('/profile')}
           style={[styles.avatar, { backgroundColor: theme.colors.surfaceElevated }]}
           activeOpacity={0.8}
         >
-          <Text style={[styles.logo, { color: theme.colors.textPrimary }]}>{initials}</Text>
+          {avatarNode}
         </TouchableOpacity>
       </View>
 
@@ -190,13 +198,13 @@ export default function Header({
       </View>
 
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
-          <ListSearchIcon color={theme.colors.textSecondary} size={22} />
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
           <BellFilledIcon color={theme.colors.textSecondary} size={22} />
-          {hasNotifications && <View style={styles.notificationDot} />}
+          {unreadCount > 0 && (
+            <View style={[styles.notificationBadge, { backgroundColor: theme.colors.cardItem }]}> 
+              <Text style={[styles.badgeLabel, { color: theme.colors.textPrimary }]}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
       <DateChangeModal
@@ -238,6 +246,11 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 22,
   },
   dateWrapper: {
     flex: 1,
@@ -289,13 +302,19 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     padding: 4,
     marginLeft: 6,
   },
-  notificationDot: {
+  notificationBadge: {
     position: 'absolute',
-    top: 2,
-    right: 2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#FFA500',
+    top: -2,
+    right: -2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    paddingHorizontal: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  badgeLabel: {
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

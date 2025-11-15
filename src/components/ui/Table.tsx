@@ -160,7 +160,7 @@ export function Table<T>({
   }, [fadeAnim, slideAnim]);
 
   const defaultHeaderBg = headerBackgroundColor || theme.colors.border;
-  const defaultRowBg = rowBackgroundColor || theme.colors.surface;
+  const defaultRowBg = rowBackgroundColor || theme.colors.card;
   const defaultBorderColor = borderColor || theme.colors.border;
 
   // Calculate column styles - use flex or fixed width

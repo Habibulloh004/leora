@@ -90,9 +90,8 @@ const Particle = ({ delay, left }: { delay: number; left: string }) => {
     animate();
   }, [delay, translateY, opacity]);
 
-  // FIX: Create proper typed style object
   const animatedStyle: Animated.WithAnimatedValue<ViewStyle> = {
-    left: left as any, // TypeScript workaround for percentage strings
+    left: left as any,
     opacity,
     transform: [{ translateY }],
   };
@@ -118,6 +117,8 @@ export default function LeoraSplashScreen({ onAnimationComplete, ready = false }
   const logoScale = useRef(new Animated.Value(0.8)).current;
   const logoTranslateY = useRef(new Animated.Value(30)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-10)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const textTranslateY = useRef(new Animated.Value(20)).current;
   const taglineOpacity = useRef(new Animated.Value(0)).current;
@@ -146,6 +147,25 @@ export default function LeoraSplashScreen({ onAnimationComplete, ready = false }
           }),
         ])
       ).start();
+
+      // Анимация заголовка
+      Animated.sequence([
+        Animated.delay(500),
+        Animated.parallel([
+          Animated.timing(headerOpacity, {
+            toValue: 1,
+            duration: 1500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(headerTranslateY, {
+            toValue: 0,
+            duration: 1500,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
 
       // Анимация логотипа
       Animated.parallel([
@@ -273,6 +293,8 @@ export default function LeoraSplashScreen({ onAnimationComplete, ready = false }
   }, [
     fadeAnim,
     gridOpacity,
+    headerOpacity,
+    headerTranslateY,
     logoOpacity,
     logoScale,
     logoTranslateY,
@@ -353,39 +375,41 @@ export default function LeoraSplashScreen({ onAnimationComplete, ready = false }
       <Particle delay={0.5} left="90%" />
 
       {/* Логотип и текст */}
-      <View style={styles.logoContainer}>
-        {/* Логотип */}
-        <Animated.View
-          style={[
-            styles.logoMain,
-            {
-              opacity: logoOpacity,
-              transform: [
-                { scale: logoScale },
-                { translateY: logoTranslateY },
-              ],
-            },
-          ]}
-        >
-          <Animated.Image
-            source={LOGO_SOURCE}
-            resizeMode="contain"
-            style={[styles.logoImage, { opacity: glowOpacity }]}
-          />
-        </Animated.View>
+      <View style={styles.contentContainer}>
+        <View style={styles.logoContainer}>
+          {/* Логотип */}
+          <Animated.View
+            style={[
+              styles.logoMain,
+              {
+                opacity: logoOpacity,
+                transform: [
+                  { scale: logoScale },
+                  { translateY: logoTranslateY },
+                ],
+              },
+            ]}
+          >
+            <Animated.Image
+              source={LOGO_SOURCE}
+              resizeMode="contain"
+              style={[styles.logoImage, { opacity: glowOpacity }]}
+            />
+          </Animated.View>
 
-        {/* Текст LEORA */}
-        <Animated.Text
-          style={[
-            styles.brandText,
-            {
-              opacity: textOpacity,
-              transform: [{ translateY: textTranslateY }],
-            },
-          ]}
-        >
-          LEORA
-        </Animated.Text>
+          {/* Текст LEORA с тонким шрифтом */}
+          <Animated.Text
+            style={[
+              styles.brandText,
+              {
+                opacity: textOpacity,
+                transform: [{ translateY: textTranslateY }],
+              },
+            ]}
+          >
+            LEORA
+          </Animated.Text>
+        </View>
 
         {/* Подзаголовок */}
         <Animated.Text
@@ -468,14 +492,27 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.neutral700,
     borderRadius: 1,
   },
+  contentContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: {
+    fontSize: width > 400 ? 13 : 11,
+    fontWeight: '300',
+    color: COLORS.neutral500,
+    letterSpacing: width > 400 ? 3 : 2,
+    marginBottom: 20,
+    textAlign: 'center',
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-light',
+  },
   logoContainer: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   logoMain: {
-    width: 140,
-    height: 140,
-    marginBottom: 24,
+    width: 120,
+    height: 120,
+    marginBottom: 20,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: COLORS.leoraWhite,
@@ -494,18 +531,21 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   brandText: {
-    fontSize: width > 400 ? 36 : 32,
-    fontWeight: '900',
+    fontSize: width > 400 ? 56 : 48,
+    fontWeight: '200', // Изменено с '900' на '200' для тонкого шрифта
     color: COLORS.leoraWhite,
-    letterSpacing: width > 400 ? 4 : 2,
-    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
+    letterSpacing: width > 400 ? 12 : 8,
+    fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-thin',
+    marginBottom: 12,
+    marginLeft:20
   },
   tagline: {
-    fontSize: width > 400 ? 18 : 16,
-    fontWeight: '400',
+    fontSize: width > 400 ? 16 : 14,
+    fontWeight: '300',
     color: COLORS.neutral500,
-    letterSpacing: 1,
+    letterSpacing: 2,
     textAlign: 'center',
+    marginTop: 8,
   },
   loadingContainer: {
     position: 'absolute',
@@ -526,8 +566,8 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   loadingText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 12,
+    fontWeight: '300',
     color: COLORS.neutral600,
     letterSpacing: 2,
     textTransform: 'uppercase',

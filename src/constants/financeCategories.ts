@@ -17,16 +17,21 @@ import {
   Wallet,
 } from 'lucide-react-native';
 
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
 
 export type FinanceCategoryType = 'income' | 'outcome' | 'both';
+
+type CategoryColorToken = keyof Pick<
+  ThemeColors,
+  'primary' | 'secondary' | 'success' | 'warning' | 'danger' | 'info' | 'textSecondary'
+>;
 
 export interface FinanceCategory {
   id: string;
   name: string;
   icon: LucideIcon;
   type: FinanceCategoryType;
-  color: string;
+  colorToken: CategoryColorToken;
 }
 
 export const FINANCE_CATEGORIES: FinanceCategory[] = [
@@ -35,105 +40,112 @@ export const FINANCE_CATEGORIES: FinanceCategory[] = [
     name: 'Salary',
     icon: Briefcase,
     type: 'income',
-    color: Colors.success,
+    colorToken: 'success',
   },
   {
     id: 'income-business',
     name: 'Business',
     icon: DollarSign,
     type: 'income',
-    color: Colors.primary,
+    colorToken: 'primary',
   },
   {
     id: 'income-investment',
     name: 'Investment',
     icon: ArrowUpCircle,
     type: 'income',
-    color: Colors.info,
+    colorToken: 'info',
   },
   {
     id: 'income-gift',
     name: 'Gift',
     icon: Sparkles,
     type: 'income',
-    color: Colors.secondary,
+    colorToken: 'secondary',
   },
   {
     id: 'outcome-food',
     name: 'Food & Dining',
     icon: UtensilsCrossed,
     type: 'outcome',
-    color: Colors.danger,
+    colorToken: 'danger',
   },
   {
     id: 'outcome-transport',
     name: 'Transportation',
     icon: Bus,
     type: 'outcome',
-    color: Colors.info,
+    colorToken: 'info',
   },
   {
     id: 'outcome-shopping',
     name: 'Shopping',
     icon: ShoppingBag,
     type: 'outcome',
-    color: Colors.secondary,
+    colorToken: 'secondary',
   },
   {
     id: 'outcome-entertainment',
     name: 'Entertainment',
     icon: Film,
     type: 'outcome',
-    color: Colors.primary,
+    colorToken: 'primary',
   },
   {
     id: 'outcome-bills',
     name: 'Bills & Utilities',
     icon: Wallet,
     type: 'outcome',
-    color: Colors.warning,
+    colorToken: 'warning',
   },
   {
     id: 'outcome-health',
     name: 'Healthcare',
     icon: Activity,
     type: 'outcome',
-    color: Colors.success,
+    colorToken: 'success',
   },
   {
     id: 'outcome-education',
     name: 'Education',
     icon: GraduationCap,
     type: 'outcome',
-    color: Colors.info,
+    colorToken: 'info',
   },
   {
     id: 'outcome-charity',
     name: 'Charity',
     icon: Heart,
     type: 'outcome',
-    color: Colors.secondary,
+    colorToken: 'secondary',
+  },
+  {
+    id: 'debt-repayment',
+    name: 'Debt Repayment',
+    icon: ArrowDownCircle,
+    type: 'both',
+    colorToken: 'danger',
   },
   {
     id: 'transfer',
     name: 'Transfer',
     icon: ArrowDownCircle,
     type: 'both',
-    color: Colors.textSecondary,
+    colorToken: 'textSecondary',
   },
   {
     id: 'savings',
     name: 'Savings',
     icon: PiggyBank,
     type: 'both',
-    color: Colors.primary,
+    colorToken: 'primary',
   },
   {
     id: 'other',
     name: 'Other',
     icon: CalendarCheck,
     type: 'both',
-    color: Colors.textSecondary,
+    colorToken: 'textSecondary',
   },
 ];
 

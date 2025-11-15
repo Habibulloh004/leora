@@ -19,67 +19,9 @@ import { createThemedStyles, useAppTheme } from '@/constants/theme';
 import {
   ChevronDown,
   ChevronRight,
-  Trophy,
 } from 'lucide-react-native';
 
-/* ------------------------------- Static data ------------------------------ */
-const completion = {
-  done: 23,
-  total: 50,
-  percent: 46,
-  last: {
-    title: 'Marathoner',
-    subtitle: '42 days streak',
-    details: '+500 XP   Rare   (15% users)',
-  },
-};
-
-const recentlyUnlocked = [
-  {
-    title: 'Marathoner',
-    time: '3 days ago',
-    subtitle: '42‑Day Streak Without Breaks',
-    details: '+500 XP   Rare   (15% users)',
-  },
-  {
-    title: 'Financial GURU',
-    time: 'Week ago',
-    subtitle: 'Budget kept 3 Months in a Row',
-    details: '+300 XP   Unusual   (13% users)',
-  },
-  {
-    title: 'Goal Sniper',
-    time: '2 weeks ago',
-    subtitle: '10 goals accomplished',
-    details: '+200 XP   Casual   (35% users)',
-  },
-];
-
-const closeToUnlocking = [
-  {
-    title: 'Hot Streak',
-    progress: '95% (46/50)',
-    subtitle: 'Active 50 days straight',
-    details: '+1000 XP   Epic   (2% users)',
-  },
-  {
-    title: 'Habit master',
-    progress: '80% (4/5)',
-    subtitle: '5 Habits for 30 Days',
-    details: '+750 XP   Rare   (18% users)',
-  },
-];
-
-const categoriesTabs = ['All', 'Financial', 'Efficiency', 'Habits', 'Social', 'Spec'] as const;
-
-const categoriesList = [
-  { name: 'Finance', count: '8/15' },
-  { name: 'Efficiency', count: '6/12' },
-  { name: 'Habits', count: '5/10' },
-  { name: 'Social', count: '2/8' },
-  { name: 'Special', count: '2/5' },
-  { name: 'Hidden', count: '???' },
-];
+import { useAccountLocalization } from '@/localization/more/account';
 
 /* --------------------------------- Styles -------------------------------- */
 const useStyles = createThemedStyles((theme) => ({
@@ -324,7 +266,13 @@ const AchievementRow: React.FC<RowProps> = ({ title, subtitle, details, right })
 export default function Achievements() {
   const styles = useStyles();
   const theme = useAppTheme();
-  const [activeTab, setActiveTab] = useState<(typeof categoriesTabs)[number]>('All');
+  const { achievements: copy } = useAccountLocalization();
+  const defaultTab = copy.categories.tabs[0]?.key ?? 'all';
+  const [activeTab, setActiveTab] = useState<string>(defaultTab);
+
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   const underlineWidth = useMemo(() => {
     // simple underline width approximation by label length
@@ -341,28 +289,24 @@ export default function Achievements() {
         <AdaptiveGlassView style={styles.card}>
           <Animated.View entering={FadeInDown.duration(400)}>
             <View style={styles.cardInner}>
-              <Text style={styles.sectionTitle}>Achievements</Text>
+              <Text style={styles.sectionTitle}>{copy.title}</Text>
               <HR />
 
               <View style={styles.completionRow}>
                 <View style={styles.completionLeft}>
                   <View>
-                    <Text style={styles.capSmall}>Completion:</Text>
+                    <Text style={styles.capSmall}>{copy.completionLabel}:</Text>
                     <Text style={styles.completionNumber}>
-                      {completion.done}/{completion.total} ({completion.percent}%)
+                      {copy.completion.done}/{copy.completion.total} ({copy.completion.percent}%)
                     </Text>
                   </View>
 
                   <View>
-                    <Text style={styles.capSmall}>Last achievement:</Text>
-                    <Text style={[styles.itemTitle, { marginBottom: 2 }]}>{completion.last.title}</Text>
-                    <Text style={styles.itemSub}>{completion.last.subtitle}</Text>
-                    <Text style={styles.itemDetails}>{completion.last.details}</Text>
+                    <Text style={styles.capSmall}>{copy.lastAchievementLabel}:</Text>
+                    <Text style={[styles.itemTitle, { marginBottom: 2 }]}>{copy.completion.last.title}</Text>
+                    <Text style={styles.itemSub}>{copy.completion.last.subtitle}</Text>
+                    <Text style={styles.itemDetails}>{copy.completion.last.details}</Text>
                   </View>
-                </View>
-
-                <View style={[styles.trophyWrap]}>
-                  <Image source={require('@assets/images/achievements.png')} style={{ width: 96, height: 96 }} />
                 </View>
               </View>
             </View>
@@ -372,9 +316,9 @@ export default function Achievements() {
         {/* ---------------------------- RECENTLY UNLOCKED --------------------------- */}
         <AdaptiveGlassView style={styles.card}>
           <View style={styles.cardInner}>
-            <Accordion title="Recently unlocked" defaultOpen>
+            <Accordion title={copy.recentlyUnlocked.title} defaultOpen>
               <HR />
-              {recentlyUnlocked.map((a, i) => (
+              {copy.recentlyUnlocked.items.map((a, i) => (
                 <View key={a.title}>
                   <AchievementRow
                     title={a.title}
@@ -382,7 +326,7 @@ export default function Achievements() {
                     details={a.details}
                     right={a.time}
                   />
-                  {i < recentlyUnlocked.length - 1 ? <HR /> : null}
+                  {i < copy.recentlyUnlocked.items.length - 1 ? <HR /> : null}
                 </View>
               ))}
             </Accordion>
@@ -392,9 +336,9 @@ export default function Achievements() {
         {/* --------------------------- CLOSE TO UNLOCKING --------------------------- */}
         <AdaptiveGlassView style={styles.card}>
           <View style={styles.cardInner}>
-            <Accordion title="Close to Unlocking" defaultOpen>
+            <Accordion title={copy.closeToUnlocking.title} defaultOpen>
               <HR />
-              {closeToUnlocking.map((a, i) => (
+              {copy.closeToUnlocking.items.map((a, i) => (
                 <View key={a.title}>
                   <AchievementRow
                     title={a.title}
@@ -402,7 +346,7 @@ export default function Achievements() {
                     details={a.details}
                     right={a.progress}
                   />
-                  {i < closeToUnlocking.length - 1 ? <HR /> : null}
+                  {i < copy.closeToUnlocking.items.length - 1 ? <HR /> : null}
                 </View>
               ))}
             </Accordion>
@@ -412,33 +356,33 @@ export default function Achievements() {
         {/* -------------------------------- CATEGORIES ------------------------------ */}
         <AdaptiveGlassView style={styles.card}>
           <View style={styles.cardInner}>
-            <Text style={styles.sectionTitle}>Categories</Text>
+            <Text style={styles.sectionTitle}>{copy.categories.title}</Text>
             <HR />
 
             {/* Tabs */}
             <View style={[styles.tabsRow, { marginTop: 8 }]}>
-              {categoriesTabs.map((tab) => {
-                const isActive = tab === activeTab;
+              {copy.categories.tabs.map((tab) => {
+                const isActive = tab.key === activeTab;
                 return (
                   <Pressable
-                    key={tab}
-                    onPress={() => setActiveTab(tab)}
+                    key={tab.key}
+                    onPress={() => setActiveTab(tab.key)}
                     style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}
                   >
                     <View>
-                      <Text style={[styles.tabText, isActive && styles.tabActive]}>{tab}</Text>
+                      <Text style={[styles.tabText, isActive && styles.tabActive]}>{tab.label}</Text>
                       {isActive ? (
                         <View
                           style={[
                             styles.tabUnderline,
                             {
-                              width: underlineWidth(tab),
+                              width: underlineWidth(tab.label),
                               backgroundColor: theme.colors.textPrimary,
                             },
                           ]}
                         />
                       ) : (
-                        <View style={[styles.tabUnderline, { width: underlineWidth(tab), backgroundColor: 'transparent' }]} />
+                        <View style={[styles.tabUnderline, { width: underlineWidth(tab.label), backgroundColor: 'transparent' }]} />
                       )}
                     </View>
                   </Pressable>
@@ -449,7 +393,7 @@ export default function Achievements() {
             <HR />
 
             {/* Category list (static like in mock) */}
-            {categoriesList.map((c, i) => (
+            {copy.categories.list.map((c, i) => (
               <View key={c.name}>
                 <View style={styles.catRow}>
                   <View style={styles.catLeft}>
@@ -461,12 +405,12 @@ export default function Achievements() {
                     <ChevronRight size={16} color={theme.colors.icon} />
                   </View>
                 </View>
-                {i < categoriesList.length - 1 ? <HR /> : null}
+                {i < copy.categories.list.length - 1 ? <HR /> : null}
               </View>
             ))}
 
             <Pressable style={({ pressed }) => [{ opacity: pressed ? 0.8 : 1 }]}>
-              <Text style={styles.showAll}>Show all</Text>
+              <Text style={styles.showAll}>{copy.categories.showAll}</Text>
             </Pressable>
           </View>
         </AdaptiveGlassView>

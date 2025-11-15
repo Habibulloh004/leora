@@ -3,7 +3,6 @@ import React, {
   useEffect,
   useMemo,
   useRef,
-  useState,
 } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,85 +22,17 @@ import {
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
+import { useMorePagesLocalization } from '@/localization/more/pages';
 
 type SectionKey = 'calendars' | 'banks' | 'applications' | 'devices';
 
 type IntegrationItem = {
   key: string;
-  icon: React.ReactNode;
   name: string;
   meta?: string;
   statusLabel: string;
   statusTone?: 'positive' | 'warning' | 'neutral';
 };
-
-const SECTION_METADATA: Record<SectionKey, { title: string; activeLabel: string }> = {
-  calendars: { title: 'Calendars', activeLabel: 'Active 2 / 3' },
-  banks: { title: 'Banks', activeLabel: 'Active 0 / 4' },
-  applications: { title: 'Applications', activeLabel: 'Active 2 / 8' },
-  devices: { title: 'Devices', activeLabel: 'Active 1 / 2' },
-};
-
-const buildSectionContent = (theme: Theme): Record<SectionKey, IntegrationItem[]> => ({
-  calendars: [
-    {
-      key: 'google-calendar',
-      icon: <CalendarDays size={22} color="#34A853" />,
-      name: 'Google Calendar',
-      meta: 'Last sync: 15 mins ago',
-      statusLabel: 'Settings',
-      statusTone: 'positive',
-    },
-    {
-      key: 'apple-calendar',
-      icon: <Apple size={22} color={theme.colors.textPrimary} />,
-      name: 'Apple calendar',
-      meta: 'Last sync: 1 hour ago',
-      statusLabel: 'Settings',
-      statusTone: 'positive',
-    },
-    {
-      key: 'outlook-calendar',
-      icon: <CloudCog size={22} color={theme.colors.icon} />,
-      name: 'Outlook',
-      statusLabel: 'Connect',
-      statusTone: 'neutral',
-    },
-  ],
-  banks: [
-    { key: 'uzcard', icon: <CloudOff size={22} color={theme.colors.icon} />, name: 'Uzcard', statusLabel: 'Connect', statusTone: 'neutral' },
-    { key: 'humo', icon: <LifeBuoy size={22} color={theme.colors.icon} />, name: 'Humo', statusLabel: 'Connect', statusTone: 'neutral' },
-    { key: 'kapitalbank', icon: <Home size={22} color={theme.colors.icon} />, name: 'Kapitalbank', statusLabel: 'Connect', statusTone: 'neutral' },
-    { key: 'ipotekabank', icon: <LifeBuoy size={22} color={theme.colors.icon} />, name: 'Ipoteka Bank', statusLabel: 'Connect', statusTone: 'neutral' },
-  ],
-  applications: [
-    { key: 'telegram', icon: <PlugZap size={22} color="#34A853" />, name: 'Telegram', statusLabel: 'Notification on', statusTone: 'positive' },
-    { key: 'whatsapp', icon: <PlugZap size={22} color="#22C55E" />, name: 'WhatsApp', statusLabel: 'Notification on', statusTone: 'positive' },
-    { key: 'slack', icon: <PlugZap size={22} color={theme.colors.warning} />, name: 'Slack', statusLabel: 'Status updating', statusTone: 'warning' },
-    { key: 'notion', icon: <PlugZap size={22} color={theme.colors.icon} />, name: 'Notion', statusLabel: 'Connect', statusTone: 'neutral' },
-    { key: 'todoist', icon: <PlugZap size={22} color={theme.colors.icon} />, name: 'Todoist', statusLabel: 'Connect', statusTone: 'neutral' },
-    { key: 'spotify', icon: <PlugZap size={22} color="#22C55E" />, name: 'Spotify', statusLabel: 'Connect', statusTone: 'neutral' },
-    { key: 'strava', icon: <PlugZap size={22} color={theme.colors.icon} />, name: 'Strava', statusLabel: 'Connect', statusTone: 'neutral' },
-    { key: 'myfitnesspal', icon: <PlugZap size={22} color={theme.colors.icon} />, name: 'MyFitnessPal', statusLabel: 'Connect', statusTone: 'neutral' },
-  ],
-  devices: [
-    {
-      key: 'apple-watch',
-      icon: <Watch size={24} color="#FFFFFF" />,
-      name: 'Apple Watch',
-      meta: 'Model: Series 8',
-      statusLabel: 'Settings',
-      statusTone: 'positive',
-    },
-    {
-      key: 'wear-os',
-      icon: <SmartphoneCharging size={22} color={theme.colors.icon} />,
-      name: 'Wear OS',
-      statusLabel: 'Connect',
-      statusTone: 'neutral',
-    },
-  ],
-});
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -269,6 +200,39 @@ const createStyles = (theme: Theme) =>
     },
   });
 
+const getIntegrationIcon = (key: string, theme: Theme) => {
+  switch (key) {
+    case 'google-calendar':
+      return <CalendarDays size={22} color="#34A853" />;
+    case 'apple-calendar':
+      return <Apple size={22} color={theme.colors.textPrimary} />;
+    case 'outlook-calendar':
+      return <CloudCog size={22} color={theme.colors.icon} />;
+    case 'uzcard':
+      return <CloudOff size={22} color={theme.colors.icon} />;
+    case 'humo':
+      return <LifeBuoy size={22} color={theme.colors.icon} />;
+    case 'kapitalbank':
+      return <Home size={22} color={theme.colors.icon} />;
+    case 'ipotekabank':
+      return <LifeBuoy size={22} color={theme.colors.icon} />;
+    case 'telegram':
+      return <PlugZap size={22} color="#34A853" />;
+    case 'whatsapp':
+      return <PlugZap size={22} color="#22C55E" />;
+    case 'slack':
+      return <PlugZap size={22} color={theme.colors.warning} />;
+    case 'spotify':
+      return <PlugZap size={22} color="#22C55E" />;
+    case 'apple-watch':
+      return <Watch size={24} color="#FFFFFF" />;
+    case 'wear-os':
+      return <SmartphoneCharging size={22} color={theme.colors.icon} />;
+    default:
+      return <PlugZap size={22} color={theme.colors.icon} />;
+  }
+};
+
 const useSectionRegistry = () => {
   const sectionsRef = useRef<Partial<Record<SectionKey, number>>>({});
   const scrollRef = useRef<ScrollView | null>(null);
@@ -307,34 +271,21 @@ const useSectionRegistry = () => {
 const IntegrationsScreen: React.FC = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { integrations: copy } = useMorePagesLocalization();
   const router = useRouter();
 
   const { section } = useLocalSearchParams<{ section?: string }>();
   const normalizedSection = (section?.toLowerCase() ?? 'calendars') as SectionKey;
-
-  const [activeSection, setActiveSection] = useState<SectionKey>(
-    SECTION_METADATA[normalizedSection] ? normalizedSection : 'calendars',
-  );
+  const sectionKeys = copy.sections.map((item) => item.key);
+  const hasSection = sectionKeys.includes(normalizedSection);
 
   const { scrollRef, registerSection, schedule } = useSectionRegistry();
 
-  const sectionContent = useMemo(() => buildSectionContent(theme), [theme]);
-
   useEffect(() => {
-    if (SECTION_METADATA[normalizedSection]) {
-      setActiveSection(normalizedSection);
+    if (hasSection) {
       schedule(normalizedSection);
     }
-  }, [normalizedSection, schedule]);
-
-  const handleFilterPress = useCallback(
-    (target: SectionKey) => {
-      setActiveSection(target);
-      schedule(target);
-      router.setParams({ section: target });
-    },
-    [router, schedule],
-  );
+  }, [hasSection, normalizedSection, schedule]);
 
   const renderIntegrationRow = useCallback(
     (item: IntegrationItem) => {
@@ -355,7 +306,7 @@ const IntegrationsScreen: React.FC = () => {
       return (
         <AdaptiveGlassView key={item.key} style={styles.integrationRow}>
           <View style={styles.rowLeft}>
-            <AdaptiveGlassView style={styles.iconWrap}>{item.icon}</AdaptiveGlassView>
+            <AdaptiveGlassView style={styles.iconWrap}>{getIntegrationIcon(item.key, theme)}</AdaptiveGlassView>
             <View style={styles.integrationTextGroup}>
               <Text style={styles.integrationName}>{item.name}</Text>
               {item.meta ? <Text style={styles.integrationMeta}>{item.meta}</Text> : null}
@@ -367,7 +318,7 @@ const IntegrationsScreen: React.FC = () => {
         </AdaptiveGlassView>
       );
     },
-    [styles],
+    [styles, theme],
   );
 
   return (
@@ -377,18 +328,18 @@ const IntegrationsScreen: React.FC = () => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {(Object.keys(SECTION_METADATA) as SectionKey[]).map((key) => (
+        {copy.sections.map((section) => (
           <View
-            key={key}
+            key={section.key}
             style={styles.section}
-            onLayout={registerSection(key)}
+            onLayout={registerSection(section.key)}
           >
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{SECTION_METADATA[key].title}</Text>
-              <Text style={styles.sectionMeta}>{SECTION_METADATA[key].activeLabel}</Text>
+              <Text style={styles.sectionTitle}>{section.title}</Text>
+              <Text style={styles.sectionMeta}>{section.activeLabel}</Text>
             </View>
             <AdaptiveGlassView style={styles.sectionCard}>
-              {sectionContent[key].map(renderIntegrationRow)}
+              {section.items.map(renderIntegrationRow)}
             </AdaptiveGlassView>
           </View>
         ))}
@@ -397,7 +348,7 @@ const IntegrationsScreen: React.FC = () => {
           <Pressable onPress={() => router.push('/(tabs)/more/settings')}>
             <AdaptiveGlassView style={styles.footerButton}>
               <ChevronRight size={16} color={theme.colors.textPrimary} />
-              <Text style={styles.footerButtonText}>Find other integrations</Text>
+              <Text style={styles.footerButtonText}>{copy.footerCta}</Text>
             </AdaptiveGlassView>
           </Pressable>
         </AdaptiveGlassView>

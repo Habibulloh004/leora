@@ -1,33 +1,62 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+
+import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 interface MoreHeaderProps {
   title?: string;
 }
 
-export default function MoreHeader({ title = 'MORE' }: MoreHeaderProps) {
+export default function MoreHeader({ title }: MoreHeaderProps) {
   const router = useRouter();
+  const theme = useAppTheme();
+  const { strings } = useLocalization();
+  const headerStrings = strings.more.header;
+  const resolvedTitle = title ?? headerStrings.title;
+  const user = useAuthStore((state) => state.user);
+
+  const initials = useMemo(() => {
+    const source = user?.fullName || user?.username || 'U';
+    return source.slice(0, 2).toUpperCase();
+  }, [user]);
+
+  const avatarNode = user?.profileImage ? (
+    <Image source={user.profileImage} style={styles.avatarImage} />
+  ) : (
+    <Text style={[styles.avatarInitials, { color: theme.colors.textPrimary }]}>{initials}</Text>
+  );
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.background,
+          borderBottomColor: theme.colors.border,
+        },
+      ]}
+    >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Open profile"
-        style={styles.iconButton}
+        accessibilityLabel={headerStrings.profileAction}
+        style={[styles.iconButton, { backgroundColor: theme.colors.surfaceElevated }]}
         onPress={() => router.navigate('/profile')}
       >
-        <Ionicons name="person-circle-outline" size={26} color="#A6A6B9" />
+        {avatarNode}
       </Pressable>
-      <Text style={styles.title}>{title}</Text>
+      <Text style={[styles.title, { color: theme.colors.textSecondary }]}>{resolvedTitle}</Text>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Notifications"
+        accessibilityLabel={headerStrings.notificationsAction}
         style={styles.iconButton}
-        onPress={() => {}}
+        onPress={() => router.navigate('/(modals)/notifications')}
       >
-        <Ionicons name="notifications-outline" size={24} color="#A6A6B9" />
+        <Ionicons name="notifications-outline" size={24} color={theme.colors.textMuted} />
       </Pressable>
     </View>
   );
@@ -36,25 +65,31 @@ export default function MoreHeader({ title = 'MORE' }: MoreHeaderProps) {
 const styles = StyleSheet.create({
   container: {
     height: 60,
-    backgroundColor: '#25252B',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#34343D',
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#A6A6B9',
     letterSpacing: 1,
   },
   iconButton: {
     width: 44,
     height: 44,
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 14,
+  },
+  avatarInitials: {
+    fontSize: 16,
+    fontWeight: '700',
   },
 });

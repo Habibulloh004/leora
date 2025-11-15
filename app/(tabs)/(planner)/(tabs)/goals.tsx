@@ -6,13 +6,16 @@ import { useRouter } from 'expo-router';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import GoalCard from '@/components/planner/goals/GoalCard';
 import { createThemedStyles } from '@/constants/theme';
-import { GOAL_SECTIONS, type Goal, type GoalSection } from '@/features/planner/goals/data';
+import { createGoalSections, type Goal, type GoalSection } from '@/features/planner/goals/data';
+import { useLocalization } from '@/localization/useLocalization';
 
 const GoalsPage: React.FC = () => {
   const styles = useStyles();
   const router = useRouter();
+  const { strings } = useLocalization();
+  const goalStrings = strings.plannerScreens.goals;
 
-  const sections = useMemo(() => GOAL_SECTIONS, []);
+  const sections = useMemo(() => createGoalSections(goalStrings), [goalStrings]);
 
   const renderSectionHeader = useCallback(
     ({ section }: { section: GoalSection }) => (
@@ -61,19 +64,16 @@ const GoalsPage: React.FC = () => {
         ListHeaderComponent={
           <View style={styles.pageHeader}>
             <View>
-              <Text style={styles.pageTitle}>Strategic goals</Text>
-              <Text style={styles.pageSubtitle}>Forward momentum for financial and personal wins</Text>
+              <Text style={styles.pageTitle}>{goalStrings.header.title}</Text>
+              <Text style={styles.pageSubtitle}>{goalStrings.header.subtitle}</Text>
             </View>
           </View>
         }
         ListEmptyComponent={
           <View style={styles.emptyStateWrapper}>
             <AdaptiveGlassView style={styles.emptyStateCard}>
-              <Text style={styles.emptyTitle}>Create your first goal</Text>
-              <Text style={styles.emptySubtitle}>
-                Track milestones, projections, and AI-backed insights once you add your first objective. Use the
-                universal add button to get started.
-              </Text>
+              <Text style={styles.emptyTitle}>{goalStrings.empty.title}</Text>
+              <Text style={styles.emptySubtitle}>{goalStrings.empty.subtitle}</Text>
             </AdaptiveGlassView>
           </View>
         }

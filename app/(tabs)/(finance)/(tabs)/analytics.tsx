@@ -1,5 +1,5 @@
 // app/(tabs)/(finance)/(tabs)/analytics.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   CalendarRange,
@@ -12,53 +12,197 @@ import {
 
 import { useAppTheme } from '@/constants/theme';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useLocalization } from '@/localization/useLocalization';
+import { useFinanceStore } from '@/stores/useFinanceStore';
+import type { Transaction } from '@/types/store.types';
+import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
+import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
+import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 
-// -------------------------
-// Mock data (rasmdagi qiymatlar)
-// -------------------------
-const STATS = {
-  peak: { label: 'PEAK', value: '340k', extra: '(6 jan)' },
-  average: { label: 'AVERAGE', value: '145k', extra: '(day)' },
-  trend: { label: 'TREND', value: '+12%' },
+const percentageDelta = (current: number, previous: number) => {
+  if (previous === 0) return current > 0 ? 100 : 0;
+  return Number((((current - previous) / previous) * 100).toFixed(1));
 };
 
-const COMPARISON = {
-  period: { from: 'December', to: 'January' },
-  rows: [
-    { id: 'inc', label: 'Income:', from: '10.8M', to: '12.5M', delta: '+15%', direction: 'up' as const },
-    { id: 'out', label: 'Outcome:', from: '9.5M', to: '8.7M', delta: '-8%', direction: 'down' as const },
-    { id: 'sav', label: 'Savings:', from: '1.3M', to: '3.8M', delta: '+192%', direction: 'up' as const },
-  ],
+const percentageDeltaOrNull = (current: number, previous: number) => {
+  if (Math.abs(previous) < 1) {
+    return null;
+  }
+  return percentageDelta(current, previous);
 };
 
-const TOP_EXPENSES = [
-  { id: '1', name: 'Food', amount: '3.2M', share: '37%' },
-  { id: '2', name: 'Transport', amount: '2.2M', share: '25%' },
-  { id: '3', name: 'Living', amount: '1.7M', share: '20%' },
-  { id: '4', name: 'Shopping', amount: '1.3M', share: '25%' },
-  { id: '5', name: 'Entertainment', amount: '0.3M', share: '3%' },
-];
+const formatMonthLabel = (locale: string, month: number, year: number) =>
+  new Intl.DateTimeFormat(locale, { month: 'long' }).format(new Date(year, month, 1));
 
-const INSIGHTS = [
-  {
-    id: 'i1',
-    title: 'Spends on food increased',
-    detail: 'Suggestion: Cook more at home',
-  },
-  {
-    id: 'i2',
-    title: 'Transport spends decreased',
-    detail: 'Suggestion: Keep using bicycle',
-  },
-  {
-    id: 'i3',
-    title: 'Optimal shopping day: Wednesday',
-    detail: 'Prices less 8–12%',
-  },
-];
 
 export default function AnalyticsTab() {
   const theme = useAppTheme();
+  const { strings, locale } = useLocalization();
+  const analyticsStrings = strings.financeScreens.analytics;
+  const transactions = useFinanceStore((state) => state.transactions);
+  const budgets = useFinanceStore((state) => state.budgets);
+  const debts = useFinanceStore((state) => state.debts);
+  const accounts = useFinanceStore((state) => state.accounts);
+  const {
+    convertAmount,
+    formatCurrency: formatFinanceCurrency,
+    globalCurrency,
+  } = useFinanceCurrency();
+
+  const formatAmount = (value: number, options?: Intl.NumberFormatOptions) =>
+    formatFinanceCurrency(value, { fromCurrency: globalCurrency, convert: false, ...options });
+
+  const analyticsData = useMemo(() => {
+    const accountCurrencyMap = new Map(
+      accounts.map((account) => [account.id, normalizeFinanceCurrency(account.currency)]),
+    );
+
+    const resolveTransactionCurrency = (transaction: Transaction): FinanceCurrency =>
+      transaction.currency
+        ? normalizeFinanceCurrency(transaction.currency)
+        : accountCurrencyMap.get(transaction.accountId) ?? globalCurrency;
+
+    const convertTransaction = (transaction: Transaction) =>
+      convertAmount(transaction.amount, resolveTransactionCurrency(transaction), globalCurrency);
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const filterBy = (month: number, year: number) =>
+      transactions.filter((transaction) => {
+        const date = new Date(transaction.date);
+        return date.getMonth() === month && date.getFullYear() === year;
+      });
+
+    const currentMonthTransactions = filterBy(currentMonth, currentYear);
+    const previousMonthTransactions = filterBy(previousMonth, previousYear);
+
+    const sumByType = (list: Transaction[], type: Transaction['type']) =>
+      list
+        .filter((transaction) => transaction.type === type)
+        .reduce((sum, transaction) => sum + convertTransaction(transaction), 0);
+
+    const currentIncome = sumByType(currentMonthTransactions, 'income');
+    const previousIncome = sumByType(previousMonthTransactions, 'income');
+    const currentExpenses = sumByType(currentMonthTransactions, 'outcome');
+    const previousExpenses = sumByType(previousMonthTransactions, 'outcome');
+    const savingsCurrent = currentIncome - currentExpenses;
+    const savingsPrevious = previousIncome - previousExpenses;
+
+    const dayTotals = currentMonthTransactions.reduce<Record<string, number>>((acc, transaction) => {
+      if (transaction.type !== 'outcome') {
+        return acc;
+      }
+      const date = new Date(transaction.date);
+      const key = new Date(date.getFullYear(), date.getMonth(), date.getDate()).toISOString();
+      acc[key] = (acc[key] ?? 0) + convertTransaction(transaction);
+      return acc;
+    }, {});
+
+    const peakEntry = Object.entries(dayTotals).sort((a, b) => b[1] - a[1])[0];
+    const peak = {
+      value: peakEntry ? peakEntry[1] : 0,
+      extra: peakEntry ? new Date(peakEntry[0]).toLocaleDateString(locale) : '-',
+    };
+
+    const averageExpense = currentMonthTransactions.length
+      ? currentExpenses / Math.max(Object.keys(dayTotals).length, 1)
+      : 0;
+
+    const categoryTotals = transactions
+      .filter((transaction) => transaction.type === 'outcome')
+      .reduce<Record<string, number>>((acc, transaction) => {
+        const key = transaction.category ?? 'Other';
+        acc[key] = (acc[key] ?? 0) + convertTransaction(transaction);
+        return acc;
+      }, {});
+
+    const totalOutcomeForShare = Object.values(categoryTotals).reduce((sum, value) => sum + value, 0);
+    const topCategories = Object.entries(categoryTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, amount], index) => ({
+        id: `${name}-${index}`,
+        name,
+        amount,
+        share: totalOutcomeForShare ? `${Math.round((amount / totalOutcomeForShare) * 100)}%` : '0%',
+      }));
+
+    const overBudget = budgets.find((budget) => budget.state === 'exceeding');
+    const dueDebt = debts
+      .filter((debt) => debt.status === 'active')
+      .sort((a, b) => {
+        const aTime = a.expectedReturnDate ? new Date(a.expectedReturnDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.expectedReturnDate ? new Date(b.expectedReturnDate).getTime() : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+      })[0];
+
+    const insights = [
+      topCategories[0]
+        ? {
+            id: 'top-category',
+            title: `${topCategories[0].name} takes the lead`,
+            detail: 'Try capping this category for the week.',
+          }
+        : null,
+      overBudget
+        ? {
+            id: 'budget-alert',
+            title: `${overBudget.name} exceeded limit`,
+            detail: 'Adjust the limit or slow down spending.',
+          }
+        : null,
+      dueDebt
+        ? {
+            id: 'debt-due',
+            title: `Debt with ${dueDebt.person} due soon`,
+            detail: 'Send a reminder or plan repayment.',
+          }
+        : null,
+    ].filter(Boolean) as { id: string; title: string; detail: string }[];
+
+    const comparisonRows = [
+      {
+        id: 'inc' as const,
+        previous: previousIncome,
+        current: currentIncome,
+        direction: currentIncome >= previousIncome ? 'up' : 'down',
+      },
+      {
+        id: 'out' as const,
+        previous: previousExpenses,
+        current: currentExpenses,
+        direction: currentExpenses <= previousExpenses ? 'up' : 'down',
+      },
+      {
+        id: 'sav' as const,
+        previous: savingsPrevious,
+        current: savingsCurrent,
+        direction: savingsCurrent >= savingsPrevious ? 'up' : 'down',
+      },
+    ].map((row) => ({
+      ...row,
+      delta: percentageDeltaOrNull(row.current, row.previous),
+    }));
+
+    return {
+      peak,
+      average: averageExpense,
+      trend: percentageDelta(currentExpenses, previousExpenses),
+      comparison: {
+        period: {
+          from: formatMonthLabel(locale, previousMonth, previousYear),
+          to: formatMonthLabel(locale, currentMonth, currentYear),
+        },
+        rows: comparisonRows,
+      },
+      topCategories,
+      insights,
+    };
+  }, [accounts, budgets, convertAmount, debts, globalCurrency, locale, transactions]);
 
   return (
     <ScrollView
@@ -69,14 +213,16 @@ export default function AnalyticsTab() {
       {/* Header */}
       <View style={styles.headerRow}>
         <Text style={[styles.headerTitle, { color: theme.colors.textSecondary }]}>
-          Financial analytics
+          {analyticsStrings.header}
         </Text>
 
         <View style={[
           styles.monthPill,
           { backgroundColor: theme.colors.card, borderColor: theme.colors.border }
         ]}>
-          <Text style={[styles.monthText, { color: theme.colors.textSecondary }]}>January</Text>
+          <Text style={[styles.monthText, { color: theme.colors.textSecondary }]}>
+            {analyticsData.comparison.period.to}
+          </Text>
           <ChevronDown size={14} color={theme.colors.textSecondary} />
           <CalendarRange size={16} color={theme.colors.textSecondary} />
         </View>
@@ -85,30 +231,52 @@ export default function AnalyticsTab() {
       {/* Expense dynamics */}
       <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
         <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-          Expense dynamics
+          {analyticsStrings.expenseDynamics}
         </Text>
 
         <View style={styles.statsRow}>
           {/* Peak */}
           <View style={styles.statsCol}>
-            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>{STATS.peak.label}:</Text>
-            <Text style={[styles.metaValue, { color: theme.colors.textPrimary }]}>{STATS.peak.value}</Text>
-            <Text style={[styles.metaSub, { color: theme.colors.textMuted }]}>{STATS.peak.extra}</Text>
+            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>
+              {analyticsStrings.stats.peak}:
+            </Text>
+            <Text style={[styles.metaValue, { color: theme.colors.textPrimary }]}>
+              {formatAmount(analyticsData.peak.value)}
+            </Text>
+            <Text style={[styles.metaSub, { color: theme.colors.textMuted }]}>{analyticsData.peak.extra}</Text>
           </View>
 
           {/* Average */}
           <View style={styles.statsCol}>
-            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>{STATS.average.label}:</Text>
-            <Text style={[styles.metaValue, { color: theme.colors.textPrimary }]}>{STATS.average.value}</Text>
-            <Text style={[styles.metaSub, { color: theme.colors.textMuted }]}>{STATS.average.extra}</Text>
+            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>
+              {analyticsStrings.stats.average}:
+            </Text>
+            <Text style={[styles.metaValue, { color: theme.colors.textPrimary }]}>
+              {formatAmount(analyticsData.average)}
+            </Text>
+            <Text style={[styles.metaSub, { color: theme.colors.textMuted }]}>per day</Text>
           </View>
 
           {/* Trend */}
           <View style={styles.statsCol}>
-            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>{STATS.trend.label}:</Text>
+            <Text style={[styles.metaLabel, { color: theme.colors.textSecondary }]}>
+              {analyticsStrings.stats.trend}:
+            </Text>
             <View style={styles.trendChip}>
-              <TrendingUp size={14} color={theme.colors.success} />
-              <Text style={[styles.trendText, { color: theme.colors.success }]}>{STATS.trend.value}</Text>
+              {analyticsData.trend >= 0 ? (
+                <TrendingUp size={14} color={theme.colors.success} />
+              ) : (
+                <TrendingDown size={14} color={theme.colors.danger} />
+              )}
+              <Text
+                style={[
+                  styles.trendText,
+                  { color: analyticsData.trend >= 0 ? theme.colors.success : theme.colors.danger },
+                ]}
+              >
+                {analyticsData.trend >= 0 ? '+' : ''}
+                {analyticsData.trend}%
+              </Text>
             </View>
           </View>
         </View>
@@ -117,61 +285,74 @@ export default function AnalyticsTab() {
       {/* Comparison with the previous month */}
       <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
         <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-          Comparison with the previous month
+          {analyticsStrings.comparison}
         </Text>
 
         <View style={styles.periodRow}>
-          <Text style={[styles.periodText, { color: theme.colors.textSecondary }]}>{COMPARISON.period.from}</Text>
+          <Text style={[styles.periodText, { color: theme.colors.textSecondary }]}>{analyticsData.comparison.period.from}</Text>
           <ArrowRight size={14} color={theme.colors.textSecondary} />
-          <Text style={[styles.periodText, { color: theme.colors.textSecondary }]}>{COMPARISON.period.to}</Text>
+          <Text style={[styles.periodText, { color: theme.colors.textSecondary }]}>{analyticsData.comparison.period.to}</Text>
         </View>
 
         <View>
-          {COMPARISON.rows.map((row, idx) => {
+          {analyticsData.comparison.rows.map((row) => {
+            const label =
+              row.id === 'inc'
+                ? analyticsStrings.comparisonRows.income
+                : row.id === 'out'
+                  ? analyticsStrings.comparisonRows.outcome
+                  : analyticsStrings.comparisonRows.savings;
+            const formattedFrom = row.previous > 0 ? formatAmount(row.previous) : '—';
+            const formattedTo = row.current > 0 ? formatAmount(row.current) : '—';
+            const hasDelta = row.delta !== null;
             const isUp = row.direction === 'up';
+            const successBg = theme.mode === 'dark' ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.12)';
+            const dangerBg = theme.mode === 'dark' ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.12)';
+            const pillBackground = hasDelta ? (isUp ? successBg : dangerBg) : theme.colors.card;
+            const pillTextColor = hasDelta
+              ? isUp
+                ? theme.colors.success
+                : theme.colors.danger
+              : theme.colors.textSecondary;
+            const deltaLabel =
+              row.delta === null ? '—' : `${row.delta >= 0 ? '+' : ''}${row.delta}%`;
+
             return (
               <View key={row.id} style={styles.compRow}>
-                <Text style={[styles.compLabel, { color: theme.colors.textSecondary }]}>
-                  {row.label}
-                </Text>
+                <Text style={[styles.compLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
 
                 <View style={styles.compMid}>
-                  <Text style={[styles.compValue, { color: theme.colors.textPrimary }]}>{row.from}</Text>
+                  <Text style={[styles.compValue, { color: theme.colors.textPrimary }]}>{formattedFrom}</Text>
                   <ArrowRight size={14} color={theme.colors.textMuted} />
-                  <Text style={[styles.compValue, { color: theme.colors.textPrimary }]}>{row.to}</Text>
+                  <Text style={[styles.compValue, { color: theme.colors.textPrimary }]}>{formattedTo}</Text>
                 </View>
 
                 <View
                   style={[
                     styles.deltaPill,
                     {
-                      backgroundColor:
-                        isUp
-                          ? (theme.mode === 'dark' ? 'rgba(16,185,129,0.18)' : 'rgba(16,185,129,0.12)')
-                          : (theme.mode === 'dark' ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.12)'),
+                      backgroundColor: pillBackground,
                       borderColor: theme.colors.border,
                     },
                   ]}
                 >
-                  {isUp ? (
-                    <TrendingUp size={12} color={theme.colors.success} />
+                  {hasDelta ? (
+                    <>
+                      {isUp ? (
+                        <TrendingUp size={12} color={pillTextColor} />
+                      ) : (
+                        <TrendingDown size={12} color={pillTextColor} />
+                      )}
+                      <Text style={[styles.deltaText, { color: pillTextColor }]}>{deltaLabel}</Text>
+                    </>
                   ) : (
-                    <TrendingDown size={12} color={theme.colors.danger} />
+                    <Text style={[styles.deltaText, { color: pillTextColor }]}>{deltaLabel}</Text>
                   )}
-                  <Text
-                    style={[
-                      styles.deltaText,
-                      { color: isUp ? theme.colors.success : theme.colors.danger },
-                    ]}
-                  >
-                    {row.delta}
-                  </Text>
                 </View>
               </View>
             );
           })}
 
-          {/* Divider lines like in the mock */}
           <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />
         </View>
       </AdaptiveGlassView>
@@ -179,11 +360,11 @@ export default function AnalyticsTab() {
       {/* Top 5 categories of expenses */}
       <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
         <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
-          Top 5 categories of expenses
+          {analyticsStrings.topExpenses}
         </Text>
 
         <View style={styles.categoryList}>
-          {TOP_EXPENSES.map((item, index) => (
+          {analyticsData.topCategories.map((item, index) => (
             <View key={item.id} style={styles.categoryRow}>
               <View style={styles.categoryLeft}>
                 <Text style={[styles.categoryIndex, { color: theme.colors.textSecondary }]}>
@@ -195,7 +376,7 @@ export default function AnalyticsTab() {
               </View>
 
               <Text style={[styles.categoryRight, { color: theme.colors.textSecondary }]}>
-                {item.amount}{' '}
+                {formatAmount(item.amount)}{' '}
                 <Text style={{ color: theme.colors.textMuted }}>({item.share})</Text>
               </Text>
             </View>
@@ -205,10 +386,10 @@ export default function AnalyticsTab() {
 
       {/* AI Insights */}
       <Text style={[styles.sectionHeaderStandalone, { color: theme.colors.textSecondary }]}>
-        AI Insights
+        {analyticsStrings.aiInsights}
       </Text>
 
-      {INSIGHTS.map((insight) => (
+      {analyticsData.insights.map((insight) => (
         <AdaptiveGlassView
           key={insight.id}
           style={[

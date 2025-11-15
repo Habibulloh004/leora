@@ -39,13 +39,7 @@ const MOCK_TREND: ProductivityTrendPoint[] = [
 
 const PLACEHOLDER_METRICS = DEFAULT_METRICS.map((item) => ({ key: item.key, value: '--' }));
 
-const PLACEHOLDER_TREND: ProductivityTrendPoint[] = [
-  { label: 'Mon', value: 10 },
-  { label: 'Tue', value: 12 },
-  { label: 'Wed', value: 8 },
-  { label: 'Thu', value: 14 },
-  { label: 'Fri', value: 9 },
-];
+const TREND_DAY_KEYS = ['mon', 'tue', 'wed', 'thu', 'fri'] as const;
 
 export default function ProductivityInsightsWidget({
   metrics,
@@ -66,9 +60,21 @@ export default function ProductivityInsightsWidget({
         label: strings.widgets.productivityInsights.metrics[item.key],
         value: '--',
       }));
-  const trendPoints = hasData
-    ? (trend ?? MOCK_TREND)
-    : PLACEHOLDER_TREND;
+  const trendPoints = useMemo(() => {
+    if (hasData) {
+      if (trend) {
+        return trend;
+      }
+      return MOCK_TREND.map((point, index) => ({
+        ...point,
+        label: strings.widgets.productivityInsights.days[TREND_DAY_KEYS[index]],
+      }));
+    }
+    return TREND_DAY_KEYS.map((key) => ({
+      label: strings.widgets.productivityInsights.days[key],
+      value: 0,
+    }));
+  }, [hasData, strings.widgets.productivityInsights.days, trend]);
   const delta = hasData ? trendDelta : undefined;
   const hintColor = hasData
     ? (delta ?? 0) >= 0 ? theme.colors.textSecondary : theme.colors.danger

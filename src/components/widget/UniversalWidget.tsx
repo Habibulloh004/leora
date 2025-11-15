@@ -1,6 +1,7 @@
 // src/components/widget/UniversalWidget.tsx
 import React, { useMemo } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+
 import { AVAILABLE_WIDGETS, WidgetType } from '@/config/widgetConfig';
 import { useWidgetStoreHydrated } from '@/stores/widgetStore';
 import { useAppTheme } from '@/constants/theme';
@@ -26,8 +27,22 @@ export default function UniversalWidget({
   const hasHydrated = useWidgetStoreHydrated();
   const widget = AVAILABLE_WIDGETS[widgetId];
   const theme = useAppTheme();
+  const hasData = dataState?.hasData ?? false;
 
-  // Show loading while store is hydrating from persistent storage
+  const widgetProps = useMemo(() => {
+    if (isLoading || !widget) {
+      return null;
+    }
+    const baseDefaults = hasData ? widget.defaultProps ?? {} : {};
+    const externalProps = dataState?.props ?? {};
+    return {
+      ...baseDefaults,
+      ...externalProps,
+      hasData,
+      dateLabel,
+    };
+  }, [dataState?.props, hasData, isLoading, widget, dateLabel]);
+
   if (!hasHydrated) {
     return (
       <View style={[styles.container, styles.loadingContainer]}>
@@ -36,27 +51,11 @@ export default function UniversalWidget({
     );
   }
 
-  // If widget config doesn't exist, return null
   if (!widget) {
     return null;
   }
 
   const WidgetComponent = widget.component;
-  const hasData = dataState?.hasData ?? false;
-
-  const widgetProps = useMemo(() => {
-    if (isLoading) {
-      return null;
-    }
-    const baseDefaults = hasData ? (widget.defaultProps ?? {}) : {};
-    const externalProps = dataState?.props ?? {};
-    return {
-      ...baseDefaults,
-      ...externalProps,
-      hasData,
-      dateLabel,
-    };
-  }, [dataState?.props, hasData, isLoading, widget.defaultProps, dateLabel]);
 
   if (isLoading) {
     return (
@@ -67,9 +66,13 @@ export default function UniversalWidget({
             { backgroundColor: theme.colors.card, borderColor: theme.colors.border },
           ]}
         >
-          <View style={[styles.skeletonHeader, { backgroundColor: `${theme.colors.textSecondary}20` }]} />
+          <View
+            style={[styles.skeletonHeader, { backgroundColor: `${theme.colors.textSecondary}20` }]}
+          />
           <View style={[styles.skeletonLine, { backgroundColor: `${theme.colors.textPrimary}1A` }]} />
-          <View style={[styles.skeletonLineHalf, { backgroundColor: `${theme.colors.textSecondary}26` }]} />
+          <View
+            style={[styles.skeletonLineHalf, { backgroundColor: `${theme.colors.textSecondary}26` }]}
+          />
         </View>
       </View>
     );

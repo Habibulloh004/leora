@@ -18,6 +18,7 @@ import {
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
+import { useMorePagesLocalization } from '@/localization/more/pages';
 
 type SectionKey = 'backup' | 'export' | 'storage';
 
@@ -26,20 +27,17 @@ type SectionContent = {
   subtitle: string;
 };
 
-const SECTION_METADATA: Record<SectionKey, SectionContent> = {
-  backup: {
-    title: 'Backup & restore',
-    subtitle: 'Keep snapshots of your workspace and bring them back when needed.',
-  },
-  export: {
-    title: 'Export data',
-    subtitle: 'Generate copies of your information for reports or external tools.',
-  },
-  storage: {
-    title: 'Storage & cache',
-    subtitle: 'Manage local data, cache, and storage usage across devices.',
-  },
+type IconComponent = React.ComponentType<{ color?: string; size?: number }>;
+
+const ROW_ICONS: Record<SectionKey, IconComponent[]> = {
+  backup: [Save, RefreshCcw],
+  export: [Download, FileArchive, Database],
+  storage: [HardDrive, Trash2, Settings],
 };
+
+const SECTION_ORDER: SectionKey[] = ['backup', 'export', 'storage'];
+const BACKUP_SUMMARY_ICONS: IconComponent[] = [History, Layers];
+const STORAGE_SUMMARY_ICONS: IconComponent[] = [Database, ArrowRight];
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -217,19 +215,21 @@ const useSectionRegistry = () => {
 const DataScreen: React.FC = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { data: copy } = useMorePagesLocalization();
   const router = useRouter();
 
   const { section } = useLocalSearchParams<{ section?: string }>();
   const normalizedSection = (section?.toLowerCase() ?? 'backup') as SectionKey;
+  const defaultSection: SectionKey = SECTION_ORDER.includes(normalizedSection)
+    ? normalizedSection
+    : 'backup';
 
-  const [activeSection, setActiveSection] = useState<SectionKey>(
-    SECTION_METADATA[normalizedSection] ? normalizedSection : 'backup',
-  );
+  const [activeSection, setActiveSection] = useState<SectionKey>(defaultSection);
 
   const { scrollRef, register, schedule } = useSectionRegistry();
 
   useEffect(() => {
-    if (SECTION_METADATA[normalizedSection]) {
+    if (SECTION_ORDER.includes(normalizedSection)) {
       setActiveSection(normalizedSection);
       schedule(normalizedSection);
     }
@@ -251,183 +251,79 @@ const DataScreen: React.FC = () => {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
       >
-        <View onLayout={register('backup')} style={{ gap: theme.spacing.sm }}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{SECTION_METADATA.backup.title}</Text>
-            <Text style={styles.sectionSubtitle}>{SECTION_METADATA.backup.subtitle}</Text>
-          </View>
-          <AdaptiveGlassView style={styles.sectionCard}>
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <Save size={18} color={theme.colors.iconText} />
-                </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>Create manual backup</Text>
-                  <Text style={styles.rowSubtitle}>
-                    Capture a fresh snapshot of your workspace.
+        <View style={styles.filterBar}>
+          {SECTION_ORDER.map((key) => {
+            const active = key === activeSection;
+            return (
+              <Pressable key={key} onPress={() => handleFilterPress(key)}>
+                <AdaptiveGlassView style={[styles.chip, active && styles.chipActive]}>
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {copy.sections[key].title}
                   </Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Start</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <RefreshCcw size={18} color={theme.colors.iconText} />
                 </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>Restore backup</Text>
-                  <Text style={styles.rowSubtitle}>Select from stored snapshots.</Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Choose file</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryLeft}>
-                <History size={14} color={theme.colors.textMuted} />
-                <Text style={styles.summaryKey}>Last automatic backup</Text>
-              </View>
-              <Text style={styles.summaryValue}>3 days ago</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryLeft}>
-                <Layers size={14} color={theme.colors.textMuted} />
-                <Text style={styles.summaryKey}>Stored snapshots</Text>
-              </View>
-              <Text style={styles.summaryValue}>4 snapshots</Text>
-            </View>
-          </AdaptiveGlassView>
+              </Pressable>
+            );
+          })}
         </View>
 
-        <View onLayout={register('export')} style={{ gap: theme.spacing.sm }}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{SECTION_METADATA.export.title}</Text>
-            <Text style={styles.sectionSubtitle}>{SECTION_METADATA.export.subtitle}</Text>
+        {SECTION_ORDER.map((key) => (
+          <View key={key} onLayout={register(key)} style={{ gap: theme.spacing.sm }}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>{copy.sections[key].title}</Text>
+              <Text style={styles.sectionSubtitle}>{copy.sections[key].subtitle}</Text>
+            </View>
+            <AdaptiveGlassView style={styles.sectionCard}>
+              {copy.rows[key].map((row, index) => {
+                const Icon = ROW_ICONS[key][index] ?? ROW_ICONS[key][0];
+                return (
+                  <AdaptiveGlassView key={row.title} style={styles.rowCard}>
+                    <View style={styles.rowLeft}>
+                      <AdaptiveGlassView style={styles.iconWrap}>
+                        <Icon size={18} color={theme.colors.iconText} />
+                      </AdaptiveGlassView>
+                      <View>
+                        <Text style={styles.rowTitle}>{row.title}</Text>
+                        <Text style={styles.rowSubtitle}>{row.subtitle}</Text>
+                      </View>
+                    </View>
+                    <AdaptiveGlassView style={styles.actionPill}>
+                      <Text style={styles.actionText}>{row.action}</Text>
+                    </AdaptiveGlassView>
+                  </AdaptiveGlassView>
+                );
+              })}
+
+              {key === 'backup'
+                ? copy.summary.backup.map((item, idx) => {
+                    const Icon = BACKUP_SUMMARY_ICONS[idx] ?? History;
+                    return (
+                      <View key={item.label} style={styles.summaryRow}>
+                        <View style={styles.summaryLeft}>
+                          <Icon size={14} color={theme.colors.textMuted} />
+                          <Text style={styles.summaryKey}>{item.label}</Text>
+                        </View>
+                        <Text style={styles.summaryValue}>{item.value}</Text>
+                      </View>
+                    );
+                  })
+                : null}
+              {key === 'storage'
+                ? copy.summary.storage.map((item, idx) => {
+                    const Icon = STORAGE_SUMMARY_ICONS[idx] ?? Database;
+                    return (
+                      <View key={item.label} style={styles.summaryRow}>
+                        <View style={styles.summaryLeft}>
+                          <Icon size={14} color={theme.colors.textMuted} />
+                          <Text style={styles.summaryKey}>{item.label}</Text>
+                        </View>
+                        <Text style={styles.summaryValue}>{item.value}</Text>
+                      </View>
+                    );
+                  })
+                : null}
+            </AdaptiveGlassView>
           </View>
-          <AdaptiveGlassView style={styles.sectionCard}>
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <Download size={18} color={theme.colors.iconText} />
-                </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>Export transactions</Text>
-                  <Text style={styles.rowSubtitle}>Generate CSV or XLSX reports.</Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Configure</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <FileArchive size={18} color={theme.colors.iconText} />
-                </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>Export archive</Text>
-                  <Text style={styles.rowSubtitle}>
-                    Bundle everything into a password-protected archive.
-                  </Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Generate</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <Database size={18} color={theme.colors.iconText} />
-                </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>API access</Text>
-                  <Text style={styles.rowSubtitle}>Create or manage personal access tokens.</Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Manage</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-          </AdaptiveGlassView>
-        </View>
-
-        <View onLayout={register('storage')} style={{ gap: theme.spacing.sm }}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{SECTION_METADATA.storage.title}</Text>
-            <Text style={styles.sectionSubtitle}>{SECTION_METADATA.storage.subtitle}</Text>
-          </View>
-          <AdaptiveGlassView style={styles.sectionCard}>
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <HardDrive size={18} color={theme.colors.iconText} />
-                </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>Local cache</Text>
-                  <Text style={styles.rowSubtitle}>Current size 45 MB on this device.</Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Clear</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <Trash2 size={18} color={theme.colors.iconText} />
-                </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>Temporary files</Text>
-                  <Text style={styles.rowSubtitle}>Delete generated previews and logs.</Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Review</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-
-            <AdaptiveGlassView style={styles.rowCard}>
-              <View style={styles.rowLeft}>
-                <AdaptiveGlassView style={styles.iconWrap}>
-                  <Settings size={18} color={theme.colors.iconText} />
-                </AdaptiveGlassView>
-                <View>
-                  <Text style={styles.rowTitle}>Storage preferences</Text>
-                  <Text style={styles.rowSubtitle}>Decide what gets cached locally.</Text>
-                </View>
-              </View>
-              <AdaptiveGlassView style={styles.actionPill}>
-                <Text style={styles.actionText}>Adjust</Text>
-              </AdaptiveGlassView>
-            </AdaptiveGlassView>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryLeft}>
-                <Database size={14} color={theme.colors.textMuted} />
-                <Text style={styles.summaryKey}>Synced workspace size</Text>
-              </View>
-              <Text style={styles.summaryValue}>128 MB</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryLeft}>
-                <ArrowRight size={14} color={theme.colors.textMuted} />
-                <Text style={styles.summaryKey}>Downloads this month</Text>
-              </View>
-              <Text style={styles.summaryValue}>6 exports</Text>
-            </View>
-          </AdaptiveGlassView>
-        </View>
+        ))}
       </ScrollView>
     </SafeAreaView>
   );

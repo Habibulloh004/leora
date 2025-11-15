@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { StateCreator } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import {
@@ -147,44 +148,40 @@ interface AccountsStoreState {
   resetAccounts: () => void;
 }
 
+const createAccountsStore: StateCreator<AccountsStoreState> = (set) => ({
+  accounts: DEFAULT_ACCOUNTS,
+  addAccount: (payload) =>
+    set((state) => ({
+      accounts: [...state.accounts, createAccountFromPayload(payload)],
+    })),
+  editAccount: (id, payload) =>
+    set((state) => ({
+      accounts: state.accounts.map((account) =>
+        account.id === id ? mergeAccountWithPayload(account, payload) : account
+      ),
+    })),
+  updateAccount: (id, updates) =>
+    set((state) => ({
+      accounts: state.accounts.map((account) =>
+        account.id === id ? { ...account, ...updates } : account
+      ),
+    })),
+  deleteAccount: (id) =>
+    set((state) => ({
+      accounts: state.accounts.filter((account) => account.id !== id),
+    })),
+  archiveAccount: (id) =>
+    set((state) => ({
+      accounts: state.accounts.map((account) =>
+        account.id === id ? { ...account, isArchived: true } : account
+      ),
+    })),
+  resetAccounts: () => set({ accounts: DEFAULT_ACCOUNTS }),
+});
+
 export const useAccountsStore = create<AccountsStoreState>()(
-  persist(
-    (set) => ({
-      accounts: DEFAULT_ACCOUNTS,
-      addAccount: (payload) =>
-        set((state) => ({
-          accounts: [...state.accounts, createAccountFromPayload(payload)],
-        })),
-      editAccount: (id, payload) =>
-        set((state) => ({
-          accounts: state.accounts.map((account) =>
-            account.id === id ? mergeAccountWithPayload(account, payload) : account,
-          ),
-        })),
-      updateAccount: (id, updates) =>
-        set((state) => ({
-          accounts: state.accounts.map((account) =>
-            account.id === id ? { ...account, ...updates } : account,
-          ),
-        })),
-      deleteAccount: (id) =>
-        set((state) => ({
-          accounts: state.accounts.filter((account) => account.id !== id),
-        })),
-      archiveAccount: (id) =>
-        set((state) => ({
-          accounts: state.accounts.map((account) =>
-            account.id === id ? { ...account, isArchived: true } : account,
-          ),
-        })),
-      resetAccounts: () =>
-        set(() => ({
-          accounts: DEFAULT_ACCOUNTS,
-        })),
-    }),
-    {
-      name: 'accounts-storage', 
-      storage: createJSONStorage(() => mmkvStorageAdapter),
-    }
-  )
+  persist(createAccountsStore, {
+    name: 'accounts-storage',
+    storage: createJSONStorage(() => mmkvStorageAdapter),
+  })
 );

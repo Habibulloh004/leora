@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { StateCreator } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { mmkvStorageAdapter } from '@/utils/storage';
@@ -20,10 +21,14 @@ interface TransferState {
   transaction?: Transaction;
 }
 
+type DebtModalFocus = 'full' | 'partial' | 'schedule' | 'reminder' | null;
+
 interface DebtState {
   isOpen: boolean;
   mode: ModalMode;
   debt?: Debt;
+  initialFocus: DebtModalFocus;
+  showPrimarySheet: boolean;
 }
 
 interface PlannerModalState {
@@ -51,8 +56,14 @@ interface ModalStore {
   openTransferModal: (options?: { mode?: ModalMode; transaction?: Transaction }) => void;
   closeTransferModal: () => void;
 
-  openDebtModal: (options?: { mode?: ModalMode; debt?: Debt }) => void;
+  openDebtModal: (options?: {
+    mode?: ModalMode;
+    debt?: Debt;
+    focus?: DebtModalFocus;
+    showPrimarySheet?: boolean;
+  }) => void;
   closeDebtModal: () => void;
+  consumeDebtModalFocus: () => void;
 
   openPlannerTaskModal: (mode?: ModalMode) => void;
   closePlannerTaskModal: () => void;
@@ -80,6 +91,8 @@ const initialTransferState: TransferState = {
 const initialDebtState: DebtState = {
   isOpen: false,
   mode: 'create',
+  initialFocus: null,
+  showPrimarySheet: false,
 };
 
 const initialPlannerState: PlannerModalState = {
@@ -87,72 +100,80 @@ const initialPlannerState: PlannerModalState = {
   mode: 'create',
 };
 
-export const useModalStore = create<ModalStore>()(
-  persist(
-    (set) => ({
-      incomeOutcome: initialIncomeOutcome,
-      transferModal: initialTransferState,
-      debtModal: initialDebtState,
-      plannerTaskModal: initialPlannerState,
-      plannerGoalModal: initialPlannerState,
-      plannerHabitModal: initialPlannerState,
-      plannerFocusModal: { isOpen: false, mode: 'create' },
-      insightsReportModal: { isOpen: false, mode: 'create' },
+const createModalStore: StateCreator<ModalStore> = (set) => ({
+  incomeOutcome: initialIncomeOutcome,
+  transferModal: initialTransferState,
+  debtModal: initialDebtState,
+  plannerTaskModal: initialPlannerState,
+  plannerGoalModal: initialPlannerState,
+  plannerHabitModal: initialPlannerState,
+  plannerFocusModal: { isOpen: false, mode: 'create' },
+  insightsReportModal: { isOpen: false, mode: 'create' },
 
-      openIncomeOutcome: (options) =>
-        set({
-          incomeOutcome: {
-            isOpen: true,
-            mode: options?.mode ?? (options?.transaction ? 'edit' : 'create'),
-            initialTab: options?.tab ?? initialIncomeOutcome.initialTab,
-            transaction: options?.transaction,
-          },
-        }),
-      closeIncomeOutcome: () =>
-        set({
-          incomeOutcome: initialIncomeOutcome,
-        }),
-
-      openTransferModal: (options) =>
-        set({
-          transferModal: {
-            isOpen: true,
-            mode: options?.mode ?? (options?.transaction ? 'edit' : 'create'),
-            transaction: options?.transaction,
-          },
-        }),
-      closeTransferModal: () =>
-        set({
-          transferModal: initialTransferState,
-        }),
-
-      openDebtModal: (options) =>
-        set({
-          debtModal: {
-            isOpen: true,
-            mode: options?.mode ?? (options?.debt ? 'edit' : 'create'),
-            debt: options?.debt,
-          },
-        }),
-      closeDebtModal: () =>
-        set({
-          debtModal: initialDebtState,
-        }),
-
-      openPlannerTaskModal: (mode = 'create') => set({ plannerTaskModal: { isOpen: true, mode } }),
-      closePlannerTaskModal: () => set({ plannerTaskModal: initialPlannerState }),
-      openPlannerGoalModal: (mode = 'create') => set({ plannerGoalModal: { isOpen: true, mode } }),
-      closePlannerGoalModal: () => set({ plannerGoalModal: initialPlannerState }),
-      openPlannerHabitModal: (mode = 'create') => set({ plannerHabitModal: { isOpen: true, mode } }),
-      closePlannerHabitModal: () => set({ plannerHabitModal: initialPlannerState }),
-      openPlannerFocusModal: () => set({ plannerFocusModal: { isOpen: true, mode: 'create' } }),
-      closePlannerFocusModal: () => set({ plannerFocusModal: { isOpen: false, mode: 'create' } }),
-      openInsightsReportModal: () => set({ insightsReportModal: { isOpen: true, mode: 'create' } }),
-      closeInsightsReportModal: () => set({ insightsReportModal: { isOpen: false, mode: 'create' } }),
+  openIncomeOutcome: (options) =>
+    set({
+      incomeOutcome: {
+        isOpen: true,
+        mode: options?.mode ?? (options?.transaction ? 'edit' : 'create'),
+        initialTab: options?.tab ?? initialIncomeOutcome.initialTab,
+        transaction: options?.transaction,
+      },
     }),
-    {
-      name: 'modal-storage',
-      storage: createJSONStorage(() => mmkvStorageAdapter),
-    }
-  )
+  closeIncomeOutcome: () =>
+    set({
+      incomeOutcome: initialIncomeOutcome,
+    }),
+
+  openTransferModal: (options) =>
+    set({
+      transferModal: {
+        isOpen: true,
+        mode: options?.mode ?? (options?.transaction ? 'edit' : 'create'),
+        transaction: options?.transaction,
+      },
+    }),
+  closeTransferModal: () =>
+    set({
+      transferModal: initialTransferState,
+    }),
+
+  openDebtModal: (options) =>
+    set({
+      debtModal: {
+        isOpen: true,
+        mode: options?.mode ?? (options?.debt ? 'edit' : 'create'),
+        debt: options?.debt,
+        initialFocus: options?.focus ?? null,
+        showPrimarySheet: options?.showPrimarySheet ?? true,
+      },
+    }),
+  closeDebtModal: () =>
+    set({
+      debtModal: initialDebtState,
+    }),
+  consumeDebtModalFocus: () =>
+    set((state) => ({
+      debtModal: {
+        ...state.debtModal,
+        initialFocus: null,
+      },
+    })),
+
+  openPlannerTaskModal: (mode = 'create') => set({ plannerTaskModal: { isOpen: true, mode } }),
+  closePlannerTaskModal: () => set({ plannerTaskModal: initialPlannerState }),
+  openPlannerGoalModal: (mode = 'create') => set({ plannerGoalModal: { isOpen: true, mode } }),
+  closePlannerGoalModal: () => set({ plannerGoalModal: initialPlannerState }),
+  openPlannerHabitModal: (mode = 'create') => set({ plannerHabitModal: { isOpen: true, mode } }),
+  closePlannerHabitModal: () => set({ plannerHabitModal: initialPlannerState }),
+  openPlannerFocusModal: () => set({ plannerFocusModal: { isOpen: true, mode: 'create' } }),
+  closePlannerFocusModal: () => set({ plannerFocusModal: { isOpen: false, mode: 'create' } }),
+  openInsightsReportModal: () => set({ insightsReportModal: { isOpen: true, mode: 'create' } }),
+  closeInsightsReportModal: () => set({ insightsReportModal: { isOpen: false, mode: 'create' } }),
+});
+
+export const useModalStore = create<ModalStore>()(
+  persist(createModalStore, {
+    name: 'modal-storage',
+    storage: createJSONStorage(() => mmkvStorageAdapter),
+  })
 );

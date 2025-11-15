@@ -20,7 +20,7 @@ import { Theme, useAppTheme } from '@/constants/theme';
 import { useLockStore } from '@/stores/useLockStore';
 import { useAuthStore } from '@/stores/useAuthStore';
 
-const keypadLayout: Array<Array<string | null>> = [
+const keypadLayout: (string | null)[][] = [
   ['1', '2', '3'],
   ['4', '5', '6'],
   ['7', '8', '9'],

@@ -5,7 +5,7 @@ import { Animated, Dimensions, Platform, Pressable, StyleSheet, View } from 'rea
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import { Tabs } from 'expo-router';
+import { Tabs, useRouter } from 'expo-router';
 
 import { HapticTab } from '@/components/haptic-tab';
 import { TabProvider, useTab } from '@/contexts/TabContext';
@@ -47,11 +47,20 @@ const TabHeaderFrame: React.FC<{ children: React.ReactNode }> = ({ children }) =
 };
 
 
-const FinanceTabHeader = () => (
-  <TabHeaderFrame>
-    <FinanceHeader />
-  </TabHeaderFrame>
-);
+const FinanceTabHeader = () => {
+  const router = useRouter();
+  return (
+    <TabHeaderFrame>
+      <FinanceHeader
+        onCurrencyPress={() => router.push('/(modals)/finance-currency')}
+        onDiagramPress={() => router.push('/(modals)/finance-stats')}
+        onTransferPress={() => router.push('/(modals)/finance-export')}
+        onSearchPress={() => router.push('/(modals)/finance-search')}
+        onSettingsPress={() => router.push('/(modals)/menage-widget')}
+      />
+    </TabHeaderFrame>
+  );
+};
 
 const PlannerTabHeader = () => (
   <TabHeaderFrame>

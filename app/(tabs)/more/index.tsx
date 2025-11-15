@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { BackHandler, Image, Modal, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { BackHandler, Image as NativeImage, Modal, Platform, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, {
   Easing,
@@ -13,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Defs, LinearGradient as SvgLinearGradient, Rect, Stop, Svg } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
+import { Image as ExpoImage } from 'expo-image';
 import {
   AppWindow,
   BarChart3,
@@ -44,11 +45,13 @@ import { ListItem, SectionHeader } from '@/features/more/components';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAuthStore } from '@/stores/useAuthStore';
+import { usePlannerTasksStore } from '@/features/planner/useTasksStore';
 import { useLocalization } from '@/localization/useLocalization';
 
 
 const LEVEL_PROGRESS_HEIGHT = 44;
 const LEVEL_PROGRESS_RADIUS = 22;
+const XP_PER_LEVEL = 500;
 const AnimatedRectSvg = Animated.createAnimatedComponent(Rect);
 
 const useStyles = createThemedStyles((theme) => ({
@@ -225,12 +228,21 @@ const useStyles = createThemedStyles((theme) => ({
     fontWeight: '700',
   },
   // qo'shimcha/yangilangan style-lar
-  profileStub: {
+  profileStubWrapper: {
     width: 72,
     height: 72,
     borderRadius: 20,
+    overflow: 'hidden',
+  },
+  profileStub: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  profileImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
   },
   modalBackdrop: {
     flex: 1,
@@ -267,17 +279,6 @@ const useStyles = createThemedStyles((theme) => ({
     fontWeight: '600',
   },
 }));
-
-const userProfile = {
-  name: 'Oybek Baxtiyorov',
-  email: 'progremmer@gmail.com',
-  premiumUntil: '15 March 2025',
-  level: 1,
-  nextLevel: 2,
-  xp: 300,
-  xpTarget: 1000,
-  avatarUri: undefined,
-};
 
 type LevelProgressProps = {
   level: number;
@@ -412,11 +413,17 @@ export default function MoreHomeScreen() {
   const { strings } = useLocalization();
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
+  const authUser = useAuthStore((state) => state.user);
+  const tasks = usePlannerTasksStore((state) => state.tasks);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const navigateTo = useCallback(
     (target: string) => {
+      if (target.startsWith('/')) {
+        router.push(target as any);
+        return;
+      }
       if (target.includes('?')) {
         const [path, query] = target.split('?');
         const params = Object.fromEntries(new URLSearchParams(query));
@@ -464,12 +471,57 @@ export default function MoreHomeScreen() {
   const logoutGradientColors: [string, string] =
     theme.mode === 'dark' ? ['rgba(59,130,246,0.18)', 'rgba(147,197,253,0.12)'] : ['rgba(79,70,229,0.12)', 'rgba(59,130,246,0.1)'];
 
+  const initials = useMemo(() => {
+    const source = authUser?.fullName || authUser?.username || 'U';
+    return source.slice(0, 2).toUpperCase();
+  }, [authUser]);
+
+  const joinedAt = authUser?.createdAt ? new Date(authUser.createdAt) : null;
+  const daysWithApp = joinedAt
+    ? Math.max(1, Math.floor((Date.now() - joinedAt.getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
+  const premiumBadgeLabel = joinedAt
+    ? new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'long', day: 'numeric' }).format(joinedAt)
+    : '—';
+
+  const avatarNode = authUser?.profileImage ? (
+    <ExpoImage source={authUser.profileImage} style={styles.profileImage} />
+  ) : (
+    <View style={[styles.profileStub, { backgroundColor: theme.colors.surfaceElevated }]}>
+      <Text style={[styles.avatarInitials, { color: theme.colors.textPrimary }]}>{initials}</Text>
+    </View>
+  );
+
+  const completedTasks = useMemo(() => tasks.filter((task) => task.status === 'completed').length, [tasks]);
+  const activeTasks = useMemo(() => tasks.length - completedTasks, [tasks, completedTasks]);
+  const xp = completedTasks * 50 + activeTasks * 20;
+  const level = Math.max(1, Math.floor(xp / XP_PER_LEVEL) + 1);
+  const xpIntoLevel = xp % XP_PER_LEVEL;
+
   const accountItems: SectionItem[] = useMemo(() => [
-    { key: 'profile', icon: UserRound, label: strings.more.accountItems.profile, destination: 'account/profile' },
-    { key: 'premium', icon: Crown, label: strings.more.accountItems.premium, destination: 'account/premium' },
-    { key: 'achievements', icon: Medal, label: strings.more.accountItems.achievements, value: '23 / 50', destination: 'account/achievements' },
-    { key: 'statistics', icon: BarChart3, label: strings.more.accountItems.statistics, destination: 'account/statistics' },
-  ], [strings]);
+    { key: 'profile', icon: UserRound, label: strings.more.accountItems.profile, destination: '/profile' },
+    {
+      key: 'premium',
+      icon: Crown,
+      label: strings.more.accountItems.premium,
+      value: premiumBadgeLabel,
+      destination: 'account/premium',
+    },
+    {
+      key: 'achievements',
+      icon: Medal,
+      label: strings.more.accountItems.achievements,
+      value: `${completedTasks} / ${completedTasks + Math.max(activeTasks, 1)}`,
+      destination: 'account/achievements',
+    },
+    {
+      key: 'statistics',
+      icon: BarChart3,
+      label: strings.more.accountItems.statistics,
+      value: `${level}`,
+      destination: 'account/statistics',
+    },
+  ], [activeTasks, completedTasks, level, premiumBadgeLabel, strings]);
 
   const settingsItems: SectionItem[] = useMemo(() => [
     {
@@ -534,39 +586,27 @@ export default function MoreHomeScreen() {
               <View style={[styles.identityRow, { justifyContent: 'space-between' }]}>
                 <View style={styles.identityText}>
                   <Text style={[styles.nameText, { color: theme.colors.textPrimary }]}>
-                    {userProfile.name}
+                    {authUser?.fullName ?? strings.profile.title}
                   </Text>
-                  <Text style={styles.emailText}>{userProfile.email}</Text>
+                  <Text style={styles.emailText}>{authUser?.email ?? strings.profile.fields.email}</Text>
                 </View>
 
-                {/* Minimal user placeholder like on the mock */}
-                <AdaptiveGlassView
-                  style={[
-                    styles.profileStub,
-                    { backgroundColor: theme.colors.background }
-                  ]}
-                >
-                  <UserRound
-                    size={48}
-                    color={theme.colors.icon}
-                    strokeWidth={1.8}
-                  />
-                </AdaptiveGlassView>
+                <View style={styles.profileStubWrapper}>{avatarNode}</View>
               </View>
 
               {/* Premium badge */}
               <View style={styles.premiumBadge}>
-                <Image source={require("@assets/images/premium.png")} style={styles.premiumBadgeIcon} />
+                <NativeImage source={require("@assets/images/premium.png")} style={styles.premiumBadgeIcon} />
                 <Text style={styles.premiumBadgeText}>
-                  {strings.more.premiumBadge} {userProfile.premiumUntil}
+                  {strings.more.premiumBadge} {premiumBadgeLabel}
                 </Text>
               </View>
 
       <LevelProgress
-        level={userProfile.level}
-        nextLevel={userProfile.nextLevel}
-        currentXp={userProfile.xp}
-        targetXp={userProfile.xpTarget}
+        level={level}
+        nextLevel={level + 1}
+        currentXp={xpIntoLevel}
+        targetXp={XP_PER_LEVEL}
         label={strings.more.values.level}
       />
 

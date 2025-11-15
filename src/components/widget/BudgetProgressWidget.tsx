@@ -22,7 +22,7 @@ const DEFAULT_KEYS = [
   { key: 'entertainment', used: 140, total: 250 },
 ] as const;
 
-const PLACEHOLDER_KEYS: Array<'empty' | 'add'> = ['empty', 'add'];
+const PLACEHOLDER_KEYS: ('empty' | 'add')[] = ['empty', 'add'];
 
 export default function BudgetProgressWidget({
   budgets,

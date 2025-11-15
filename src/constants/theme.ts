@@ -10,7 +10,7 @@ import { useTheme as useThemePreference } from '@/contexts/ThemeContext';
 // === Brand Color Tokens (formerly Colors.ts) ===
 export const Colors = {
   // === Основные цвета бренда ===
-  primary: '#2563eb',      // Яркий синий
+  primary: '#59595F',      // Яркий синий
   primaryLight: '#3b82f6',
   primaryDark: '#1e40af',
   white: "#fff",
@@ -348,7 +348,7 @@ const lightColors: ThemeColors = {
   shadowColor: 'rgba(15,23,42,0.12)',
   overlaySoft: 'rgba(15,23,42,0.05)',
   overlayStrong: 'rgba(15,23,42,0.16)',
-  backdrop: 'rgba(15,23,42,0.32)',
+  backdrop: '#FFFFFF',
   highlight: Colors.primary + '18',
   gradientScrim: 'rgba(255,255,255,0.86)',
   onPrimary: '#FFFFFF',

@@ -40,6 +40,8 @@ import {
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
+import type { AppTranslations } from '@/localization/strings';
 import AddTaskSheet, {
   AddTaskSheetHandle,
   AddTaskPayload,
@@ -66,14 +68,19 @@ const MAX_SWIPE_DISTANCE = SCREEN_WIDTH * 0.85;
 const energyIcons = (n: 1 | 2 | 3, color: string) =>
   Array.from({ length: n }).map((_, i) => <Zap key={i} size={14} color={color} />);
 
-const sectionMeta = (theme: ReturnType<typeof useAppTheme>, id: PlannerTaskSection) => {
+const sectionMeta = (
+  theme: ReturnType<typeof useAppTheme>,
+  id: PlannerTaskSection,
+  sectionLabels: AppTranslations['plannerScreens']['tasks']['sections'],
+) => {
+  const copy = sectionLabels[id];
   switch (id) {
     case 'morning':
-      return { icon: <Sun size={14} color={theme.colors.textSecondary} />, title: 'Morning', time: '(06:00 - 12:00)' };
+      return { icon: <Sun size={14} color={theme.colors.textSecondary} />, title: copy.title, time: copy.time };
     case 'afternoon':
-      return { icon: <SunMedium size={14} color={theme.colors.textSecondary} />, title: 'Afternoon', time: '(12:00 - 18:00)' };
+      return { icon: <SunMedium size={14} color={theme.colors.textSecondary} />, title: copy.title, time: copy.time };
     case 'evening':
-      return { icon: <Moon size={14} color={theme.colors.textSecondary} />, title: 'Evening', time: '(18:00 - 22:00)' };
+      return { icon: <Moon size={14} color={theme.colors.textSecondary} />, title: copy.title, time: copy.time };
   }
 };
 
@@ -125,6 +132,8 @@ const stripeColor = (theme: ReturnType<typeof useAppTheme>, task: PlannerTask) =
 // -----------------------------
 export default function PlannerTasksTab() {
   const theme = useAppTheme();
+  const { strings, locale } = useLocalization();
+  const tasksStrings = strings.plannerScreens.tasks;
   const addTaskRef = useRef<AddTaskSheetHandle>(null);
 
   const tasks = usePlannerTasksStore((state) => state.tasks);
@@ -230,19 +239,19 @@ export default function PlannerTasksTab() {
       const startLabel =
         payload.time ||
         (payload.dateMode === 'today'
-          ? 'Today'
+          ? tasksStrings.defaults.startToday
           : payload.dateMode === 'tomorrow'
-          ? 'Tomorrow'
-          : 'Pick');
+          ? tasksStrings.defaults.startTomorrow
+          : tasksStrings.defaults.startPick);
 
       const dueAt = computeDueAtFromPayload(payload);
 
       addTask({
-        title: payload.title || 'New task',
+        title: payload.title || tasksStrings.defaults.newTaskTitle,
         desc: payload.description,
         start: startLabel,
         duration: '—',
-        context: payload.context || '@work',
+        context: payload.context || tasksStrings.defaults.defaultContext,
         energy: payload.energy === 'high' ? 3 : payload.energy === 'low' ? 1 : 2,
         projectHeart: payload.needFocus ? true : undefined,
         section,
@@ -250,20 +259,38 @@ export default function PlannerTasksTab() {
         dueAt,
       });
     },
-    [addTask],
+    [
+      addTask,
+      tasksStrings.defaults.defaultContext,
+      tasksStrings.defaults.newTaskTitle,
+      tasksStrings.defaults.startPick,
+      tasksStrings.defaults.startToday,
+      tasksStrings.defaults.startTomorrow,
+    ],
+  );
+
+  const dateFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      }),
+    [locale],
   );
 
   const plansLabel = useMemo(() => {
     const today = startOfDay(new Date());
     if (normalizedSelectedDay.getTime() === today.getTime()) {
-      return 'today';
+      return tasksStrings.todayLabel;
     }
-    return new Intl.DateTimeFormat('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    }).format(normalizedSelectedDay);
-  }, [normalizedSelectedDay]);
+    return dateFormatter.format(normalizedSelectedDay);
+  }, [dateFormatter, normalizedSelectedDay, tasksStrings.todayLabel]);
+
+  const plansTitle = useMemo(
+    () => tasksStrings.headerTemplate.replace('{date}', plansLabel),
+    [plansLabel, tasksStrings.headerTemplate],
+  );
 
   return (
     <>
@@ -274,11 +301,9 @@ export default function PlannerTasksTab() {
       >
         {/* Top bar */}
         <View style={styles.topBar}>
-          <Text style={[styles.topTitle, { color: theme.colors.textSecondary }]}>
-            {`Plans for ${plansLabel}`}
-          </Text>
+          <Text style={[styles.topTitle, { color: theme.colors.textSecondary }]}>{plansTitle}</Text>
           <Pressable style={styles.filterBtn}>
-            <Text style={[styles.filterText, { color: theme.colors.textSecondary }]}>Filter</Text>
+            <Text style={[styles.filterText, { color: theme.colors.textSecondary }]}>{tasksStrings.filter}</Text>
             <Filter size={14} color={theme.colors.textSecondary} />
           </Pressable>
         </View>
@@ -297,6 +322,7 @@ export default function PlannerTasksTab() {
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
             onComplete={handleToggleDone}
+            tasksStrings={tasksStrings}
           />
         )}
 
@@ -311,6 +337,7 @@ export default function PlannerTasksTab() {
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
             onComplete={handleToggleDone}
+            tasksStrings={tasksStrings}
           />
         )}
 
@@ -325,6 +352,7 @@ export default function PlannerTasksTab() {
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
             onComplete={handleToggleDone}
+            tasksStrings={tasksStrings}
           />
         )}
 
@@ -334,6 +362,7 @@ export default function PlannerTasksTab() {
             theme={theme}
             onRestore={handleRestore}
             onRemove={handleRemoveFromHistory}
+            tasksStrings={tasksStrings}
           />
         )}
 
@@ -358,6 +387,7 @@ function Section({
   onToggleExpand,
   onDelete,
   onComplete,
+  tasksStrings,
 }: {
   id: PlannerTaskSection;
   items: PlannerTask[];
@@ -368,8 +398,9 @@ function Section({
   onToggleExpand: (id: string) => void;
   onDelete: (id: string) => void;
   onComplete: (id: string) => void;
+  tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
-  const meta = sectionMeta(theme, id);
+  const meta = sectionMeta(theme, id, tasksStrings.sections);
   return (
     <>
       <View style={styles.sectionHeader}>
@@ -379,12 +410,10 @@ function Section({
           <Text style={[styles.sectionTime, { color: theme.colors.textTertiary }]}>{meta.time}</Text>
         </View>
         <Text style={[styles.sectionCount, { color: theme.colors.textSecondary }]}>
-          {done}/{total} tasks
+          {done}/{total} {tasksStrings.sectionCountLabel}
         </Text>
       </View>
-      <Text style={[styles.sectionTip, { color: theme.colors.textTertiary }]}>
-        Hold briefly, swipe right to toggle done, swipe left to delete (even completed tasks).
-      </Text>
+      <Text style={[styles.sectionTip, { color: theme.colors.textTertiary }]}>{tasksStrings.sectionTip}</Text>
 
       <View style={{ gap: 10 }}>
         {items.map((t) => (
@@ -396,6 +425,7 @@ function Section({
             onToggleExpand={() => onToggleExpand(t.id)}
             onDelete={() => onDelete(t.id)}
             onComplete={() => onComplete(t.id)}
+            tasksStrings={tasksStrings}
           />
         ))}
       </View>
@@ -415,6 +445,7 @@ function TaskCard({
   onComplete,
   onRestore,
   mode = 'active',
+  tasksStrings,
 }: {
   task: PlannerTask;
   theme: ReturnType<typeof useAppTheme>;
@@ -424,6 +455,7 @@ function TaskCard({
   onComplete: () => void;
   onRestore?: () => void;
   mode?: 'active' | 'history';
+  tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   const translateX = useSharedValue(0);
 
@@ -567,12 +599,14 @@ function TaskCard({
             {rightAction === 'restore' ? (
               <>
                 <RotateCcw size={18} color={restoreColor} />
-                <Text style={[styles.actionText, { color: restoreColor }]}>RESTORE</Text>
+                <Text style={[styles.actionText, { color: restoreColor }]}>{tasksStrings.actions.restore}</Text>
               </>
             ) : (
               <>
                 <CheckSquare size={18} color={theme.colors.success} />
-                <Text style={[styles.actionText, { color: theme.colors.success }]}>COMPLETE</Text>
+                <Text style={[styles.actionText, { color: theme.colors.success }]}>
+                  {tasksStrings.actions.complete}
+                </Text>
               </>
             )}
           </Animated.View>
@@ -592,7 +626,7 @@ function TaskCard({
           <Animated.View style={[styles.actionContent, leftContentStyle]}>
             <Trash2 size={18} color={theme.colors.danger} />
             <Text style={[styles.actionText, { color: theme.colors.danger }]}>
-              {isHistory ? 'REMOVE' : 'DELETE TASK'}
+              {isHistory ? tasksStrings.actions.remove : tasksStrings.actions.delete}
             </Text>
           </Animated.View>
         </Animated.View>
@@ -613,7 +647,9 @@ function TaskCard({
             <Pressable style={styles.cardPress} onPress={onToggleExpand} disabled={isHistory}>
               {isHistory && task.deletedAt && (
                 <View style={[styles.historyBadge, { borderColor: theme.colors.danger }]}>
-                  <Text style={[styles.historyBadgeText, { color: theme.colors.danger }]}>Deleted</Text>
+                  <Text style={[styles.historyBadgeText, { color: theme.colors.danger }]}>
+                    {tasksStrings.history.deletedBadge}
+                  </Text>
                 </View>
               )}
 
@@ -697,7 +733,7 @@ function TaskCard({
                 <View style={styles.aiRow}>
                   <SunMedium size={14} color={theme.colors.textSecondary} />
                   <Text numberOfLines={1} style={[styles.aiText, { color: theme.colors.textSecondary }]}>
-                    Ai: {task.aiNote}
+                    {tasksStrings.aiPrefix} {task.aiNote}
                   </Text>
                 </View>
               )}
@@ -713,21 +749,23 @@ function HistorySection({
   theme,
   onRestore,
   onRemove,
+  tasksStrings,
 }: {
   items: PlannerTask[];
   theme: ReturnType<typeof useAppTheme>;
   onRestore: (id: string) => void;
   onRemove: (id: string) => void;
+  tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   return (
     <>
       <View style={styles.historyHeader}>
-        <Text style={[styles.historyLabel, { color: theme.colors.textSecondary }]}>Tasks History</Text>
-        <Text style={[styles.historyHint, { color: theme.colors.textTertiary }]}>Swipe to restore or remove</Text>
+        <Text style={[styles.historyLabel, { color: theme.colors.textSecondary }]}>
+          {tasksStrings.history.title}
+        </Text>
+        <Text style={[styles.historyHint, { color: theme.colors.textTertiary }]}>{tasksStrings.history.subtitle}</Text>
       </View>
-      <Text style={[styles.sectionTip, { color: theme.colors.textTertiary }]}>
-        Hold briefly, swipe right to restore a task or swipe left to remove it permanently.
-      </Text>
+      <Text style={[styles.sectionTip, { color: theme.colors.textTertiary }]}>{tasksStrings.history.tip}</Text>
 
       <View style={{ gap: 10 }}>
         {items.map((task) => (
@@ -741,6 +779,7 @@ function HistorySection({
             onComplete={() => {}}
             onRestore={() => onRestore(task.id)}
             mode="history"
+            tasksStrings={tasksStrings}
           />
         ))}
       </View>

@@ -27,7 +27,7 @@ import { Wallet } from 'lucide-react-native';
 import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { Colors } from '@/constants/theme';
+import { useAppTheme, type Theme } from '@/constants/theme';
 import {
   FINANCE_CATEGORIES,
   FinanceCategory,
@@ -37,6 +37,7 @@ import { useFinanceStore } from '@/stores/useFinanceStore';
 import { useModalStore } from '@/stores/useModalStore';
 import { useTranslation } from '../../../utils/localization';
 import type { Transaction } from '@/types/store.types';
+import { applyOpacity } from '@/utils/color';
 
 type IncomeOutcomeTab = 'income' | 'outcome';
 
@@ -59,6 +60,9 @@ export default function IncomeOutcomeModal() {
   const dateModalRef = useRef<BottomSheetHandle>(null);
   const categoryModalRef = useRef<BottomSheetHandle>(null);
   const accountModalRef = useRef<BottomSheetHandle>(null);
+
+  const theme = useAppTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { t } = useTranslation();
 
@@ -101,7 +105,7 @@ export default function IncomeOutcomeModal() {
           id: `custom-${name}`,
           name,
           type: 'both',
-          color: fallback?.color ?? Colors.borderFocus,
+          colorToken: fallback?.colorToken ?? 'primary',
           icon: fallback?.icon ?? Wallet,
           isCustom: true,
         });
@@ -110,6 +114,14 @@ export default function IncomeOutcomeModal() {
 
     return Array.from(aggregated.values());
   }, [activeTab, categories]);
+
+  const resolveCategoryColor = useCallback(
+    (category: FinanceCategory & { colorToken?: FinanceCategory['colorToken'] }) => {
+      const token = category.colorToken ?? 'primary';
+      return theme.colors[token] ?? theme.colors.primary;
+    },
+    [theme.colors],
+  );
 
   useEffect(() => {
     if (incomeOutcome.isOpen) {
@@ -343,7 +355,7 @@ export default function IncomeOutcomeModal() {
             </View>
 
             <Pressable onPress={handleClose} hitSlop={12}>
-              <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
 
@@ -396,7 +408,7 @@ export default function IncomeOutcomeModal() {
               onChangeText={handleAmountChange}
               keyboardType="numeric"
               placeholder="0"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.colors.textMuted}
               style={styles.amountInput}
             />
           </View>
@@ -410,7 +422,7 @@ export default function IncomeOutcomeModal() {
                   hitSlop={10}
                   style={styles.iconButton}
                 >
-                  <Ionicons name="add" size={16} color={Colors.textSecondary} />
+                  <Ionicons name="add" size={16} color={theme.colors.textSecondary} />
                 </Pressable>
               </View>
             </View>
@@ -422,35 +434,38 @@ export default function IncomeOutcomeModal() {
                   color?: string;
                 }>;
                 const selected = category.name === selectedCategory;
+                const accentColor = resolveCategoryColor(category);
+                const cardBackground = selected
+                  ? applyOpacity(accentColor, 0.08)
+                  : theme.colors.surface;
+                const borderColor = selected ? accentColor : theme.colors.border;
+                const iconBackground = applyOpacity(accentColor, selected ? 0.24 : 0.12);
+                const iconColor = selected ? theme.colors.onPrimary : accentColor;
+                const textColor = selected ? theme.colors.textPrimary : theme.colors.textSecondary;
+
                 return (
                   <View key={category.id} style={styles.categoryWrapper}>
                     <TouchableOpacity
                       onPress={() => setSelectedCategory(category.name)}
                       style={[
                         styles.categoryCard,
-                        selected && { borderColor: category.color ?? Colors.primary },
+                        {
+                          borderColor,
+                          backgroundColor: cardBackground,
+                        },
                       ]}
                       activeOpacity={0.85}
                     >
                       <View
                         style={[
                           styles.categoryIconWrapper,
-                          { backgroundColor: (category.color ?? Colors.primary) + '1A' },
+                          { backgroundColor: iconBackground },
                         ]}
                       >
-                        <IconComponent
-                          size={iconSize}
-                          color={selected ? Colors.textPrimary : category.color ?? Colors.primary}
-                        />
+                        <IconComponent size={iconSize} color={iconColor} />
                       </View>
 
-                      <Text
-                        numberOfLines={2}
-                        style={[
-                          styles.categoryName,
-                          selected && { color: Colors.textPrimary },
-                        ]}
-                      >
+                      <Text numberOfLines={2} style={[styles.categoryName, { color: textColor }]}>
                         {category.name}
                       </Text>
                     </TouchableOpacity>
@@ -461,7 +476,7 @@ export default function IncomeOutcomeModal() {
                         hitSlop={6}
                         onPress={() => handleOpenCategoryModal({ mode: 'add' })}
                       >
-                        <Ionicons name="add-circle" size={18} color={Colors.textSecondary} />
+                        <Ionicons name="add-circle" size={18} color={theme.colors.textSecondary} />
                       </Pressable>
                       <Pressable
                         style={styles.categoryActionButton}
@@ -470,7 +485,7 @@ export default function IncomeOutcomeModal() {
                           handleOpenCategoryModal({ mode: 'edit', baseValue: category.name })
                         }
                       >
-                        <Ionicons name="create-outline" size={18} color={Colors.textSecondary} />
+                        <Ionicons name="create-outline" size={18} color={theme.colors.textSecondary} />
                       </Pressable>
                     </View>
                   </View>
@@ -495,7 +510,7 @@ export default function IncomeOutcomeModal() {
                 </Text>
               </View>
 
-              <Ionicons name="chevron-forward" size={18} color={Colors.textSecondary} />
+              <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -513,7 +528,7 @@ export default function IncomeOutcomeModal() {
                 <Text style={styles.accountBalance}>{t('finance.changeDate')}</Text>
               </View>
 
-              <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
+              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -524,7 +539,7 @@ export default function IncomeOutcomeModal() {
                 value={note}
                 onChangeText={setNote}
                 placeholder={t('finance.notePlaceholder')}
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={theme.colors.textMuted}
                 multiline
                 style={styles.noteInput}
               />
@@ -565,7 +580,7 @@ export default function IncomeOutcomeModal() {
                 : t('finance.addCategory')}
             </Text>
             <Pressable onPress={handleDismissCategoryModal} hitSlop={10}>
-              <Ionicons name="close" size={22} color={Colors.textSecondary} />
+              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
 
@@ -574,7 +589,7 @@ export default function IncomeOutcomeModal() {
               value={categoryDraft}
               onChangeText={setCategoryDraft}
               placeholder={t('finance.categoryPlaceholder')}
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.colors.textMuted}
               style={styles.modalInput}
             />
           </View>
@@ -602,7 +617,7 @@ export default function IncomeOutcomeModal() {
           <View style={styles.categoryEditorHeader}>
             <Text style={styles.categoryEditorTitle}>{t('finance.selectAccount')}</Text>
             <Pressable onPress={() => accountModalRef.current?.dismiss()} hitSlop={10}>
-              <Ionicons name="close" size={22} color={Colors.textSecondary} />
+              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
 
@@ -626,7 +641,7 @@ export default function IncomeOutcomeModal() {
                     </Text>
                   </View>
                   {selected && (
-                    <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                    <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
                   )}
                 </TouchableOpacity>
               );
@@ -638,7 +653,8 @@ export default function IncomeOutcomeModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -648,17 +664,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   subtitle: {
     marginTop: 4,
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   tabContainer: {
     marginTop: 16,
     flexDirection: 'row',
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceElevated,
     borderRadius: 14,
     padding: 4,
     position: 'relative',
@@ -676,10 +692,10 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   tabLabelActive: {
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   tabIndicator: {
     position: 'absolute',
@@ -693,7 +709,7 @@ const styles = StyleSheet.create({
   tabIndicatorFill: {
     flex: 1,
     borderRadius: 12,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.colors.surface,
   },
   amountSection: {
     marginTop: 24,
@@ -702,13 +718,13 @@ const styles = StyleSheet.create({
   amountLabel: {
     fontSize: 13,
     fontWeight: '500',
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
     marginBottom: 8,
   },
   amountInput: {
     fontSize: 36,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
     textAlign: 'center',
     letterSpacing: 1,
   },
@@ -723,7 +739,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   sectionActions: {
     flexDirection: 'row',
@@ -736,9 +752,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.colors.border,
   },
   categoryGrid: {
     marginTop: 16,
@@ -756,9 +772,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.colors.border,
   },
   categoryIconWrapper: {
     width: 48,
@@ -772,7 +788,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     textAlign: 'center',
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   categoryActions: {
     flexDirection: 'row',
@@ -786,17 +802,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.colors.border,
   },
   accountCard: {
     marginTop: 12,
     padding: 16,
     borderRadius: 16,
-    backgroundColor: Colors.surfaceElevated,
+    backgroundColor: theme.colors.surfaceElevated,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: theme.colors.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -804,24 +820,24 @@ const styles = StyleSheet.create({
   accountName: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   accountBalance: {
     marginTop: 4,
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   noteInputWrapper: {
     marginTop: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
     padding: 14,
   },
   noteInput: {
     minHeight: 60,
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 14,
     textAlignVertical: 'top',
   },
@@ -829,16 +845,16 @@ const styles = StyleSheet.create({
     marginTop: 28,
     paddingVertical: 16,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.colors.primary,
     alignItems: 'center',
   },
   saveButtonDisabled: {
-    backgroundColor: Colors.textTertiary,
+    backgroundColor: theme.colors.textMuted,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   categoryEditorContainer: {
     paddingTop: 12,
@@ -851,11 +867,11 @@ const styles = StyleSheet.create({
   categoryEditorTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   modalInput: {
     fontSize: 15,
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   accountPickerContainer: {
     paddingTop: 12,
@@ -868,13 +884,13 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   accountPickerItemSelected: {
-    borderColor: Colors.primary,
+    borderColor: theme.colors.primary,
   },
 });

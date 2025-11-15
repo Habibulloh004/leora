@@ -1,5 +1,5 @@
-// src/store/widgetStore.ts
 import { create } from 'zustand';
+import type { StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 import { mmkvStorageAdapter } from '@/utils/storage';
@@ -23,54 +23,49 @@ const DEFAULT_WIDGETS: WidgetType[] = [
   'weekly-review',
 ];
 
-export const useWidgetStore = create<WidgetStore>()(
-  persist(
-    (set, _get) => ({
-      activeWidgets: DEFAULT_WIDGETS,
-      _hasHydrated: false,
+const createWidgetStore: StateCreator<WidgetStore> = (set) => ({
+  activeWidgets: DEFAULT_WIDGETS,
+  _hasHydrated: false,
 
-      setHasHydrated: (state) => {
-        set({ _hasHydrated: state });
-      },
+  setHasHydrated: (state) => {
+    set({ _hasHydrated: state });
+  },
 
-      setActiveWidgets: (widgets) => 
-        set({ activeWidgets: widgets }),
+  setActiveWidgets: (widgets) => set({ activeWidgets: widgets }),
 
-      addWidget: (widgetId) =>
-        set((state) => {
-          if (state.activeWidgets.includes(widgetId)) {
-            return state;
-          }
-          return { activeWidgets: [...state.activeWidgets, widgetId] };
-        }),
-
-      removeWidget: (widgetId) =>
-        set((state) => ({
-          activeWidgets: state.activeWidgets.filter((id) => id !== widgetId),
-        })),
-
-      reorderWidgets: (fromIndex, toIndex) =>
-        set((state) => {
-          const newOrder = [...state.activeWidgets];
-          const [removed] = newOrder.splice(fromIndex, 1);
-          newOrder.splice(toIndex, 0, removed);
-          return { activeWidgets: newOrder };
-        }),
-
-      resetWidgets: () =>
-        set({ activeWidgets: DEFAULT_WIDGETS }),
+  addWidget: (widgetId) =>
+    set((state) => {
+      if (state.activeWidgets.includes(widgetId)) {
+        return state;
+      }
+      return { activeWidgets: [...state.activeWidgets, widgetId] };
     }),
-    {
-      name: 'widget-storage',
-      storage: createJSONStorage(() => mmkvStorageAdapter),
-      onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true);
-      },
-    }
-  )
+
+  removeWidget: (widgetId) =>
+    set((state) => ({
+      activeWidgets: state.activeWidgets.filter((id) => id !== widgetId),
+    })),
+
+  reorderWidgets: (fromIndex, toIndex) =>
+    set((state) => {
+      const newOrder = [...state.activeWidgets];
+      const [removed] = newOrder.splice(fromIndex, 1);
+      newOrder.splice(toIndex, 0, removed);
+      return { activeWidgets: newOrder };
+    }),
+
+  resetWidgets: () => set({ activeWidgets: DEFAULT_WIDGETS }),
+});
+
+export const useWidgetStore = create<WidgetStore>()(
+  persist(createWidgetStore, {
+    name: 'widget-storage',
+    storage: createJSONStorage(() => mmkvStorageAdapter),
+    onRehydrateStorage: () => (state) => {
+      state?.setHasHydrated(true);
+    },
+  })
 );
 
-// Hook to check if store is ready
-export const useWidgetStoreHydrated = () => {
-  return useWidgetStore((state) => state._hasHydrated);
-};
+export const useWidgetStoreHydrated = () =>
+  useWidgetStore((state) => state._hasHydrated);

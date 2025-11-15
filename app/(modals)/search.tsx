@@ -3,7 +3,6 @@ import {
   FlatList,
   Platform,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   TextInput,
@@ -14,6 +13,7 @@ import { useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 
 import { Theme, useAppTheme } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const SUGGESTIONS = [
   'How to improve focus',

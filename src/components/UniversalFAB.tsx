@@ -1,8 +1,8 @@
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import { Minus, Plus, HeartPulse, Flag, ListChecks } from 'lucide-react-native';
-import React, { useMemo, useState } from 'react';
-import { ImageBackground, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ImageBackground, Platform, Pressable, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -20,12 +20,15 @@ import { useTab } from '../contexts/TabContext';
 import { AddTaskIcon } from '@assets/icons/AddTaskIcon';
 import { QuickExpIcon } from '@assets/icons/QuickExpIcon';
 import { AIVoiceIcon } from '@assets/icons/AIVoiceIcon';
-import { DebtIcon, InComingIcon, OutComingIcon, TransactionIcon } from '@assets/icons';
+import { DebtIcon, InComingIcon, TransactionIcon } from '@assets/icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppTheme } from '@/constants/theme';
+
+const darkFabBackground = require('@assets/images/darkFub.png');
+const lightFabBackground = require('@assets/images/lightFub.png');
 
 interface FABAction {
   id: string;
@@ -75,8 +78,7 @@ export default function UniversalFAB() {
       case 'finance':
       case '(finance)':
         return [
-          { id: 'finance-income', icon: InComingIcon, label: '+INCOME' },
-          { id: 'finance-outcome', icon: OutComingIcon, label: '-OUTCOME' },
+          { id: 'finance-income-outcome', icon: InComingIcon, label: 'INCOME/OUT' },
           { id: 'finance-transfer', icon: TransactionIcon, label: 'TRANSFER' },
           { id: 'finance-debt', icon: DebtIcon, label: 'DEBT' },
         ];
@@ -93,11 +95,45 @@ export default function UniversalFAB() {
     }
   }, [activeTab]);
 
+  const [canUseHaptics, setCanUseHaptics] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    const checkAvailability = async () => {
+      try {
+        const availabilityFn = (Haptics as { isAvailableAsync?: () => Promise<boolean> }).isAvailableAsync;
+        if (!availabilityFn) {
+          if (mounted) {
+            setCanUseHaptics(Platform.OS !== 'web');
+          }
+          return;
+        }
+        const available = await availabilityFn();
+        if (mounted) {
+          setCanUseHaptics(available);
+        }
+      } catch {
+        if (mounted) {
+          setCanUseHaptics(false);
+        }
+      }
+    };
+    checkAvailability();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const triggerHaptic = useCallback(() => {
+    if (!canUseHaptics) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
+  }, [canUseHaptics]);
+
   const toggleExpanded = () => {
-    setOpenModal(!openModal);
+    setOpenModal((prev) => !prev);
     console.log(isOpen.value);
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    triggerHaptic();
 
     const timingConfig = {
       duration: 250,
@@ -231,7 +267,7 @@ export default function UniversalFAB() {
   const labelColor = theme.colors.textPrimary;
   const blurTint = theme.mode === 'dark' ? 'dark' : 'light';
   const overlayTintColor = theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.15)' : 'rgba(255, 255, 255, 0.15)';
-
+  const backgroundSource = theme.mode === 'dark' ? darkFabBackground : lightFabBackground;
   // Return null after all hooks have been called
   if (actions.length === 0) return null;
 
@@ -262,8 +298,10 @@ export default function UniversalFAB() {
               <BlurView intensity={50} tint={blurTint} style={StyleSheet.absoluteFill} />
             </MaskedView>
             <ImageBackground
-              source={require('@assets/images/backgroundModal.png')}
-              style={styles.backgroundImage}
+              source={backgroundSource}
+              style={[
+                styles.backgroundImage,
+              ]}
               resizeMode="cover"
             >
               <View style={[styles.overlayTint, { backgroundColor: overlayTintColor }]} />
@@ -317,11 +355,8 @@ export default function UniversalFAB() {
                             case 'planner-focus':
                               router.navigate('/focus-mode');
                               break;
-                            case 'finance-income':
+                            case 'finance-income-outcome':
                               openIncomeOutcome({ tab: 'income' });
-                              break;
-                            case 'finance-outcome':
-                              openIncomeOutcome({ tab: 'outcome' });
                               break;
                             case 'finance-transfer':
                               openTransferModal();

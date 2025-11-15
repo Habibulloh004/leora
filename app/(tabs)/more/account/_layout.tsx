@@ -11,19 +11,6 @@ export default function AccountLayout() {
       }}
     >
       <Stack.Screen
-        name="profile"
-        options={{
-          header: ({ navigation, back }) => (
-            <ProfileHeader
-              title="Profile"
-              changeTitle="Save Changes"
-              onBack={back ? () => navigation.goBack() : undefined}
-              onEdit={() => {}}
-            />
-          ),
-        }} 
-      />
-      <Stack.Screen
         name="achievements"
         options={{
           header: ({ navigation, back }) => (

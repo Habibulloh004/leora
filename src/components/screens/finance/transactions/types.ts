@@ -7,6 +7,7 @@ export type TransactionItemData = {
   account: string;
   time: string;
   amount: number;
+  currency: string;
   type: TransactionType;
 };
 

@@ -3,6 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 
 import { mmkvStorageAdapter, storage } from '@/utils/storage';
 import { User, LoginCredentials, RegisterCredentials, ForgotPasswordData } from '@/types/auth.types';
+import { getFinanceRegionPreset, useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
 import { useLockStore } from './useLockStore';
 
 interface AuthStore {
@@ -116,11 +117,16 @@ export const useAuthStore = create<AuthStore>()(
           // Simulate API delay
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
-          const { emailOrPhone, fullName, password, confirmPassword } = credentials;
+          const { emailOrPhone, fullName, password, confirmPassword, region } = credentials;
 
           // Validate input
           if (!emailOrPhone || !fullName || !password || !confirmPassword) {
             set({ error: 'Please fill in all fields', isLoading: false });
+            return false;
+          }
+
+          if (!region) {
+            set({ error: 'Please select your region', isLoading: false });
             return false;
           }
 
@@ -154,6 +160,8 @@ export const useAuthStore = create<AuthStore>()(
             return false;
           }
 
+          const regionPreset = getFinanceRegionPreset(region);
+
           // Create new user
           const newUser: User = {
             id: `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -163,6 +171,8 @@ export const useAuthStore = create<AuthStore>()(
             username: emailOrPhone.split('@')[0] || fullName.toLowerCase().replace(/\s+/g, ''),
             createdAt: new Date(),
             updatedAt: new Date(),
+            region,
+            primaryCurrency: regionPreset.currency,
           };
 
           // Save user to storage
@@ -179,6 +189,8 @@ export const useAuthStore = create<AuthStore>()(
             isLoading: false,
             error: null,
           });
+
+          useFinancePreferencesStore.getState().setRegion(region);
 
           useLockStore.getState().setLoggedIn(true);
           useLockStore.getState().setLocked(false);

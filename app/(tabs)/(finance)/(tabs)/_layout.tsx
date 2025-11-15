@@ -4,6 +4,7 @@ import { withLayoutContext } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { useMemo } from 'react';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 const { Navigator } = createMaterialTopTabNavigator();
 
@@ -11,6 +12,8 @@ export const MaterialTopTabs = withLayoutContext(Navigator);
 
 const Layout = () => {
   const theme = useAppTheme();
+  const { strings } = useLocalization();
+  const tabTitles = strings.financeScreens.tabs;
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -47,45 +50,50 @@ const Layout = () => {
     [theme],
   );
 
+  const screenOptions = useMemo(
+    () => ({
+      tabBarStyle: styles.tabBar,
+      tabBarIndicatorStyle: styles.indicator,
+      tabBarLabelStyle: styles.label,
+      tabBarActiveTintColor: theme.colors.textPrimary,
+      tabBarInactiveTintColor: theme.colors.textMuted,
+      tabBarItemStyle: styles.tabItem,
+      tabBarIndicatorContainerStyle: styles.indicatorContainer,
+      tabBarScrollEnabled: true,
+    }),
+    [styles, theme.colors.textMuted, theme.colors.textPrimary],
+  );
+
   return (
     <MaterialTopTabs
       style={styles.container}
-      screenOptions={{
-        tabBarStyle: styles.tabBar,
-        tabBarIndicatorStyle: styles.indicator,
-        tabBarLabelStyle: styles.label,
-        tabBarActiveTintColor: theme.colors.textPrimary,
-        tabBarInactiveTintColor: theme.colors.textMuted,
-        tabBarItemStyle: styles.tabItem,
-        tabBarIndicatorContainerStyle: styles.indicatorContainer,
-        tabBarScrollEnabled: true,
-      }}
+      screenOptions={screenOptions}
     >
       <MaterialTopTabs.Screen
         name="index"
         options={{
-          title: 'Review',
+          title: tabTitles.review,
         }}
       />
       <MaterialTopTabs.Screen
         name="accounts"
-        options={{ title: "Accounts" }}
+        options={{ title: tabTitles.accounts }}
       />
       <MaterialTopTabs.Screen
         name="transactions"
-        options={{ title: "Transactions" }}
+        options={{ title: tabTitles.transactions }}
       />
       <MaterialTopTabs.Screen
         name="budgets"
-        options={{ title: "Budgets" }}
+        options={{ title: tabTitles.budgets }}
       />
       <MaterialTopTabs.Screen
         name="analytics"
-        options={{ title: "Analytics" }}
+        options={{ title: tabTitles.analytics }}
       />
       <MaterialTopTabs.Screen
         name="debts"
-        options={{ title: "Debts" }}
+        options={{ title: tabTitles.debts }}
       />
     </MaterialTopTabs>
   );

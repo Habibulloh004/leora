@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { DateTransferIcon, DiagramIcon, DollorEuroIcon, SearchDocIcon, SettingIcon } from '@assets/icons';
 import { Theme, useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface FinanceHeaderProps {
   onTransferPress?: () => void;
@@ -58,6 +59,8 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const iconColor = theme.colors.textMuted;
+  const { strings } = useLocalization();
+  const headerTitle = strings.tabs.finance;
 
   return (
     <View style={styles.header}>
@@ -70,7 +73,7 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
         </TouchableOpacity>
       </View>
       <View style={styles.headerTitle}>
-        <Text style={styles.headerTitleText}>FINANCE</Text>
+        <Text style={styles.headerTitleText}>{headerTitle}</Text>
       </View>
       <View style={[styles.headerActions, styles.headerActionsRight]}>
         <TouchableOpacity style={styles.headerButton} onPress={onTransferPress}>
@@ -78,9 +81,6 @@ const FinanceHeader: React.FC<FinanceHeaderProps> = ({
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerButton} onPress={onSearchPress}>
           <SearchDocIcon color={iconColor} size={24} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton} onPress={onSettingsPress}>
-          <SettingIcon color={iconColor} size={24} />
         </TouchableOpacity>
       </View>
     </View>

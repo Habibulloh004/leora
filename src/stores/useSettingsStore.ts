@@ -1,5 +1,6 @@
 // stores/useSettingsStore.ts
 import { create } from 'zustand';
+import type { StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 import { mmkvStorageAdapter } from '@/utils/storage';
@@ -33,7 +34,17 @@ interface SettingsStore {
   resetToDefaults: () => void;
 }
 
-const defaultSettings = {
+type SettingsState = Omit<
+  SettingsStore,
+  | 'setTheme'
+  | 'setCurrency'
+  | 'setLanguage'
+  | 'updateNotificationSettings'
+  | 'updateFocusModeSettings'
+  | 'resetToDefaults'
+>;
+
+const defaultSettings: SettingsState = {
   theme: 'auto' as const,
   currency: 'USD',
   currencySymbol: '$',
@@ -52,34 +63,32 @@ const defaultSettings = {
   },
 };
 
+const createSettingsStore: StateCreator<SettingsStore> = (set) => ({
+  ...defaultSettings,
+
+  setTheme: (theme) => set({ theme }),
+
+  setCurrency: (currency, symbol) => set({ currency, currencySymbol: symbol }),
+
+  setLanguage: (language) => set({ language }),
+
+  updateNotificationSettings: (settings) =>
+    set((state) => ({
+      notifications: { ...state.notifications, ...settings },
+    })),
+
+  updateFocusModeSettings: (settings) =>
+    set((state) => ({
+      focusMode: { ...state.focusMode, ...settings },
+    })),
+
+  resetToDefaults: () => set(defaultSettings),
+});
+
 export const useSettingsStore = create<SettingsStore>()(
-  persist(
-    (set) => ({
-      ...defaultSettings,
-      
-      setTheme: (theme) => set({ theme }),
-      
-      setCurrency: (currency, symbol) => set({ 
-        currency, 
-        currencySymbol: symbol 
-      }),
-      
-      setLanguage: (language) => set({ language }),
-      
-      updateNotificationSettings: (settings) => set((state) => ({
-        notifications: { ...state.notifications, ...settings },
-      })),
-      
-      updateFocusModeSettings: (settings) => set((state) => ({
-        focusMode: { ...state.focusMode, ...settings },
-      })),
-      
-      resetToDefaults: () => set(defaultSettings),
-    }),
-    {
-      name: 'settings-storage',
-      storage: createJSONStorage(() => mmkvStorageAdapter),
-      version: 1,
-    }
-  )
+  persist(createSettingsStore, {
+    name: 'settings-storage',
+    storage: createJSONStorage(() => mmkvStorageAdapter),
+    version: 1,
+  })
 );

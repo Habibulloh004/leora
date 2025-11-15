@@ -19,7 +19,7 @@ const MOCK_SESSIONS: FocusSession[] = [
   { id: '3', task: 'Project Planning', duration: 25, completed: false },
 ];
 
-const PLACEHOLDER_KEYS: Array<'none' | 'free'> = ['none', 'free'];
+const PLACEHOLDER_KEYS: ('none' | 'free')[] = ['none', 'free'];
 
 interface FocusSessionsWidgetProps {
   sessions?: FocusSession[];

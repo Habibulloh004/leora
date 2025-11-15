@@ -6,6 +6,9 @@ import { useAppTheme, createThemedStyles } from '@/constants/theme';
 import GradientText from '@/components/ui/GradientText';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import GradientBox from '@/components/ui/GradientBox';
+import { Infinity, Check, X } from 'lucide-react-native';
+
+import { useAccountLocalization } from '@/localization/more/account';
 
 type PlanVariant = 'premium' | 'free';
 
@@ -41,63 +44,13 @@ export default function Premium({
 }: PremiumProps) {
   const theme = useAppTheme();
   const styles = useStyles();
+  const { premium: premiumCopy } = useAccountLocalization();
 
   const chipBackground = theme.mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)';
   const isPremium = variant === 'premium';
-
-  const header = useMemo(
-    () =>
-      isPremium
-        ? {
-          title: 'PREMIUM',
-          rightBadge: '💎',
-          activeUntil: 'March 15, 2025 (68 days)',
-          planText: 'Monthly plan ($9.99/mon)',
-          planLabel: 'Plan',
-          activeLabel: 'Active until',
-        }
-        : {
-          title: 'FREE PLAN',
-          rightBadge: 'FREE',
-          activeUntil: '',
-          planText: 'Free',
-          planLabel: 'Plan',
-          activeLabel: '',
-        },
-    [isPremium],
-  );
-
-  const benefits: Benefit[] = useMemo(
-    () => [
-      { label: 'Unlimited transactions', kind: 'compare', premium: '∞', free: '50' },
-      { label: 'All AI features', kind: 'compare', premium: '∞', free: '10/mon' },
-      { label: '10+ virtual mentors', kind: 'compare', premium: '10', free: '1' },
-      { label: 'Synchronized devices', kind: 'compare', premium: '5', free: '1' },
-      { label: 'Cloud Backup', kind: 'check', premiumHas: true },
-      { label: 'Premium Support', kind: 'compare', premium: '<1h', free: '24h' },
-      { label: 'Exclusive styles', kind: 'compare', premium: '8', free: '2' },
-      { label: 'API access', kind: 'check', premiumHas: true },
-    ],
-    [],
-  );
-
-  const usage = useMemo(
-    () =>
-      isPremium
-        ? [
-          { label: 'Transactions', value: '248 added' },
-          { label: 'AI requests', value: '89 used' },
-          { label: 'Devices', value: '3/5 connected' },
-          { label: 'Cloud', value: '2.3 GB / 10 GB' },
-        ]
-        : [
-          { label: 'Transactions', value: '35 added' },
-          { label: 'AI requests', value: '13 used' },
-          { label: 'Devices', value: '1 connected' },
-          { label: 'Cloud', value: '2.3 GB / 3 GB' },
-        ],
-    [isPremium],
-  );
+  const header = isPremium ? premiumCopy.header.premium : premiumCopy.header.free;
+  const benefits = premiumCopy.benefits;
+  const usage = isPremium ? premiumCopy.usage.premium : premiumCopy.usage.free;
 
   const [selectedBilling, setSelectedBilling] = useState<'monthly' | 'yearly'>('monthly');
 
@@ -210,7 +163,7 @@ export default function Premium({
           borderBottomWidth: 2,
           paddingBottom: 10
         }}>
-          <Text style={styles.sectionOverline}>Plan</Text>
+          <Text style={styles.sectionOverline}>{premiumCopy.planOverline}</Text>
         </View>
 
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -230,8 +183,8 @@ export default function Premium({
 
             {isPremium ? (
               <View style={styles.headerLine}>
-                <Text style={styles.headerKey}>{header.activeLabel}:</Text>
-                <Text style={styles.headerValue}>{header.activeUntil}</Text>
+                <Text style={styles.headerKey}>{premiumCopy.header.premium.activeLabel}:</Text>
+                <Text style={styles.headerValue}>{premiumCopy.header.premium.activeUntil}</Text>
               </View>
             ) : null}
 
@@ -239,10 +192,10 @@ export default function Premium({
               onPress={onManageSubscription}
               style={({ pressed }) => [styles.linkWrap, pressed && styles.pressed]}
             >
-              <Text style={styles.link}>Manage your subscription</Text>
+              <Text style={styles.link}>{premiumCopy.manageSubscription}</Text>
             </Pressable>
           </View>
-          <View style={{ width: 120, alignItems: 'center', justifyContent: 'center' }}>
+          {/* <View style={{ width: 120, alignItems: 'center', justifyContent: 'center' }}>
             {!isPremium ? (
               <Text style={[styles.badgeText, !isPremium && styles.badgeTextStrong]}>
                 FREE
@@ -250,7 +203,7 @@ export default function Premium({
             ) : (
               <Image source={require("@assets/images/premium.png")} style={styles.premiumBadgeIcon} />
             )}
-          </View>
+          </View> */}
         </View>
 
         <View style={{
@@ -259,8 +212,7 @@ export default function Premium({
           paddingBottom: 10
         }}>
           <Text style={styles.sectionOverline}>
-            {isPremium ? 'Your PREMIUM benefits' : 'PREMIUM benefits'}
-
+            {isPremium ? premiumCopy.benefitsSectionTitle.premium : premiumCopy.benefitsSectionTitle.free}
           </Text>
         </View>
 
@@ -269,16 +221,21 @@ export default function Premium({
             <Row key={benefit.label} isLast={idx === benefits.length - 1}>
               <Text style={styles.rowLabel}>{benefit.label}</Text>
               {benefit.kind === 'compare' ? (
-                <Text style={styles.rowValue}>
-                  <Text style={styles.em}>{benefit.premium}</Text>{' '}
-                  <Text style={styles.vs}>vs</Text> {benefit.free}
-                </Text>
+                <View style={styles.compareContainer}>
+                  {benefit.premium === '∞' ? (
+                    <Infinity size={18} color={theme.colors.primary} strokeWidth={2.5} />
+                  ) : (
+                    <Text style={styles.em}>{benefit.premium}</Text>
+                  )}
+                  <Text style={styles.vs}>vs</Text>
+                  <Text style={styles.freeText}>{benefit.free}</Text>
+                </View>
               ) : (
-                <Text style={styles.rowValue}>
-                  <Text style={[styles.check, { color: theme.colors.success }]}>✓</Text>{' '}
-                  <Text style={styles.vs}>vs</Text>{' '}
-                  <Text style={[styles.check, { color: theme.colors.danger }]}>×</Text>
-                </Text>
+                <View style={styles.compareContainer}>
+                  <Check size={18} color={theme.colors.success} strokeWidth={2.5} />
+                  <Text style={styles.vs}>vs</Text>
+                  <X size={18} color={theme.colors.danger} strokeWidth={2.5} />
+                </View>
               )}
             </Row>
           ))}
@@ -290,7 +247,7 @@ export default function Premium({
           paddingBottom: 10
         }}>
           <Text style={styles.sectionOverline}>
-            This Month&apos;s Usage
+            {premiumCopy.usageSectionTitle}
           </Text>
         </View>
 
@@ -309,32 +266,32 @@ export default function Premium({
           paddingBottom: 10
         }}>
           <Text style={styles.sectionOverline}>
-            {isPremium ? 'Upgrade your plan' : 'Upgrade to PREMIUM'}
+            {isPremium ? premiumCopy.upgradeSectionTitle.premium : premiumCopy.upgradeSectionTitle.free}
           </Text>
         </View>
 
         <View style={styles.planOptions}>
           <PlanOptionCard
-            title="Monthly"
-            price="$9.99"
-            subtitle="$9.99 / month"
-            rightChip="Current"
+            title={premiumCopy.planOptions.monthly.title}
+            price={premiumCopy.planOptions.monthly.price}
+            subtitle={premiumCopy.planOptions.monthly.subtitle}
+            rightChip={premiumCopy.planOptions.monthly.rightChip}
             isSelected={selectedBilling === 'monthly'}
             onPress={handleSelectMonthly}
           />
           <PlanOptionCard
-            title="Yearly"
-            price="$99"
-            subtitle="$99 / year"
-            chip="SAVE $20"
+            title={premiumCopy.planOptions.yearly.title}
+            price={premiumCopy.planOptions.yearly.price}
+            subtitle={premiumCopy.planOptions.yearly.subtitle}
+            chip={premiumCopy.planOptions.yearly.chip}
             isSelected={selectedBilling === 'yearly'}
             onPress={handleSelectYearly}
           />
         </View>
 
         <View style={styles.footerButtons}>
-          <PrimaryButton label="Change plan" onPress={onChangePlan} />
-          <GhostButton label="Payment history" onPress={onPaymentHistory} />
+          <PrimaryButton label={premiumCopy.buttons.changePlan} onPress={onChangePlan} />
+          <GhostButton label={premiumCopy.buttons.paymentHistory} onPress={onPaymentHistory} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -456,14 +413,24 @@ const useStyles = createThemedStyles((theme) => ({
     fontSize: 14,
     fontWeight: '600',
   },
+  compareContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   em: {
     color: theme.colors.textSecondary,
     fontWeight: '700',
+    fontSize: 14,
+  },
+  freeText: {
+    color: theme.colors.textMuted,
+    fontSize: 14,
+    fontWeight: '600',
   },
   vs: {
     color: theme.colors.textMuted,
     fontSize: 12,
-    marginHorizontal: theme.spacing.xs,
   },
   check: {
     fontWeight: '700',

@@ -6,19 +6,22 @@ import { useShallow } from 'zustand/react/shallow';
 
 import { useModalStore } from '@/stores/useModalStore';
 import { useThemeColors } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 interface PlannerHeaderProps {
   title?: string;
 }
 
-export default function PlannerHeader({ title = 'PLANNER' }: PlannerHeaderProps) {
+export default function PlannerHeader({ title }: PlannerHeaderProps) {
   const router = useRouter();
   const colors = useThemeColors();
+  const { strings } = useLocalization();
   const { openPlannerFocusModal } = useModalStore(
     useShallow((state) => ({
       openPlannerFocusModal: state.openPlannerFocusModal,
     }))
   );
+  const headerTitle = title ?? strings.tabs.planner;
 
   return (
     <View
@@ -42,7 +45,7 @@ export default function PlannerHeader({ title = 'PLANNER' }: PlannerHeaderProps)
         </Pressable>
       </View>
       <View>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{headerTitle}</Text>
       </View>
       <View style={styles.actions}>
         <Pressable

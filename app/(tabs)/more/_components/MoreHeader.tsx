@@ -2,10 +2,13 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 import GradientText from '@/components/ui/GradientText';
 
 export default function MoreHeader() {
   const theme = useAppTheme();
+  const { strings } = useLocalization();
+  const headerStrings = strings.more.header;
 
   return (
     <View
@@ -18,13 +21,13 @@ export default function MoreHeader() {
       ]}
     >
       <GradientText containerStyle={styles.leftLabelContainer} style={styles.leftLabel}>
-        PREMIUM
+        {headerStrings.badgeLabel.toUpperCase()}
       </GradientText>
 
-      <Text style={[styles.title, { color: theme.colors.textPrimary }]}>MORE</Text>
+      <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{headerStrings.title}</Text>
 
       <GradientText containerStyle={styles.rightLabelContainer} style={styles.rightLabel}>
-        15 MARCH
+        {headerStrings.dateLabel.toUpperCase()}
       </GradientText>
     </View>
   );

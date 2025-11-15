@@ -4,12 +4,15 @@ import { withLayoutContext } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { useMemo } from 'react';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 
 const { Navigator } = createMaterialTopTabNavigator();
 export const PlannerTopTabs = withLayoutContext(Navigator);
 
 const PlannerTabsLayout = () => {
   const theme = useAppTheme();
+  const { strings } = useLocalization();
+  const tabTitles = strings.plannerScreens.tabs;
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -51,9 +54,9 @@ const PlannerTabsLayout = () => {
         // tabBarItemStyle: styles.tabItem, // <-- olib tashlandi
       }}
     >
-      <PlannerTopTabs.Screen name="index" options={{ title: 'Tasks' }} />
-      <PlannerTopTabs.Screen name="goals" options={{ title: 'Goals' }} />
-      <PlannerTopTabs.Screen name="habits" options={{ title: 'Habits' }} />
+      <PlannerTopTabs.Screen name="index" options={{ title: tabTitles.tasks }} />
+      <PlannerTopTabs.Screen name="goals" options={{ title: tabTitles.goals }} />
+      <PlannerTopTabs.Screen name="habits" options={{ title: tabTitles.habits }} />
     </PlannerTopTabs>
   );
 };

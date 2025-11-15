@@ -4,20 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
-
-const APP_INFORMATION = [
-  { label: 'Application size', value: '125 MB' },
-  { label: 'Data size', value: '47 MB' },
-  { label: 'Cache size', value: '23 MB' },
-  { label: 'Last update', value: '3 days ago' },
-];
-
-const LEGAL_LINKS = [
-  'Terms of Use',
-  'Privacy Policy',
-  'Open Source Licenses',
-  'Copyrights',
-];
+import { useMorePagesLocalization } from '@/localization/more/pages';
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -146,6 +133,7 @@ const createStyles = (theme: Theme) =>
 const AboutScreen: React.FC = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { about: copy } = useMorePagesLocalization();
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -155,40 +143,40 @@ const AboutScreen: React.FC = () => {
       >
         <View>
           <View style={styles.sectionHeaderWrapper}>
-            <Text style={styles.sectionHeader}>App information</Text>
+            <Text style={styles.sectionHeader}>{copy.sections.appInfo}</Text>
             <View style={styles.sectionUnderline} />
           </View>
           <AdaptiveGlassView style={styles.card}>
             <View style={styles.appRow}>
               <View style={styles.appTitleGroup}>
-                <Text style={styles.appName}>LEORA</Text>
-                <Text style={styles.appTagline}>LEORA Premium</Text>
-                <Text style={styles.versionText}>Version: 1.0.0 (Build 145)</Text>
+                <Text style={styles.appName}>{copy.app.name}</Text>
+                <Text style={styles.appTagline}>{copy.app.tagline}</Text>
+                <Text style={styles.versionText}>{copy.app.version}</Text>
               </View>
               <AdaptiveGlassView style={styles.logoBox}>
-                <Text style={styles.logoLetter}>L</Text>
+                <Text style={styles.logoLetter}>{copy.app.name.charAt(0)}</Text>
               </AdaptiveGlassView>
             </View>
             <View style={styles.divider} />
             <Text style={styles.appDescription}>
-              Your Personal AI Companion for Financial Freedom
+              {copy.app.description}
             </Text>
           </AdaptiveGlassView>
         </View>
 
         <View>
           <View style={styles.sectionHeaderWrapper}>
-            <Text style={styles.sectionHeader}>Information</Text>
+            <Text style={styles.sectionHeader}>{copy.sections.information}</Text>
             <View style={styles.sectionUnderline} />
           </View>
           <AdaptiveGlassView style={styles.card}>
-            {APP_INFORMATION.map((item, index) => (
+            {copy.infoRows.map((item, index) => (
               <View key={item.label}>
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>{item.label}</Text>
                   <Text style={styles.infoValue}>{item.value}</Text>
                 </View>
-                {index < APP_INFORMATION.length - 1 ? <View style={styles.divider} /> : null}
+                {index < copy.infoRows.length - 1 ? <View style={styles.divider} /> : null}
               </View>
             ))}
           </AdaptiveGlassView>
@@ -196,12 +184,12 @@ const AboutScreen: React.FC = () => {
 
         <View>
           <View style={styles.sectionHeaderWrapper}>
-            <Text style={styles.sectionHeader}>Legal information</Text>
+            <Text style={styles.sectionHeader}>{copy.sections.legal}</Text>
             <View style={styles.sectionUnderline} />
           </View>
           <AdaptiveGlassView style={styles.card}>
             <View style={styles.legalList}>
-              {LEGAL_LINKS.map((item) => (
+              {copy.legalLinks.map((item) => (
                 <View key={item} style={styles.legalItem}>
                   <View style={styles.legalBullet} />
                   <Text style={styles.legalText}>{item}</Text>

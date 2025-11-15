@@ -6,6 +6,7 @@ import { Pencil, Plus, RefreshCcw } from 'lucide-react-native';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 import type { Goal } from '@/features/planner/goals/data';
+import { useLocalization } from '@/localization/useLocalization';
 
 type GoalCardProps = {
   goal: Goal;
@@ -17,6 +18,8 @@ type GoalCardProps = {
 
 const GoalCardComponent: React.FC<GoalCardProps> = ({ goal, onPress, onAddValue, onRefresh, onEdit }) => {
   const theme = useAppTheme();
+  const { strings } = useLocalization();
+  const cardStrings = strings.plannerScreens.goals.cards.actions;
 
   const intercept = useCallback(
     (handler?: () => void) => (event: GestureResponderEvent) => {
@@ -40,7 +43,7 @@ const GoalCardComponent: React.FC<GoalCardProps> = ({ goal, onPress, onAddValue,
       ]}
       accessibilityRole="button"
       accessibilityLabel={goal.title}
-      accessibilityHint="Open goal details"
+      accessibilityHint={cardStrings.openDetailsA11y}
     >
       <AdaptiveGlassView style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
         <View style={styles.inner}>
@@ -93,10 +96,10 @@ const GoalCardComponent: React.FC<GoalCardProps> = ({ goal, onPress, onAddValue,
               ]}
               onPress={intercept(onAddValue)}
               accessibilityRole="button"
-              accessibilityLabel="Add value"
+              accessibilityLabel={cardStrings.addValueA11y}
             >
               <Plus size={16} color={theme.colors.iconText} />
-              <Text style={[styles.actionLabel, { color: theme.colors.iconText }]}>Add value</Text>
+              <Text style={[styles.actionLabel, { color: theme.colors.iconText }]}>{cardStrings.addValue}</Text>
             </Pressable>
             <Pressable
               style={[
@@ -107,10 +110,10 @@ const GoalCardComponent: React.FC<GoalCardProps> = ({ goal, onPress, onAddValue,
               ]}
               onPress={intercept(onRefresh)}
               accessibilityRole="button"
-              accessibilityLabel="Refresh goal"
+              accessibilityLabel={cardStrings.refreshA11y}
             >
               <RefreshCcw size={16} color={theme.colors.iconText} />
-              <Text style={[styles.actionLabel, { color: theme.colors.textSecondary }]}>Refresh</Text>
+              <Text style={[styles.actionLabel, { color: theme.colors.textSecondary }]}>{cardStrings.refresh}</Text>
             </Pressable>
             <Pressable
               style={[
@@ -121,10 +124,10 @@ const GoalCardComponent: React.FC<GoalCardProps> = ({ goal, onPress, onAddValue,
               ]}
               onPress={intercept(onEdit)}
               accessibilityRole="button"
-              accessibilityLabel="Edit goal"
+              accessibilityLabel={cardStrings.editA11y}
             >
               <Pencil size={16} color={theme.colors.iconText} />
-              <Text style={[styles.actionLabel, { color: theme.colors.iconText }]}>Edit</Text>
+              <Text style={[styles.actionLabel, { color: theme.colors.iconText }]}>{cardStrings.edit}</Text>
             </Pressable>
           </View>
         </View>

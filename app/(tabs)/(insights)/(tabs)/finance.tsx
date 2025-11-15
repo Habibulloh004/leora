@@ -24,9 +24,12 @@ import {
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import type { Theme } from '@/constants/theme';
 import { useAppTheme } from '@/constants/theme';
+import { DayPartKey, IndicatorKey, SavingKey, WeeklyDayKey } from '@/localization/insightsContent';
+import { useInsightsContent } from '@/localization/useInsightsContent';
+import useInsightsDataHook from '@/hooks/useInsightsData';
 
 type Indicator = {
-  key: string;
+  key: IndicatorKey;
   label: string;
   metric: string;
   status: string;
@@ -35,14 +38,14 @@ type Indicator = {
 };
 
 type WeeklyPattern = {
-  key: string;
+  key: WeeklyDayKey;
   label: string;
   percent: number;
   note: string;
 };
 
 type DayPartPattern = {
-  key: string;
+  key: DayPartKey;
   label: string;
   range: string;
   percent: number;
@@ -58,150 +61,56 @@ type Anomaly = {
 };
 
 type SavingEntry = {
-  key: string;
+  key: SavingKey;
   title: string;
   impact: string;
   detail: string;
   alternative: string;
   bullets: string[];
-  actions: Array<{
+  actions: {
     key: string;
     label: string;
     Icon: LucideIcon;
-  }>;
+  }[];
 };
 
-const INDICATORS: Indicator[] = [
-  {
-    key: 'liquidity',
-    label: 'Liquidity',
-    metric: '3.5 month reserve',
-    status: 'Excellent',
-    score: 0.82,
-    Icon: Wallet,
-  },
-  {
-    key: 'savings',
-    label: 'Savings level',
-    metric: '3.5 month reserve',
-    status: 'Okay',
-    score: 0.64,
-    Icon: PiggyBank,
-  },
-  {
-    key: 'debt',
-    label: 'Debt burden',
-    metric: '3.5 month reserve',
-    status: 'Low',
-    score: 0.42,
-    Icon: CreditCard,
-  },
-  {
-    key: 'capital',
-    label: 'Capital growth',
-    metric: '3.5 month reserve',
-    status: 'Okay',
-    score: 0.66,
-    Icon: TrendingUp,
-  },
-  {
-    key: 'goals',
-    label: 'Goals progress',
-    metric: '3.5 month reserve',
-    status: 'Excellent',
-    score: 0.88,
-    Icon: Target,
-  },
+const INDICATOR_META: { key: IndicatorKey; Icon: LucideIcon }[] = [
+  { key: 'liquidity', Icon: Wallet },
+  { key: 'savings', Icon: PiggyBank },
+  { key: 'debt', Icon: CreditCard },
+  { key: 'capital', Icon: TrendingUp },
+  { key: 'goals', Icon: Target },
 ];
 
-const WEEKLY_SPENDING: WeeklyPattern[] = [
-  { key: 'mon', label: 'Mon', percent: 0.12, note: 'Minimum Spending' },
-  { key: 'tue', label: 'Tue', percent: 0.11, note: 'Stable' },
-  { key: 'wed', label: 'Wed', percent: 0.15, note: 'Peak: Groceries' },
-  { key: 'thu', label: 'Thu', percent: 0.1, note: 'Frugal Day' },
-  { key: 'fri', label: 'Fri', percent: 0.22, note: 'Entertainment' },
-  { key: 'sat', label: 'Sat', percent: 0.25, note: 'Weekly Maximum' },
-  { key: 'sun', label: 'Sun', percent: 0.05, note: 'Rest Day' },
-];
+const WEEKLY_KEYS: WeeklyDayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+const WEEKLY_PERCENTS: Record<WeeklyDayKey, number> = {
+  mon: 0.12,
+  tue: 0.11,
+  wed: 0.15,
+  thu: 0.1,
+  fri: 0.22,
+  sat: 0.25,
+  sun: 0.05,
+};
 
-const DAY_PART_SPENDING: DayPartPattern[] = [
-  { key: 'morning', label: 'Morning', range: '6-12', percent: 0.15, note: 'Transport, Coffee' },
-  { key: 'day', label: 'Day', range: '12-18', percent: 0.35, note: 'Lunch, Shopping' },
-  { key: 'evening', label: 'Evening', range: '18-22', percent: 0.4, note: 'Dinner, Entertainment' },
-  { key: 'night', label: 'Night', range: '22-6', percent: 0.1, note: 'Spending – Impulsive' },
-];
+const DAY_PART_KEYS: DayPartKey[] = ['morning', 'day', 'evening', 'night'];
+const DAY_PART_PERCENTS: Record<DayPartKey, number> = {
+  morning: 0.15,
+  day: 0.35,
+  evening: 0.4,
+  night: 0.1,
+};
 
-const ANOMALIES: Anomaly[] = [
-  {
-    key: 'food',
-    title: 'Food spending +35% vs last month',
-    summary: 'Recommendation: Return to home-cooked meals',
-    recommendation: 'Potential savings: 2 hours',
-    meta: 'Action Plan',
-  },
-  {
-    key: 'night',
-    title: 'Night purchases >200k (3 times)',
-    summary: 'Pattern: After 22:00 on Fridays',
-    recommendation: 'Recommendation: Set a night limit',
-    meta: 'Set rule',
-  },
-];
+type FinanceAnomalyKey = 'food' | 'night';
+const ANOMALY_KEYS: FinanceAnomalyKey[] = ['food', 'night'];
 
-const SAVINGS: SavingEntry[] = [
-  {
-    key: 'subscriptions',
-    title: '1. Subscriptions',
-    impact: '-180k/month',
-    detail: '5 unused services',
-    alternative: '',
-    bullets: [
-      'Netflix (inactive for 2 months)',
-      'Spotify (duplicate of YouTube Music)',
-      'Gym (visited 3 times/month)',
-    ],
-    actions: [
-      { key: 'cancel', label: 'Cancel All', Icon: Ban },
-      { key: 'select', label: 'Select', Icon: Check },
-    ],
-  },
-  {
-    key: 'food',
-    title: '2. Food delivery',
-    impact: '-350k/month',
-    detail: 'Average: 12 orders/month',
-    alternative: 'Alternative: Meal prep on Sundays',
-    bullets: [],
-    actions: [
-      { key: 'meal', label: 'Meal Plan', Icon: UtensilsCrossed },
-      { key: 'recipes', label: 'Recipes', Icon: ChefHat },
-    ],
-  },
-  {
-    key: 'transport',
-    title: '3. Transport',
-    impact: '-150k/month',
-    detail: 'Frequent short taxi rides',
-    alternative: 'Alternative: Bike / Metro',
-    bullets: [],
-    actions: [
-      { key: 'routes', label: 'Routes', Icon: Route },
-      { key: 'pass', label: 'Buy pass', Icon: CreditCard },
-    ],
-  },
-  {
-    key: 'coffee',
-    title: '4. Coffee',
-    impact: '-100k/month',
-    detail: 'Daily takeaway coffee',
-    alternative: 'Alternative: Home coffee machine',
-    bullets: [],
-    actions: [
-      { key: 'recipes', label: 'Recipes', Icon: ChefHat },
-      { key: 'equipment', label: 'Equipment', Icon: Coffee },
-    ],
-  },
-];
+const SAVING_KEYS: SavingKey[] = ['subscriptions', 'food', 'transport', 'coffee'];
+const SAVING_ACTION_ICONS: Record<SavingKey, Partial<Record<string, LucideIcon>>> = {
+  subscriptions: { cancel: Ban, select: Check },
+  food: { meal: UtensilsCrossed, recipes: ChefHat },
+  transport: { routes: Route, pass: CreditCard },
+  coffee: { recipes: ChefHat, equipment: Coffee },
+};
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -546,7 +455,89 @@ const createStyles = (theme: Theme) =>
 
 const FinanceTab: React.FC = () => {
   const theme = useAppTheme();
+  const { finance } = useInsightsContent();
+  const { financeData } = useInsightsDataHook();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const indicators = useMemo<Indicator[]>(
+    () =>
+      INDICATOR_META.map(({ key, Icon }) => {
+        const translation = finance.indicators[key];
+        return {
+          key,
+          label: translation.label,
+          metric: financeData.indicators?.[key]?.metric ?? translation.metric,
+          status: translation.status,
+          score: financeData.indicators?.[key]?.score ?? 0.6,
+          Icon,
+        };
+      }),
+    [finance.indicators, financeData.indicators],
+  );
+
+  const weeklyPattern = useMemo<WeeklyPattern[]>(
+    () =>
+      WEEKLY_KEYS.map((key) => {
+        const translation = finance.weeklyPattern[key];
+        return {
+          key,
+          label: translation.label,
+          note: translation.note,
+          percent: Math.round((financeData.weeklyPattern?.[key] ?? WEEKLY_PERCENTS[key]) * 100),
+        };
+      }),
+    [finance.weeklyPattern, financeData.weeklyPattern],
+  );
+
+  const dayPattern = useMemo<DayPartPattern[]>(
+    () =>
+      DAY_PART_KEYS.map((key) => {
+        const translation = finance.dayPattern[key];
+        return {
+          key,
+          label: translation.label,
+          range: translation.range,
+          note: translation.note,
+          percent: Math.round((financeData.dayPattern?.[key] ?? DAY_PART_PERCENTS[key]) * 100),
+        };
+      }),
+    [finance.dayPattern, financeData.dayPattern],
+  );
+
+  const anomalies = useMemo<Anomaly[]>(
+    () =>
+      ANOMALY_KEYS.map((key) => ({
+        key,
+        title: finance.anomalies[key].title,
+        summary: finance.anomalies[key].summary,
+        recommendation: finance.anomalies[key].recommendation,
+        meta: finance.anomalies[key].meta,
+      })),
+    [finance.anomalies],
+  );
+
+  const savingsEntries = useMemo<SavingEntry[]>(
+    () =>
+      SAVING_KEYS.map((key) => {
+        const entry = finance.savings[key];
+        const actions = Object.entries(entry.actions).map(([actionKey, label]) => ({
+          key: actionKey,
+          label,
+          Icon: SAVING_ACTION_ICONS[key]?.[actionKey] ?? ArrowRight,
+        }));
+        const impactValue = financeData.savings?.[key]?.impactValue ?? 0;
+        return {
+          key,
+          title: entry.title,
+          impact: entry.impact,
+          detail: entry.detail.replace('{amount}', financeData.formatCurrency(impactValue)),
+          alternative: entry.alternative ?? '',
+          bullets: entry.bullets ?? [],
+          actions,
+        };
+      }),
+    [finance.savings, financeData],
+  );
 
   return (
     <ScrollView
@@ -555,14 +546,21 @@ const FinanceTab: React.FC = () => {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Financial health</Text>
+        <Text style={styles.sectionTitle}>{finance.sections.health}</Text>
         <View>
           <View style={styles.scoreRow}>
-            <Text style={styles.scoreLabel}>Score</Text>
-            <Text style={styles.scoreValue}>8.2 / 10</Text>
+            <Text style={styles.scoreLabel}>{finance.scoreLabel}</Text>
+            <Text style={styles.scoreValue}>
+              {financeData.healthScore?.toFixed(1) ?? '8.0'} / 10
+            </Text>
           </View>
           <View style={styles.scoreBarTrack}>
-            <View style={[styles.scoreBarFill, { width: '82%' }]} />
+            <View
+              style={[
+                styles.scoreBarFill,
+                { width: `${Math.round(clamp01((financeData.healthScore ?? 8) / 10) * 100)}%` },
+              ]}
+            />
           </View>
         </View>
       </View>
@@ -570,9 +568,9 @@ const FinanceTab: React.FC = () => {
       <View style={styles.divider} />
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Health indicators</Text>
+        <Text style={styles.sectionTitle}>{finance.sections.indicators}</Text>
         <View style={styles.indicatorBlock}>
-          {INDICATORS.map((item, index) => {
+          {indicators.map((item, index) => {
             const Icon = item.Icon;
             return (
               <View
@@ -613,14 +611,10 @@ const FinanceTab: React.FC = () => {
         <View style={styles.alertBlock}>
           <View style={styles.alertHeader}>
             <AlertTriangle size={18} color={theme.colors.warning} />
-            <Text style={styles.alertTitle}>Work-life balance</Text>
+            <Text style={styles.alertTitle}>{finance.alert.title}</Text>
           </View>
           <View style={styles.bulletList}>
-            {[
-              'Investments: only 2% of income',
-              'Subscriptions: 5 unused',
-              'Impulsive purchases: +40%',
-            ].map((item) => (
+            {finance.alert.bullets.map((item) => (
               <Text key={item} style={styles.bulletText}>
                 • {item}
               </Text>
@@ -630,15 +624,15 @@ const FinanceTab: React.FC = () => {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Patterns and anomalies</Text>
+        <Text style={styles.sectionTitle}>{finance.sections.patterns}</Text>
 
         <View style={styles.patternSection}>
           <View style={styles.patternCard}>
             <View style={styles.patternTitleRow}>
               <CalendarRange size={18} color={theme.colors.textSecondary} />
-              <Text style={styles.patternTitle}>Weekly pattern</Text>
+              <Text style={styles.patternTitle}>{finance.patternTitles.weekly}</Text>
             </View>
-            {WEEKLY_SPENDING.map((entry) => (
+            {weeklyPattern.map((entry) => (
               <View key={entry.key} style={styles.patternRow}>
                 <Text style={styles.patternLabel}>{entry.label}</Text>
                 <View style={styles.patternPill}>
@@ -660,9 +654,9 @@ const FinanceTab: React.FC = () => {
           <View style={styles.patternCard}>
             <View style={styles.patternTitleRow}>
               <Clock size={18} color={theme.colors.textSecondary} />
-              <Text style={styles.patternTitle}>Daily pattern</Text>
+              <Text style={styles.patternTitle}>{finance.patternTitles.daily}</Text>
             </View>
-            {DAY_PART_SPENDING.map((entry) => (
+            {dayPattern.map((entry) => (
               <View key={entry.key} style={styles.patternRow}>
                 <Text style={styles.patternLabel}>
                   {entry.label}{' '}
@@ -688,9 +682,9 @@ const FinanceTab: React.FC = () => {
         <View style={styles.anomaliesSection}>
           <View style={styles.anomaliesTitleRow}>
             <AlertCircle size={18} color={theme.colors.textSecondary} />
-            <Text style={styles.anomaliesTitle}>Anomalies detected</Text>
+            <Text style={styles.anomaliesTitle}>{finance.anomaliesTitle}</Text>
           </View>
-          {ANOMALIES.map((anomaly) => (
+          {anomalies.map((anomaly) => (
             <AdaptiveGlassView key={anomaly.key} style={styles.anomalyCard}>
               <View style={styles.anomalyHeader}>
                 <Text style={styles.anomalyTitle}>{anomaly.title}</Text>
@@ -703,7 +697,7 @@ const FinanceTab: React.FC = () => {
               <View style={styles.anomalyFooter}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
                   <AlertCircle size={18} color={theme.colors.textSecondary} />
-                  <Text style={styles.anomalyMeta}>Review insights</Text>
+                  <Text style={styles.anomalyMeta}>{finance.reviewInsights}</Text>
                 </View>
                 <Play size={18} color={theme.colors.textSecondary} />
               </View>
@@ -714,12 +708,12 @@ const FinanceTab: React.FC = () => {
 
       <View style={styles.section}>
         <View style={styles.savingsHeader}>
-          <Text style={styles.sectionTitle}>Saving potentials</Text>
-          <Text style={styles.savingsSubtitle}>Potential: 780k</Text>
+          <Text style={styles.sectionTitle}>{finance.sections.savings}</Text>
+          <Text style={styles.savingsSubtitle}>{finance.savingsSubtitle}</Text>
         </View>
 
         <View style={styles.savingsList}>
-          {SAVINGS.map((entry) => (
+          {savingsEntries.map((entry) => (
             <View key={entry.key} style={styles.savingsItem}>
               <View style={styles.savingsTitleRow}>
                 <Text style={styles.savingsTitle}>{entry.title}</Text>
@@ -753,12 +747,12 @@ const FinanceTab: React.FC = () => {
         <View style={styles.footerActions}>
           <View style={styles.footerButton}>
             <Check size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.footerButtonLabel}>Apply all</Text>
+            <Text style={styles.footerButtonLabel}>{finance.footerActions.applyAll}</Text>
             <ArrowRight size={16} color={theme.colors.textSecondary} />
           </View>
           <View style={styles.footerButton}>
             <UtensilsCrossed size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.footerButtonLabel}>Adjust plan</Text>
+            <Text style={styles.footerButtonLabel}>{finance.footerActions.adjustPlan}</Text>
             <ArrowRight size={16} color={theme.colors.textSecondary} />
           </View>
         </View>
@@ -768,3 +762,5 @@ const FinanceTab: React.FC = () => {
 };
 
 export default FinanceTab;
+
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));

@@ -1,5 +1,5 @@
 // app/(tabs)/(finance)/(tabs)/index.tsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {
   Animated,
   Dimensions,
@@ -22,75 +22,86 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 
 import { useAppTheme } from '@/constants/theme';
 import { Table, TableColumn } from '@/components/ui/Table';
+import { useLocalization } from '@/localization/useLocalization';
+import { useFinanceStore } from '@/stores/useFinanceStore';
+import type { Transaction } from '@/types/store.types';
+import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
+import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 
 const { width: screenWidth } = Dimensions.get('window');
 
-// Mock data
-const BALANCE_DATA = {
-  total: 12500000,
-  income: 12500000,
-  incomeChange: 15,
-  outcome: 8600000,
-  outcomeChange: -8,
-  currency: 'UZS',
-  month: 'December',
+const CATEGORY_COLORS = ['#8B5CF6', '#EF4444', '#10B981', '#F59E0B', '#3B82F6', '#EAB308'];
+
+const formatRelativeTime = (date: Date) => {
+  const now = new Date();
+  const todayKey = now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const shortTime = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+
+  if (date.toDateString() === todayKey) {
+    return `Today ${shortTime}`;
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `Yesterday ${shortTime}`;
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 };
 
-const PROGRESS_DATA = {
-  used: 3750000,
-  percentage: 68,
+const describeDueDate = (target?: Date) => {
+  if (!target) {
+    return 'No period';
+  }
+  const today = new Date();
+  const diffDays = Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays === 0) return 'Due today';
+  if (diffDays > 0) return `In ${diffDays} day${diffDays === 1 ? '' : 's'}`;
+  return `${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? '' : 's'} overdue`;
 };
 
-const EXPENSE_CATEGORIES = [
-  { name: 'Food', percentage: 35, color: '#8B5CF6' },
-  { name: 'Transport', percentage: 25, color: '#EF4444' },
-  { name: 'Living', percentage: 20, color: '#10B981' },
-  { name: 'Shopping', percentage: 15, color: '#F59E0B' },
-  { name: 'Entertainment', percentage: 5, color: '#3B82F6' },
-];
-
-interface Transaction {
+interface RecentTransactionRow {
   id: string;
-  type: string;
+  title: string;
+  subtitle: string;
   amount: number;
-  time: string;
   isIncome: boolean;
+  time: string;
 }
 
-const RECENT_TRANSACTIONS: Transaction[] = [
-  { id: '1', type: 'Korzinka', amount: -45000, time: 'Today 14:30', isIncome: false },
-  { id: '2', type: 'Salary', amount: 12500000, time: 'Today 09:00', isIncome: true },
-  { id: '3', type: 'Yandex Taxi', amount: -15000, time: 'Yesterday', isIncome: false },
-  { id: '4', type: 'MegaPlanet', amount: -120000, time: '2 Jan 19:46', isIncome: false },
-];
+type EventIcon = 'wallet' | 'clock' | 'alert';
 
-const IMPORTANT_EVENTS = [
-  {
-    id: '1',
-    icon: 'wallet' as const,
-    title: 'Debt Repaid',
-    description: 'Debt will return after 6 days (15.04)',
-    time: '34m ago',
-  },
-  {
-    id: '2',
-    icon: 'clock' as const,
-    title: 'Payment',
-    description: 'Internet bill due tomorrow',
-    time: '50m ago',
-  },
-  {
-    id: '3',
-    icon: 'alert' as const,
-    title: 'Budget',
-    description: 'Food budget 85% used',
-    time: '11h ago',
-  },
-];
+interface FinanceEvent {
+  id: string;
+  icon: EventIcon;
+  title: string;
+  description: string;
+  time: string;
+}
 
 export default function FinanceReviewScreen() {
   const theme = useAppTheme();
+  const { strings } = useLocalization();
+  const reviewStrings = strings.financeScreens.review;
   const styles = createStyles(theme);
+  const accounts = useFinanceStore((state) => state.accounts);
+  const transactions = useFinanceStore((state) => state.transactions);
+  const debts = useFinanceStore((state) => state.debts);
+  const budgets = useFinanceStore((state) => state.budgets);
+  const {
+    convertAmount,
+    formatCurrency: formatFinanceCurrency,
+    globalCurrency,
+    baseCurrency,
+  } = useFinanceCurrency();
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -103,22 +114,192 @@ export default function FinanceReviewScreen() {
     }).start();
   }, [fadeAnim]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US').format(Math.abs(amount));
-  };
+  const summary = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    const previousMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const previousYear = currentMonth === 0 ? currentYear - 1 : currentYear;
 
-  // Define table columns for transactions
-  const transactionColumns: TableColumn<Transaction>[] = [
+    const accountCurrencyMap = new Map(
+      accounts.map((account) => [account.id, normalizeFinanceCurrency(account.currency)]),
+    );
+    const accountNameMap = new Map(accounts.map((account) => [account.id, account.name]));
+
+    const resolveTransactionCurrency = (transaction: Transaction) =>
+      transaction.currency
+        ? normalizeFinanceCurrency(transaction.currency)
+        : accountCurrencyMap.get(transaction.accountId) ?? 'USD';
+
+    const filterByDate = (month: number, year: number) =>
+      transactions.filter((transaction) => {
+        const date = new Date(transaction.date);
+        return date.getMonth() === month && date.getFullYear() === year;
+      });
+
+    const currentMonthTransactions = filterByDate(currentMonth, currentYear);
+    const previousMonthTransactions = filterByDate(previousMonth, previousYear);
+
+    const sumByType = (list: typeof transactions, type: Transaction['type']) =>
+      list
+        .filter((transaction) => transaction.type === type)
+        .reduce(
+          (sum, item) =>
+            sum + convertAmount(item.amount, resolveTransactionCurrency(item), globalCurrency),
+          0,
+        );
+
+    const incomeCurrent = sumByType(currentMonthTransactions, 'income');
+    const incomePrev = sumByType(previousMonthTransactions, 'income');
+    const outcomeCurrent = sumByType(currentMonthTransactions, 'outcome');
+    const outcomePrev = sumByType(previousMonthTransactions, 'outcome');
+
+    const calcChange = (current: number, prev: number) => {
+      if (prev === 0) return current > 0 ? 100 : 0;
+      return Number((((current - prev) / prev) * 100).toFixed(1));
+    };
+
+    const totalBalanceGlobal = accounts.reduce(
+      (sum, account) => sum + convertAmount(account.balance, normalizeFinanceCurrency(account.currency), globalCurrency),
+      0,
+    );
+    const totalBalanceBase = accounts.reduce(
+      (sum, account) => sum + convertAmount(account.balance, normalizeFinanceCurrency(account.currency), baseCurrency),
+      0,
+    );
+
+    const budgetsTotals = budgets.reduce(
+      (acc, budget) => {
+        acc.limit += budget.limit;
+        acc.spent += budget.spent;
+        return acc;
+      },
+      { limit: 0, spent: 0 },
+    );
+
+    const progressPercentage = budgetsTotals.limit
+      ? Math.min(Math.round((budgetsTotals.spent / budgetsTotals.limit) * 100), 125)
+      : 0;
+    const progressUsedGlobal = budgetsTotals.spent
+      ? convertAmount(budgetsTotals.spent, 'UZS', globalCurrency)
+      : outcomeCurrent;
+
+    const recentTransactions: RecentTransactionRow[] = transactions
+      .filter((transaction) => transaction.type !== 'transfer')
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 5)
+      .map((transaction) => {
+        const currency = resolveTransactionCurrency(transaction);
+        const convertedAmount = convertAmount(transaction.amount, currency, globalCurrency);
+        return {
+          id: transaction.id,
+          title: transaction.category ?? (transaction.type === 'income' ? 'Income' : 'Expense'),
+          subtitle: accountNameMap.get(transaction.accountId) ?? 'Unknown account',
+          amount: convertedAmount,
+          isIncome: transaction.type === 'income',
+          time: formatRelativeTime(new Date(transaction.date)),
+        };
+      });
+
+    const categoryTotals = transactions
+      .filter((transaction) => transaction.type === 'outcome')
+      .reduce<Record<string, number>>((acc, transaction) => {
+        const key = transaction.category ?? 'Other';
+        const currency = resolveTransactionCurrency(transaction);
+        const converted = convertAmount(transaction.amount, currency, globalCurrency);
+        acc[key] = (acc[key] ?? 0) + converted;
+        return acc;
+      }, {});
+
+    const expenseChartData = Object.entries(categoryTotals).map(([name, value], index) => ({
+      name,
+      population: value,
+      color: CATEGORY_COLORS[index % CATEGORY_COLORS.length],
+      legendFontColor: theme.colors.textSecondary,
+      legendFontSize: 13,
+    }));
+
+    const formatValue = (value: number) =>
+      formatFinanceCurrency(value, { fromCurrency: globalCurrency, convert: false });
+
+    const upcomingDebts: FinanceEvent[] = debts
+      .filter((debt) => debt.status !== 'settled')
+      .sort((a, b) => {
+        const aTime = a.expectedReturnDate ? new Date(a.expectedReturnDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.expectedReturnDate ? new Date(b.expectedReturnDate).getTime() : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+      })
+      .slice(0, 3)
+      .map((debt) => {
+        const converted = formatValue(
+          convertAmount(debt.remainingAmount, normalizeFinanceCurrency(debt.currency), globalCurrency),
+        );
+        const description = debt.note ? `${converted} • ${debt.note}` : converted;
+        return {
+          id: debt.id,
+          icon: debt.type === 'lent' ? 'wallet' : 'alert',
+          title: debt.type === 'lent' ? `${debt.person} owes you` : `You owe ${debt.person}`,
+          description,
+          time: describeDueDate(debt.expectedReturnDate ? new Date(debt.expectedReturnDate) : undefined),
+        };
+      });
+
+    const fallbackEvents = budgets
+      .filter((budget) => budget.state !== 'within')
+      .slice(0, 2)
+      .map((budget) => {
+        const spent = formatValue(convertAmount(budget.spent, 'UZS', globalCurrency));
+        const limit = formatValue(convertAmount(budget.limit, 'UZS', globalCurrency));
+        return {
+          id: budget.id,
+          icon: budget.state === 'exceeding' ? 'alert' : 'clock',
+          title: budget.name,
+          description: `${spent} / ${limit}`,
+          time: budget.state === 'exceeding' ? 'Limit exceeded' : 'On track',
+        };
+      });
+
+    return {
+      balanceGlobal: totalBalanceGlobal,
+      balanceBase: totalBalanceBase,
+      incomeCard: { amount: incomeCurrent, change: calcChange(incomeCurrent, incomePrev) },
+      outcomeCard: { amount: outcomeCurrent, change: calcChange(outcomeCurrent, outcomePrev) },
+      progress: { used: progressUsedGlobal, percentage: progressPercentage },
+      pie: expenseChartData.length
+        ? expenseChartData
+        : CATEGORY_COLORS.map((color, index) => ({
+            name: `Category ${index + 1}`,
+            population: 1,
+            color,
+            legendFontColor: theme.colors.textSecondary,
+            legendFontSize: 13,
+          })),
+      recentTransactions,
+      events: upcomingDebts.length ? upcomingDebts : fallbackEvents,
+    };
+  }, [
+    accounts,
+    baseCurrency,
+    budgets,
+    convertAmount,
+    debts,
+    formatFinanceCurrency,
+    globalCurrency,
+    theme.colors.textSecondary,
+    transactions,
+  ]);
+
+  const transactionColumns: TableColumn<RecentTransactionRow>[] = [
     {
-      key: 'type',
-      title: 'Type',
+      key: 'title',
+      title: reviewStrings.table.type,
       flex: 2,
       align: 'left',
-      renderText: (item) => item.type,
+      renderText: (item) => item.title,
     },
     {
       key: 'amount',
-      title: 'Amount',
+      title: reviewStrings.table.amount,
       flex: 3,
       align: 'right',
       render: (item) => (
@@ -128,14 +309,14 @@ export default function FinanceReviewScreen() {
             { color: item.isIncome ? theme.colors.success : theme.colors.danger },
           ]}
         >
-          {item.isIncome ? '+' : ''}
-          {formatCurrency(item.amount)} {BALANCE_DATA.currency}
+          {item.isIncome ? '+' : '−'}
+          {formatFinanceCurrency(item.amount, { fromCurrency: globalCurrency, convert: false })}
         </Text>
       ),
     },
     {
       key: 'time',
-      title: 'Date',
+      title: reviewStrings.table.date,
       flex: 2,
       align: 'right',
       renderText: (item) => item.time,
@@ -155,14 +336,7 @@ export default function FinanceReviewScreen() {
     }
   };
 
-  // Prepare data for PieChart
-  const pieChartData = EXPENSE_CATEGORIES.map((category) => ({
-    name: category.name,
-    population: category.percentage,
-    color: category.color,
-    legendFontColor: theme.colors.textSecondary,
-    legendFontSize: 13,
-  }));
+  const pieChartData = summary.pie;
 
 
   const chartConfig = {
@@ -185,9 +359,13 @@ export default function FinanceReviewScreen() {
         <View style={styles.balanceSection}>
           {/* Main Balance Card */}
           <AdaptiveGlassView style={styles.mainBalanceCard}>
-            <Text style={styles.balanceLabel}>Total Balance</Text>
+            <Text style={styles.balanceLabel}>{reviewStrings.totalBalance}</Text>
             <Text style={styles.balanceAmount}>
-              {formatCurrency(BALANCE_DATA.total)} {BALANCE_DATA.currency}
+              {formatFinanceCurrency(summary.balanceGlobal, { fromCurrency: globalCurrency, convert: false })}
+            </Text>
+            <Text style={styles.balanceConverted}>
+              Base ·{' '}
+              {formatFinanceCurrency(summary.balanceBase, { fromCurrency: baseCurrency, convert: false })}
             </Text>
           </AdaptiveGlassView>
 
@@ -196,28 +374,30 @@ export default function FinanceReviewScreen() {
             {/* Income Card */}
             <AdaptiveGlassView style={styles.inOutCard}>
               <View style={styles.inOutHeader}>
-                <Text style={styles.inOutLabel}>Income</Text>
+                <Text style={styles.inOutLabel}>{reviewStrings.income}</Text>
                 <TrendingUp size={16} color={theme.colors.success} />
               </View>
               <Text style={[styles.inOutAmount, { color: theme.colors.success }]}>
-                {formatCurrency(BALANCE_DATA.income)} {BALANCE_DATA.currency}
+                {formatFinanceCurrency(summary.incomeCard.amount, { fromCurrency: globalCurrency, convert: false })}
               </Text>
               <Text style={styles.inOutChange}>
-                +{BALANCE_DATA.incomeChange}% {BALANCE_DATA.month}
+                {summary.incomeCard.change >= 0 ? '+' : ''}
+                {summary.incomeCard.change}%
               </Text>
             </AdaptiveGlassView>
 
             {/* Outcome Card */}
             <AdaptiveGlassView style={styles.inOutCard}>
               <View style={styles.inOutHeader}>
-                <Text style={styles.inOutLabel}>Outcome</Text>
+                <Text style={styles.inOutLabel}>{reviewStrings.outcome}</Text>
                 <TrendingDown size={16} color={theme.colors.danger} />
               </View>
               <Text style={[styles.inOutAmount, { color: theme.colors.danger }]}>
-                {formatCurrency(BALANCE_DATA.outcome)} {BALANCE_DATA.currency}
+                {formatFinanceCurrency(summary.outcomeCard.amount, { fromCurrency: globalCurrency, convert: false })}
               </Text>
               <Text style={styles.inOutChange}>
-                {BALANCE_DATA.outcomeChange}% {BALANCE_DATA.month}
+                {summary.outcomeCard.change >= 0 ? '+' : ''}
+                {summary.outcomeCard.change}%
               </Text>
             </AdaptiveGlassView>
           </View>
@@ -225,10 +405,10 @@ export default function FinanceReviewScreen() {
 
         {/* 2. Monthly Progress Indicator */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Balance at the end of the month</Text>
+          <Text style={styles.sectionTitle}>{reviewStrings.monthBalance}</Text>
           <View style={styles.progressWrapper}>
             <Progress.Bar
-              progress={PROGRESS_DATA.percentage / 100}
+              progress={summary.progress.percentage / 100}
               width={screenWidth - 32}
               height={16}
               color={theme.colors.textSecondary}
@@ -241,15 +421,15 @@ export default function FinanceReviewScreen() {
             />
             <View style={styles.progressLabelsRow}>
               <AdaptiveGlassView style={styles.progressLabelItem}>
-                <Text style={styles.progressLabel}>Used</Text>
+                <Text style={styles.progressLabel}>{reviewStrings.used}</Text>
                 <Text style={styles.progressValue}>
-                  –{formatCurrency(PROGRESS_DATA.used)} {BALANCE_DATA.currency}
+                  –{formatFinanceCurrency(summary.progress.used, { fromCurrency: globalCurrency, convert: false })}
                 </Text>
               </AdaptiveGlassView>
               <AdaptiveGlassView style={[styles.progressLabelItem, styles.progressLabelRight]}>
-                <Text style={styles.progressLabel}>Progress</Text>
+                <Text style={styles.progressLabel}>{reviewStrings.progress}</Text>
                 <Text style={[styles.progressValue, { color: theme.colors.textSecondary }]}>
-                  {PROGRESS_DATA.percentage}%
+                  {summary.progress.percentage}%
                 </Text>
               </AdaptiveGlassView>
             </View>
@@ -258,7 +438,7 @@ export default function FinanceReviewScreen() {
 
         {/* 3. Expense Structure */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Expense structure</Text>
+          <Text style={styles.sectionTitle}>{reviewStrings.expenseStructure}</Text>
           <AdaptiveGlassView style={styles.expenseContainer}>
             <PieChart
               data={pieChartData}
@@ -279,14 +459,14 @@ export default function FinanceReviewScreen() {
         {/* 4. Expense History */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent transactions</Text>
+            <Text style={styles.sectionTitle}>{reviewStrings.recentTransactions}</Text>
             <TouchableOpacity>
-              <Text style={styles.seeAllButton}>See all</Text>
+              <Text style={styles.seeAllButton}>{reviewStrings.seeAll}</Text>
             </TouchableOpacity>
           </View>
 
             <Table
-              data={RECENT_TRANSACTIONS}
+              data={summary.recentTransactions}
               columns={transactionColumns}
               showHeader={true}
               keyExtractor={(item) => item.id}
@@ -295,9 +475,9 @@ export default function FinanceReviewScreen() {
 
         {/* 5. Important Events */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Important events</Text>
+          <Text style={styles.sectionTitle}>{reviewStrings.importantEvents}</Text>
           <View style={styles.eventsList}>
-            {IMPORTANT_EVENTS.map((event) => (
+            {summary.events.map((event) => (
               <AdaptiveGlassView key={event.id} style={styles.eventCard}>
                 <View style={styles.eventIconContainer}>{getEventIcon(event.icon)}</View>
                 <View style={styles.eventContent}>
@@ -349,6 +529,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontWeight: '800',
       color: theme.colors.textSecondary,
       letterSpacing: -1,
+    },
+    balanceConverted: {
+      fontSize: 14,
+      color: theme.colors.textSecondary,
+      opacity: 0.7,
+      marginTop: 4,
     },
     inOutRow: {
       flexDirection: 'row',

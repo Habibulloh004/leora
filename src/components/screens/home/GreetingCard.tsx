@@ -10,7 +10,7 @@ interface GreetingCardProps {
 }
 
 export default function GreetingCard({
-  userName = 'Sardor',
+  userName = 'Sarvar',
   date,
 }: GreetingCardProps) {
   const theme = useAppTheme();

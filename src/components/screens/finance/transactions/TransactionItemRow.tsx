@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -15,15 +15,26 @@ type TransactionItemRowProps = {
   item: TransactionItemData;
   index: number;
   showDivider: boolean;
+  onPress?: () => void;
 };
 
-const formatAmount = (amount: number) =>
-  `${amount > 0 ? '+' : amount < 0 ? '−' : ''}${new Intl.NumberFormat('en-US').format(Math.abs(amount))}`;
+const formatAmount = (amount: number, currency: string) => {
+  try {
+    return new Intl.NumberFormat(currency === 'UZS' ? 'uz-UZ' : 'en-US', {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: currency === 'UZS' ? 0 : 2,
+    }).format(Math.abs(amount));
+  } catch {
+    return `${currency} ${Math.abs(amount).toFixed(0)}`;
+  }
+};
 
 const TransactionItemRow: React.FC<TransactionItemRowProps> = ({
   item,
   index,
   showDivider,
+  onPress,
 }) => {
   const theme = useAppTheme();
   const opacity = useSharedValue(0);
@@ -48,26 +59,35 @@ const TransactionItemRow: React.FC<TransactionItemRowProps> = ({
         : theme.colors.primary;
 
   return (
-    <Animated.View style={[styles.row, animatedStyle]}>
-      <View style={styles.rowLeft}>
+    <Animated.View style={[styles.rowWrapper, animatedStyle]}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        style={styles.row}
+        onPress={onPress}
+      >
+        <View style={styles.rowLeft}>
         <Text style={[styles.category, { color: theme.colors.textPrimary }]} numberOfLines={1}>
           {item.category}
         </Text>
         <Text style={[styles.description, { color: theme.colors.textSecondary }]} numberOfLines={1}>
           {item.description}
         </Text>
-      </View>
+        </View>
 
-      <View style={styles.rowCenter}>
-        <Text style={[styles.account, { color: theme.colors.textMuted }]} numberOfLines={1}>
-          {item.account}
-        </Text>
-      </View>
+        <View style={styles.rowCenter}>
+          <Text style={[styles.account, { color: theme.colors.textMuted }]} numberOfLines={1}>
+            {item.account}
+          </Text>
+        </View>
 
-      <View style={styles.rowRight}>
-        <Text style={[styles.time, { color: theme.colors.textMuted }]}>{item.time}</Text>
-        <Text style={[styles.amount, { color: amountColor }]}>{formatAmount(item.amount)} UZS</Text>
-      </View>
+        <View style={styles.rowRight}>
+          <Text style={[styles.time, { color: theme.colors.textMuted }]}>{item.time}</Text>
+          <Text style={[styles.amount, { color: amountColor }]}>
+            {item.type === 'income' ? '+' : item.type === 'outcome' ? '−' : ''}
+            {formatAmount(item.amount, item.currency)}
+          </Text>
+        </View>
+      </TouchableOpacity>
 
       {showDivider && (
         <View
@@ -82,14 +102,16 @@ const TransactionItemRow: React.FC<TransactionItemRowProps> = ({
 };
 
 const styles = StyleSheet.create({
+  rowWrapper: {
+    position: 'relative',
+    borderRadius: 18,
+    overflow: 'hidden',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 18,
-    overflow: 'hidden',
-    position: 'relative',
   },
   rowLeft: {
     flex: 1.2,

@@ -372,13 +372,13 @@ class CurrencyService {
     fromCurrency: string,
     toCurrency: string,
     days = 30
-  ): Array<{ date: Date; rate: number }> {
+  ): { date: Date; rate: number }[] {
     if (!this.realm) return [];
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    const history: Array<{ date: Date; rate: number }> = [];
+    const history: { date: Date; rate: number }[] = [];
     
     // Get rates for each currency
     const fromRates = this.realm

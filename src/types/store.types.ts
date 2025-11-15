@@ -1,4 +1,5 @@
 // types/store.types.ts
+import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 export interface Task {
   id: string;
   title: string;
@@ -22,6 +23,8 @@ export interface Transaction {
   date: Date;
   currency?: string;
   createdAt: Date;
+  updatedAt?: Date;
+  relatedDebtId?: string;
 }
 
 export interface Debt {
@@ -30,12 +33,16 @@ export interface Debt {
   amount: number;
   remainingAmount: number;
   type: 'borrowed' | 'lent';
-  currency: string;
+  currency: FinanceCurrency;
   date: Date;
   expectedReturnDate?: Date;
+  reminderEnabled?: boolean;
+  reminderTime?: string;
   note?: string;
   status: 'active' | 'settled' | 'overdue';
   createdAt: Date;
+  accountId: string;
+  transactionId?: string;
 }
 
 export interface FocusSession {

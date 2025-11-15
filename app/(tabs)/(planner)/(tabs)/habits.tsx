@@ -27,13 +27,16 @@ import {
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
+import type { AppTranslations, PlannerHabitId } from '@/localization/strings';
 import {
+  addDays,
   addMonths,
   buildCalendarDays,
   buildWeekStrip,
-  monthFormatter,
   startOfDay,
   startOfMonth,
+  startOfWeek,
   useCalendarWeeks,
 } from '@/utils/calendar';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
@@ -61,34 +64,34 @@ type Habit = {
   expanded?: boolean;
 };
 
-const INITIAL_HABITS: Habit[] = [
+type HabitTemplate = Omit<Habit, 'title' | 'aiNote' | 'chips'> & { contentKey: PlannerHabitId };
+
+const HABIT_TEMPLATES: HabitTemplate[] = [
   {
+    contentKey: 'h1',
     id: 'h1',
-    title: 'Morning workout',
     streak: 12,
     record: 45,
     weeklyCompleted: 6,
     weeklyTarget: 7,
     daysRow: ['done', 'done', 'done', 'done', 'done', 'done', 'none', 'none', 'none', 'none'],
-    aiNote: 'Try it in the morning, right after your workout',
     badgeDays: 12,
     cta: { kind: 'check' },
   },
   {
+    contentKey: 'h2',
     id: 'h2',
-    title: 'Meditation',
     streak: 1,
     record: 21,
     weeklyCompleted: 4,
     weeklyTarget: 7,
     daysRow: ['done', 'none', 'miss', 'none', 'none', 'none', 'none', 'none', 'none', 'none'],
     badgeDays: 5,
-    aiNote: 'AI: “Try it in the morning, right after your workout”',
     cta: { kind: 'check' },
   },
   {
+    contentKey: 'h3',
     id: 'h3',
-    title: 'Reading 30 min',
     streak: 5,
     record: 30,
     weeklyCompleted: 5,
@@ -98,21 +101,19 @@ const INITIAL_HABITS: Habit[] = [
     cta: { kind: 'timer' },
   },
   {
+    contentKey: 'h4',
     id: 'h4',
-    title: 'Drink 2l water',
     streak: 30,
     record: 30,
     weeklyCompleted: 7,
     weeklyTarget: 7,
     daysRow: ['done', 'done', 'done', 'done', 'done', 'done', 'done', 'done', 'done', 'done'],
-    aiNote: 'New achievement!',
     badgeDays: 30,
     cta: { kind: 'chips' },
-    chips: ['+ 250ml', '+ 500ml', '+ 1l'],
   },
   {
+    contentKey: 'h5',
     id: 'h5',
-    title: 'Without social networks',
     streak: 3,
     record: 7,
     weeklyCompleted: 3,
@@ -122,6 +123,19 @@ const INITIAL_HABITS: Habit[] = [
     cta: { kind: 'dual' },
   },
 ];
+
+const buildHabits = (
+  content: AppTranslations['plannerScreens']['habits']['data'],
+): Habit[] =>
+  HABIT_TEMPLATES.map((template) => {
+    const localized = content[template.contentKey];
+    return {
+      ...template,
+      title: localized.title,
+      aiNote: localized.aiNote,
+      chips: localized.chips,
+    };
+  });
 
 // -------------------------------------
 // Date helpers
@@ -135,7 +149,9 @@ const pct = (a: number, b: number) => Math.round((a / Math.max(b, 1)) * 100);
 export default function PlannerHabitsTab() {
   const theme = useAppTheme();
   const styles = useStyles();
-  const [habits, setHabits] = useState<Habit[]>(INITIAL_HABITS);
+  const { strings, locale } = useLocalization();
+  const habitStrings = strings.plannerScreens.habits;
+  const [habits, setHabits] = useState<Habit[]>(() => buildHabits(habitStrings.data));
   const storedSelectedDate = useSelectedDayStore((state) => state.selectedDate);
   const normalizedInitialDate = useMemo(
     () => startOfDay(storedSelectedDate ?? new Date()),
@@ -154,14 +170,68 @@ export default function PlannerHabitsTab() {
     });
   }, [storedSelectedDate]);
 
-  const weekDays = useMemo(() => buildWeekStrip(selectedDate), [selectedDate]);
-  const calendarDays = useMemo(
-    () => buildCalendarDays(visibleMonth, selectedDate),
-    [visibleMonth, selectedDate],
+  useEffect(() => {
+    setHabits((prev) => {
+      const expandedMap = new Map(prev.map((habit) => [habit.id, habit.expanded]));
+      return buildHabits(habitStrings.data).map((habit) => ({
+        ...habit,
+        expanded: expandedMap.get(habit.id),
+      }));
+    });
+  }, [habitStrings.data]);
+
+  const weekDays = useMemo(() => {
+    const weekdayFormatter = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+    const dayFormatter = new Intl.DateTimeFormat(locale, { day: '2-digit' });
+    return buildWeekStrip(selectedDate).map((day) => ({
+      ...day,
+      label: weekdayFormatter.format(day.date),
+      number: dayFormatter.format(day.date),
+    }));
+  }, [locale, selectedDate]);
+  const calendarDays = useMemo(() => {
+    const dayFormatter = new Intl.DateTimeFormat(locale, { day: '2-digit' });
+    return buildCalendarDays(visibleMonth, selectedDate).map((day) => ({
+      ...day,
+      label: dayFormatter.format(day.date),
+    }));
+  }, [locale, selectedDate, visibleMonth]);
+
+  const monthYearFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: 'long',
+        year: 'numeric',
+      }),
+    [locale],
+  );
+  const monthNameFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: 'long',
+      }),
+    [locale],
+  );
+  const monthShortFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, {
+        month: 'short',
+      }),
+    [locale],
   );
 
-  const topMonthLabel = useMemo(() => monthFormatter.format(selectedDate), [selectedDate]);
-  const calendarTitle = useMemo(() => monthFormatter.format(visibleMonth), [visibleMonth]);
+  const topMonthLabel = useMemo(() => monthYearFormatter.format(selectedDate), [monthYearFormatter, selectedDate]);
+  const monthName = useMemo(() => monthNameFormatter.format(visibleMonth), [monthNameFormatter, visibleMonth]);
+  const yearNumber = useMemo(() => visibleMonth.getFullYear(), [visibleMonth]);
+  const calendarWeekLabels = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+    const start = startOfWeek(new Date());
+    return Array.from({ length: 7 }).map((_, idx) => formatter.format(addDays(start, idx)));
+  }, [locale]);
+  const monthShortLabels = useMemo(
+    () => Array.from({ length: 12 }).map((_, idx) => monthShortFormatter.format(new Date(2000, idx, 1))),
+    [monthShortFormatter],
+  );
 
   const toggleExpand = useCallback((id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -209,12 +279,6 @@ export default function PlannerHabitsTab() {
   // 42 kunni 6 haftaga bo‘lib qo‘yamiz: 7 ta ustun har doim chiqadi (yakshanba ham!)
   const weeks = useCalendarWeeks(calendarDays);
 
-  const monthName = useMemo(
-    () => new Intl.DateTimeFormat('en-US', { month: 'long' }).format(visibleMonth),
-    [visibleMonth]
-  );
-  const yearNumber = useMemo(() => visibleMonth.getFullYear(), [visibleMonth]);
-
   return (
     <ScrollView
       style={styles.container}
@@ -223,7 +287,7 @@ export default function PlannerHabitsTab() {
     >
       {/* Top Bar */}
       <View style={styles.topBar}>
-        <Text style={styles.topTitle}>Habits</Text>
+        <Text style={styles.topTitle}>{habitStrings.headerTitle}</Text>
         <Pressable onPress={toggleCalendar} style={styles.topRight}>
           <Text style={styles.monthText}>{topMonthLabel}</Text>
           {showCalendar ? (
@@ -368,8 +432,10 @@ export default function PlannerHabitsTab() {
           {/* Weekday names */}
           {pickerMode === 'days' && (
             <View style={styles.calendarWeeknames}>
-              {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => (
-                <Text key={d} style={styles.calWeek}>{d}</Text>
+              {calendarWeekLabels.map((label, idx) => (
+                <Text key={`${label}-${idx}`} style={styles.calWeek}>
+                  {label}
+                </Text>
               ))}
             </View>
           )}
@@ -446,11 +512,11 @@ export default function PlannerHabitsTab() {
           {/* ====== MONTHS GRID (custom) ====== */}
           {pickerMode === 'months' && (
             <View style={{ marginTop: 12, flexDirection: 'row', flexWrap: 'wrap' }}>
-              {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map((m, idx) => {
+              {monthShortLabels.map((m, idx) => {
                 const active = idx === visibleMonth.getMonth();
                 return (
                   <Pressable
-                    key={m}
+                    key={`${m}-${idx}`}
                     onPress={() => {
                       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                       setVisibleMonth(new Date(yearNumber, idx, 1));
@@ -541,7 +607,12 @@ export default function PlannerHabitsTab() {
       {/* Habits list */}
       <View style={{ gap: 12 }}>
         {habits.map((habit) => (
-          <HabitCard key={habit.id} data={habit} onToggleExpand={() => toggleExpand(habit.id)} />
+          <HabitCard
+            key={habit.id}
+            data={habit}
+            onToggleExpand={() => toggleExpand(habit.id)}
+            strings={habitStrings}
+          />
         ))}
       </View>
 
@@ -553,13 +624,28 @@ export default function PlannerHabitsTab() {
 // -------------------------------------
 // Habit Card
 // -------------------------------------
-function HabitCard({ data, onToggleExpand }: { data: Habit; onToggleExpand: () => void }) {
+function HabitCard({
+  data,
+  onToggleExpand,
+  strings,
+}: {
+  data: Habit;
+  onToggleExpand: () => void;
+  strings: AppTranslations['plannerScreens']['habits'];
+}) {
   const theme = useAppTheme();
   const styles = useStyles();
   const completion = useMemo(
     () => pct(data.weeklyCompleted, data.weeklyTarget),
     [data.weeklyCompleted, data.weeklyTarget],
   );
+  const streakText = strings.stats.streak.replace('{days}', String(data.streak));
+  const recordText = strings.stats.record.replace('{days}', String(data.record));
+  const completionText = strings.stats.completion
+    .replace('{percent}', String(completion))
+    .replace('{completed}', String(data.weeklyCompleted))
+    .replace('{target}', String(data.weeklyTarget));
+  const badgeText = `${data.badgeDays ?? data.streak} ${strings.badgeSuffix}`;
 
   return (
     <AdaptiveGlassView style={styles.card}>
@@ -572,22 +658,15 @@ function HabitCard({ data, onToggleExpand }: { data: Habit; onToggleExpand: () =
           <View style={styles.badgeRight}>
             <Flame size={14} color={theme.colors.textSecondary} />
             <Text style={styles.badgeText}>
-              {data.badgeDays ?? data.streak} days
+              {badgeText}
             </Text>
           </View>
         </View>
 
         <View style={styles.statsCol}>
-          <Text style={styles.statLine}>
-            <Text style={styles.statKey}>Streak:</Text> {data.streak} days straight
-          </Text>
-          <Text style={styles.statLine}>
-            <Text style={styles.statKey}>Record:</Text> {data.record} days
-          </Text>
-          <Text style={styles.statLine}>
-            <Text style={styles.statKey}>Completion:</Text> {completion}% ({data.weeklyCompleted}/
-            {data.weeklyTarget} weekly)
-          </Text>
+          <Text style={styles.statLine}>{streakText}</Text>
+          <Text style={styles.statLine}>{recordText}</Text>
+          <Text style={styles.statLine}>{completionText}</Text>
         </View>
 
         <View style={styles.daysRow}>
@@ -606,11 +685,11 @@ function HabitCard({ data, onToggleExpand }: { data: Habit; onToggleExpand: () =
         )}
 
         <View style={{ marginTop: 12 }}>
-          {data.cta?.kind === 'check' && <GlassButton label="Check in today" />}
+          {data.cta?.kind === 'check' && <GlassButton label={strings.ctas.checkIn} />}
           {data.cta?.kind === 'timer' && (
             <GlassButton
               icon={<AlarmClock size={14} color={theme.colors.textSecondary} />}
-              label="Start timer"
+              label={strings.ctas.startTimer}
             />
           )}
           {data.cta?.kind === 'chips' && (
@@ -622,8 +701,8 @@ function HabitCard({ data, onToggleExpand }: { data: Habit; onToggleExpand: () =
           )}
           {data.cta?.kind === 'dual' && (
             <View style={styles.dualRow}>
-              <GlassButton label="Completed" compact />
-              <GlassButton label="Failed" compact variant="danger" />
+              <GlassButton label={strings.ctas.completed} compact />
+              <GlassButton label={strings.ctas.failed} compact variant="danger" />
             </View>
           )}
         </View>
@@ -631,57 +710,43 @@ function HabitCard({ data, onToggleExpand }: { data: Habit; onToggleExpand: () =
         {data.expanded && (
           <View style={styles.expandArea}>
             <View style={styles.sectionBlock}>
-              <Text style={styles.blockTitle}>Statistics</Text>
-              <Text style={styles.blockLine}>
-                Overall completion: 156
-              </Text>
-              <Text style={styles.blockLine}>
-                Success percentile: 78%
-              </Text>
-              <Text style={styles.blockLine}>
-                Average streak: 8 days
-              </Text>
-              <Text style={styles.blockLine}>
-                Best month: November (93%)
-              </Text>
+              <Text style={styles.blockTitle}>{strings.expand.titles.statistics}</Text>
+              <Text style={styles.blockLine}>{strings.expand.lines.overallCompletion}</Text>
+              <Text style={styles.blockLine}>{strings.expand.lines.successPercentile}</Text>
+              <Text style={styles.blockLine}>{strings.expand.lines.averageStreak}</Text>
+              <Text style={styles.blockLine}>{strings.expand.lines.bestMonth}</Text>
             </View>
 
             <View style={styles.sectionBlock}>
-              <Text style={styles.blockTitle}>Pattern</Text>
-              <Text style={styles.blockLine}>
-                Best time: 7:00–7:30 (85% success rate)
-              </Text>
-              <Text style={styles.blockLine}>
-                Worst time: Weekends (45%)
-              </Text>
-              <Text style={styles.blockLine}>
-                After weekends: −30% probability
-              </Text>
+              <Text style={styles.blockTitle}>{strings.expand.titles.pattern}</Text>
+              <Text style={styles.blockLine}>{strings.expand.lines.bestTime}</Text>
+              <Text style={styles.blockLine}>{strings.expand.lines.worstTime}</Text>
+              <Text style={styles.blockLine}>{strings.expand.lines.afterWeekends}</Text>
             </View>
 
             <View style={styles.sectionBlock}>
-              <Text style={styles.blockTitle}>Achievements</Text>
+              <Text style={styles.blockTitle}>{strings.expand.titles.achievements}</Text>
               <BlockBadge
                 icon={<Trophy size={14} color={theme.colors.textSecondary} />}
-                text="First week"
+                text={strings.expand.badges.firstWeek}
               />
               <BlockBadge
                 icon={<Award size={14} color={theme.colors.textSecondary} />}
-                text="Month without break"
+                text={strings.expand.badges.monthNoBreak}
               />
               <BlockBadge
                 icon={<Award size={14} color={theme.colors.textSecondary} />}
-                text="100 completions"
+                text={strings.expand.badges.hundredCompletions}
               />
               <BlockBadge
                 icon={<Trophy size={14} color={theme.colors.textSecondary} />}
-                text="Marathoner (42 days straight)"
+                text={strings.expand.badges.marathoner}
               />
             </View>
 
             <View style={styles.dualRow}>
-              <GlassButton label="Edit" compact />
-              <GlassButton label="Delete" compact variant="danger" />
+              <GlassButton label={strings.ctas.edit} compact />
+              <GlassButton label={strings.ctas.delete} compact variant="danger" />
             </View>
           </View>
         )}

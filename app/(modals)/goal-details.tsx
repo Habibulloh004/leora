@@ -7,15 +7,26 @@ import { Lightbulb, X } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
-import { getGoalById } from '@/features/planner/goals/data';
+import { createGoalSections } from '@/features/planner/goals/data';
+import { useLocalization } from '@/localization/useLocalization';
 
 export default function GoalDetailsModal() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const theme = useAppTheme();
   const params = useLocalSearchParams<{ goalId?: string }>();
+  const { strings } = useLocalization();
+  const goalStrings = strings.plannerScreens.goals;
 
-  const goal = useMemo(() => getGoalById(params.goalId), [params.goalId]);
+  const goal = useMemo(() => {
+    if (!params.goalId) return undefined;
+    const sections = createGoalSections(goalStrings);
+    for (const section of sections) {
+      const match = section.data.find((item) => item.id === params.goalId);
+      if (match) return match;
+    }
+    return undefined;
+  }, [goalStrings, params.goalId]);
 
   useEffect(() => {
     if (!goal) {
@@ -65,7 +76,7 @@ export default function GoalDetailsModal() {
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionHeading}>Milestones</Text>
+            <Text style={styles.sectionHeading}>{goalStrings.details.milestones}</Text>
             <View style={styles.milestonesGrid}>
               {goal.milestones.map((item) => (
                 <View key={`${goal.id}-milestone-${item.percent}`} style={styles.milestoneRow}>
@@ -78,9 +89,9 @@ export default function GoalDetailsModal() {
 
           <View style={styles.section}>
             <View style={styles.historyHeader}>
-              <Text style={styles.sectionHeading}>History</Text>
+              <Text style={styles.sectionHeading}>{goalStrings.details.history}</Text>
               <Pressable style={styles.showMoreButton}>
-                <Text style={styles.showMoreText}>Show more</Text>
+                <Text style={styles.showMoreText}>{goalStrings.details.showMore}</Text>
               </Pressable>
             </View>
             <View style={styles.historyList}>

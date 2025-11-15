@@ -14,10 +14,19 @@ import TransactionItemRow from './TransactionItemRow';
 
 type TransactionGroupProps = {
   group: TransactionGroupData;
+  onTransactionPress?: (transactionId: string) => void;
 };
 
 const getTotal = (transactions: TransactionItemData[]) =>
-  transactions.reduce((acc, txn) => acc + txn.amount, 0);
+  transactions.reduce((acc, txn) => {
+    if (txn.type === 'income') {
+      return acc + txn.amount;
+    }
+    if (txn.type === 'outcome') {
+      return acc - txn.amount;
+    }
+    return acc;
+  }, 0);
 
 const formatTotal = (amount: number) => {
   if (amount === 0) {
@@ -27,7 +36,7 @@ const formatTotal = (amount: number) => {
   return `${sign}${new Intl.NumberFormat('en-US').format(Math.abs(amount))}`;
 };
 
-const TransactionGroup: React.FC<TransactionGroupProps> = ({ group }) => {
+const TransactionGroup: React.FC<TransactionGroupProps> = ({ group, onTransactionPress }) => {
   const theme = useAppTheme();
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(12);
@@ -75,6 +84,7 @@ const TransactionGroup: React.FC<TransactionGroupProps> = ({ group }) => {
             item={transaction}
             index={index}
             showDivider={index < group.transactions.length - 1}
+            onPress={() => onTransactionPress?.(transaction.id)}
           />
         ))}
       </View>

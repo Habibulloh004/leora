@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Mail, Lock, User } from 'lucide-react-native';
@@ -12,6 +12,13 @@ import GlassCard from '@/components/shared/GlassCard';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { validateEmail, validateName, validatePassword, validateConfirmPassword } from '@/utils/validation';
 import { useLockStore } from '@/stores/useLockStore';
+import {
+  FINANCE_REGION_PRESETS,
+  type FinanceRegion,
+  getFinanceRegionPreset,
+} from '@/stores/useFinancePreferencesStore';
+
+const DEFAULT_FINANCE_REGION = FINANCE_REGION_PRESETS[0].id as FinanceRegion;
 
 const RegisterScreen = () => {
   const { register, isLoading, error, clearError } = useAuthStore();
@@ -23,12 +30,18 @@ const RegisterScreen = () => {
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState<FinanceRegion>(DEFAULT_FINANCE_REGION);
 
   const [emailError, setEmailError] = useState<string | undefined>();
   const [nameError, setNameError] = useState<string | undefined>();
   const [passwordError, setPasswordError] = useState<string | undefined>();
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | undefined>();
   const hasFocusedRef = useRef(false);
+
+  const selectedRegionPreset = useMemo(
+    () => getFinanceRegionPreset(selectedRegion),
+    [selectedRegion],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -37,6 +50,7 @@ const RegisterScreen = () => {
         setFullName('');
         setPassword('');
         setConfirmPassword('');
+        setSelectedRegion(DEFAULT_FINANCE_REGION);
       }
 
       setEmailError(undefined);
@@ -72,6 +86,7 @@ const RegisterScreen = () => {
       fullName,
       password,
       confirmPassword,
+      region: selectedRegion,
     });
 
     if (success) {
@@ -181,6 +196,43 @@ const RegisterScreen = () => {
               onClearError={() => setConfirmPasswordError(undefined)}
             />
 
+            <View style={styles.regionSection}>
+              <View style={styles.regionHeader}>
+                <Text style={styles.regionTitle}>Region & currency</Text>
+                <Text style={styles.regionHelper}>
+                  Main currency will be set to {selectedRegionPreset.currency}
+                </Text>
+              </View>
+              <View style={styles.regionList}>
+                {FINANCE_REGION_PRESETS.map((region) => {
+                  const isActive = region.id === selectedRegion;
+                  return (
+                    <TouchableOpacity
+                      key={region.id}
+                      style={[
+                        styles.regionOption,
+                        isActive && styles.regionOptionActive,
+                      ]}
+                      onPress={() => {
+                        setSelectedRegion(region.id as FinanceRegion);
+                        if (error) {
+                          clearError();
+                        }
+                      }}
+                    >
+                      <View style={styles.regionOptionText}>
+                        <Text style={styles.regionOptionLabel}>{region.label}</Text>
+                        <Text style={styles.regionOptionDescription}>{region.description}</Text>
+                      </View>
+                      <View style={styles.regionCurrencyBadge}>
+                        <Text style={styles.regionCurrencyText}>{region.currency}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
             {/* Error message */}
             {error && (
               <View style={styles.errorContainer}>
@@ -238,6 +290,72 @@ const styles = StyleSheet.create({
   },
   form: {
     width: '100%',
+  },
+  regionSection: {
+    marginTop: 20,
+    marginBottom: 12,
+    gap: 12,
+  },
+  regionHeader: {
+    gap: 4,
+  },
+  regionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  regionHelper: {
+    fontSize: 13,
+    color: '#A6A6B9',
+  },
+  regionList: {
+    gap: 10,
+  },
+  regionOption: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(12,12,20,0.45)',
+  },
+  regionOptionActive: {
+    borderColor: '#7C83FF',
+    backgroundColor: 'rgba(124,131,255,0.12)',
+  },
+  regionOptionText: {
+    flex: 1,
+    marginRight: 12,
+  },
+  regionOptionLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  regionOptionDescription: {
+    fontSize: 13,
+    color: '#A6A6B9',
+    marginTop: 2,
+  },
+  regionCurrencyBadge: {
+    minWidth: 60,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  regionCurrencyText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   footer: {
     flexDirection: 'row',

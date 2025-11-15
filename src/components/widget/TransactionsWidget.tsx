@@ -21,7 +21,7 @@ const MOCK_TRANSACTIONS: Transaction[] = [
   { id: '3', type: 'expense', amount: 15000, currency: 'UZS', category: 'Transport', date: 'Yesterday' },
 ];
 
-const PLACEHOLDER_TYPES: Array<'expense' | 'income'> = ['expense', 'income'];
+const PLACEHOLDER_TYPES: ('expense' | 'income')[] = ['expense', 'income'];
 
 interface TransactionsWidgetProps {
   transactions?: Transaction[];

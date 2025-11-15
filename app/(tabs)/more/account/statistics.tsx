@@ -5,24 +5,7 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
-
-const FOCUS_STATS = [
-  { label: 'Total focus hours', value: '182 h', meta: '+12% vs last month' },
-  { label: 'Deep sessions', value: '64', meta: 'Avg 2.8 h' },
-  { label: 'Tasks completed', value: '326', meta: '78% completion rate' },
-];
-
-const IMPROVEMENT_AREAS = [
-  { label: 'Productivity', score: 0.82, description: 'Consistent daily focus streaks' },
-  { label: 'Wellbeing', score: 0.68, description: 'Break balance improving, hydrate more' },
-  { label: 'Collaboration', score: 0.75, description: 'Team check-ins on track' },
-];
-
-const AI_INSIGHTS = [
-  'Focus quality rises when sessions start before 10:00 AM.',
-  'You achieve 30% more completed tasks when using focus playlists.',
-  'Scheduling breaks at the 90-minute mark reduced context switching.',
-];
+import { useAccountLocalization } from '@/localization/more/account';
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -235,6 +218,7 @@ const CircleChart: React.FC<{ size: number; stroke: number; progress: number; la
 const StatisticsScreen: React.FC = () => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const { statistics: copy } = useAccountLocalization();
 
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
@@ -243,9 +227,9 @@ const StatisticsScreen: React.FC = () => {
         contentContainerStyle={styles.content}
       >
         <View style={{ gap: theme.spacing.md }}>
-          <Text style={styles.sectionHeader}>Focus performance</Text>
+          <Text style={styles.sectionHeader}>{copy.sections.focus}</Text>
           <AdaptiveGlassView style={styles.sectionCard}>
-            {FOCUS_STATS.map((stat) => (
+            {copy.focusStats.map((stat) => (
               <View key={stat.label} style={styles.infoRow}>
                 <View style={styles.infoLabelGroup}>
                   <Text style={styles.infoLabel}>{stat.label}</Text>
@@ -258,29 +242,29 @@ const StatisticsScreen: React.FC = () => {
         </View>
 
         <View style={{ gap: theme.spacing.md }}>
-          <Text style={styles.sectionHeader}>Visual breakdown</Text>
+          <Text style={styles.sectionHeader}>{copy.sections.visual}</Text>
           <View style={styles.chartsRow}>
             <AdaptiveGlassView style={styles.radialCard}>
-              <CircleChart size={140} stroke={12} progress={0.68} label="Weekly focus ratio" />
-              <Text style={styles.radialLabel}>Weekly focus ratio</Text>
-              <Text style={styles.radialValue}>68%</Text>
-              <Text style={styles.infoMeta}>Best performance on Wednesday</Text>
+              <CircleChart size={140} stroke={12} progress={copy.visualBreakdown.first.progress} label={copy.visualBreakdown.first.label} />
+              <Text style={styles.radialLabel}>{copy.visualBreakdown.first.label}</Text>
+              <Text style={styles.radialValue}>{copy.visualBreakdown.first.value}</Text>
+              <Text style={styles.infoMeta}>{copy.visualBreakdown.first.meta}</Text>
             </AdaptiveGlassView>
 
             <AdaptiveGlassView style={styles.radialCard}>
-              <CircleChart size={140} stroke={12} progress={0.82} label="Goal attainment" />
-              <Text style={styles.radialLabel}>Goal attainment</Text>
-              <Text style={styles.radialValue}>82%</Text>
-              <Text style={styles.infoMeta}>10 of 12 weekly goals completed</Text>
+              <CircleChart size={140} stroke={12} progress={copy.visualBreakdown.second.progress} label={copy.visualBreakdown.second.label} />
+              <Text style={styles.radialLabel}>{copy.visualBreakdown.second.label}</Text>
+              <Text style={styles.radialValue}>{copy.visualBreakdown.second.value}</Text>
+              <Text style={styles.infoMeta}>{copy.visualBreakdown.second.meta}</Text>
             </AdaptiveGlassView>
           </View>
         </View>
 
         <View style={{ gap: theme.spacing.md }}>
-          <Text style={styles.sectionHeader}>Improvement areas</Text>
+          <Text style={styles.sectionHeader}>{copy.sections.improvements}</Text>
           <AdaptiveGlassView style={styles.sectionCard}>
             <View style={styles.improvementGrid}>
-              {IMPROVEMENT_AREAS.map((area) => (
+              {copy.improvementAreas.map((area) => (
                 <View key={area.label} style={styles.improvementRow}>
                   <View style={styles.improvementHeader}>
                     <Text style={styles.improvementTitle}>{area.label}</Text>
@@ -297,9 +281,9 @@ const StatisticsScreen: React.FC = () => {
         </View>
 
         <View style={{ gap: theme.spacing.md }}>
-          <Text style={styles.sectionHeader}>AI insights</Text>
+          <Text style={styles.sectionHeader}>{copy.sections.insights}</Text>
           <AdaptiveGlassView style={styles.insightCard}>
-            {AI_INSIGHTS.map((insight) => (
+            {copy.aiInsights.map((insight) => (
               <View key={insight} style={styles.insightRow}>
                 <View style={styles.bullet} />
                 <Text style={styles.insightText}>{insight}</Text>

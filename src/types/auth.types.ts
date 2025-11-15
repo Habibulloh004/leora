@@ -1,12 +1,24 @@
+import type { FinanceCurrency, FinanceRegion } from '@/stores/useFinancePreferencesStore';
+
 export interface User {
   id: string;
   email: string;
   fullName: string;
   username?: string;
   phoneNumber?: string;
+  bio?: string;
+  birthday?: string;
+  visibility?: 'public' | 'friends' | 'private';
+  preferences?: {
+    showLevel?: boolean;
+    showAchievements?: boolean;
+    showStatistics?: boolean;
+  };
   createdAt: Date;
   updatedAt: Date;
   profileImage?: string;
+  region?: FinanceRegion;
+  primaryCurrency?: FinanceCurrency;
 }
 
 export interface AuthState {
@@ -28,6 +40,7 @@ export interface RegisterCredentials {
   fullName: string;
   password: string;
   confirmPassword: string;
+  region: FinanceRegion;
 }
 
 export interface ForgotPasswordData {

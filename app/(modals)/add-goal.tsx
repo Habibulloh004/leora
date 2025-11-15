@@ -1,10 +1,9 @@
 // app/(modals)/add-goal.tsx
 import React, { useMemo, useState, useCallback } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import {  SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { CalendarDays, Lightbulb, PlusCircle, X } from 'lucide-react-native';
-
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 

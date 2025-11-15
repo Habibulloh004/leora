@@ -1,23 +1,21 @@
 import React, { useMemo } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import {
-  AlertTriangle,
-  ArrowRight,
-  Briefcase,
-  Clock,
-  Coffee,
-  HeartPulse,
-  Layers,
-  Sun,
-  type LucideIcon,
-} from 'lucide-react-native';
+import { ArrowRight, Briefcase, Clock, HeartPulse, Layers, Sun } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import type { Theme } from '@/constants/theme';
 import { useAppTheme } from '@/constants/theme';
+import {
+  ContextKey,
+  FocusMetricKey,
+  ProductivityPeakKey,
+  TaskTypeKey,
+  TimeDistributionKey,
+} from '@/localization/insightsContent';
+import { useInsightsContent } from '@/localization/useInsightsContent';
 
 type TimeDistribution = {
-  key: string;
+  key: TimeDistributionKey;
   label: string;
   hours: number;
   percent: number;
@@ -25,7 +23,7 @@ type TimeDistribution = {
 };
 
 type ProductivityPeak = {
-  key: string;
+  key: ProductivityPeakKey;
   label: string;
   range: string;
   efficiency: number;
@@ -33,76 +31,62 @@ type ProductivityPeak = {
 };
 
 type FocusMetric = {
-  key: string;
+  key: FocusMetricKey;
   label: string;
   value: string;
 };
 
 type TaskStat = {
-  key: string;
+  key: TaskTypeKey;
   label: string;
   completed: number;
   duration: string;
 };
 
 type ContextStat = {
-  key: string;
+  key: ContextKey;
   context: string;
   completion: number;
 };
 
-type Recommendation = {
-  key: string;
-  text: string;
-};
-
-const TIME_DISTRIBUTION: TimeDistribution[] = [
-  { key: 'work', label: 'Work', hours: 25, percent: 27, progress: 0.75 },
-  { key: 'sleep', label: 'Sleep', hours: 49, percent: 29, progress: 0.9 },
-  { key: 'personal', label: 'Personal', hours: 35, percent: 21, progress: 0.68 },
-  { key: 'transport', label: 'Transport', hours: 10, percent: 6, progress: 0.32 },
-  { key: 'house', label: 'Household', hours: 12, percent: 7, progress: 0.38 },
-  { key: 'dev', label: 'Development', hours: 8, percent: 5, progress: 0.28 },
-  { key: 'rest', label: 'Rest', hours: 9, percent: 5, progress: 0.3 },
+const TIME_DISTRIBUTION_BASE: {
+  key: TimeDistributionKey;
+  hours: number;
+  percent: number;
+  progress: number;
+}[] = [
+  { key: 'work', hours: 25, percent: 27, progress: 0.75 },
+  { key: 'sleep', hours: 49, percent: 29, progress: 0.9 },
+  { key: 'personal', hours: 35, percent: 21, progress: 0.68 },
+  { key: 'transport', hours: 10, percent: 6, progress: 0.32 },
+  { key: 'house', hours: 12, percent: 7, progress: 0.38 },
+  { key: 'dev', hours: 8, percent: 5, progress: 0.28 },
+  { key: 'rest', hours: 9, percent: 5, progress: 0.3 },
 ];
 
-const PRODUCTIVITY_PEAKS: ProductivityPeak[] = [
-  { key: 'peak1', label: 'Peak 1', range: '10:00-12:00', efficiency: 85, note: 'Highly efficient' },
-  { key: 'peak2', label: 'Peak 2', range: '15:00-17:00', efficiency: 72, note: 'Good for collaboration' },
-  { key: 'low', label: 'Low', range: '13:00-14:00', efficiency: 58, note: 'Recovery after break' },
+const PRODUCTIVITY_PEAKS_BASE: {
+  key: ProductivityPeakKey;
+  range: string;
+  efficiency: number;
+}[] = [
+  { key: 'peak1', range: '10:00-12:00', efficiency: 85 },
+  { key: 'peak2', range: '15:00-17:00', efficiency: 72 },
+  { key: 'low', range: '13:00-14:00', efficiency: 58 },
 ];
 
-const FOCUS_METRICS: FocusMetric[] = [
-  { key: 'avg', label: 'Average focus time', value: '45 minutes' },
-  { key: 'best', label: 'Best day', value: 'Tuesday (3.5 hours)' },
-  { key: 'worst', label: 'Worst day', value: 'Monday (1 hour)' },
-  { key: 'interrupt', label: 'Interruptions', value: '12/day on average' },
+const FOCUS_METRIC_KEYS: FocusMetricKey[] = ['avg', 'best', 'worst', 'interrupt'];
+
+const TASK_STATS_BASE: { key: TaskTypeKey; completed: number; duration: string }[] = [
+  { key: 'creative', completed: 65, duration: '2.5h' },
+  { key: 'routine', completed: 95, duration: '15m' },
+  { key: 'communication', completed: 88, duration: '30m' },
+  { key: 'planning', completed: 55, duration: '1h' },
 ];
 
-const TASK_STATS: TaskStat[] = [
-  { key: 'creative', label: 'Creative', completed: 65, duration: '2.5h' },
-  { key: 'routine', label: 'Routine', completed: 95, duration: '15m' },
-  { key: 'communication', label: 'Communication', completed: 88, duration: '30m' },
-  { key: 'planning', label: 'Planning', completed: 55, duration: '1h' },
-];
-
-const TASK_CONTEXTS: ContextStat[] = [
-  { key: 'work', context: '@work', completion: 92 },
-  { key: 'home', context: '@home', completion: 78 },
-  { key: 'outside', context: '@outside', completion: 54 },
-];
-
-const RECOMMENDATIONS: Recommendation[] = [
-  { key: 'block', text: 'Block 10:00-12:00 for important tasks' },
-  { key: 'routine', text: 'Schedule routine work at 13:00-14:00' },
-  { key: 'notifications', text: 'Turn off notifications during focus time' },
-  { key: 'meetings', text: 'Limit meetings to 2 per afternoon block' },
-];
-
-const PROCRASTINATION_PATTERNS: Recommendation[] = [
-  { key: 'deadlines', text: 'Tasks without deadlines: 45% completion' },
-  { key: 'large', text: 'Large tasks (>2h): postponed 3+ times' },
-  { key: 'friday', text: 'Friday tasks: 50% rescheduled' },
+const CONTEXT_STATS_BASE: { key: ContextKey; completion: number }[] = [
+  { key: 'work', completion: 92 },
+  { key: 'home', completion: 78 },
+  { key: 'outside', completion: 54 },
 ];
 
 const createStyles = (theme: Theme) =>
@@ -288,7 +272,60 @@ const createStyles = (theme: Theme) =>
 
 const ProductivityTab: React.FC = () => {
   const theme = useAppTheme();
+  const { productivity } = useInsightsContent();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const timeDistribution = useMemo<TimeDistribution[]>(
+    () =>
+      TIME_DISTRIBUTION_BASE.map((item) => ({
+        ...item,
+        label: productivity.timeDistribution[item.key],
+      })),
+    [productivity.timeDistribution],
+  );
+
+  const peaks = useMemo<ProductivityPeak[]>(
+    () =>
+      PRODUCTIVITY_PEAKS_BASE.map((item) => ({
+        key: item.key,
+        label: productivity.peaks[item.key].label,
+        note: productivity.peaks[item.key].note,
+        range: item.range,
+        efficiency: item.efficiency,
+      })),
+    [productivity.peaks],
+  );
+
+  const focusMetrics = useMemo<FocusMetric[]>(
+    () =>
+      FOCUS_METRIC_KEYS.map((key) => ({
+        key,
+        label: productivity.focusMetrics[key],
+        value: productivity.focusMetricValues[key],
+      })),
+    [productivity.focusMetrics, productivity.focusMetricValues],
+  );
+
+  const taskStats = useMemo<TaskStat[]>(
+    () =>
+      TASK_STATS_BASE.map((item) => ({
+        key: item.key,
+        label: productivity.taskTypes[item.key],
+        completed: item.completed,
+        duration: item.duration,
+      })),
+    [productivity.taskTypes],
+  );
+
+  const contextStats = useMemo<ContextStat[]>(
+    () =>
+      CONTEXT_STATS_BASE.map((item) => ({
+        key: item.key,
+        context: productivity.contexts[item.key],
+        completion: item.completion,
+      })),
+    [productivity.contexts],
+  );
 
   return (
     <ScrollView
@@ -297,15 +334,15 @@ const ProductivityTab: React.FC = () => {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Productivity analyst</Text>
+        <Text style={styles.sectionTitle}>{productivity.sections.analyst}</Text>
         <View style={styles.divider} />
 
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm }}>
             <Layers size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.subtitle}>Distribution of time (168 hours/week)</Text>
+            <Text style={styles.subtitle}>{productivity.subtitles.distribution}</Text>
           </View>
-          {TIME_DISTRIBUTION.map((item) => (
+          {timeDistribution.map((item) => (
             <View key={item.key} style={styles.timeRow}>
               <Text style={styles.timeLabel}>{item.label}</Text>
               <View style={styles.progressTrack}>
@@ -320,15 +357,15 @@ const ProductivityTab: React.FC = () => {
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm }}>
             <Clock size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.subtitle}>Peak productivity</Text>
+            <Text style={styles.subtitle}>{productivity.subtitles.peaks}</Text>
           </View>
           <View style={styles.peaksCard}>
-            <Text style={styles.subtitle}>Productivity chart by hours</Text>
-            {PRODUCTIVITY_PEAKS.map((peak) => (
+            <Text style={styles.subtitle}>{productivity.subtitles.chart}</Text>
+            {peaks.map((peak) => (
               <View key={peak.key} style={styles.peakRow}>
                 <Text style={styles.peakLabel}>{peak.label}:</Text>
                 <Text style={styles.peakNote}>{peak.range}</Text>
-                <Text style={styles.efficiency}>{peak.efficiency}% efficiency</Text>
+                <Text style={styles.efficiency}>{peak.efficiency}%</Text>
               </View>
             ))}
           </View>
@@ -337,10 +374,10 @@ const ProductivityTab: React.FC = () => {
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm }}>
             <HeartPulse size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.subtitle}>Focus metrics</Text>
+            <Text style={styles.subtitle}>{productivity.subtitles.focusMetrics}</Text>
           </View>
           <View style={styles.focusCard}>
-            {FOCUS_METRICS.map((metric) => (
+            {focusMetrics.map((metric) => (
               <View key={metric.key} style={styles.focusRow}>
                 <Text style={styles.focusLabel}>{metric.label}</Text>
                 <Text style={styles.focusValue}>{metric.value}</Text>
@@ -352,12 +389,12 @@ const ProductivityTab: React.FC = () => {
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.lg, marginBottom: theme.spacing.sm }}>
             <Sun size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.subtitle}>Recommendation</Text>
+            <Text style={styles.subtitle}>{productivity.subtitles.recommendation}</Text>
           </View>
           <View style={styles.recommendationList}>
-            {RECOMMENDATIONS.map((item) => (
-              <Text key={item.key} style={styles.recommendationText}>
-                • {item.text}
+            {productivity.recommendations.map((text, index) => (
+              <Text key={`${text}-${index}`} style={styles.recommendationText}>
+                • {text}
               </Text>
             ))}
           </View>
@@ -365,32 +402,32 @@ const ProductivityTab: React.FC = () => {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Task performance analysis</Text>
+        <Text style={styles.sectionTitle}>{productivity.sections.tasks}</Text>
         <View style={styles.divider} />
 
         <AdaptiveGlassView style={styles.statsCard}>
-          <Text style={styles.statsHeader}>Statistics</Text>
+          <Text style={styles.statsHeader}>{productivity.subtitles.stats}</Text>
           <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Completed:</Text>
-            <Text style={styles.statValue}>85% (102/120 tasks)</Text>
+            <Text style={styles.statLabel}>{productivity.stats.completed}</Text>
+            <Text style={styles.statValue}>85% (102/120)</Text>
           </View>
           <View style={styles.statRow}>
-            <Text style={styles.statLabel}>On time:</Text>
+            <Text style={styles.statLabel}>{productivity.stats.onTime}</Text>
             <Text style={styles.statValue}>73%</Text>
           </View>
           <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Postponed:</Text>
-            <Text style={styles.statValue}>18 tasks</Text>
+            <Text style={styles.statLabel}>{productivity.stats.postponed}</Text>
+            <Text style={styles.statValue}>18</Text>
           </View>
           <View style={styles.statRow}>
-            <Text style={styles.statLabel}>Deleted:</Text>
-            <Text style={styles.statValue}>5 tasks</Text>
+            <Text style={styles.statLabel}>{productivity.stats.deleted}</Text>
+            <Text style={styles.statValue}>5</Text>
           </View>
         </AdaptiveGlassView>
 
         <View style={styles.statsCard}>
-          <Text style={styles.statsHeader}>By task type</Text>
-          {TASK_STATS.map((task) => (
+          <Text style={styles.statsHeader}>{productivity.stats.byType}</Text>
+          {taskStats.map((task) => (
             <View key={task.key} style={{ gap: theme.spacing.xs }}>
               <View style={styles.statRow}>
                 <Text style={styles.statLabel}>{task.label}:</Text>
@@ -404,8 +441,8 @@ const ProductivityTab: React.FC = () => {
         </View>
 
         <View style={styles.statsCard}>
-          <Text style={styles.statsHeader}>By context</Text>
-          {TASK_CONTEXTS.map((context) => (
+          <Text style={styles.statsHeader}>{productivity.stats.byContext}</Text>
+          {contextStats.map((context) => (
             <View key={context.key} style={styles.contextRow}>
               <Text style={styles.contextLabel}>{context.context}:</Text>
               <View style={styles.progressTrack}>
@@ -417,17 +454,17 @@ const ProductivityTab: React.FC = () => {
         </View>
 
         <View style={styles.statsCard}>
-          <Text style={styles.statsHeader}>Procrastination patterns</Text>
-          {PROCRASTINATION_PATTERNS.map((item) => (
-            <Text key={item.key} style={styles.recommendationText}>
-              • {item.text}
+          <Text style={styles.statsHeader}>{productivity.stats.procrastination}</Text>
+          {productivity.procrastination.map((text, index) => (
+            <Text key={`${text}-${index}`} style={styles.recommendationText}>
+              • {text}
             </Text>
           ))}
         </View>
 
         <View style={styles.footerButton}>
           <Briefcase size={14} color={theme.colors.textSecondary} />
-          <Text style={styles.footerText}>Optimize schedule</Text>
+          <Text style={styles.footerText}>{productivity.footerButton}</Text>
           <ArrowRight size={14} color={theme.colors.textSecondary} />
         </View>
       </View>

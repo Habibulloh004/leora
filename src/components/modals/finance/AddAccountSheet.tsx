@@ -29,11 +29,7 @@ import CustomBottomSheet, {
 } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
-import type {
-  AccountItem,
-  AddAccountPayload,
-  AccountKind,
-} from '@/types/accounts';
+import type { AddAccountPayload, AccountKind } from '@/types/accounts';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 
 export type { AddAccountPayload } from '@/types/accounts';
@@ -63,10 +59,18 @@ const ICON_SIZE = 18;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+export interface AccountSheetAccountPreview {
+  id: string;
+  name: string;
+  subtitle?: string;
+  balance: number;
+  type: AccountKind;
+}
+
 export interface AddAccountSheetHandle {
   expand: () => void;
   close: () => void;
-  edit: (account: AccountItem) => void;
+  edit: (account: AccountSheetAccountPreview) => void;
 }
 
 interface TypeOptionItemProps {
@@ -165,7 +169,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
           handleResetForm();
           sheetRef.current?.present();
         },
-        edit: (account: AccountItem) => {
+        edit: (account: AccountSheetAccountPreview) => {
           setFormMode('edit');
           editingAccountId.current = account.id;
           setName(account.name);

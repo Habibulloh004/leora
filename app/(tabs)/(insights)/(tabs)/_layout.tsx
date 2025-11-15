@@ -4,6 +4,7 @@ import { withLayoutContext } from 'expo-router';
 import { StyleSheet } from 'react-native';
 import { useMemo } from 'react';
 import { useAppTheme } from '@/constants/theme';
+import { useInsightsContent } from '@/localization/useInsightsContent';
 
 const { Navigator } = createMaterialTopTabNavigator();
 
@@ -11,6 +12,7 @@ export const InsightsTopTabs = withLayoutContext(Navigator);
 
 const InsightsTabsLayout = () => {
   const theme = useAppTheme();
+  const { tabs } = useInsightsContent();
   const styles = useMemo(
     () =>
       StyleSheet.create({
@@ -54,10 +56,13 @@ const InsightsTabsLayout = () => {
         tabBarScrollEnabled: false,
       }}
     >
-      <InsightsTopTabs.Screen name="index" options={{ title: 'Обзор' }} />
-      <InsightsTopTabs.Screen name="finance" options={{ title: 'Финансы' }} />
-      <InsightsTopTabs.Screen name="productivity" options={{ title: 'Продуктивность' }} />
-      <InsightsTopTabs.Screen name="wisdom" options={{ title: 'Мудрость' }} />
+      <InsightsTopTabs.Screen name="index" options={{ title: tabs.overview }} />
+      <InsightsTopTabs.Screen name="finance" options={{ title: tabs.finance }} />
+      <InsightsTopTabs.Screen
+        name="productivity"
+        options={{ title: tabs.productivity }}
+      />
+      <InsightsTopTabs.Screen name="wisdom" options={{ title: tabs.wisdom }} />
     </InsightsTopTabs>
   );
 };

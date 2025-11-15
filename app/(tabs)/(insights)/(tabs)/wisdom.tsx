@@ -18,21 +18,11 @@ import {
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import type { Theme } from '@/constants/theme';
 import { useAppTheme } from '@/constants/theme';
+import { AdvisorKey } from '@/localization/insightsContent';
+import { useInsightsContent } from '@/localization/useInsightsContent';
 
-type Quote = {
-  text: string;
-  author: string;
-  context: string;
-};
-
-type FavoriteQuote = {
-  id: string;
-  text: string;
-  author: string;
-};
-
-type Advisor = {
-  id: string;
+type AdvisorCard = {
+  key: AdvisorKey;
   name: string;
   role: string;
   icon: LucideIcon;
@@ -42,77 +32,12 @@ type Advisor = {
   challenge: string;
 };
 
-const QUOTE_OF_DAY: Quote = {
-  text: 'Путь в тысячу миль начинается с одного шага',
-  author: 'Лао-цзы',
-  context: 'You have 3 big projects. Start small — with the first task.',
+const ADVISOR_KEYS: AdvisorKey[] = ['buffett', 'musk', 'marcus'];
+const ADVISOR_ICONS: Record<AdvisorKey, LucideIcon> = {
+  buffett: BookOpen,
+  musk: Target,
+  marcus: Star,
 };
-
-const APPLICATION_MESSAGE =
-  "Your goal 'Buy a car' may seem far away, but you have already covered 82% of the way. Today's contribution of 50,000 is your 'one step' toward the big goal.";
-
-const FAVORITES: FavoriteQuote[] = [
-  {
-    id: 'tree',
-    text: 'The best time to plant a tree was 20 years ago. The second best time is now.',
-    author: 'Chinese Proverb',
-  },
-  {
-    id: 'excellence',
-    text: 'We are what we repeatedly do. Excellence, then, is not an act, but a habit.',
-    author: 'Aristotle',
-  },
-];
-
-const CHALLENGE_QUOTE: Quote = {
-  text: 'Rise every time you fall.',
-  author: 'Aristotle',
-  context: 'Task: Don’t skip your morning workout',
-};
-
-const ADVISORS: Advisor[] = [
-  {
-    id: 'buffett',
-    name: 'Уоррен Баффет',
-    role: 'Financial Advisor',
-    icon: BookOpen,
-    insight: 'Your entertainment expenses have increased by 35%.',
-    reminder: 'Remember: Wealth is built not on how much you earn, but on how much you save.',
-    recommendation: 'Recommended 50/30/20 rule: 50% essentials, 30% wants, 20% savings.',
-    challenge: 'Your current proportions: 45 / 40 / 15',
-  },
-  {
-    id: 'musk',
-    name: 'Илон Маск',
-    role: 'Productivity Advisor',
-    icon: Target,
-    insight: '2 hours on social media every day? That’s 14 hours a week.',
-    reminder:
-      'In that time, you could learn a new language or master a programming skill. Use time boxing to divide your day into 15-minute blocks.',
-    recommendation: 'Challenge of the day: Spend the day without social media and invest that time into your project.',
-    challenge: 'Your progress: 45/120 minutes this week',
-  },
-  {
-    id: 'marcus',
-    name: 'Марк Аврелий',
-    role: 'Balancing Advisor',
-    icon: Star,
-    insight: 'Missed meditation for 3 days.',
-    reminder: 'Consistency matters. Start small — just 2 minutes of morning meditation.',
-    recommendation: 'Today’s reflection: You have power over your mind, not outside events.',
-    challenge: 'Your progress: 4 / 7 days this week',
-  },
-];
-
-const CATEGORIES = [
-  'All',
-  'Motivation',
-  'Discipline',
-  'Finance',
-  'Productivity',
-  'Balance',
-  'Relations',
-];
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -364,7 +289,18 @@ const createStyles = (theme: Theme) =>
 
 const WisdomTab: React.FC = () => {
   const theme = useAppTheme();
+  const { wisdom } = useInsightsContent();
   const styles = useMemo(() => createStyles(theme), [theme]);
+
+  const advisors = useMemo<AdvisorCard[]>(
+    () =>
+      ADVISOR_KEYS.map((key) => ({
+        key,
+        icon: ADVISOR_ICONS[key],
+        ...wisdom.advisors[key],
+      })),
+    [wisdom.advisors],
+  );
 
   return (
     <ScrollView
@@ -374,28 +310,26 @@ const WisdomTab: React.FC = () => {
     >
       <View style={styles.section}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Wisdom of the day</Text>
-          <Text style={styles.sectionDate}>6 January</Text>
+          <Text style={styles.sectionTitle}>{wisdom.sections.wisdomOfDay}</Text>
+          <Text style={styles.sectionDate}>{wisdom.quoteDate}</Text>
         </View>
         <View style={styles.divider} />
         <AdaptiveGlassView style={styles.quoteCard}>
-          <Text style={styles.quoteText}>
-            “{QUOTE_OF_DAY.text}”
-          </Text>
-          <Text style={styles.quoteAuthor}>— {QUOTE_OF_DAY.author}</Text>
-          <Text style={styles.quoteContext}>Context: {QUOTE_OF_DAY.context}</Text>
+          <Text style={styles.quoteText}>“{wisdom.quoteOfDay.text}”</Text>
+          <Text style={styles.quoteAuthor}>— {wisdom.quoteOfDay.author}</Text>
+          <Text style={styles.quoteContext}>{wisdom.quoteOfDay.context}</Text>
           <View style={styles.quoteActions}>
             <View style={styles.actionButton}>
               <Heart size={16} color={theme.colors.textSecondary} />
-              <Text style={styles.actionText}>Add to favorites</Text>
+              <Text style={styles.actionText}>{wisdom.quoteActions.add}</Text>
             </View>
             <View style={styles.actionButton}>
               <RefreshCcw size={16} color={theme.colors.textSecondary} />
-              <Text style={styles.actionText}>Show another</Text>
+              <Text style={styles.actionText}>{wisdom.quoteActions.another}</Text>
             </View>
             <View style={styles.actionButton}>
               <Share2 size={16} color={theme.colors.textSecondary} />
-              <Text style={styles.actionText}>Share</Text>
+              <Text style={styles.actionText}>{wisdom.quoteActions.share}</Text>
             </View>
           </View>
         </AdaptiveGlassView>
@@ -404,14 +338,14 @@ const WisdomTab: React.FC = () => {
       <View style={styles.section}>
         <View style={styles.bulbHeader}>
           <Lightbulb size={16} color={theme.colors.textSecondary} />
-          <Text style={styles.sectionTitle}>Application today</Text>
+          <Text style={styles.sectionTitle}>{wisdom.sections.application}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.applicationCard}>
-          <Text style={styles.bodyText}>{APPLICATION_MESSAGE}</Text>
+          <Text style={styles.bodyText}>{wisdom.applicationMessage}</Text>
           <View style={styles.ctaRow}>
             <Plus size={16} color={theme.colors.textSecondary} />
-            <Text style={styles.ctaText}>Make a contribution now</Text>
+            <Text style={styles.ctaText}>{wisdom.applicationCta}</Text>
             <ArrowRight size={16} color={theme.colors.textSecondary} />
           </View>
         </View>
@@ -419,39 +353,35 @@ const WisdomTab: React.FC = () => {
 
       <View style={styles.section}>
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>Wisdoms library</Text>
+          <Text style={styles.sectionTitle}>{wisdom.sections.library}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.libraryCard}>
           <View style={styles.tabRow}>
-            {CATEGORIES.map((category, index) => {
+            {wisdom.categories.map((category, index) => {
               const active = index === 0;
               return (
                 <View
-                  key={category}
+                  key={`${category}-${index}`}
                   style={[styles.tabChip, active && styles.tabChipActive]}
                 >
-                  <Text
-                    style={[styles.chipText, active && styles.chipTextActive]}
-                  >
-                    {category}
-                  </Text>
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{category}</Text>
                 </View>
               );
             })}
           </View>
 
           <View style={styles.favoriteBlock}>
-            <Text style={styles.favoriteTitle}>Favorite</Text>
-            {FAVORITES.map((quote) => (
-              <View key={quote.id} style={{ gap: 4 }}>
+            <Text style={styles.favoriteTitle}>{wisdom.favoritesTitle}</Text>
+            {wisdom.favoriteQuotes.map((quote, index) => (
+              <View key={`${quote.text}-${index}`} style={{ gap: 4 }}>
                 <Text style={styles.favoriteQuote}>“{quote.text}”</Text>
                 <Text style={styles.favoriteAuthor}>— {quote.author}</Text>
               </View>
             ))}
             <View style={styles.linkRow}>
               <Heart size={14} color={theme.colors.textSecondary} />
-              <Text style={styles.actionText}>Show all favorites</Text>
+              <Text style={styles.actionText}>{wisdom.favoritesLink}</Text>
             </View>
           </View>
 
@@ -459,46 +389,42 @@ const WisdomTab: React.FC = () => {
             <View style={styles.challengeHeader}>
               <View style={styles.linkRow}>
                 <Share2 size={14} color={theme.colors.textSecondary} />
-                <Text style={styles.favoriteTitle}>Quotes challenge</Text>
+                <Text style={styles.favoriteTitle}>{wisdom.challenge.title}</Text>
               </View>
-              <Text style={styles.challengeStatus}>Active</Text>
+              <Text style={styles.challengeStatus}>{wisdom.challenge.status}</Text>
             </View>
-            <Text style={styles.favoriteQuote}>
-              “{CHALLENGE_QUOTE.text}”
-            </Text>
-            <Text style={styles.favoriteAuthor}>— {CHALLENGE_QUOTE.author}</Text>
+            <Text style={styles.favoriteQuote}>“{wisdom.challenge.quote.text}”</Text>
+            <Text style={styles.favoriteAuthor}>— {wisdom.challenge.quote.author}</Text>
           </View>
 
           <AdaptiveGlassView style={styles.challengeCard}>
-            <Text style={styles.challengeText}>
-              “{CHALLENGE_QUOTE.text}”
-            </Text>
-            <Text style={styles.bodyText}>Your progress: 3 / 7 days</Text>
-            <Text style={styles.bodyText}>{CHALLENGE_QUOTE.context}</Text>
+            <Text style={styles.challengeText}>“{wisdom.challenge.quote.text}”</Text>
+            <Text style={styles.bodyText}>{wisdom.challenge.progress}</Text>
+            <Text style={styles.bodyText}>{wisdom.challenge.quote.context}</Text>
             <View style={styles.linkRow}>
               <MessageCircle size={14} color={theme.colors.textSecondary} />
-              <Text style={styles.actionText}>Mark as completed</Text>
+              <Text style={styles.actionText}>{wisdom.challenge.markComplete}</Text>
             </View>
           </AdaptiveGlassView>
         </View>
 
         <View style={styles.searchField}>
           <Search size={16} color={theme.colors.textSecondary} />
-          <Text style={styles.searchPlaceholder}>Search by author or theme</Text>
+          <Text style={styles.searchPlaceholder}>{wisdom.searchPlaceholder}</Text>
         </View>
       </View>
 
       <View style={styles.section}>
         <View style={styles.advisorsHeader}>
-          <Text style={styles.sectionTitle}>Your board of advisors</Text>
-          <Text style={styles.sectionDate}>Edit</Text>
+          <Text style={styles.sectionTitle}>{wisdom.sections.advisors}</Text>
+          <Text style={styles.sectionDate}>{wisdom.advisorsHeaderAction}</Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.advisorList}>
-          {ADVISORS.map((advisor) => {
+          {advisors.map((advisor) => {
             const Icon = advisor.icon;
             return (
-              <AdaptiveGlassView key={advisor.id} style={styles.advisorCard}>
+              <AdaptiveGlassView key={advisor.key} style={styles.advisorCard}>
                 <View style={styles.advisorHeader}>
                   <View>
                     <Text style={styles.advisorName}>{advisor.name}</Text>
@@ -515,11 +441,11 @@ const WisdomTab: React.FC = () => {
                 <View style={styles.advisorActions}>
                   <View style={styles.advisorAction}>
                     <MessageCircle size={14} color={theme.colors.textSecondary} />
-                    <Text style={styles.advisorActionText}>Ask a question</Text>
+                    <Text style={styles.advisorActionText}>{wisdom.actions.askQuestion}</Text>
                   </View>
                   <View style={styles.advisorAction}>
                     <Target size={14} color={theme.colors.textSecondary} />
-                    <Text style={styles.advisorActionText}>Action plan</Text>
+                    <Text style={styles.advisorActionText}>{wisdom.actions.actionPlan}</Text>
                   </View>
                 </View>
               </AdaptiveGlassView>
@@ -528,7 +454,7 @@ const WisdomTab: React.FC = () => {
         </View>
         <View style={styles.addMentorButton}>
           <Plus size={16} color={theme.colors.textSecondary} />
-          <Text style={styles.addMentorText}>Add new Mentor</Text>
+          <Text style={styles.addMentorText}>{wisdom.addMentor}</Text>
         </View>
       </View>
     </ScrollView>

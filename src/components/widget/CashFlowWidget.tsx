@@ -19,7 +19,7 @@ interface CashFlowWidgetProps {
   dateLabel?: string;
 }
 
-const DEFAULT_TIMELINE: Array<{ key: CashFlowDayKey; income: number; expense: number }> = [
+const DEFAULT_TIMELINE: { key: CashFlowDayKey; income: number; expense: number }[] = [
   { key: 'mon', income: 220, expense: 180 },
   { key: 'tue', income: 180, expense: 210 },
   { key: 'wed', income: 260, expense: 190 },

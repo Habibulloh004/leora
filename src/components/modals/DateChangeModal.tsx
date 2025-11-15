@@ -21,7 +21,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { Colors, useAppTheme } from '@/constants/theme';
+import { useAppTheme } from '@/constants/theme';
 import type { CalendarIndicatorsMap, HomeDataStatus } from '@/types/home';
 import {
   addMonths,
@@ -61,13 +61,10 @@ function DateChangeModalComponent(
   const indicatorSource = useMemo(() => indicators ?? {}, [indicators]);
   const [visible, setVisible] = useState(false);
   const today = useMemo(() => startOfDay(new Date()), []);
-  const sanitizedSelected = useMemo(() => {
-    const normalized = startOfDay(selectedDate);
-    if (normalized.getTime() > today.getTime()) {
-      return today;
-    }
-    return normalized;
-  }, [selectedDate, today]);
+  const sanitizedSelected = useMemo(
+    () => startOfDay(selectedDate ?? new Date()),
+    [selectedDate],
+  );
   const [pickerMode, setPickerMode] = useState<PickerMode>('days');
   const [pendingDate, setPendingDate] = useState<Date>(() => sanitizedSelected);
   const [visibleMonth, setVisibleMonth] = useState<Date>(() => startOfMonth(sanitizedSelected));
@@ -120,8 +117,7 @@ function DateChangeModalComponent(
     if (visible) {
       return;
     }
-    const normalizedSource = startOfDay(selectedDate);
-    const normalized = normalizedSource.getTime() > today.getTime() ? today : normalizedSource;
+    const normalized = startOfDay(selectedDate ?? new Date());
     setPendingDate(normalized);
     const baseMonth = startOfMonth(normalized);
     setVisibleMonth(baseMonth);
@@ -129,7 +125,7 @@ function DateChangeModalComponent(
     const baseYear = normalized.getFullYear();
     setYearGridStart(baseYear - (baseYear % YEARS_PER_VIEW));
     setVisible(true);
-  }, [selectedDate, today, visible]);
+  }, [selectedDate, visible]);
 
   useImperativeHandle(
     ref,
@@ -167,15 +163,15 @@ function DateChangeModalComponent(
     [theme.colors.border, theme.colors.danger, theme.colors.success, theme.colors.warning],
   );
 
-  const handleDayPress = useCallback((day: Date) => {
-    const normalized = startOfDay(day);
-    if (normalized.getTime() > today.getTime()) {
-      return;
-    }
-    setPendingDate(normalized);
-    onSelectDate?.(new Date(normalized));
-    dismiss();
-  }, [dismiss, onSelectDate, today]);
+  const handleDayPress = useCallback(
+    (day: Date) => {
+      const normalized = startOfDay(day);
+      setPendingDate(normalized);
+      onSelectDate?.(new Date(normalized));
+      dismiss();
+    },
+    [dismiss, onSelectDate],
+  );
 
   const handleModeToggle = useCallback((mode: PickerMode) => {
     setPickerMode((current) => (current === mode ? 'days' : mode));
@@ -228,20 +224,16 @@ function DateChangeModalComponent(
     <View style={styles.monthGrid}>
       {MONTH_LABELS.map((label, idx) => {
         const candidate = new Date(yearNumber, idx, 1);
-        const candidateStart = startOfMonth(candidate);
-        const todayStart = startOfMonth(today);
         const isCurrentMonth = candidate.getMonth() === visibleMonth.getMonth() && candidate.getFullYear() === visibleMonth.getFullYear();
         const isSelectedMonth =
           pendingDate.getFullYear() === candidate.getFullYear() &&
           pendingDate.getMonth() === candidate.getMonth();
-        const isFutureMonth = candidateStart.getTime() > todayStart.getTime();
         return (
           <Pressable
             key={label}
-            disabled={isFutureMonth}
             style={({ pressed }) => [
               styles.monthCell,
-              pressed && !isFutureMonth && styles.cellPressed,
+              pressed && styles.cellPressed,
             ]}
             onPress={() => {
               const nextMonth = clampDay(pendingDate, candidate);
@@ -254,9 +246,7 @@ function DateChangeModalComponent(
               style={[
                 styles.monthLabel,
                 {
-                  color: isFutureMonth
-                    ? theme.colors.textDisabled
-                    : isSelectedMonth
+                  color: isSelectedMonth
                       ? theme.colors.textPrimary
                       : theme.colors.textSecondary,
                   fontWeight: isCurrentMonth ? '700' : '500',
@@ -277,14 +267,12 @@ function DateChangeModalComponent(
         const year = yearGridStart + idx;
         const isCurrentYear = year === today.getFullYear();
         const isSelectedYear = year === pendingDate.getFullYear();
-        const isFutureYear = year > today.getFullYear();
         return (
           <Pressable
             key={year}
-            disabled={isFutureYear}
             style={({ pressed }) => [
               styles.yearCell,
-              pressed && !isFutureYear && styles.cellPressed,
+              pressed && styles.cellPressed,
             ]}
             onPress={() => {
               const nextMonth = clampDay(pendingDate, new Date(year, visibleMonth.getMonth(), 1));
@@ -297,9 +285,7 @@ function DateChangeModalComponent(
               style={[
                 styles.yearLabel,
                 {
-                  color: isFutureYear
-                    ? theme.colors.textDisabled
-                    : isSelectedYear
+                  color: isSelectedYear
                       ? theme.colors.textPrimary
                       : theme.colors.textSecondary,
                   fontWeight: isCurrentYear ? '700' : '500',
@@ -326,7 +312,7 @@ function DateChangeModalComponent(
       onRequestClose={handleClose}
       statusBarTranslucent
     >
-      <View style={styles.overlay}>
+      <View style={[styles.overlay, { backgroundColor: theme.colors.backdrop }]}>
         <Pressable style={styles.backdrop} onPress={handleClose} />
         <Animated.View
           style={[
@@ -422,13 +408,9 @@ function DateChangeModalComponent(
                         const isSelected = pendingIso === isoKey;
                         const isToday = toISODateKey(today) === isoKey;
                         const isDimmed = !day.isCurrentMonth;
-                        const isFuture = day.isFuture;
-                        const isDisabled = isFuture;
                         const baseColor = isSelected ? theme.colors.textSecondary : theme.colors.border;
                         const textColor = isSelected
                           ? theme.colors.textPrimary
-                          : isFuture
-                            ? theme.colors.textDisabled
                           : isDimmed
                             ? theme.colors.textTertiary
                             : theme.colors.textSecondary;
@@ -436,7 +418,6 @@ function DateChangeModalComponent(
                         return (
                           <View key={day.key} style={styles.dayCell}>
                             <Pressable
-                              disabled={isDisabled}
                               onPress={() => handleDayPress(day.date)}
                               style={({ pressed }) => [
                                 styles.dayCircle,
@@ -445,8 +426,7 @@ function DateChangeModalComponent(
                                   backgroundColor: isSelected ? `${baseColor}1A` : 'transparent',
                                 },
                                 isToday && !isSelected && { borderColor: theme.colors.border },
-                                (pressed && !isDisabled) && styles.dayPressed,
-                                isDisabled && { opacity: 0.45 },
+                                pressed && styles.dayPressed,
                               ]}
                             >
                               <Text
@@ -461,7 +441,7 @@ function DateChangeModalComponent(
                                 {parseInt(day.label, 10)}
                               </Text>
                             </Pressable>
-                            {renderDots(isoKey, isDimmed || isFuture)}
+                            {renderDots(isoKey, isDimmed || day.isFuture)}
                           </View>
                         );
                       })}
@@ -483,7 +463,6 @@ function DateChangeModalComponent(
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: Colors.overlay.heavy,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,

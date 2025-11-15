@@ -20,7 +20,8 @@ import {
 import { BlurView } from 'expo-blur';
 import { Platform, StyleProp, StyleSheet, View, ViewStyle, useWindowDimensions } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { useAppTheme, type Theme } from '@/constants/theme';
+import { applyOpacity } from '@/utils/color';
 
 export interface BottomSheetHandle {
   present: () => void;
@@ -55,6 +56,8 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
   ref: ForwardedRef<BottomSheetHandle>
 ) {
   const bottomSheetRef = useRef<BottomSheetModal>(null);
+  const theme = useAppTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const { height: windowHeight } = useWindowDimensions();
   const cappedDynamicSize = useMemo(() => windowHeight * MAX_HEIGHT_PERCENT, [windowHeight]);
 
@@ -117,7 +120,7 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
         <View style={styles.backdropOverlay} />
       </BottomSheetBackdrop>
     ),
-    []
+    [styles.backdrop, styles.backdropOverlay]
   );
 
   const renderBackground = useCallback(
@@ -136,7 +139,7 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
 
       return <View style={[style, styles.androidBackground]} />;
     },
-    []
+    [styles.androidBackground, styles.backgroundBlur, styles.backgroundOverlay]
   );
 
   const {
@@ -166,15 +169,15 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
   const panDownToClose = enablePanDownToClose ?? !isFullScreen;
   const backgroundStyles = useMemo(
     () => [styles.background, isFullScreen && styles.fullScreenBackground, backgroundStyle],
-    [backgroundStyle, isFullScreen]
+    [backgroundStyle, isFullScreen, styles.background, styles.fullScreenBackground]
   );
   const handleIndicatorStyles = useMemo(
     () => [styles.handleIndicator, isFullScreen && styles.hiddenHandleIndicator, handleIndicatorStyle],
-    [handleIndicatorStyle, isFullScreen]
+    [handleIndicatorStyle, isFullScreen, styles.handleIndicator, styles.hiddenHandleIndicator]
   );
   const baseContentStyle = useMemo(
     () => [styles.contentContainer, isFullScreen && styles.fullScreenContent, contentContainerStyle],
-    [contentContainerStyle, isFullScreen]
+    [contentContainerStyle, isFullScreen, styles.contentContainer, styles.fullScreenContent]
   );
   const flattenedBaseStyle = useMemo(() => StyleSheet.flatten(baseContentStyle), [baseContentStyle]);
 
@@ -217,60 +220,63 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
   );
 });
 
-const styles = StyleSheet.create({
-  backdrop: {
-    backgroundColor: 'transparent',
-    overflow: 'hidden',
-  },
-  backdropOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.overlay.heavy,
-  },
-  backgroundBlur: {
-    flex: 1,
-    overflow: 'hidden',
-    borderRadius: 24,
-  },
-  backgroundOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(18, 18, 26, 0.45)',
-    borderRadius: 24,
-  },
-  androidBackground: {
-    borderRadius: 24,
-    backgroundColor: Colors.background,
-  },
-  background: {
-    backgroundColor: 'transparent',
-    borderRadius: 24,
-  },
-  transparentBackground: {
-    backgroundColor: 'transparent',
-  },
-  handleIndicator: {
-    backgroundColor: Colors.textTertiary,
-    width: 56,
-  },
-  hiddenHandleIndicator: {
-    opacity: 0,
-  },
-  contentContainer: {
-    flexGrow: 1,
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-  },
-  fullScreenContent: {
-    flex: 1,
-  },
-  fullScreenBackground: {
-    borderRadius: 0,
-  },
-  scrollContainer: {
-    flex: 1,
-  },
-  flexContainer: {
-    flex: 1,
-  },
-});
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
+    backdrop: {
+      backgroundColor: 'transparent',
+      overflow: 'hidden',
+    },
+    backdropOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: theme.colors.backdrop,
+    },
+    backgroundBlur: {
+      flex: 1,
+      overflow: 'hidden',
+      borderRadius: 24,
+    },
+    backgroundOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: applyOpacity(theme.colors.surface, theme.mode === 'dark' ? 0.5 : 0.7),
+      borderRadius: 24,
+    },
+    androidBackground: {
+      borderRadius: 24,
+      backgroundColor: theme.colors.surfaceElevated,
+    },
+    background: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 24,
+    },
+    transparentBackground: {
+      backgroundColor: 'transparent',
+    },
+    handleIndicator: {
+      backgroundColor: theme.colors.textMuted,
+      width: 56,
+      height: 4,
+      borderRadius: 999,
+    },
+    hiddenHandleIndicator: {
+      opacity: 0,
+    },
+    contentContainer: {
+      flexGrow: 1,
+      paddingHorizontal: 20,
+      paddingBottom: 24,
+    },
+    fullScreenContent: {
+      flex: 1,
+    },
+    fullScreenBackground: {
+      borderRadius: 0,
+    },
+    scrollContainer: {
+      flex: 1,
+    },
+    flexContainer: {
+      flex: 1,
+    },
+  });
 
 export default CustomBottomSheet;

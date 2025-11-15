@@ -27,7 +27,7 @@ import { ArrowRightLeft, Wallet } from 'lucide-react-native';
 import CustomModal from '@/components/modals/CustomModal';
 import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { Colors } from '@/constants/theme';
+import { useAppTheme, type Theme } from '@/constants/theme';
 import { useFinanceStore } from '@/stores/useFinanceStore';
 import { useModalStore } from '@/stores/useModalStore';
 import { useTranslation } from '../../../utils/localization';
@@ -39,6 +39,9 @@ export default function TransactionModal() {
   const modalRef = useRef<BottomSheetHandle>(null);
   const dateModalRef = useRef<BottomSheetHandle>(null);
   const accountPickerRef = useRef<BottomSheetHandle>(null);
+
+  const theme = useAppTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [accountPickerContext, setAccountPickerContext] = useState<AccountPickerContext | null>(
     null
@@ -248,7 +251,7 @@ export default function TransactionModal() {
               <Text style={styles.subtitle}>{t('finance.transferSubtitle')}</Text>
             </View>
             <Pressable onPress={handleClose} hitSlop={12}>
-              <Ionicons name="close" size={24} color={Colors.textSecondary} />
+              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
             </Pressable>
           </View>
 
@@ -268,7 +271,7 @@ export default function TransactionModal() {
             </TouchableOpacity>
 
             <View style={styles.arrowWrapper}>
-              <ArrowRightLeft size={22} color={Colors.textSecondary} />
+              <ArrowRightLeft size={22} color={theme.colors.textSecondary} />
             </View>
 
             <TouchableOpacity
@@ -292,7 +295,7 @@ export default function TransactionModal() {
               value={amount}
               onChangeText={handleAmountChange}
               placeholder="0"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={theme.colors.textMuted}
               style={styles.amountInput}
               keyboardType="numeric"
             />
@@ -310,7 +313,7 @@ export default function TransactionModal() {
                 <Text style={styles.dateHint}>{t('finance.changeDate')}</Text>
               </View>
 
-              <Ionicons name="calendar-outline" size={18} color={Colors.textSecondary} />
+              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
@@ -321,7 +324,7 @@ export default function TransactionModal() {
                 value={note}
                 onChangeText={setNote}
                 placeholder={t('finance.notePlaceholder')}
-                placeholderTextColor={Colors.textTertiary}
+                placeholderTextColor={theme.colors.textMuted}
                 style={styles.noteInput}
                 multiline
               />
@@ -358,7 +361,7 @@ export default function TransactionModal() {
               : t('finance.selectToAccount')}
           </Text>
           <Pressable onPress={() => accountPickerRef.current?.dismiss()} hitSlop={10}>
-            <Ionicons name="close" size={22} color={Colors.textSecondary} />
+            <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
           </Pressable>
         </Animated.View>
 
@@ -379,7 +382,7 @@ export default function TransactionModal() {
                 activeOpacity={0.85}
               >
                 <View style={styles.accountPickerIcon}>
-                  <Wallet size={18} color={Colors.textSecondary} />
+                  <Wallet size={18} color={theme.colors.textSecondary} />
                 </View>
                 <View style={styles.accountPickerInfo}>
                   <Text style={styles.accountPickerName}>{account.name}</Text>
@@ -388,7 +391,7 @@ export default function TransactionModal() {
                   </Text>
                 </View>
                 {selected && (
-                  <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                  <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
                 )}
               </TouchableOpacity>
             );
@@ -399,7 +402,8 @@ export default function TransactionModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) =>
+  StyleSheet.create({
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -409,12 +413,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   subtitle: {
     marginTop: 4,
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   selectorRow: {
     marginTop: 24,
@@ -426,32 +430,32 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
     padding: 16,
   },
   selectorLabel: {
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   selectorValue: {
     marginTop: 6,
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   selectorHint: {
     marginTop: 8,
     fontSize: 12,
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   arrowWrapper: {
     width: 36,
     height: 36,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -461,13 +465,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   amountInput: {
     marginTop: 12,
     fontSize: 32,
     fontWeight: '700',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
     textAlign: 'center',
   },
   section: {
@@ -477,8 +481,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
     padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -487,41 +491,41 @@ const styles = StyleSheet.create({
   dateLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   dateHint: {
     marginTop: 4,
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
   noteInputWrapper: {
     marginTop: 12,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
     padding: 14,
   },
   noteInput: {
     minHeight: 60,
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
     fontSize: 14,
     textAlignVertical: 'top',
   },
   saveButton: {
     marginTop: 28,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
+    backgroundColor: theme.colors.primary,
     paddingVertical: 16,
     alignItems: 'center',
   },
   saveButtonDisabled: {
-    backgroundColor: Colors.textTertiary,
+    backgroundColor: theme.colors.textMuted,
   },
   saveButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   accountPickerHeader: {
     flexDirection: 'row',
@@ -531,7 +535,7 @@ const styles = StyleSheet.create({
   accountPickerTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   accountPickerList: {
     marginTop: 16,
@@ -543,17 +547,17 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surfaceElevated,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceElevated,
   },
   accountPickerItemSelected: {
-    borderColor: Colors.primary,
+    borderColor: theme.colors.primary,
   },
   accountPickerIcon: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.surface,
+    backgroundColor: theme.colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -564,11 +568,11 @@ const styles = StyleSheet.create({
   accountPickerName: {
     fontSize: 15,
     fontWeight: '600',
-    color: Colors.textPrimary,
+    color: theme.colors.textPrimary,
   },
   accountPickerBalance: {
     marginTop: 4,
     fontSize: 13,
-    color: Colors.textSecondary,
+    color: theme.colors.textSecondary,
   },
 });

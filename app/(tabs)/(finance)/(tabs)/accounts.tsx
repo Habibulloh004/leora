@@ -1,5 +1,5 @@
 // app/(tabs)/(finance)/(tabs)/accounts.tsx
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Platform,
@@ -26,13 +26,17 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import AddAccountSheet, {
   AddAccountSheetHandle,
 } from '@/components/modals/finance/AddAccountSheet';
-import { useAccountsStore } from '@/stores/useAccountsStore';
+import { useFinanceStore } from '@/stores/useFinanceStore';
 import type {
   AccountItem,
   AccountTransaction,
   AccountKind,
   AddAccountPayload,
 } from '@/types/accounts';
+import type { Transaction } from '@/types/store.types';
+import { useLocalization } from '@/localization/useLocalization';
+
+type AccountsStrings = ReturnType<typeof useLocalization>['strings']['financeScreens']['accounts'];
 
 // ===========================
 // Helper Functions
@@ -66,6 +70,62 @@ const getIconForType = (type: AccountKind) => {
   }
 };
 
+const formatTransactionTime = (date: Date) => {
+  const now = new Date();
+  const todayKey = now.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  if (date.toDateString() === todayKey) {
+    return `Today ${formatter.format(date)}`;
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `Yesterday ${formatter.format(date)}`;
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const getTransactionTimestamp = (transaction: Transaction): number => {
+  if (!transaction?.date) {
+    return 0;
+  }
+  const date = transaction.date instanceof Date ? transaction.date : new Date(transaction.date);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
+
+const buildAccountHistory = (accountId: string, list: Transaction[]): AccountTransaction[] => {
+  return list
+    .filter((txn) => txn.accountId === accountId || txn.toAccountId === accountId)
+    .sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a))
+    .slice(0, 4)
+    .map((txn) => {
+      let type: AccountTransaction['type'] = 'income';
+      if (txn.type === 'transfer') {
+        type = txn.accountId === accountId ? 'outcome' : 'income';
+      } else {
+        type = txn.type === 'income' ? 'income' : 'outcome';
+      }
+
+      return {
+        id: txn.id,
+        type,
+        amount: txn.amount,
+        time: formatTransactionTime(new Date(txn.date)),
+        description: txn.description,
+      };
+    });
+};
+
 // ===========================
 // Transaction Row Component with Staggered Animation
 // ===========================
@@ -75,6 +135,10 @@ interface TransactionRowProps {
   theme: ReturnType<typeof useAppTheme>;
   index: number;
   isVisible: boolean;
+  labels: {
+    income: string;
+    outcome: string;
+  };
 }
 
 const TransactionRow: React.FC<TransactionRowProps> = ({
@@ -82,6 +146,7 @@ const TransactionRow: React.FC<TransactionRowProps> = ({
   theme,
   index,
   isVisible,
+  labels,
 }) => {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(15)).current;
@@ -125,7 +190,7 @@ const TransactionRow: React.FC<TransactionRowProps> = ({
       ]}
     >
       <Text style={[styles.transactionType, { color: theme.colors.textSecondary }]}>
-        {transaction.type === 'income' ? 'Income' : 'Outcome'}
+        {transaction.type === 'income' ? labels.income : labels.outcome}
       </Text>
       <Text style={[styles.transactionAmount, { color: textColor }]}>
         {sign} {formatCurrency(transaction.amount)}
@@ -151,6 +216,7 @@ interface AccountCardProps {
   onArchive: () => void;
   onDelete: () => void;
   theme: ReturnType<typeof useAppTheme>;
+  strings: AccountsStrings;
 }
 
 const AccountCard: React.FC<AccountCardProps> = ({
@@ -163,9 +229,14 @@ const AccountCard: React.FC<AccountCardProps> = ({
   onArchive,
   onDelete,
   theme,
+  strings,
 }) => {
   const Icon = getIconForType(account.type);
   const transactions = account.transactions ?? [];
+  const transactionLabels = useMemo(
+    () => ({ income: strings.income, outcome: strings.outcome }),
+    [strings.income, strings.outcome],
+  );
 
   // Animation values
   const historyOpacity = useRef(new Animated.Value(0)).current;
@@ -348,7 +419,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    {account.progress}% of the goal
+                    {strings.goalProgress.replace('{value}', `${account.progress}`)}
                   </Text>
                 </View>
               )}
@@ -386,7 +457,9 @@ const AccountCard: React.FC<AccountCardProps> = ({
               activeOpacity={0.7}
             >
               <Edit3 size={18} color={theme.colors.iconTextSecondary} strokeWidth={2} />
-              <Text style={[styles.actionText, { color: theme.colors.iconTextSecondary }]}>Edit</Text>
+              <Text style={[styles.actionText, { color: theme.colors.iconTextSecondary }]}>
+                {strings.actions.edit}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -399,7 +472,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
             >
               <Archive size={18} color={theme.colors.iconTextSecondary} strokeWidth={2} />
               <Text style={[styles.actionText, { color: theme.colors.iconTextSecondary }]}>
-                Archive
+                {strings.actions.archive}
               </Text>
             </TouchableOpacity>
 
@@ -413,7 +486,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
             >
               <Trash2 size={18} color={theme.colors.iconTextSecondary} strokeWidth={2} />
               <Text style={[styles.actionText, { color: theme.colors.iconTextSecondary }]}>
-                Delete
+                {strings.actions.delete}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -439,7 +512,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                TRANSACTION HISTORY
+                {strings.historyTitle}
               </Text>
 
               <View style={styles.transactionTable}>
@@ -450,13 +523,13 @@ const AccountCard: React.FC<AccountCardProps> = ({
                   ]}
                 >
                   <Text style={[styles.headerText, { color: theme.colors.textMuted }]}>
-                    Type
+                    {strings.historyHeaders.type}
                   </Text>
                   <Text style={[styles.headerText, { color: theme.colors.textMuted }]}>
-                    Amount
+                    {strings.historyHeaders.amount}
                   </Text>
                   <Text style={[styles.headerText, { color: theme.colors.textMuted }]}>
-                    Time
+                    {strings.historyHeaders.time}
                   </Text>
                 </View>
 
@@ -468,6 +541,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
                         theme={theme}
                         index={index}
                         isVisible={isExpanded}
+                        labels={transactionLabels}
                       />
                       {index < transactions.length - 1 && (
                         <View
@@ -500,15 +574,29 @@ const AccountCard: React.FC<AccountCardProps> = ({
 
 export default function AccountsTab() {
   const theme = useAppTheme();
-  const accounts = useAccountsStore((state) => state.accounts);
-  const addAccount = useAccountsStore((state) => state.addAccount);
-  const editAccount = useAccountsStore((state) => state.editAccount);
-  const deleteAccount = useAccountsStore((state) => state.deleteAccount);
-  const archiveAccount = useAccountsStore((state) => state.archiveAccount);
+  const { strings } = useLocalization();
+  const accountStrings = strings.financeScreens.accounts;
+  const accounts = useFinanceStore((state) => state.accounts);
+  const transactions = useFinanceStore((state) => state.transactions);
+  const addAccount = useFinanceStore((state) => state.addAccount);
+  const editAccount = useFinanceStore((state) => state.editAccount);
+  const deleteAccount = useFinanceStore((state) => state.deleteAccount);
+  const archiveAccount = useFinanceStore((state) => state.archiveAccount);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionModeId, setActionModeId] = useState<string | null>(null);
   const addAccountSheetRef = useRef<AddAccountSheetHandle>(null);
-  const visibleAccounts = accounts.filter((account) => !account.isArchived);
+  const visibleAccounts = useMemo(
+    () => accounts.filter((account) => !account.isArchived),
+    [accounts],
+  );
+  const preparedAccounts = useMemo(
+    () =>
+      visibleAccounts.map((account) => ({
+        ...account,
+        transactions: buildAccountHistory(account.id, transactions),
+      })),
+    [transactions, visibleAccounts],
+  );
 
   const handleCardPress = (id: string) => {
     if (actionModeId === id) {
@@ -592,12 +680,12 @@ export default function AccountsTab() {
         <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
           <View style={[styles.header, { backgroundColor: theme.colors.background }]}>
             <Text style={[styles.headerTitle, { color: theme.colors.textSecondary }]}>
-              My accounts
+              {accountStrings.header}
             </Text>
           </View>
 
 
-          {visibleAccounts.map((account) => (
+          {preparedAccounts.map((account) => (
             <AccountCard
               key={account.id}
               account={account}
@@ -609,6 +697,7 @@ export default function AccountsTab() {
               onArchive={() => handleArchive(account.id)}
               onDelete={() => handleDelete(account.id)}
               theme={theme}
+              strings={accountStrings}
             />
           ))}
 

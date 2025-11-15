@@ -2,23 +2,18 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useShallow } from 'zustand/react/shallow';
-
-import { useModalStore } from '@/stores/useModalStore';
+import { useLocalization } from '@/localization/useLocalization';
 import { useThemeColors } from '@/constants/theme';
 
 interface InsightsHeaderProps {
   title?: string;
 }
 
-export default function InsightsHeader({ title = 'INSIGHTS' }: InsightsHeaderProps) {
+export default function InsightsHeader({ title }: InsightsHeaderProps) {
   const router = useRouter();
   const colors = useThemeColors();
-  const { openInsightsReportModal } = useModalStore(
-    useShallow((state) => ({
-      openInsightsReportModal: state.openInsightsReportModal,
-    }))
-  );
+  const { strings } = useLocalization();
+  const resolvedTitle = title ?? strings.tabs.insights.toUpperCase();
 
   return (
     <View
@@ -35,14 +30,14 @@ export default function InsightsHeader({ title = 'INSIGHTS' }: InsightsHeaderPro
           <Ionicons name="refresh" size={24} color={colors.textSecondary} />
         </Pressable>
         <Pressable
-          onPress={openInsightsReportModal}
+          onPress={() => router.push('/(tabs)/(insights)/history')}
           style={[styles.iconButton, { backgroundColor: colors.background }]}
         >
           <Ionicons name="bar-chart-outline" size={24} color={colors.textSecondary} />
         </Pressable>
       </View>
       <View>
-        <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
+        <Text style={[styles.title, { color: colors.textPrimary }]}>{resolvedTitle}</Text>
       </View>
       <View style={styles.actions}>
         <Pressable

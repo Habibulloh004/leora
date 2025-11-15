@@ -21,6 +21,8 @@ import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { TECHNIQUES } from '@/features/focus/types';
 import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
 import * as Linking from 'expo-linking';
+import ProfileHeader from './(tabs)/more/_components/ProfileHeader';
+import { useLocalization } from '@/localization/useLocalization';
 
 enableScreens(true);
 enableFreeze(true);
@@ -42,7 +44,7 @@ export default function RootLayout() {
         const assetPromise = Asset.loadAsync([
           require('@assets/images/icon.png'),
           require('@assets/images/authBackground.png'),
-          require('@assets/images/backgroundModal.png'),
+          require('@assets/images/darkFub.png'),
           require('@assets/images/notifImage.jpg'),
           require('@assets/images/bg.png'),
         ]);
@@ -230,7 +232,7 @@ function RootNavigator({
       // Redirect to main app if authenticated and on auth screens
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated, segments, hasBooted]);
+  }, [isAuthenticated, segments, hasBooted, router]);
 
   useEffect(() => {
     if (!hasBooted) return;
@@ -274,8 +276,10 @@ function RootNavigator({
       },
     };
   }, [palette, theme]);
+  const { strings, locale } = useLocalization();
 
   const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
+  const profileStrings = strings.profile;
 
   if (!hasBooted && !isAuthenticated) {
     return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
@@ -293,7 +297,15 @@ function RootNavigator({
       >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="profile" options={{ headerShown: false }} />
+        <Stack.Screen name="profile" options={{
+          header: ({ navigation, back }) => (
+            <ProfileHeader
+              title={profileStrings.title}
+              changeTitle=""
+              onBack={back ? () => navigation.goBack() : undefined}
+            />
+          ),
+        }} />
         <Stack.Screen
           name="(modals)/add-task"
           options={{
@@ -313,10 +325,13 @@ function RootNavigator({
         <Stack.Screen
           name="(modals)/quick-exp"
           options={{
-            presentation: 'modal',
+            presentation: 'formSheet',
+            gestureDirection: "vertical",
             headerTitle: 'Quick Expence',
-            headerStyle: { backgroundColor: palette.surface },
-            headerTintColor: palette.textPrimary,
+            animation: "slide_from_bottom",
+            sheetGrabberVisible: true,
+            sheetInitialDetentIndex: 0,
+            sheetAllowedDetents: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
           }}
         />
         <Stack.Screen
@@ -361,6 +376,34 @@ function RootNavigator({
           }}
         />
         <Stack.Screen
+          name="(modals)/finance-currency"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance-stats"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance-export"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance-search"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
           name="(modals)/goal-details"
           options={{
             presentation: 'modal',
@@ -395,15 +438,6 @@ function RootNavigator({
           name="focus-mode"
           options={{
             headerShown: false
-          }}
-        />
-        <Stack.Screen
-          name="modal-with-stack"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-            headerStyle: { backgroundColor: palette.surface },
-            headerTintColor: palette.textPrimary,
           }}
         />
         <Stack.Screen
