@@ -8,29 +8,26 @@ import React, {
 import {
   Alert,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Wallet } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 
-import CustomModal from '@/components/modals/CustomModal';
-import DateChangeModal from '@/components/modals/DateChangeModal';
+import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { useAppTheme, type Theme } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useLocalization } from '@/localization/useLocalization';
 import { useFinanceStore } from '@/stores/useFinanceStore';
 import { useModalStore } from '@/stores/useModalStore';
@@ -40,16 +37,24 @@ import {
   useFinancePreferencesStore,
 } from '@/stores/useFinancePreferencesStore';
 import type { AccountItem } from '@/types/accounts';
-import { applyOpacity } from '@/utils/color';
 
 type DebtType = 'borrowed' | 'lent';
-type ActiveDateField = 'date' | 'expected' | null;
+type PickerMode = 'date' | 'time' | null;
+type ActiveDateField = 'date' | 'expected' | 'schedule' | null;
+
+const modalProps: Partial<CustomModalProps> = {
+  variant: 'form',
+  enableDynamicSizing: false,
+  fallbackSnapPoint: '96%',
+  scrollable: true,
+  scrollProps: { keyboardShouldPersistTaps: 'handled' },
+  contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+};
 
 const formatPresetAmount = (value: number) => {
   if (!Number.isFinite(value)) {
     return '';
   }
-
   const fraction = value % 1 === 0 ? 0 : 2;
   return value.toLocaleString('en-US', {
     minimumFractionDigits: fraction,
@@ -119,8 +124,6 @@ const formatCurrencyValue = (value: number, currency: FinanceCurrency) => {
 
 export default function DebtModal() {
   const modalRef = useRef<BottomSheetHandle>(null);
-  const dateModalRef = useRef<BottomSheetHandle>(null);
-  const scheduleDateModalRef = useRef<BottomSheetHandle>(null);
   const accountModalRef = useRef<BottomSheetHandle>(null);
   const currencyModalRef = useRef<BottomSheetHandle>(null);
   const fullPaymentModalRef = useRef<BottomSheetHandle>(null);
@@ -128,20 +131,16 @@ export default function DebtModal() {
   const scheduleModalRef = useRef<BottomSheetHandle>(null);
   const reminderModalRef = useRef<BottomSheetHandle>(null);
 
-  const theme = useAppTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-
   const { strings } = useLocalization();
   const debtsStrings = strings.financeScreens.debts;
   const modalStrings = debtsStrings.modal;
   const paymentStrings = modalStrings.payment;
-  const actionButtons =
-    modalStrings.actionsBar ?? {
-      pay: 'Pay debt',
-      partial: 'Partial payment',
-      notify: 'Notification',
-      schedule: 'Manage dates',
-    };
+  const actionButtons = modalStrings.actionsBar ?? {
+    pay: 'Pay debt',
+    partial: 'Partial payment',
+    notify: 'Notification',
+    schedule: 'Manage dates',
+  };
 
   const debtModal = useModalStore((state) => state.debtModal);
   const closeDebtModal = useModalStore((state) => state.closeDebtModal);
@@ -179,6 +178,7 @@ export default function DebtModal() {
   const [note, setNote] = useState('');
   const [startDate, setStartDate] = useState(new Date());
   const [expectedDate, setExpectedDate] = useState<Date | undefined>(undefined);
+  const [pickerMode, setPickerMode] = useState<PickerMode>(null);
   const [activeDateField, setActiveDateField] = useState<ActiveDateField>(null);
   const [paymentAmountInput, setPaymentAmountInput] = useState('');
   const [paymentAmountValue, setPaymentAmountValue] = useState(0);
@@ -192,9 +192,6 @@ export default function DebtModal() {
   const [scheduleDate, setScheduleDate] = useState<Date>(new Date());
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState('09:00');
-
-  const indicatorProgress = useSharedValue(0);
-  const toggleSegment = useSharedValue(0);
 
   useEffect(() => {
     if (debtModal.isOpen && debtModal.showPrimarySheet) {
@@ -219,6 +216,7 @@ export default function DebtModal() {
       setStartDate(new Date());
       setExpectedDate(undefined);
       setActiveDateField(null);
+      setPickerMode(null);
       const fallbackAccountId = getDefaultAccountId(type);
       setSelectedAccountId(fallbackAccountId);
       const defaultCurrency = fallbackAccountId
@@ -285,36 +283,19 @@ export default function DebtModal() {
     }
   }, [accounts, activeType, debtModal.isOpen, getDefaultAccountId, isEditing]);
 
-  useEffect(() => {
-    indicatorProgress.value = withTiming(activeType === 'borrowed' ? 0 : 1, {
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [activeType, indicatorProgress]);
-
-  const indicatorStyle = useAnimatedStyle(() => ({
-    width: toggleSegment.value,
-    transform: [{ translateX: indicatorProgress.value * toggleSegment.value }],
-  }));
-
-  const statusColor = useMemo(
-    () => (activeType === 'lent' ? theme.colors.success : theme.colors.danger),
-    [activeType, theme.colors.danger, theme.colors.success],
-  );
-
   const selectedAccount = useMemo(
     () => accounts.find((acc) => acc.id === selectedAccountId) ?? null,
     [accounts, selectedAccountId],
   );
-  const accountHelper = selectedAccount?.subtitle ?? modalStrings.accountHelper;
+
   const paymentAccount = useMemo(
     () => accounts.find((acc) => acc.id === paymentAccountId) ?? null,
     [accounts, paymentAccountId],
   );
-  const paymentAccountHelper = paymentAccount?.subtitle ?? paymentStrings.helper;
 
   const isSaveDisabled =
     !person.trim() || amountValue <= 0 || !startDate || !selectedAccountId;
+
   const outstandingInPaymentCurrency = useMemo(() => {
     if (editingDebt) {
       return convertAmount(editingDebt.remainingAmount, editingDebt.currency, paymentCurrency);
@@ -331,25 +312,132 @@ export default function DebtModal() {
     setAmountValue(numeric);
   }, []);
 
-  const handleSelectDate = useCallback(
-    (selected: Date) => {
-      if (!(selected instanceof Date) || Number.isNaN(selected.getTime())) {
+  const applyDateTimePart = useCallback((field: ActiveDateField, mode: 'date' | 'time', value: Date) => {
+    const updateFn = (prev: Date) => {
+      const next = new Date(prev);
+      if (mode === 'date') {
+        next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
+      } else {
+        next.setHours(value.getHours(), value.getMinutes(), 0, 0);
+      }
+      return next;
+    };
+
+    if (field === 'expected') {
+      setExpectedDate((prev) => updateFn(prev ?? new Date()));
+    } else if (field === 'schedule') {
+      setScheduleDate(updateFn);
+    } else {
+      setStartDate(updateFn);
+    }
+  }, []);
+
+  const openDateTimePicker = useCallback(
+    (field: ActiveDateField, mode: 'date' | 'time') => {
+      let baseValue: Date;
+      if (field === 'expected') {
+        baseValue = expectedDate ?? new Date();
+      } else if (field === 'schedule') {
+        baseValue = scheduleDate;
+      } else {
+        baseValue = startDate;
+      }
+
+      if (Platform.OS === 'android') {
+        DateTimePickerAndroid.open({
+          value: baseValue,
+          mode,
+          is24Hour: true,
+          display: mode === 'date' ? 'calendar' : 'clock',
+          onChange: (event, selected) => {
+            if (event.type === 'set' && selected) {
+              applyDateTimePart(field, mode, selected);
+            }
+          },
+        });
         return;
       }
-      if (activeDateField === 'expected') {
-        setExpectedDate(selected);
-      } else {
-        setStartDate(selected);
-      }
-      setActiveDateField(null);
+      setActiveDateField(field);
+      setPickerMode(mode);
     },
-    [activeDateField],
+    [applyDateTimePart, expectedDate, scheduleDate, startDate]
   );
 
-  const handleOpenDate = useCallback((field: ActiveDateField) => {
-    setActiveDateField(field);
-    dateModalRef.current?.present();
+  const handleIosPickerChange = useCallback(
+    (event: DateTimePickerEvent, selected?: Date) => {
+      if (event.type === 'dismissed') {
+        setPickerMode(null);
+        setActiveDateField(null);
+        return;
+      }
+      if (selected && pickerMode && activeDateField) {
+        applyDateTimePart(activeDateField, pickerMode, selected);
+      }
+    },
+    [activeDateField, applyDateTimePart, pickerMode]
+  );
+
+  const closePicker = useCallback(() => {
+    setPickerMode(null);
+    setActiveDateField(null);
   }, []);
+
+  const pickerValue = useMemo(() => {
+    if (activeDateField === 'expected') {
+      return expectedDate ?? new Date();
+    } else if (activeDateField === 'schedule') {
+      return scheduleDate;
+    }
+    return startDate;
+  }, [activeDateField, expectedDate, scheduleDate, startDate]);
+
+  const dateLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(startDate);
+    } catch {
+      return startDate.toLocaleDateString();
+    }
+  }, [startDate]);
+
+  const timeLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(startDate);
+    } catch {
+      return startDate.toLocaleTimeString();
+    }
+  }, [startDate]);
+
+  const expectedDateLabel = useMemo(() => {
+    if (!expectedDate) return 'Pick a date';
+    try {
+      return new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(expectedDate);
+    } catch {
+      return expectedDate.toLocaleDateString();
+    }
+  }, [expectedDate]);
+
+  const scheduleDateLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(scheduleDate);
+    } catch {
+      return scheduleDate.toLocaleDateString();
+    }
+  }, [scheduleDate]);
 
   const handleCancel = useCallback(() => {
     resetForm(activeType);
@@ -515,10 +603,6 @@ export default function DebtModal() {
     closeShortcutContext();
   }, [closeShortcutContext]);
 
-  const handleOpenScheduleDatePicker = useCallback(() => {
-    scheduleDateModalRef.current?.present();
-  }, []);
-
   const handleRecordPayment = useCallback(() => {
     if (!isEditing || !editingDebt || !paymentAccountId || paymentAmountValue <= 0) {
       return;
@@ -563,10 +647,9 @@ export default function DebtModal() {
     editingDebt?.remainingAmount ?? 0,
     fullPaymentCurrency,
   );
-  const fullPaymentDescriptionText = (modalStrings.fullPaymentDescription ?? 'You will pay {amount}.').replace(
-    '{amount}',
-    formattedFullPaymentAmount,
-  );
+  const fullPaymentDescriptionText = (
+    modalStrings.fullPaymentDescription ?? 'You will pay {amount}.'
+  ).replace('{amount}', formattedFullPaymentAmount);
 
   const isFullPaymentDisabled =
     !editingDebt || editingDebt.remainingAmount <= 0 || !(paymentAccountId ?? selectedAccountId);
@@ -606,10 +689,6 @@ export default function DebtModal() {
     paymentAccountId,
     selectedAccountId,
   ]);
-
-  const handleScheduleDateChange = useCallback((date: Date) => {
-    setScheduleDate(date);
-  }, []);
 
   const handleReminderTimeChange = useCallback((value: string) => {
     const sanitized = value.replace(/[^0-9:]/g, '').slice(0, 5);
@@ -682,967 +761,873 @@ export default function DebtModal() {
 
   return (
     <>
-      <CustomModal
-        ref={modalRef}
-        variant="form"
-        scrollable
-        scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
-        onDismiss={handleCancel}
-        fallbackSnapPoint="88%"
-        enableDynamicSizing
-      >
-        <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding' })}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>
-                {isEditing ? modalStrings.editTitle : modalStrings.title}
+      <CustomModal ref={modalRef} onDismiss={handleCancel} {...modalProps}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>
+                {isEditing ? 'EDIT DEBT' : 'NEW DEBT'}
               </Text>
-              <Text style={styles.subtitle}>{modalStrings.subtitle}</Text>
-            </View>
-            <Pressable onPress={handleCancel} hitSlop={12}>
-              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
-            </Pressable>
-          </View>
-
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: applyOpacity(statusColor, 0.12) },
-            ]}
-          >
-            <Text style={[styles.statusText, { color: statusColor }]}>
-              {activeType === 'lent'
-                ? modalStrings.status.lent
-                : modalStrings.status.borrowed}
-            </Text>
-          </View>
-
-          <View
-            style={styles.typeToggle}
-            onLayout={(event) => {
-              toggleSegment.value = event.nativeEvent.layout.width / 2;
-            }}
-          >
-            <TouchableOpacity
-              style={[styles.typeButton, activeType === 'borrowed' && styles.typeButtonActive]}
-              onPress={() => setActiveType('borrowed')}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.typeLabel,
-                  activeType === 'borrowed' && styles.typeLabelActive,
-                ]}
-              >
-                {modalStrings.toggles.outgoing}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.typeButton, activeType === 'lent' && styles.typeButtonActive]}
-              onPress={() => setActiveType('lent')}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.typeLabel,
-                  activeType === 'lent' && styles.typeLabelActive,
-                ]}
-              >
-                {modalStrings.toggles.incoming}
-              </Text>
-            </TouchableOpacity>
-
-            <Animated.View style={[styles.typeIndicator, indicatorStyle]} />
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{modalStrings.person}</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                value={person}
-                onChangeText={setPerson}
-                placeholder={modalStrings.personPlaceholder}
-                placeholderTextColor={theme.colors.textMuted}
-                style={styles.textInput}
-              />
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{modalStrings.amount}</Text>
-            <View style={styles.inputWrapper}>
-              <TextInput
-                value={amountInput}
-                onChangeText={handleAmountChange}
-                keyboardType="numeric"
-                placeholder="0"
-                placeholderTextColor={theme.colors.textMuted}
-                style={[styles.textInput, styles.amountInput]}
-              />
-            </View>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{modalStrings.accountLabel}</Text>
-            <TouchableOpacity
-              style={styles.selectorCard}
-              onPress={() => {
-                setAccountSelectorContext('debt');
-                accountModalRef.current?.present();
-              }}
-              activeOpacity={0.85}
-            >
-              <View>
-                <Text style={styles.selectorValue}>
-                  {selectedAccount?.name ?? modalStrings.selectAccount}
-                </Text>
-                <Text style={styles.selectorHint}>{accountHelper}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{modalStrings.currencyLabel}</Text>
-            <TouchableOpacity
-              style={styles.selectorCard}
-              onPress={() => {
-                setCurrencySelectorContext('debt');
-                currencyModalRef.current?.present();
-              }}
-              activeOpacity={0.85}
-            >
-              <View>
-                <Text style={styles.selectorValue}>{selectedCurrency}</Text>
-                <Text style={styles.selectorHint}>{modalStrings.currencyHelper}</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{modalStrings.dateLabel}</Text>
-            <TouchableOpacity
-              style={styles.dateCard}
-              onPress={() => handleOpenDate('date')}
-              activeOpacity={0.85}
-            >
-              <View>
-                <Text style={styles.dateLabel}>{startDate.toLocaleDateString()}</Text>
-                <Text style={styles.dateHint}>{modalStrings.changeDate}</Text>
-              </View>
-              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.expectedHeader}>
-              <Text style={styles.sectionTitle}>{modalStrings.expectedReturn}</Text>
-              {expectedDate && (
-                <Pressable onPress={handleClearExpected} hitSlop={8}>
-                  <Text style={styles.clearButton}>{modalStrings.clear}</Text>
-                </Pressable>
-              )}
             </View>
 
-            <TouchableOpacity
-              style={styles.dateCard}
-              onPress={() => handleOpenDate('expected')}
-              activeOpacity={0.85}
-            >
-              <View>
-                <Text style={styles.dateLabel}>
-                  {expectedDate ? expectedDate.toLocaleDateString() : modalStrings.expectedPlaceholder}
-                </Text>
-                <Text style={styles.dateHint}>{modalStrings.selectDate}</Text>
-              </View>
-              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{modalStrings.note}</Text>
-            <View style={styles.noteInputWrapper}>
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder={modalStrings.notePlaceholder}
-                placeholderTextColor={theme.colors.textMuted}
-                style={styles.noteInput}
-                multiline
-              />
-            </View>
-          </View>
-
-          {isEditing && (
+            {/* Type Switcher */}
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>{modalStrings.manageActions ?? 'Manage debt'}</Text>
-              <View style={styles.actionsGrid}>
+              <AdaptiveGlassView style={styles.typeContainer}>
                 <Pressable
-                  style={({ pressed }) => [styles.actionCard, pressed && styles.actionCardPressed]}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    handleOpenFullPaymentModal();
-                  }}
+                  onPress={() => setActiveType('borrowed')}
+                  style={({ pressed }) => [
+                    styles.typeOption,
+                    { borderBottomWidth: 1 },
+                    pressed && styles.pressed,
+                  ]}
                 >
-                  <View
-                    style={[
-                      styles.actionIcon,
-                      { backgroundColor: applyOpacity(theme.colors.primary, 0.12) },
-                    ]}
-                  >
-                    <Ionicons name="card" size={18} color={theme.colors.primary} />
-                  </View>
-                  <View style={styles.actionText}>
-                    <Text style={styles.actionTitle}>{actionButtons.pay}</Text>
-                    <Text style={styles.actionSubtitle}>{formattedFullPaymentAmount}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-                </Pressable>
-
-                <Pressable
-                  style={({ pressed }) => [styles.actionCard, pressed && styles.actionCardPressed]}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    handleOpenPartialPaymentModal();
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.actionIcon,
-                      { backgroundColor: applyOpacity(theme.colors.info, 0.12) },
-                    ]}
-                  >
-                    <Ionicons name="swap-vertical" size={18} color={theme.colors.info} />
-                  </View>
-                  <View style={styles.actionText}>
-                    <Text style={styles.actionTitle}>{actionButtons.partial}</Text>
-                    <Text style={styles.actionSubtitle}>{paymentStrings.helper}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-                </Pressable>
-
-                <Pressable
-                  style={({ pressed }) => [styles.actionCard, pressed && styles.actionCardPressed]}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    handleOpenScheduleModal();
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.actionIcon,
-                      { backgroundColor: applyOpacity(theme.colors.warning, 0.12) },
-                    ]}
-                  >
-                    <Ionicons name="calendar" size={18} color={theme.colors.warning} />
-                  </View>
-                  <View style={styles.actionText}>
-                    <Text style={styles.actionTitle}>{actionButtons.schedule}</Text>
-                    <Text style={styles.actionSubtitle}>{scheduleDate.toLocaleDateString()}</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-                </Pressable>
-
-                <Pressable
-                  style={({ pressed }) => [styles.actionCard, pressed && styles.actionCardPressed]}
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    handleOpenReminderModal();
-                  }}
-                >
-                  <View
-                    style={[
-                      styles.actionIcon,
-                      { backgroundColor: applyOpacity(theme.colors.secondary, 0.12) },
-                    ]}
-                  >
-                    <Ionicons name="notifications-outline" size={18} color={theme.colors.secondary} />
-                  </View>
-                  <View style={styles.actionText}>
-                    <Text style={styles.actionTitle}>{actionButtons.notify}</Text>
-                    <Text style={styles.actionSubtitle}>
-                      {reminderEnabled
-                        ? modalStrings.reminderEnabledLabel ?? 'Notifications on'
-                        : modalStrings.reminderDisabledLabel ?? 'Notifications off'}
+                  <View style={styles.typeOptionContent}>
+                    <Text
+                      style={[
+                        styles.typeLabel,
+                        { color: activeType === 'borrowed' ? '#FFFFFF' : '#7E8B9A' },
+                      ]}
+                    >
+                      {modalStrings.toggles.outgoing}
                     </Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setActiveType('lent')}
+                  style={({ pressed }) => [styles.typeOption, pressed && styles.pressed]}
+                >
+                  <View style={styles.typeOptionContent}>
+                    <Text
+                      style={[
+                        styles.typeLabel,
+                        { color: activeType === 'lent' ? '#FFFFFF' : '#7E8B9A' },
+                      ]}
+                    >
+                      {modalStrings.toggles.incoming}
+                    </Text>
+                  </View>
+                </Pressable>
+              </AdaptiveGlassView>
+            </View>
+
+            {/* Person */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{modalStrings.person}</Text>
+              <AdaptiveGlassView style={styles.inputContainer}>
+                <TextInput
+                  value={person}
+                  onChangeText={setPerson}
+                  placeholder={modalStrings.personPlaceholder}
+                  placeholderTextColor="#7E8B9A"
+                  style={styles.textInput}
+                />
+              </AdaptiveGlassView>
+            </View>
+
+            {/* Amount */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{modalStrings.amount}</Text>
+              <AdaptiveGlassView style={styles.inputContainer}>
+                <TextInput
+                  value={amountInput}
+                  onChangeText={handleAmountChange}
+                  placeholder="Amount"
+                  placeholderTextColor="#7E8B9A"
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                />
+              </AdaptiveGlassView>
+            </View>
+
+            {/* Account */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{modalStrings.accountLabel}</Text>
+              <Pressable
+                onPress={() => {
+                  setAccountSelectorContext('debt');
+                  accountModalRef.current?.present();
+                }}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.inputContainer}>
+                  <View style={styles.accountRow}>
+                    <Text style={styles.textInput}>
+                      {selectedAccount?.name ?? modalStrings.selectAccount}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
+                  </View>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+
+            {/* Currency */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{modalStrings.currencyLabel}</Text>
+              <Pressable
+                onPress={() => {
+                  setCurrencySelectorContext('debt');
+                  currencyModalRef.current?.present();
+                }}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.inputContainer}>
+                  <View style={styles.accountRow}>
+                    <Text style={styles.textInput}>{selectedCurrency}</Text>
+                    <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
+                  </View>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+
+            {/* Date & Time */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{modalStrings.dateLabel}</Text>
+              <View style={styles.dateTimeRow}>
+                <Pressable
+                  onPress={() => openDateTimePicker('date', 'date')}
+                  style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                    <Ionicons name="calendar-outline" size={18} color="#7E8B9A" />
+                    <Text style={styles.dateTimeText}>{dateLabel}</Text>
+                  </AdaptiveGlassView>
+                </Pressable>
+                <Pressable
+                  onPress={() => openDateTimePicker('date', 'time')}
+                  style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                    <Ionicons name="time-outline" size={18} color="#7E8B9A" />
+                    <Text style={styles.dateTimeText}>{timeLabel}</Text>
+                  </AdaptiveGlassView>
                 </Pressable>
               </View>
             </View>
-          )}
 
-          <SafeAreaView edges={['bottom', 'left', 'right']} style={styles.footerSafeArea}>
-            <View style={styles.footerButtons}>
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={handleCancel}
-                activeOpacity={0.9}
+            {/* Expected Return Date */}
+            <View style={styles.section}>
+              <View style={styles.expectedHeader}>
+                <Text style={styles.sectionLabel}>{modalStrings.expectedReturn}</Text>
+                {expectedDate && (
+                  <Pressable onPress={handleClearExpected} hitSlop={8}>
+                    <Text style={styles.removeText}>Remove</Text>
+                  </Pressable>
+                )}
+              </View>
+              <Pressable
+                onPress={() => openDateTimePicker('expected', 'date')}
+                style={({ pressed }) => [pressed && styles.pressed]}
               >
-                <Text style={styles.secondaryButtonText}>{modalStrings.buttons.cancel}</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.saveButton, isSaveDisabled && styles.saveButtonDisabled]}
-                onPress={handleSubmit}
-                activeOpacity={0.9}
-                disabled={isSaveDisabled}
-              >
-                <Text style={styles.saveButtonText}>
-                  {isEditing ? modalStrings.buttons.saveChanges : modalStrings.buttons.save}
-                </Text>
-              </TouchableOpacity>
+                <AdaptiveGlassView style={styles.dateTimeChip}>
+                  <Ionicons name="calendar-outline" size={18} color="#7E8B9A" />
+                  <Text
+                    style={[
+                      styles.dateTimeText,
+                      { color: expectedDate ? '#FFFFFF' : '#7E8B9A' },
+                    ]}
+                  >
+                    {expectedDateLabel}
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
             </View>
 
+            {/* Note */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{modalStrings.note}</Text>
+              <AdaptiveGlassView style={styles.noteContainer}>
+                <TextInput
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder={modalStrings.notePlaceholder}
+                  placeholderTextColor="#7E8B9A"
+                  multiline
+                  style={styles.noteInput}
+                />
+              </AdaptiveGlassView>
+            </View>
+
+            {/* Quick Actions - only in edit mode */}
             {isEditing && (
-              <TouchableOpacity
-                style={styles.deleteButton}
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>Quick actions</Text>
+                <View style={styles.quickActionsGrid}>
+                  <Pressable
+                    onPress={handleOpenFullPaymentModal}
+                    style={({ pressed }) => [pressed && styles.pressed]}
+                  >
+                    <AdaptiveGlassView style={styles.quickActionCard}>
+                      <Ionicons name="card-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.quickActionText}>{actionButtons.pay}</Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleOpenPartialPaymentModal}
+                    style={({ pressed }) => [pressed && styles.pressed]}
+                  >
+                    <AdaptiveGlassView style={styles.quickActionCard}>
+                      <Ionicons name="swap-vertical-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.quickActionText}>{actionButtons.partial}</Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleOpenScheduleModal}
+                    style={({ pressed }) => [pressed && styles.pressed]}
+                  >
+                    <AdaptiveGlassView style={styles.quickActionCard}>
+                      <Ionicons name="calendar-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.quickActionText}>{actionButtons.schedule}</Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={handleOpenReminderModal}
+                    style={({ pressed }) => [pressed && styles.pressed]}
+                  >
+                    <AdaptiveGlassView style={styles.quickActionCard}>
+                      <Ionicons name="notifications-outline" size={20} color="#FFFFFF" />
+                      <Text style={styles.quickActionText}>{actionButtons.notify}</Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+                onPress={handleCancel}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isSaveDisabled}
+                onPress={handleSubmit}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && !isSaveDisabled && styles.pressed,
+                ]}
+              >
+                <AdaptiveGlassView
+                  style={[
+                    styles.primaryButtonInner,
+                    { opacity: isSaveDisabled ? 0.4 : 1 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      { color: isSaveDisabled ? '#7E8B9A' : '#FFFFFF' },
+                    ]}
+                  >
+                    {isEditing ? modalStrings.buttons.saveChanges : modalStrings.buttons.save}
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+
+            {/* Delete Button */}
+            {isEditing && (
+              <Pressable
                 onPress={handleDelete}
-                activeOpacity={0.85}
+                style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
               >
                 <Text style={styles.deleteButtonText}>{modalStrings.buttons.delete}</Text>
-              </TouchableOpacity>
+              </Pressable>
             )}
-          </SafeAreaView>
+          </ScrollView>
         </KeyboardAvoidingView>
       </CustomModal>
 
+      {/* iOS Date/Time Picker Modal */}
+      {Platform.OS === 'ios' && pickerMode && (
+        <Modal transparent visible onRequestClose={closePicker} animationType="fade">
+          <View style={styles.pickerModal}>
+            <Pressable style={styles.pickerBackdrop} onPress={closePicker} />
+            <AdaptiveGlassView style={styles.pickerCard}>
+              <DateTimePicker
+                value={pickerValue}
+                mode={pickerMode}
+                display={pickerMode === 'date' ? 'inline' : 'spinner'}
+                onChange={handleIosPickerChange}
+                is24Hour
+              />
+              <Pressable onPress={closePicker} style={styles.pickerDoneButton}>
+                <Text style={styles.pickerDoneText}>Done</Text>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+        </Modal>
+      )}
+
+      {/* Full Payment Modal */}
       <CustomModal
         ref={fullPaymentModalRef}
         variant="form"
         fallbackSnapPoint="50%"
         onDismiss={handleCloseFullPaymentModal}
       >
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{modalStrings.fullPaymentTitle ?? 'Pay debt in full'}</Text>
-          <Pressable onPress={handleCloseFullPaymentModal} hitSlop={10}>
-            <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
-          </Pressable>
-        </View>
-        <Text style={styles.fullPaymentDescription}>{fullPaymentDescriptionText}</Text>
-
-        <TouchableOpacity
-          style={styles.selectorCard}
-          onPress={() => {
-            setAccountSelectorContext('payment');
-            accountModalRef.current?.present();
-          }}
-          activeOpacity={0.85}
-        >
-          <View>
-            <Text style={styles.selectorValue}>
-              {paymentAccount?.name ?? modalStrings.selectAccount}
-            </Text>
-            <Text style={styles.selectorHint}>{paymentAccountHelper}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.selectorCard}
-          onPress={() => {
-            setCurrencySelectorContext('payment');
-            currencyModalRef.current?.present();
-          }}
-          activeOpacity={0.85}
-        >
-          <View>
-            <Text style={styles.selectorValue}>{paymentCurrency}</Text>
-            <Text style={styles.selectorHint}>{modalStrings.currencyHelper}</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.saveButton, (isFullPaymentDisabled || !editingDebt) && styles.saveButtonDisabled]}
-          onPress={handleFullPayment}
-          activeOpacity={0.9}
-          disabled={isFullPaymentDisabled || !editingDebt}
-        >
-          <Text style={styles.saveButtonText}>
-            {modalStrings.fullPaymentSubmit ?? 'Pay in full'}
-          </Text>
-        </TouchableOpacity>
-      </CustomModal>
-
-      <CustomModal
-        ref={paymentModalRef}
-        variant="form"
-        scrollable
-        scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
-        fallbackSnapPoint="70%"
-        onDismiss={handleClosePaymentModal}
-      >
-        <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding' })}>
+        <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{paymentStrings.title}</Text>
-            <Pressable onPress={handleClosePaymentModal} hitSlop={10}>
-              <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+            <Text style={styles.modalTitle}>
+              {modalStrings.fullPaymentTitle ?? 'Pay debt in full'}
+            </Text>
+            <Pressable onPress={handleCloseFullPaymentModal} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#7E8B9A" />
             </Pressable>
           </View>
 
-          <View style={styles.inputWrapper}>
-            <TextInput
-              value={paymentAmountInput}
-              onChangeText={handlePaymentAmountChange}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor={theme.colors.textMuted}
-              style={[styles.textInput, styles.amountInput]}
-            />
-          </View>
+          <Text style={styles.fullPaymentDescription}>{fullPaymentDescriptionText}</Text>
 
-          <TouchableOpacity
-            style={styles.selectorCard}
+          <Pressable
             onPress={() => {
               setAccountSelectorContext('payment');
               accountModalRef.current?.present();
             }}
-            activeOpacity={0.85}
+            style={({ pressed }) => [pressed && styles.pressed]}
           >
-            <View>
-              <Text style={styles.selectorValue}>
-                {paymentAccount?.name ?? modalStrings.selectAccount}
+            <AdaptiveGlassView style={styles.inputContainer}>
+              <View style={styles.accountRow}>
+                <Text style={styles.textInput}>
+                  {paymentAccount?.name ?? modalStrings.selectAccount}
+                </Text>
+                <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
+              </View>
+            </AdaptiveGlassView>
+          </Pressable>
+
+          <Pressable
+            disabled={isFullPaymentDisabled || !editingDebt}
+            onPress={handleFullPayment}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && !(isFullPaymentDisabled || !editingDebt) && styles.pressed,
+            ]}
+          >
+            <AdaptiveGlassView
+              style={[
+                styles.primaryButtonInner,
+                { opacity: isFullPaymentDisabled || !editingDebt ? 0.4 : 1 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.primaryButtonText,
+                  {
+                    color: isFullPaymentDisabled || !editingDebt ? '#7E8B9A' : '#FFFFFF',
+                  },
+                ]}
+              >
+                {modalStrings.fullPaymentSubmit ?? 'Pay in full'}
               </Text>
-              <Text style={styles.selectorHint}>{paymentAccountHelper}</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
+            </AdaptiveGlassView>
+          </Pressable>
+        </View>
+      </CustomModal>
 
-          <TouchableOpacity
-            style={styles.selectorCard}
-            onPress={() => {
-              setCurrencySelectorContext('payment');
-              currencyModalRef.current?.present();
-            }}
-            activeOpacity={0.85}
-          >
-            <View>
-              <Text style={styles.selectorValue}>{paymentCurrency}</Text>
-              <Text style={styles.selectorHint}>{paymentStrings.helper}</Text>
+      {/* Partial Payment Modal */}
+      <CustomModal
+        ref={paymentModalRef}
+        variant="form"
+        fallbackSnapPoint="70%"
+        onDismiss={handleClosePaymentModal}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{paymentStrings.title}</Text>
+              <Pressable onPress={handleClosePaymentModal} hitSlop={10}>
+                <Ionicons name="close" size={22} color="#7E8B9A" />
+              </Pressable>
             </View>
-            <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-          </TouchableOpacity>
 
-          <View style={styles.noteInputWrapper}>
-            <TextInput
-              value={paymentNote}
-              onChangeText={setPaymentNote}
-              placeholder={paymentStrings.note}
-              placeholderTextColor={theme.colors.textMuted}
-              style={styles.noteInput}
-              multiline
-            />
+            <AdaptiveGlassView style={styles.inputContainer}>
+              <TextInput
+                value={paymentAmountInput}
+                onChangeText={handlePaymentAmountChange}
+                placeholder="Payment amount"
+                placeholderTextColor="#7E8B9A"
+                keyboardType="numeric"
+                style={styles.textInput}
+              />
+            </AdaptiveGlassView>
+
+            <Pressable
+              onPress={() => {
+                setAccountSelectorContext('payment');
+                accountModalRef.current?.present();
+              }}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <AdaptiveGlassView style={styles.inputContainer}>
+                <View style={styles.accountRow}>
+                  <Text style={styles.textInput}>
+                    {paymentAccount?.name ?? modalStrings.selectAccount}
+                  </Text>
+                  <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
+                </View>
+              </AdaptiveGlassView>
+            </Pressable>
+
+            <AdaptiveGlassView style={styles.noteContainer}>
+              <TextInput
+                value={paymentNote}
+                onChangeText={setPaymentNote}
+                placeholder={paymentStrings.note}
+                placeholderTextColor="#7E8B9A"
+                multiline
+                style={styles.noteInput}
+              />
+            </AdaptiveGlassView>
+
+            <Pressable
+              disabled={isPaymentDisabled}
+              onPress={handleRecordPayment}
+              style={({ pressed }) => [
+                styles.primaryButton,
+                pressed && !isPaymentDisabled && styles.pressed,
+              ]}
+            >
+              <AdaptiveGlassView
+                style={[
+                  styles.primaryButtonInner,
+                  { opacity: isPaymentDisabled ? 0.4 : 1 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.primaryButtonText,
+                    { color: isPaymentDisabled ? '#7E8B9A' : '#FFFFFF' },
+                  ]}
+                >
+                  {paymentStrings.submit}
+                </Text>
+              </AdaptiveGlassView>
+            </Pressable>
           </View>
-
-          <TouchableOpacity
-            style={[styles.saveButton, isPaymentDisabled && styles.saveButtonDisabled]}
-            onPress={handleRecordPayment}
-            activeOpacity={0.9}
-            disabled={isPaymentDisabled}
-          >
-            <Text style={styles.saveButtonText}>{paymentStrings.submit}</Text>
-          </TouchableOpacity>
         </KeyboardAvoidingView>
       </CustomModal>
 
+      {/* Schedule Modal */}
       <CustomModal
         ref={scheduleModalRef}
         variant="form"
         fallbackSnapPoint="45%"
         onDismiss={handleCloseScheduleModal}
       >
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{modalStrings.scheduleTitle ?? 'Repayment schedule'}</Text>
-          <Pressable onPress={handleCloseScheduleModal} hitSlop={10}>
-            <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {modalStrings.scheduleTitle ?? 'Repayment schedule'}
+            </Text>
+            <Pressable onPress={handleCloseScheduleModal} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#7E8B9A" />
+            </Pressable>
+          </View>
+
+          <Pressable
+            onPress={() => openDateTimePicker('schedule', 'date')}
+            style={({ pressed }) => [pressed && styles.pressed]}
+          >
+            <AdaptiveGlassView style={styles.dateTimeChip}>
+              <Ionicons name="calendar-outline" size={18} color="#7E8B9A" />
+              <Text style={styles.dateTimeText}>{scheduleDateLabel}</Text>
+            </AdaptiveGlassView>
+          </Pressable>
+
+          <Pressable
+            onPress={handleSaveSchedule}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+          >
+            <AdaptiveGlassView style={styles.primaryButtonInner}>
+              <Text style={styles.primaryButtonText}>
+                {modalStrings.buttons.saveChanges}
+              </Text>
+            </AdaptiveGlassView>
           </Pressable>
         </View>
-
-        <TouchableOpacity
-          style={styles.dateCard}
-          onPress={handleOpenScheduleDatePicker}
-          activeOpacity={0.85}
-        >
-          <View>
-            <Text style={styles.dateLabel}>{scheduleDate.toLocaleDateString()}</Text>
-            <Text style={styles.dateHint}>{modalStrings.selectDate}</Text>
-          </View>
-          <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.saveButton, styles.modalSaveButton]}
-          onPress={handleSaveSchedule}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.saveButtonText}>{modalStrings.buttons.saveChanges}</Text>
-        </TouchableOpacity>
       </CustomModal>
 
+      {/* Reminder Modal */}
       <CustomModal
         ref={reminderModalRef}
         variant="form"
         fallbackSnapPoint="55%"
         onDismiss={handleCloseReminderModal}
       >
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>{modalStrings.reminderTitle ?? 'Reminders'}</Text>
-          <Pressable onPress={handleCloseReminderModal} hitSlop={10}>
-            <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
-          </Pressable>
-        </View>
-
-        <View style={styles.reminderRow}>
-          <Text style={styles.reminderLabel}>{modalStrings.reminderToggle ?? 'Enable notification'}</Text>
-          <Switch value={reminderEnabled} onValueChange={handleToggleReminder} />
-        </View>
-
-        {reminderEnabled && (
-          <View style={styles.reminderTimeWrapper}>
-            <Text style={styles.selectorHint}>
-              {modalStrings.reminderTimeLabel ?? 'Reminder time (HH:MM)'}
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {modalStrings.reminderTitle ?? 'Reminders'}
             </Text>
-            <TextInput
-              value={reminderTime}
-              onChangeText={handleReminderTimeChange}
-              placeholder="09:00"
-              placeholderTextColor={theme.colors.textMuted}
-              keyboardType="numeric"
-              style={styles.reminderInput}
-            />
+            <Pressable onPress={handleCloseReminderModal} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#7E8B9A" />
+            </Pressable>
           </View>
-        )}
 
-        <TouchableOpacity
-          style={[styles.saveButton, styles.modalSaveButton]}
-          onPress={handleSaveReminder}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.saveButtonText}>{modalStrings.buttons.saveChanges}</Text>
-        </TouchableOpacity>
-      </CustomModal>
+          <AdaptiveGlassView style={styles.reminderRow}>
+            <Text style={styles.reminderLabel}>
+              {modalStrings.reminderToggle ?? 'Enable notification'}
+            </Text>
+            <Switch value={reminderEnabled} onValueChange={handleToggleReminder} />
+          </AdaptiveGlassView>
 
-      <DateChangeModal
-        ref={dateModalRef}
-        selectedDate={activeDateField === 'expected' ? expectedDate ?? startDate : startDate}
-        onSelectDate={handleSelectDate}
-      />
+          {reminderEnabled && (
+            <AdaptiveGlassView style={styles.inputContainer}>
+              <TextInput
+                value={reminderTime}
+                onChangeText={handleReminderTimeChange}
+                placeholder="09:00"
+                placeholderTextColor="#7E8B9A"
+                keyboardType="numeric"
+                style={styles.textInput}
+              />
+            </AdaptiveGlassView>
+          )}
 
-      <DateChangeModal
-        ref={scheduleDateModalRef}
-        selectedDate={scheduleDate}
-        onSelectDate={handleScheduleDateChange}
-      />
-
-      <CustomModal ref={accountModalRef} variant="picker" fallbackSnapPoint="50%">
-        <View style={styles.pickerHeader}>
-          <Text style={styles.pickerTitle}>{modalStrings.accountPickerTitle}</Text>
-          <Pressable onPress={() => accountModalRef.current?.dismiss()} hitSlop={10}>
-            <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
+          <Pressable
+            onPress={handleSaveReminder}
+            style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
+          >
+            <AdaptiveGlassView style={styles.primaryButtonInner}>
+              <Text style={styles.primaryButtonText}>
+                {modalStrings.buttons.saveChanges}
+              </Text>
+            </AdaptiveGlassView>
           </Pressable>
-        </View>
-        <View style={styles.pickerList}>
-          {accounts.map((account) => {
-            const selected = account.id === selectedAccountId;
-            const currency = getAccountCurrency(account);
-            return (
-              <TouchableOpacity
-                key={account.id}
-                style={[styles.pickerItem, selected && styles.pickerItemSelected]}
-                onPress={() => handleSelectAccount(account.id)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.pickerIcon}>
-                  <Wallet size={16} color={theme.colors.textSecondary} />
-                </View>
-                <View style={styles.pickerInfo}>
-                  <Text style={styles.pickerName}>{account.name}</Text>
-                  <Text style={styles.pickerSubtitle}>
-                    {currency} • {account.subtitle ?? modalStrings.accountHelper}
-                  </Text>
-                </View>
-                <Ionicons
-                  name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={20}
-                  color={selected ? theme.colors.success : theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            );
-          })}
         </View>
       </CustomModal>
 
-      <CustomModal ref={currencyModalRef} variant="picker" fallbackSnapPoint="40%">
-        <View style={styles.pickerHeader}>
-          <Text style={styles.pickerTitle}>{modalStrings.currencyPickerTitle}</Text>
-          <Pressable onPress={() => currencyModalRef.current?.dismiss()} hitSlop={10}>
-            <Ionicons name="close" size={20} color={theme.colors.textSecondary} />
-          </Pressable>
+      {/* Account Picker Modal */}
+      <CustomModal ref={accountModalRef} variant="form" fallbackSnapPoint="50%">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{modalStrings.accountPickerTitle}</Text>
+            <Pressable onPress={() => accountModalRef.current?.dismiss()} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#7E8B9A" />
+            </Pressable>
+          </View>
+
+          <View style={styles.accountList}>
+            {accounts.map((account) => {
+              const selected = account.id === selectedAccountId;
+              return (
+                <Pressable
+                  key={account.id}
+                  onPress={() => handleSelectAccount(account.id)}
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.accountItem,
+                      { opacity: selected ? 1 : 0.7 },
+                    ]}
+                  >
+                    <View>
+                      <Text style={[styles.textInput, { marginBottom: 4 }]}>
+                        {account.name}
+                      </Text>
+                      <Text style={styles.accountBalance}>
+                        {getAccountCurrency(account)} • {account.subtitle ?? 'Account'}
+                      </Text>
+                    </View>
+                    {selected && (
+                      <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    )}
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
-        <View style={styles.pickerList}>
-          {AVAILABLE_FINANCE_CURRENCIES.map((currency) => {
-            const selected = currency === selectedCurrency;
-            return (
-              <TouchableOpacity
-                key={currency}
-                style={[styles.pickerItem, selected && styles.pickerItemSelected]}
-                onPress={() => handleSelectCurrency(currency)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.pickerInfo}>
-                  <Text style={styles.pickerName}>{currency}</Text>
-                </View>
-                <Ionicons
-                  name={selected ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={20}
-                  color={selected ? theme.colors.success : theme.colors.textSecondary}
-                />
-              </TouchableOpacity>
-            );
-          })}
+      </CustomModal>
+
+      {/* Currency Picker Modal */}
+      <CustomModal ref={currencyModalRef} variant="form" fallbackSnapPoint="40%">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{modalStrings.currencyPickerTitle}</Text>
+            <Pressable onPress={() => currencyModalRef.current?.dismiss()} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#7E8B9A" />
+            </Pressable>
+          </View>
+
+          <View style={styles.accountList}>
+            {AVAILABLE_FINANCE_CURRENCIES.map((currency) => {
+              const selected = currency === selectedCurrency;
+              return (
+                <Pressable
+                  key={currency}
+                  onPress={() => handleSelectCurrency(currency)}
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.accountItem,
+                      { opacity: selected ? 1 : 0.7 },
+                    ]}
+                  >
+                    <Text style={styles.textInput}>{currency}</Text>
+                    {selected && (
+                      <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    )}
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </CustomModal>
     </>
   );
 }
 
-const createStyles = (theme: Theme) =>
-  StyleSheet.create({
+const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    marginBottom: 24,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-  },
-  subtitle: {
-    marginTop: 4,
+  headerTitle: {
     fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  statusBadge: {
-    marginTop: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  statusText: {
-    fontSize: 12,
     fontWeight: '600',
-  },
-  typeToggle: {
-    marginTop: 20,
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 14,
-    padding: 4,
-    position: 'relative',
-  },
-  typeButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 12,
-    zIndex: 2,
-  },
-  typeButtonActive: {
-    zIndex: 3,
-  },
-  typeLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-  },
-  typeLabelActive: {
-    color: theme.colors.textPrimary,
-  },
-  typeIndicator: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 4,
-    width: 120,
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
+    letterSpacing: 1.2,
+    color: '#7E8B9A',
   },
   section: {
-    marginTop: 20,
+    marginBottom: 8,
+    paddingHorizontal: 20,
   },
-  actionsGrid: {
-    marginTop: 12,
-    gap: 12,
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    marginBottom: 12,
   },
-  actionCard: {
+  typeContainer: {
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+  },
+  typeOption: {
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  typeOptionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 14,
-  },
-  actionCardPressed: {
-    opacity: 0.9,
-  },
-  actionIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
-    alignItems: 'center',
     justifyContent: 'center',
-  },
-  actionText: {
-    flex: 1,
-    gap: 2,
-  },
-  actionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  actionSubtitle: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  inputWrapper: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
+  },
+  typeLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  inputContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   textInput: {
     fontSize: 15,
-    color: theme.colors.textPrimary,
+    fontWeight: '400',
+    color: '#FFFFFF',
   },
-  amountInput: {
-    fontSize: 28,
-    textAlign: 'center',
-  },
-  selectorCard: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 16,
+  accountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  selectorValue: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  selectorHint: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  dateCard: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  dateHint: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  expectedHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  clearButton: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
-  },
-  noteInputWrapper: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 14,
-  },
-  noteInput: {
-    minHeight: 60,
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    textAlignVertical: 'top',
-  },
-  footerSafeArea: {
-    paddingTop: 20,
-  },
-  footerButtons: {
+  dateTimeRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  modalHeader: {
+  dateTimeButton: {
+    flex: 1,
+    borderRadius: 16,
+  },
+  dateTimeChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  dateTimeText: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  expectedHeader: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
+  removeText: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#7E8B9A',
   },
-  modalSaveButton: {
-    marginTop: 20,
+  noteContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 80,
+  },
+  noteInput: {
+    fontSize: 15,
+    fontWeight: '400',
+    textAlignVertical: 'top',
+    color: '#FFFFFF',
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickActionCard: {
+    width: '48%',
+    minWidth: 150,
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  quickActionText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    paddingHorizontal: 20,
   },
   secondaryButton: {
     flex: 1,
-    borderRadius: 16,
     paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
     alignItems: 'center',
-    backgroundColor: theme.colors.surfaceElevated,
+    justifyContent: 'center',
   },
   secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#7E8B9A',
   },
-  saveButton: {
+  primaryButton: {
     flex: 1,
     borderRadius: 16,
+  },
+  primaryButtonInner: {
     paddingVertical: 16,
-    backgroundColor: theme.colors.primary,
     alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
   },
-  saveButtonDisabled: {
-    backgroundColor: theme.colors.textMuted,
-  },
-  saveButtonText: {
-    fontSize: 16,
+  primaryButtonText: {
+    fontSize: 15,
     fontWeight: '600',
-    color: theme.colors.textPrimary,
   },
   deleteButton: {
     marginTop: 16,
+    paddingVertical: 16,
     alignItems: 'center',
-    backgroundColor: "transparent",
-    borderColor: theme.colors.border,
-    paddingVertical: 18,
-    borderRadius: 16
+    paddingHorizontal: 20,
   },
   deleteButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: theme.colors.danger,
+    color: '#FF6B6B',
   },
-  pickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
+  pressed: {
+    opacity: 0.7,
   },
-  pickerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
+  pickerModal: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
-  pickerList: {
-    marginTop: 16,
-    gap: 14,
+  pickerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
-  pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 14,
+  pickerCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 24,
+    padding: 16,
     gap: 12,
   },
-  pickerItemSelected: {
-    borderColor: theme.colors.primary,
-  },
-  pickerIcon: {
-    width: 36,
-    height: 36,
+  pickerDoneButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surface,
   },
-  pickerInfo: {
-    flex: 1,
-  },
-  pickerName: {
+  pickerDoneText: {
     fontSize: 15,
     fontWeight: '600',
-    color: theme.colors.textPrimary,
+    color: '#FFFFFF',
   },
-  pickerSubtitle: {
-    marginTop: 2,
-    fontSize: 12,
-    color: theme.colors.textSecondary,
+  modalContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+    gap: 16,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  fullPaymentDescription: {
+    fontSize: 14,
+    color: '#7E8B9A',
+  },
+  accountList: {
+    gap: 12,
+  },
+  accountItem: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  accountBalance: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#7E8B9A',
   },
   reminderRow: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 8,
   },
   reminderLabel: {
     fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  reminderTimeWrapper: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 14,
-  },
-  reminderInput: {
-    marginTop: 6,
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  fullPaymentDescription: {
-    marginBottom: 12,
-    fontSize: 14,
-    color: theme.colors.textSecondary,
+    fontWeight: '400',
+    color: '#FFFFFF',
   },
 });
