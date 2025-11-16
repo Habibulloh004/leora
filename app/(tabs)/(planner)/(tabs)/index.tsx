@@ -1,7 +1,6 @@
 // app/(tabs)/(planner)/(tabs)/index.tsx
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useRef, useState } from 'react';
 import {
-  Dimensions,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -10,16 +9,9 @@ import {
   Text,
   UIManager,
   View,
+  GestureResponderEvent,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolate,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
+import { Swipeable } from 'react-native-gesture-handler';
 import {
   CheckSquare,
   Square,
@@ -34,8 +26,9 @@ import {
   Sun,
   SunMedium,
   Moon,
-  MoreHorizontal,
   RotateCcw,
+  Pencil,
+  ChevronDown,
 } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
@@ -52,7 +45,7 @@ import {
 } from '@/features/planner/useTasksStore';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
 import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
-import { getHabitTemplates } from '@/features/planner/habits/data';
+import { usePlannerHabitsStore } from '@/features/planner/useHabitsStore';
 import { startOfDay } from '@/utils/calendar';
 import { useModalStore } from '@/stores/useModalStore';
 
@@ -60,15 +53,12 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SWIPE_TRIGGER = SCREEN_WIDTH * 0.24;
-const MAX_SWIPE_DISTANCE = SCREEN_WIDTH * 0.85;
-
 // -----------------------------
 // Helpers
 // -----------------------------
 const energyIcons = (n: 1 | 2 | 3, color: string) =>
   Array.from({ length: n }).map((_, i) => <Zap key={i} size={14} color={color} />);
+const SWIPE_ACTIVATION_RATIO = 0.8;
 
 const sectionMeta = (
   theme: ReturnType<typeof useAppTheme>,
@@ -118,6 +108,12 @@ const statusBadgeColors = (
   }
 };
 
+type TaskMenuLabels = {
+  edit: string;
+  archive: string;
+  delete: string;
+};
+
 const durationToMinutes = (value?: string): number | undefined => {
   if (!value) return undefined;
   const normalized = value.toLowerCase();
@@ -139,9 +135,17 @@ export default function PlannerTasksTab() {
   const theme = useAppTheme();
   const { strings, locale } = useLocalization();
   const tasksStrings = strings.plannerScreens.tasks;
+  const taskMenuLabels = useMemo(
+    () => ({
+      edit: strings.plannerScreens.goals.cards.actions.edit,
+      archive: tasksStrings.actions.remove,
+      delete: tasksStrings.actions.delete,
+    }),
+    [strings.plannerScreens.goals.cards.actions.edit, tasksStrings.actions.delete, tasksStrings.actions.remove],
+  );
   const router = useRouter();
   const startFocusForTask = usePlannerFocusBridge((state) => state.startFocusForTask);
-  const habitTemplates = useMemo(() => getHabitTemplates(), []);
+  const habitEntities = usePlannerHabitsStore((state) => state.habits);
   const openPlannerTaskModal = useModalStore((state) => state.openPlannerTaskModal);
 
   const tasks = usePlannerTasksStore((state) => state.tasks);
@@ -195,8 +199,8 @@ export default function PlannerTasksTab() {
   const doneCount = (arr: PlannerTask[]) => arr.filter((t) => t.status === 'done').length;
   const dayOfWeek = normalizedSelectedDay.getDay();
   const habitsDueToday = useMemo(
-    () => habitTemplates.filter((habit) => habit.scheduleDays.includes(dayOfWeek)).length,
-    [habitTemplates, dayOfWeek],
+    () => habitEntities.filter((habit) => habit.scheduleDays.includes(dayOfWeek)).length,
+    [habitEntities, dayOfWeek],
   );
   const goalStepsToday = useMemo(() => {
     const goalIds = new Set<string>();
@@ -223,6 +227,12 @@ export default function PlannerTasksTab() {
       router.push({ pathname: '/focus-mode', params: { taskId: task.id } });
     },
     [router, startFocusForTask],
+  );
+  const handleEditTask = useCallback(
+    (task: PlannerTask) => {
+      openPlannerTaskModal({ mode: 'edit', taskId: task.id });
+    },
+    [openPlannerTaskModal],
   );
 
   const handleToggleExpand = useCallback(
@@ -321,9 +331,9 @@ export default function PlannerTasksTab() {
             onToggleDone={handleToggleDone}
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
-            onComplete={handleToggleDone}
             onFocusTask={handleStartFocus}
             onEditTask={handleEditTask}
+            menuLabels={taskMenuLabels}
             tasksStrings={tasksStrings}
           />
         )}
@@ -338,9 +348,9 @@ export default function PlannerTasksTab() {
             onToggleDone={handleToggleDone}
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
-            onComplete={handleToggleDone}
             onFocusTask={handleStartFocus}
             onEditTask={handleEditTask}
+            menuLabels={taskMenuLabels}
             tasksStrings={tasksStrings}
           />
         )}
@@ -355,9 +365,9 @@ export default function PlannerTasksTab() {
             onToggleDone={handleToggleDone}
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
-            onComplete={handleToggleDone}
             onFocusTask={handleStartFocus}
             onEditTask={handleEditTask}
+            menuLabels={taskMenuLabels}
             tasksStrings={tasksStrings}
           />
         )}
@@ -368,7 +378,9 @@ export default function PlannerTasksTab() {
             theme={theme}
             onRestore={handleRestore}
             onRemove={handleRemoveFromHistory}
+            menuLabels={taskMenuLabels}
             tasksStrings={tasksStrings}
+            onEditTask={handleEditTask}
           />
         )}
 
@@ -390,9 +402,9 @@ function Section({
   onToggleDone,
   onToggleExpand,
   onDelete,
-  onComplete,
   onFocusTask,
   onEditTask,
+  menuLabels,
   tasksStrings,
 }: {
   id: PlannerTaskSection;
@@ -403,9 +415,9 @@ function Section({
   onToggleDone: (id: string) => void;
   onToggleExpand: (id: string) => void;
   onDelete: (id: string) => void;
-  onComplete: (id: string) => void;
   onFocusTask: (task: PlannerTask) => void;
   onEditTask: (task: PlannerTask) => void;
+  menuLabels: TaskMenuLabels;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   const meta = sectionMeta(theme, id, tasksStrings.sections);
@@ -432,9 +444,9 @@ function Section({
             onToggleDone={() => onToggleDone(t.id)}
             onToggleExpand={() => onToggleExpand(t.id)}
             onDelete={() => onDelete(t.id)}
-            onComplete={() => onComplete(t.id)}
             onFocusTask={() => onFocusTask(t)}
             onEditTask={() => onEditTask(t)}
+            menuLabels={menuLabels}
             tasksStrings={tasksStrings}
           />
         ))}
@@ -443,20 +455,17 @@ function Section({
   );
 }
 
-// -----------------------------
-// Task Card (swipe actions, expand)
-// -----------------------------
 function TaskCard({
   task,
   theme,
   onToggleDone,
   onToggleExpand,
   onDelete,
-  onComplete,
   onRestore,
   mode = 'active',
   onFocusTask,
   onEditTask,
+  menuLabels,
   tasksStrings,
 }: {
   task: PlannerTask;
@@ -464,206 +473,181 @@ function TaskCard({
   onToggleDone: () => void;
   onToggleExpand: () => void;
   onDelete: () => void;
-  onComplete: () => void;
   onRestore?: () => void;
   mode?: 'active' | 'history';
   onFocusTask?: (task: PlannerTask) => void;
   onEditTask?: (task: PlannerTask) => void;
+  menuLabels: TaskMenuLabels;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
-  const translateX = useSharedValue(0);
-
+  const swipeRef = useRef<Swipeable | null>(null);
   const isHistory = mode === 'history';
-  const isCompleted = task.status === 'done';
-  const allowComplete = !isHistory && !isCompleted;
-  const allowDelete = isHistory ? !!onDelete : true;
-  const allowRestore = isHistory;
-  const hasSwipe = allowComplete || allowDelete || allowRestore;
-  const rightAction: 'complete' | 'restore' | null = allowRestore
-    ? 'restore'
-    : allowComplete
-    ? 'complete'
-    : null;
   const badgeColors = statusBadgeColors(theme, task.status);
   const statusLabel = tasksStrings.statuses[task.status];
   const canFocus = !isHistory && task.status !== 'done' && typeof onFocusTask === 'function';
   const focusLabel =
     task.status === 'in_progress' ? tasksStrings.focus.inProgress : tasksStrings.focus.cta;
-
-  const animatedCardStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  const rightBackgroundStyle = useAnimatedStyle(() => {
-    if (!rightAction) return { opacity: 0 };
-    const progress = interpolate(
-      Math.max(translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return { opacity: progress };
-  });
-
-  const rightContentStyle = useAnimatedStyle(() => {
-    if (!rightAction) return { opacity: 0, transform: [{ scale: 0.9 }] };
-    const progress = interpolate(
-      Math.max(translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return {
-      opacity: progress,
-      transform: [{ scale: 0.88 + progress * 0.22 }],
-    };
-  });
-
-  const leftBackgroundStyle = useAnimatedStyle(() => {
-    if (!allowDelete) return { opacity: 0 };
-    const progress = interpolate(
-      Math.max(-translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return { opacity: progress };
-  });
-
-  const leftContentStyle = useAnimatedStyle(() => {
-    if (!allowDelete) return { opacity: 0, transform: [{ scale: 0.9 }] };
-    const progress = interpolate(
-      Math.max(-translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return {
-      opacity: progress,
-      transform: [{ scale: 0.88 + progress * 0.22 }],
-    };
-  });
-
-  const gesture = useMemo(() => {
-    if (!hasSwipe) {
-      return Gesture.Pan().enabled(false);
-    }
-
-    return Gesture.Pan()
-      .activateAfterLongPress(300)
-      .onUpdate((event) => {
-        let translation = event.translationX;
-
-        if (!allowDelete && translation < 0) translation = 0;
-        if (!rightAction && translation > 0) translation = 0;
-
-        const min = allowDelete ? -MAX_SWIPE_DISTANCE : 0;
-        const max = rightAction ? MAX_SWIPE_DISTANCE : 0;
-        translateX.value = Math.max(min, Math.min(translation, max));
-      })
-      .onEnd(() => {
-        const currentX = translateX.value;
-
-        if (allowDelete && currentX < -SWIPE_TRIGGER) {
-          translateX.value = withTiming(-SCREEN_WIDTH, { duration: 220 }, () => {
-            runOnJS(onDelete)();
-          });
-          return;
-        }
-
-        if (rightAction && currentX > SWIPE_TRIGGER) {
-          const action = rightAction === 'restore' ? onRestore : onComplete;
-          translateX.value = withTiming(SWIPE_TRIGGER * 1.1, { duration: 180 }, (finished) => {
-            if (finished && action) {
-              runOnJS(action)();
-            }
-            translateX.value = withTiming(0, { duration: 220 });
-          });
-          return;
-        }
-
-        translateX.value = withTiming(0, { duration: 200 });
-      })
-      .onFinalize(() => {
-        if (!hasSwipe) {
-          translateX.value = 0;
-        }
-      });
-  }, [allowDelete, allowRestore, hasSwipe, onComplete, onDelete, onRestore, rightAction, translateX]);
-
-  const successBgColor = theme.colors.successBg ?? 'rgba(16,185,129,0.18)';
-  const deleteBgColor = theme.colors.dangerBg ?? 'rgba(239,68,68,0.18)';
-  const restoreColor = theme.colors.primary ?? '#3b82f6';
-  const restoreBgColor = `${restoreColor}1A`;
-
   const checkboxDisabled = isHistory;
   const checkboxPress = checkboxDisabled ? undefined : onToggleDone;
+  const deleteLabel = isHistory ? tasksStrings.actions.remove : menuLabels.delete;
+  const editBg = theme.colors.warning ?? '#f59e0b';
+  const deleteBg = theme.colors.danger ?? '#ef4444';
+  const restoreBg = theme.colors.surface;
+
+  const actionButtons = (
+    [
+      !isHistory && onEditTask
+        ? {
+            id: 'edit',
+            label: menuLabels.edit,
+            icon: <Pencil size={18} color="#fff" />,
+            background: editBg,
+            color: '#fff',
+            onPress: () => onEditTask(task),
+          }
+        : null,
+      isHistory && onRestore
+        ? {
+            id: 'restore',
+            label: tasksStrings.actions.restore,
+            icon: <RotateCcw size={18} color={theme.colors.textSecondary} />,
+            background: restoreBg,
+            color: theme.colors.textSecondary,
+            onPress: onRestore,
+          }
+        : null,
+      {
+        id: 'delete',
+        label: deleteLabel,
+        icon: <Trash2 size={18} color="#fff" />,
+        background: deleteBg,
+        color: '#fff',
+        onPress: onDelete,
+      },
+    ] as const
+  ).filter(Boolean) as {
+    id: string;
+    label: string;
+    icon: React.ReactNode;
+    background: string;
+    color: string;
+    onPress: () => void;
+  }[];
+  const canSwipe = actionButtons.length > 0;
+  const [swipeEnabled, setSwipeEnabled] = useState(true);
+  const [isSwipeOpen, setIsSwipeOpen] = useState(false);
+  const cardWidthRef = useRef(0);
+
+  const handleContainerLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
+    cardWidthRef.current = event.nativeEvent.layout.width ?? 0;
+  }, []);
+
+  const handleTouchStart = useCallback(
+    (event: GestureResponderEvent) => {
+      if (isSwipeOpen) {
+        setSwipeEnabled(true);
+        return false;
+      }
+      const width = cardWidthRef.current;
+      if (!width) {
+        setSwipeEnabled(false);
+        return false;
+      }
+      const startX = event.nativeEvent.locationX ?? 0;
+      const allow = startX >= width * SWIPE_ACTIVATION_RATIO;
+      setSwipeEnabled(allow);
+      return false;
+    },
+    [isSwipeOpen],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isSwipeOpen) {
+      setSwipeEnabled(true);
+    }
+  }, [isSwipeOpen]);
+
+  const handleActionPress = useCallback(
+    (handler: () => void) => () => {
+      swipeRef.current?.close();
+      handler();
+    },
+    [],
+  );
+
+  const handleCardPress = useCallback(() => {
+    swipeRef.current?.close();
+    onToggleExpand();
+  }, [onToggleExpand]);
+
+  const handleCheckboxPress = useCallback(() => {
+    swipeRef.current?.close();
+    checkboxPress?.();
+  }, [checkboxPress]);
+
+  const handleFocusPress = useCallback(() => {
+    swipeRef.current?.close();
+    onFocusTask?.(task);
+  }, [onFocusTask, task]);
+
+  const handleChevronPress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      handleCardPress();
+    },
+    [handleCardPress],
+  );
 
   return (
-    <View style={styles.swipeContainer}>
-      {rightAction && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.actionBackground,
-            styles.actionBackgroundLeft,
-            {
-              backgroundColor: rightAction === 'restore' ? restoreBgColor : successBgColor,
-              borderColor: theme.colors.border,
-            },
-            rightBackgroundStyle,
-          ]}
-        >
-          <Animated.View style={[styles.actionContent, rightContentStyle]}>
-            {rightAction === 'restore' ? (
-              <>
-                <RotateCcw size={18} color={restoreColor} />
-                <Text style={[styles.actionText, { color: restoreColor }]}>{tasksStrings.actions.restore}</Text>
-              </>
-            ) : (
-              <>
-                <CheckSquare size={18} color={theme.colors.success} />
-                <Text style={[styles.actionText, { color: theme.colors.success }]}>
-                  {tasksStrings.actions.complete}
-                </Text>
-              </>
-            )}
-          </Animated.View>
-        </Animated.View>
-      )}
-
-      {allowDelete && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.actionBackground,
-            styles.actionBackgroundRight,
-            { backgroundColor: deleteBgColor, borderColor: theme.colors.border },
-            leftBackgroundStyle,
-          ]}
-        >
-          <Animated.View style={[styles.actionContent, leftContentStyle]}>
-            <Trash2 size={18} color={theme.colors.danger} />
-            <Text style={[styles.actionText, { color: theme.colors.danger }]}>
-              {isHistory ? tasksStrings.actions.remove : tasksStrings.actions.delete}
-            </Text>
-          </Animated.View>
-        </Animated.View>
-      )}
-
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={animatedCardStyle}>
-          <AdaptiveGlassView
-            style={[
-              styles.card,
-              {
-                backgroundColor: theme.colors.card,
-                borderColor: theme.colors.border,
-                shadowOpacity: 0,
-              },
-            ]}
-          >
-            <Pressable style={styles.cardPress} onPress={onToggleExpand} disabled={isHistory}>
+    <View
+      onLayout={handleContainerLayout}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+    >
+      <Swipeable
+        ref={swipeRef}
+        enabled={(canSwipe && swipeEnabled) || isSwipeOpen}
+        overshootRight={false}
+        rightThreshold={80}
+        onSwipeableOpen={() => {
+          setIsSwipeOpen(true);
+          setSwipeEnabled(true);
+        }}
+        onSwipeableClose={() => {
+          setIsSwipeOpen(false);
+          setSwipeEnabled(true);
+        }}
+        renderRightActions={
+          canSwipe
+            ? () => (
+                <View style={styles.taskSwipeActions}>
+                  {actionButtons.map((action) => (
+                    <Pressable
+                      key={action.id}
+                      style={[styles.taskSwipeButton, { backgroundColor: action.background }]}
+                      onPress={handleActionPress(action.onPress)}
+                    >
+                      {action.icon}
+                      <Text style={[styles.taskSwipeLabel, { color: action.color }]}>{action.label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )
+            : undefined
+        }
+      >
+      <AdaptiveGlassView
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+            shadowOpacity: 0,
+          },
+        ]}
+      >
+        <Pressable style={styles.cardPress} onPress={handleCardPress}>
               {isHistory && task.deletedAt && (
                 <View style={[styles.historyBadge, { borderColor: theme.colors.danger }]}>
                   <Text style={[styles.historyBadgeText, { color: theme.colors.danger }]}>
@@ -680,7 +664,7 @@ function TaskCard({
               />
 
               <Pressable
-                onPress={checkboxPress}
+                onPress={handleCheckboxPress}
                 disabled={!checkboxPress}
                 style={styles.checkboxWrap}
               >
@@ -702,12 +686,14 @@ function TaskCard({
                 <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.context}</Text>
 
                 <View style={{ flex: 1 }} />
-                <View style={styles.energyRow}>
-                  {energyIcons(task.energy, theme.colors.textSecondary)}
-                </View>
-                {!isHistory && onEditTask && (
-                  <Pressable hitSlop={10} onPress={() => onEditTask(task)}>
-                    <MoreHorizontal size={16} color={theme.colors.textSecondary} />
+                <View style={styles.energyRow}>{energyIcons(task.energy, theme.colors.textSecondary)}</View>
+                {!isHistory && (
+                  <Pressable hitSlop={10} onPress={handleChevronPress}>
+                    <ChevronDown
+                      size={16}
+                      color={theme.colors.textSecondary}
+                      style={{ transform: [{ rotate: task.expanded ? '180deg' : '0deg' }] }}
+                    />
                   </Pressable>
                 )}
               </View>
@@ -718,7 +704,7 @@ function TaskCard({
                 </View>
                 {!isHistory && canFocus && (
                   <Pressable
-                    onPress={() => onFocusTask?.(task)}
+                    onPress={handleFocusPress}
                     style={[styles.focusButton, { borderColor: theme.colors.border }]}
                   >
                     <Zap size={12} color={theme.colors.textSecondary} />
@@ -777,11 +763,10 @@ function TaskCard({
                   </Text>
                 </View>
               )}
-            </Pressable>
-          </AdaptiveGlassView>
-        </Animated.View>
-      </GestureDetector>
-    </View>
+        </Pressable>
+      </AdaptiveGlassView>
+    </Swipeable>
+  </View>
   );
 }
 function HistorySection({
@@ -789,13 +774,17 @@ function HistorySection({
   theme,
   onRestore,
   onRemove,
+  menuLabels,
   tasksStrings,
+  onEditTask,
 }: {
   items: PlannerTask[];
   theme: ReturnType<typeof useAppTheme>;
   onRestore: (id: string) => void;
   onRemove: (id: string) => void;
+  menuLabels: TaskMenuLabels;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
+  onEditTask: (task: PlannerTask) => void;
 }) {
   return (
     <>
@@ -816,10 +805,11 @@ function HistorySection({
             onToggleDone={() => {}}
             onToggleExpand={() => {}}
             onDelete={() => onRemove(task.id)}
-            onComplete={() => {}}
             onRestore={() => onRestore(task.id)}
             mode="history"
+            menuLabels={menuLabels}
             tasksStrings={tasksStrings}
+            onEditTask={() => onEditTask(task)}
           />
         ))}
       </View>
@@ -889,6 +879,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     padding: 10,
+    overflow: 'hidden',
   },
   cardPress: { padding: 6, position: 'relative' },
   historyBadge: {
@@ -986,31 +977,23 @@ const styles = StyleSheet.create({
 
   aiRow: { paddingLeft: 38, paddingRight: 8, marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
   aiText: { fontSize: 12 },
-
-  swipeContainer: {
-    position: 'relative',
-    borderRadius: 16,
-    overflow: 'hidden',
+  taskSwipeActions: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    height: '100%',
   },
-  actionBackground: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderRadius: 16,
-    borderWidth: 1,
+  taskSwipeButton: {
+    width: 88,
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 12,
   },
-  actionBackgroundLeft: {
-    alignItems: 'flex-start',
+  taskSwipeLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    textAlign: 'center',
   },
-  actionBackgroundRight: {
-    alignItems: 'flex-end',
-  },
-  actionContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  actionText: { fontSize: 12, fontWeight: '700' },
 
   fab: {
     position: 'absolute',
@@ -1024,9 +1007,3 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 });
-  const handleEditTask = useCallback(
-    (task: PlannerTask) => {
-      openPlannerTaskModal({ mode: 'edit', taskId: task.id });
-    },
-    [openPlannerTaskModal],
-  );

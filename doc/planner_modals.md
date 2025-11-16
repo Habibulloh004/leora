@@ -27,3 +27,8 @@ This roadmap will be updated as each phase completes.
 - Added task metadata snapshots so AddTaskSheet can hydrate existing tasks.
 - Implemented edit flow wiring (TaskCard → modal store → AddTaskSheet) and update logic in the planner task store.
 - Native date/time pickers now mirror Goal/Habit behavior, ensuring a consistent UX.
+
+### Phase 2 Kickoff
+- GoalModal and HabitModal now react to `mode='edit'` requests by hydrating their forms from the selected card data.
+- Goal cards trigger the modal via `openPlannerGoalModal({ goalId, goal })`, while habit cards expose Edit/Delete actions (delete prunes the local list for now).
+- Habit buttons were made pressable and HabitModal/Habit tab wiring now respects the shared modal store.

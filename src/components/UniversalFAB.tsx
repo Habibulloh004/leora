@@ -354,10 +354,10 @@ export default function UniversalFAB() {
                               openPlannerTaskModal({ mode: 'create' });
                               break;
                             case 'planner-goal':
-                              openPlannerGoalModal('create');
+                              openPlannerGoalModal({ mode: 'create' });
                               break;
                             case 'planner-habit':
-                              openPlannerHabitModal('create');
+                              openPlannerHabitModal({ mode: 'create' });
                               break;
                             case 'planner-focus':
                               router.navigate('/focus-mode');

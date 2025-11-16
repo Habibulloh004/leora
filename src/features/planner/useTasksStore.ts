@@ -53,12 +53,24 @@ const KNOWN_HABIT_IDS: PlannerHabitId[] = ['h1', 'h2', 'h3', 'h4', 'h5'];
 
 const sanitizeGoalId = (value?: string | PlannerGoalId | null): PlannerGoalId | undefined => {
   if (!value) return undefined;
-  return KNOWN_GOAL_IDS.includes(value as PlannerGoalId) ? (value as PlannerGoalId) : undefined;
+  if (KNOWN_GOAL_IDS.includes(value as PlannerGoalId)) {
+    return value as PlannerGoalId;
+  }
+  if ((value as string).startsWith('goal-')) {
+    return value as PlannerGoalId;
+  }
+  return undefined;
 };
 
 const sanitizeHabitId = (value?: string | PlannerHabitId | null): PlannerHabitId | undefined => {
   if (!value) return undefined;
-  return KNOWN_HABIT_IDS.includes(value as PlannerHabitId) ? (value as PlannerHabitId) : undefined;
+  if (KNOWN_HABIT_IDS.includes(value as PlannerHabitId)) {
+    return value as PlannerHabitId;
+  }
+  if ((value as string).startsWith('habit-')) {
+    return value as PlannerHabitId;
+  }
+  return undefined;
 };
 
 const normalizeStoredTask = (task: PlannerTask, nowTs?: number): PlannerTask => {

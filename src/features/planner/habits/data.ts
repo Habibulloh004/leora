@@ -6,7 +6,7 @@ export type HabitCTAType = 'check' | 'timer' | 'chips' | 'dual';
 
 export interface HabitTemplate {
   id: PlannerHabitId;
-  contentKey: PlannerHabitId;
+  contentKey?: PlannerHabitId;
   streak: number;
   record: number;
   weeklyCompleted: number;
@@ -17,6 +17,19 @@ export interface HabitTemplate {
   chips?: string[];
   linkedGoalIds: PlannerGoalId[];
   scheduleDays: number[]; // 0 (Sun) - 6 (Sat)
+  titleOverride?: string;
+  aiNoteOverride?: string;
+  chipsOverride?: string[];
+  description?: string;
+  iconId?: string;
+  countingType?: 'create' | 'quit';
+  category?: string;
+  difficulty?: 'easy' | 'medium' | 'hard';
+  reminderEnabled?: boolean;
+  reminderTime?: string;
+  streakEnabled?: boolean;
+  streakDays?: number;
+  archived?: boolean;
 }
 
 export interface HabitCardModel extends HabitTemplate {
@@ -96,16 +109,19 @@ const HABIT_TEMPLATES: HabitTemplate[] = [
 
 export const buildHabits = (
   content: AppTranslations['plannerScreens']['habits']['data'],
+  templates: HabitTemplate[] = HABIT_TEMPLATES,
 ): HabitCardModel[] =>
-  HABIT_TEMPLATES.map((template) => {
-    const localized = content[template.contentKey];
-    return {
-      ...template,
-      title: localized.title,
-      aiNote: localized.aiNote,
-      chips: localized.chips ?? template.chips,
-      expanded: false,
-    };
-  });
+  templates
+    .filter((template) => !template.archived)
+    .map((template) => {
+      const localized = template.contentKey ? content[template.contentKey] : undefined;
+      return {
+        ...template,
+        title: template.titleOverride ?? localized?.title ?? template.contentKey ?? template.id,
+        aiNote: template.aiNoteOverride ?? localized?.aiNote,
+        chips: template.chipsOverride ?? localized?.chips ?? template.chips,
+        expanded: template.expanded ?? false,
+      };
+    });
 
 export const getHabitTemplates = () => HABIT_TEMPLATES;

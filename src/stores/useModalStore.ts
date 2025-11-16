@@ -5,6 +5,9 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { mmkvStorageAdapter } from '@/utils/storage';
 
 import type { Debt, Transaction } from '@/types/store.types';
+import type { Goal } from '@/features/planner/goals/data';
+import type { HabitCardModel } from '@/features/planner/habits/data';
+import type { AddTaskPayload } from '@/types/planner';
 
 type ModalMode = 'create' | 'edit';
 
@@ -38,6 +41,18 @@ interface PlannerModalState {
 
 interface PlannerTaskModalState extends PlannerModalState {
   taskId?: string | null;
+  goalId?: string | null;
+  initialPayload?: Partial<AddTaskPayload> | null;
+}
+
+interface PlannerGoalModalState extends PlannerModalState {
+  goalId?: string | null;
+  goal?: Goal | null;
+}
+
+interface PlannerHabitModalState extends PlannerModalState {
+  habitId?: string | null;
+  habit?: HabitCardModel | null;
 }
 
 interface ModalStore {
@@ -45,8 +60,8 @@ interface ModalStore {
   transferModal: TransferState;
   debtModal: DebtState;
   plannerTaskModal: PlannerTaskModalState;
-  plannerGoalModal: PlannerModalState;
-  plannerHabitModal: PlannerModalState;
+  plannerGoalModal: PlannerGoalModalState;
+  plannerHabitModal: PlannerHabitModalState;
   plannerFocusModal: PlannerModalState;
   insightsReportModal: PlannerModalState;
 
@@ -69,11 +84,16 @@ interface ModalStore {
   closeDebtModal: () => void;
   consumeDebtModalFocus: () => void;
 
-  openPlannerTaskModal: (options?: { mode?: ModalMode; taskId?: string }) => void;
+  openPlannerTaskModal: (options?: {
+    mode?: ModalMode;
+    taskId?: string;
+    goalId?: string;
+    initialPayload?: Partial<AddTaskPayload>;
+  }) => void;
   closePlannerTaskModal: () => void;
-  openPlannerGoalModal: (mode?: ModalMode) => void;
+  openPlannerGoalModal: (options?: { mode?: ModalMode; goalId?: string; goal?: Goal }) => void;
   closePlannerGoalModal: () => void;
-  openPlannerHabitModal: (mode?: ModalMode) => void;
+  openPlannerHabitModal: (options?: { mode?: ModalMode; habitId?: string; habit?: HabitCardModel }) => void;
   closePlannerHabitModal: () => void;
   openPlannerFocusModal: () => void;
   closePlannerFocusModal: () => void;
@@ -108,6 +128,22 @@ const initialPlannerTaskState: PlannerTaskModalState = {
   isOpen: false,
   mode: 'create',
   taskId: null,
+  goalId: null,
+  initialPayload: null,
+};
+
+const initialPlannerGoalState: PlannerGoalModalState = {
+  isOpen: false,
+  mode: 'create',
+  goalId: null,
+  goal: null,
+};
+
+const initialPlannerHabitState: PlannerHabitModalState = {
+  isOpen: false,
+  mode: 'create',
+  habitId: null,
+  habit: null,
 };
 
 const createModalStore: StateCreator<ModalStore> = (set) => ({
@@ -115,8 +151,8 @@ const createModalStore: StateCreator<ModalStore> = (set) => ({
   transferModal: initialTransferState,
   debtModal: initialDebtState,
   plannerTaskModal: initialPlannerTaskState,
-  plannerGoalModal: initialPlannerState,
-  plannerHabitModal: initialPlannerState,
+  plannerGoalModal: initialPlannerGoalState,
+  plannerHabitModal: initialPlannerHabitState,
   plannerFocusModal: { isOpen: false, mode: 'create' },
   insightsReportModal: { isOpen: false, mode: 'create' },
 
@@ -175,13 +211,31 @@ const createModalStore: StateCreator<ModalStore> = (set) => ({
         isOpen: true,
         mode: options?.mode ?? 'create',
         taskId: options?.taskId ?? null,
+        goalId: options?.goalId ?? null,
+        initialPayload: options?.initialPayload ?? null,
       },
     }),
   closePlannerTaskModal: () => set({ plannerTaskModal: initialPlannerTaskState }),
-  openPlannerGoalModal: (mode = 'create') => set({ plannerGoalModal: { isOpen: true, mode } }),
-  closePlannerGoalModal: () => set({ plannerGoalModal: initialPlannerState }),
-  openPlannerHabitModal: (mode = 'create') => set({ plannerHabitModal: { isOpen: true, mode } }),
-  closePlannerHabitModal: () => set({ plannerHabitModal: initialPlannerState }),
+  openPlannerGoalModal: (options) =>
+    set({
+      plannerGoalModal: {
+        isOpen: true,
+        mode: options?.mode ?? 'create',
+        goalId: options?.goalId ?? null,
+        goal: options?.goal ?? null,
+      },
+    }),
+  closePlannerGoalModal: () => set({ plannerGoalModal: initialPlannerGoalState }),
+  openPlannerHabitModal: (options) =>
+    set({
+      plannerHabitModal: {
+        isOpen: true,
+        mode: options?.mode ?? 'create',
+        habitId: options?.habitId ?? null,
+        habit: options?.habit ?? null,
+      },
+    }),
+  closePlannerHabitModal: () => set({ plannerHabitModal: initialPlannerHabitState }),
   openPlannerFocusModal: () => set({ plannerFocusModal: { isOpen: true, mode: 'create' } }),
   closePlannerFocusModal: () => set({ plannerFocusModal: { isOpen: false, mode: 'create' } }),
   openInsightsReportModal: () => set({ insightsReportModal: { isOpen: true, mode: 'create' } }),

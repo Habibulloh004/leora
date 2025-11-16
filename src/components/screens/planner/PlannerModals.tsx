@@ -9,7 +9,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useLocalization } from '@/localization/useLocalization';
 import { usePlannerTasksStore } from '@/features/planner/useTasksStore';
 import { buildPayloadFromTask, buildTaskInputFromPayload } from '@/features/planner/taskCreation';
-import type { AddTaskPayload } from '@/types/planner';
+import type { AddTaskPayload, PlannerGoalId } from '@/types/planner';
 
 export default function PlannerModals() {
   const { plannerTaskModal, closePlannerTaskModal } = useModalStore(
@@ -50,9 +50,15 @@ export default function PlannerModals() {
       }
     }
 
+    if (plannerTaskModal.initialPayload) {
+      sheetRef.current?.edit(plannerTaskModal.initialPayload);
+      return;
+    }
+
     sheetRef.current?.open();
   }, [
     closePlannerTaskModal,
+    plannerTaskModal.initialPayload,
     plannerTaskModal.isOpen,
     plannerTaskModal.mode,
     plannerTaskModal.taskId,
@@ -61,8 +67,11 @@ export default function PlannerModals() {
   ]);
 
   const handleSubmit = useCallback(
-    (payload: AddTaskPayload, options?: { editingTaskId?: string }) => {
+    (payload: AddTaskPayload, options?: { editingTaskId?: string; goalId?: PlannerGoalId | null }) => {
       const input = buildTaskInputFromPayload(payload, taskStrings);
+      if (options?.goalId) {
+        input.goalId = options.goalId;
+      }
       if (options?.editingTaskId) {
         updateTask(options.editingTaskId, input);
       } else {
@@ -77,7 +86,7 @@ export default function PlannerModals() {
       <AddTaskSheet
         ref={sheetRef}
         onCreate={(payload, options) => {
-          handleSubmit(payload, { editingTaskId: options?.editingTaskId });
+          handleSubmit(payload, { editingTaskId: options?.editingTaskId, goalId: plannerTaskModal.goalId as PlannerGoalId | null });
           if (!options?.keepOpen) {
             closePlannerTaskModal();
           }
