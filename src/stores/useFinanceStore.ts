@@ -17,6 +17,7 @@ import {
 import { useNotificationsStore } from "@/stores/useNotificationsStore";
 import { mmkvStorageAdapter } from "@/utils/storage";
 import { normalizeFinanceCurrency } from "@/utils/financeCurrency";
+import { handleFinanceTransactionEvent } from "@/features/goals/gpe/events";
 
 type BudgetState = "exceeding" | "within" | "fixed";
 type BudgetPeriod = "weekly" | "monthly" | "quarterly" | "yearly";
@@ -762,7 +763,8 @@ const createFinanceStore: StateCreator<FinanceStore> = (set, get) => ({
   getAccountById: (id) => get().accounts.find((account) => account.id === id),
 
   // Transaction actions
-  addTransaction: (transactionData) =>
+  addTransaction: (transactionData) => {
+    let financeEventPayload: Parameters<typeof handleFinanceTransactionEvent>[0] | null = null;
     set((state) => {
       const account = state.accounts.find(
         (acc) => acc.id === transactionData.accountId
@@ -776,6 +778,15 @@ const createFinanceStore: StateCreator<FinanceStore> = (set, get) => ({
           ? new Date(transactionData.date)
           : new Date(),
       };
+      if (tx.goalId) {
+        financeEventPayload = {
+          goalId: tx.goalId,
+          amount: tx.amount,
+          currency: normalizeFinanceCurrency(tx.currency as FinanceCurrency),
+          direction: tx.type === "outcome" ? "outflow" : "inflow",
+          sourceId: tx.id,
+        };
+      }
 
       const updatedAccounts = applyTransactionToAccounts(
         state.accounts,
@@ -794,7 +805,11 @@ const createFinanceStore: StateCreator<FinanceStore> = (set, get) => ({
           updatedAccounts
         ),
       };
-    }),
+    });
+    if (financeEventPayload) {
+      handleFinanceTransactionEvent(financeEventPayload);
+    }
+  },
 
   updateTransaction: (id, updates) =>
     set((state) => {

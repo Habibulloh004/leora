@@ -10,6 +10,10 @@ import type {
   PlannerTaskSection,
   PlannerTaskStatus,
 } from '@/types/planner';
+import {
+  handleTaskCompletedEvent,
+  handleFocusSessionEvent,
+} from '@/features/goals/gpe/events';
 
 export type { PlannerTask, PlannerTaskStatus, PlannerTaskSection } from '@/types/planner';
 
@@ -247,6 +251,27 @@ const seedTasks: PlannerTask[] = [
 
 const initialTasks: PlannerTask[] = seedTasks.map((task) => normalizeStoredTask(task, now));
 
+const parseDurationMinutes = (duration?: string): number | undefined => {
+  if (!duration) return undefined;
+  const lower = duration.toLowerCase();
+  const numberMatch = lower.match(/([0-9]+(?:\\.[0-9]+)?)/);
+  if (!numberMatch) return undefined;
+  const numeric = parseFloat(numberMatch[1] ?? '0');
+  if (Number.isNaN(numeric)) return undefined;
+  if (lower.includes('hour')) {
+    return Math.round(numeric * 60);
+  }
+  return Math.round(numeric);
+};
+
+const emitTaskEvents = (payloads: Parameters<typeof handleTaskCompletedEvent>[0][]) => {
+  payloads.forEach((payload) => handleTaskCompletedEvent(payload));
+};
+
+const emitFocusEvents = (payloads: Parameters<typeof handleFocusSessionEvent>[0][]) => {
+  payloads.forEach((payload) => handleFocusSessionEvent(payload));
+};
+
 export const usePlannerTasksStore = create<PlannerTaskStore>()(
   persist(
     (set, get) => ({
@@ -301,7 +326,8 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
             }),
           };
         }),
-      toggleDone: (id) =>
+      toggleDone: (id) => {
+        const completionEvents: Parameters<typeof handleTaskCompletedEvent>[0][] = [];
         set((state) => {
           const nowTs = Date.now();
           return {
@@ -318,6 +344,14 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
                   nowTs,
                 );
               }
+              if (task.goalId) {
+                completionEvents.push({
+                  goalId: task.goalId,
+                  taskId: task.id,
+                  durationMinutes: parseDurationMinutes(task.duration),
+                  milestoneId: task.milestoneId,
+                });
+              }
               return {
                 ...task,
                 status: 'done',
@@ -328,7 +362,11 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
               };
             }),
           };
-        }),
+        });
+        if (completionEvents.length) {
+          emitTaskEvents(completionEvents);
+        }
+      },
       toggleExpand: (id) =>
         set((state) => ({
           tasks: state.tasks.map((task) =>
@@ -397,20 +435,42 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
               : task,
           ),
         })),
-      completeFocus: (id, outcome = 'done') =>
+      completeFocus: (id, outcome = 'done') => {
+        const completionEvents: Parameters<typeof handleTaskCompletedEvent>[0][] = [];
+        const focusEvents: Parameters<typeof handleFocusSessionEvent>[0][] = [];
         set((state) => ({
           tasks: state.tasks.map((task) => {
             if (task.id !== id) return task;
+            const finishedAt = Date.now();
+            const elapsedMinutes =
+              task.focusMeta?.startedAt != null
+                ? Math.max(1, Math.round((finishedAt - task.focusMeta.startedAt) / 60000))
+                : task.focusMeta?.durationMinutes;
+            if (elapsedMinutes && task.goalId) {
+              focusEvents.push({
+                goalId: task.goalId,
+                sessionId: `${task.id}-focus-${finishedAt}`,
+                minutes: elapsedMinutes,
+              });
+            }
             const base: PlannerTask = {
               ...task,
               focusMeta: {
                 ...task.focusMeta,
                 isActive: false,
-                lastSessionEndedAt: Date.now(),
+                lastSessionEndedAt: finishedAt,
                 lastResult: outcome,
               },
             };
             if (outcome === 'done') {
+              if (task.goalId) {
+                completionEvents.push({
+                  goalId: task.goalId,
+                  taskId: task.id,
+                  durationMinutes: parseDurationMinutes(task.duration),
+                  milestoneId: task.milestoneId,
+                });
+              }
               return { ...base, status: 'done' };
             }
             if (outcome === 'move') {
@@ -424,7 +484,14 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
             }
             return normalizeTask(base);
           }),
-        })),
+        }));
+        if (completionEvents.length) {
+          emitTaskEvents(completionEvents);
+        }
+        if (focusEvents.length) {
+          emitFocusEvents(focusEvents);
+        }
+      },
       rescheduleTask: (id, newDate) =>
         set((state) => ({
           tasks: state.tasks.map((task) => {

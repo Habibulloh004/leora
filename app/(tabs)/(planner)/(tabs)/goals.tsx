@@ -10,12 +10,10 @@ import { type Goal, type GoalSection } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
 import { usePlannerTasksStore, type PlannerTask } from '@/features/planner/useTasksStore';
 import { usePlannerHabitsStore } from '@/features/planner/useHabitsStore';
-import type { PlannerGoalId, GoalSummaryKey } from '@/types/planner';
 import { useModalStore } from '@/stores/useModalStore';
-import { usePlannerGoalsStore, type PlannerGoalEntity } from '@/features/planner/useGoalsStore';
+import { usePlannerGoalsStore } from '@/features/planner/useGoalsStore';
 import { useShallow } from 'zustand/react/shallow';
-
-const SUMMARY_ORDER: GoalSummaryKey[] = ['left', 'pace', 'prediction'];
+import { buildGoalViewModel } from '@/features/planner/goals/viewModel';
 
 const GoalsPage: React.FC = () => {
   const styles = useStyles();
@@ -57,43 +55,12 @@ const GoalsPage: React.FC = () => {
     [locale],
   );
 
-  const convertGoalEntity = useCallback(
-    (entity: PlannerGoalEntity): Goal => {
-      const localized = entity.contentKey ? goalStrings.data[entity.contentKey] : undefined;
-      const summary = SUMMARY_ORDER.map((key) => ({
-        label: goalStrings.cards.summaryLabels[key],
-        value: entity.summaryOverrides?.[key] ?? localized?.summary?.[key] ?? '—',
-      }));
-      const milestoneLabels = entity.milestoneLabels ?? localized?.milestones ?? ['25%', '50%', '75%', '100%'];
-      const historySource = entity.historyOverrides ?? localized?.history ?? [];
-      return {
-        id: entity.id,
-        title: entity.customTitle ?? localized?.title ?? goalStrings.header.title,
-        progress: entity.progress,
-        currentAmount: entity.currentAmount ?? localized?.currentAmount ?? '',
-        targetAmount: entity.targetAmount ?? localized?.targetAmount ?? '',
-        summary,
-        milestones: milestoneLabels.map((label, index) => ({
-          percent: (index + 1) * 25,
-          label,
-        })),
-        history: historySource.map((entry, index) => ({
-          ...entry,
-          id: `${entity.id}-history-${index}`,
-        })),
-        aiTip: entity.aiTipOverride ?? localized?.aiTip ?? '',
-        aiTipHighlight: entity.aiTipHighlightOverride ?? localized?.aiTipHighlight,
-      };
-    },
-    [goalStrings],
-  );
-
   const localizedGoals = useMemo(
     () =>
       goalEntities
         .filter((goal) => !goal.archived)
-        .map((entity) => ({ entity, goal: convertGoalEntity(entity) })),
-    [convertGoalEntity, goalEntities],
+        .map((entity) => ({ entity, goal: buildGoalViewModel(entity, goalStrings, locale) })),
+    [goalEntities, goalStrings, locale],
   );
 
   const sections = useMemo(() => {

@@ -4,6 +4,10 @@ import type { WidgetType } from '@/config/widgetConfig';
 import { HOME_DASHBOARD_DATA } from '@/data/homeDashboardData';
 import type { CalendarIndicatorsMap, HomeDataStatus, ProgressData } from '@/types/home';
 import { startOfDay, toISODateKey } from '@/utils/calendar';
+import { buildGoalsWidgetState } from '@/features/goals/gpe/homeBridge';
+import { ensureGoalProgressEngine } from '@/features/goals/gpe/engine';
+
+ensureGoalProgressEngine();
 
 type WidgetDailyState = {
   hasData: boolean;
@@ -53,9 +57,13 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
   const runFetch = useCallback((target: Date) => {
     const isoKey = toISODateKey(target);
     const snapshot = HOME_DASHBOARD_DATA[isoKey];
+    const goalsBridge = buildGoalsWidgetState();
 
     setProgress(snapshot?.progress ?? null);
-    setWidgetData(snapshot?.widgets ?? {});
+    setWidgetData({
+      ...snapshot?.widgets,
+      goals: { hasData: goalsBridge.hasData, props: { goals: goalsBridge.goals } },
+    });
   }, []);
 
   useEffect(() => {

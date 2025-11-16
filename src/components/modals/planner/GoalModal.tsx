@@ -32,6 +32,7 @@ import {
   type PlannerGoalEntity,
 } from '@/features/planner/useGoalsStore';
 import type { PlannerGoalId } from '@/types/planner';
+import { LightIcon } from '@assets/icons';
 
 // SVG Icons
 const WalletIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
@@ -630,6 +631,7 @@ export default function PlannerGoalModal() {
             {/* AI Suggestions */}
             <View style={styles.aiSuggestion}>
               <Text style={styles.aiSuggestionIcon}>💡</Text>
+              <LightIcon/>
               <View style={styles.aiTextContainer}>
                 <Text style={styles.aiText}>
                   AI:{' '}

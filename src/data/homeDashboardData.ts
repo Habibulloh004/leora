@@ -75,6 +75,10 @@ const novemberGoals: Goal[] = [
     target: 1000000,
     unit: 'USD',
     category: 'professional',
+    status: 'at_risk',
+    eta: '2025-02-01',
+    paceActual: 120000,
+    paceRequired: 180000,
   },
   {
     id: 'g2',
@@ -84,6 +88,10 @@ const novemberGoals: Goal[] = [
     target: 5,
     unit: 'talks',
     category: 'professional',
+    status: 'on_track',
+    eta: '2024-12-01',
+    paceActual: 0.8,
+    paceRequired: 0.6,
   },
   {
     id: 'g3',
@@ -93,6 +101,10 @@ const novemberGoals: Goal[] = [
     target: 4,
     unit: 'books',
     category: 'personal',
+    status: 'behind',
+    eta: '2025-04-01',
+    paceActual: 0.2,
+    paceRequired: 0.33,
   },
 ];
 

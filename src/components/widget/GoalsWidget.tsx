@@ -17,7 +17,14 @@ interface GoalItemProps {
   goal: Goal;
   hasData: boolean;
   placeholderText: string;
+  locale: string;
 }
+
+const STATUS_LABELS: Record<Goal['status'], string> = {
+  on_track: 'On track',
+  at_risk: 'At risk',
+  behind: 'Behind',
+};
 
 const MOCK_GOALS: Goal[] = [
   {
@@ -28,6 +35,8 @@ const MOCK_GOALS: Goal[] = [
     target: 5000000,
     unit: 'UZS',
     category: 'financial',
+    status: 'on_track',
+    eta: '2025-03-01',
   },
   {
     id: '2',
@@ -37,6 +46,8 @@ const MOCK_GOALS: Goal[] = [
     target: 24,
     unit: 'books',
     category: 'personal',
+    status: 'at_risk',
+    eta: '2024-12-01',
   },
   {
     id: '3',
@@ -46,15 +57,21 @@ const MOCK_GOALS: Goal[] = [
     target: 100,
     unit: '%',
     category: 'personal',
+    status: 'behind',
+    eta: '2025-05-01',
   },
 ];
 
-const GoalItem = ({ goal, hasData, placeholderText }: GoalItemProps) => {
+const GoalItem = ({ goal, hasData, placeholderText, locale }: GoalItemProps) => {
   const theme = useAppTheme();
   const width: DimensionValue = hasData ? `${goal.progress}%` : '6%';
   const barColor = hasData ? theme.colors.textSecondary : `${theme.colors.textSecondary}26`;
   const titleColor = hasData ? theme.colors.textPrimary : theme.colors.textMuted;
   const metaColor = hasData ? theme.colors.textSecondary : theme.colors.textMuted;
+  const etaLabel = goal.eta
+    ? new Intl.DateTimeFormat(locale, { month: 'short', year: 'numeric' }).format(new Date(goal.eta))
+    : '—';
+  const statusLabel = STATUS_LABELS[goal.status] ?? '';
 
   return (
     <View style={styles.goalItem}>
@@ -66,13 +83,16 @@ const GoalItem = ({ goal, hasData, placeholderText }: GoalItemProps) => {
       <View style={[styles.progressBarContainer, { backgroundColor: theme.colors.background }]}>
         <View style={[styles.progressBar, { width, backgroundColor: barColor }]} />
       </View>
+      <Text style={[styles.goalMeta, { color: metaColor }]}>
+        {hasData ? `${statusLabel} · ETA ${etaLabel}` : placeholderText}
+      </Text>
 
-  <Text style={[styles.goalTarget, { color: theme.colors.textMuted }]}>
-    {hasData
-      ? `${goal.current.toLocaleString()} / ${goal.target.toLocaleString()} ${goal.unit}`
-      : placeholderText}
-  </Text>
-</View>
+      <Text style={[styles.goalTarget, { color: theme.colors.textMuted }]}>
+        {hasData
+          ? `${goal.current.toLocaleString(locale)} / ${goal.target.toLocaleString(locale)} ${goal.unit}`
+          : placeholderText}
+      </Text>
+    </View>
   );
 };
 
@@ -96,6 +116,8 @@ export default function GoalsWidget({
         target: 0,
         unit: '',
         category: 'personal' as Goal['category'],
+        status: 'on_track',
+        eta: undefined,
       })),
     [strings],
   );
@@ -130,6 +152,7 @@ export default function GoalsWidget({
             goal={goal}
             hasData={hasData}
             placeholderText={strings.widgets.goals.placeholderText}
+            locale={locale}
           />
         ))}
       </AdaptiveGlassView>
@@ -194,5 +217,9 @@ const styles = StyleSheet.create({
   },
   goalTarget: {
     fontSize: 12,
+  },
+  goalMeta: {
+    fontSize: 12,
+    marginBottom: 4,
   },
 });

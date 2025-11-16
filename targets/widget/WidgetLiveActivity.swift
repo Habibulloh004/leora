@@ -121,31 +121,40 @@ private struct FocusExpandedContent: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .fill(palette.background)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(palette.chrome, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(palette.chrome, lineWidth: 0.5)
                 )
 
-            VStack(spacing: 24) {
+            VStack(spacing: 16) {
                 headerRow
                 progressBlock
                 timerBlock
                 controlsRow
             }
-            .padding(.vertical, 28)
-            .padding(.horizontal, 28)
+            .padding(.vertical, 20)
+            .padding(.horizontal, 20)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 8)
     }
 
     private var headerRow: some View {
-        HStack {
+        HStack(spacing: 8) {
+            // Logo Image
+            if let uiImage = UIImage(named: "icon") {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 20, height: 20)
+                    .opacity(0.9)
+            }
+            
             Text("LEORA")
-                .font(.caption.weight(.semibold))
-                .kerning(1.2)
-                .foregroundStyle(palette.title.opacity(0.9))
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .kerning(1.0)
+                .foregroundStyle(palette.title.opacity(0.85))
 
             Spacer()
 
@@ -154,36 +163,36 @@ private struct FocusExpandedContent: View {
     }
 
     private var progressBlock: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(FocusStatusFormatter.display(from: snapshot).uppercased())
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(palette.subtitle.opacity(0.85))
+                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                .foregroundStyle(palette.subtitle.opacity(0.8))
                 .lineLimit(1)
 
             FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
-                .frame(height: 10)
+                .frame(height: 8)
 
             HStack {
                 Text("Elapsed \(FocusTimeFormatter.formattedElapsed(snapshot: snapshot, fallback: "--"))")
                 Spacer()
                 Text("Total \(FocusTimeFormatter.formattedTotal(snapshot: snapshot, fallback: "--"))")
             }
-            .font(.caption2.weight(.medium))
-            .foregroundStyle(palette.subtitle.opacity(0.7))
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .foregroundStyle(palette.subtitle.opacity(0.65))
             .monospacedDigit()
         }
     }
 
     private var timerBlock: some View {
         Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot))
-            .font(.system(size: 56, weight: .bold, design: .rounded))
+            .font(.system(size: 48, weight: .bold, design: .rounded))
             .monospacedDigit()
             .foregroundStyle(palette.title)
             .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private var controlsRow: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 16) {
             FocusControlIcon(symbol: "gearshape.fill", palette: palette)
             FocusControlIcon(
                 symbol: snapshot.isRunning ? "pause.fill" : "play.fill",
@@ -203,29 +212,38 @@ private func FocusDynamicIslandExpandedRegions(
 ) -> DynamicIslandExpandedContent<some View> {
     DynamicIslandExpandedRegion(.center, priority: 1) {
         FocusDynamicIslandTimeline(state: state) { snapshot in
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    // Logo for Dynamic Island
+                    if let uiImage = UIImage(named: "icon") {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(width: 16, height: 16)
+                            .opacity(0.85)
+                    }
+                    
                     Text("LEORA")
-                        .font(.caption2.weight(.semibold))
-                        .kerning(1.0)
-                        .foregroundStyle(palette.title.opacity(0.9))
+                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .kerning(0.8)
+                        .foregroundStyle(palette.title.opacity(0.85))
 
                     Spacer()
 
                     FocusLinkButton(palette: palette)
-                        .frame(width: 26, height: 26)
+                        .frame(width: 22, height: 22)
                 }
 
                 Text(FocusStatusFormatter.display(from: snapshot).uppercased())
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(palette.subtitle.opacity(0.8))
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
+                    .foregroundStyle(palette.subtitle.opacity(0.75))
                     .lineLimit(1)
 
                 FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
-                    .frame(height: 6)
+                    .frame(height: 5)
 
                 Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot))
-                    .font(.system(size: 32, weight: .semibold, design: .rounded))
+                    .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(palette.title)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -235,16 +253,17 @@ private func FocusDynamicIslandExpandedRegions(
 
     DynamicIslandExpandedRegion(.bottom) {
         FocusDynamicIslandTimeline(state: state) { snapshot in
-            HStack(alignment: .center) {
-                FocusControlIcon(symbol: "gearshape.fill", palette: palette)
-                Spacer(minLength: 24)
+            HStack(alignment: .center, spacing: 20) {
+                FocusControlIcon(symbol: "gearshape.fill", palette: palette, size: 40)
+                Spacer(minLength: 20)
                 FocusControlIcon(
                     symbol: snapshot.isRunning ? "pause.fill" : "play.fill",
                     palette: palette,
-                    isEmphasized: true
+                    isEmphasized: true,
+                    size: 40
                 )
-                Spacer(minLength: 24)
-                FocusControlIcon(symbol: "stop.fill", palette: palette)
+                Spacer(minLength: 20)
+                FocusControlIcon(symbol: "stop.fill", palette: palette, size: 40)
             }
         }
     }
@@ -270,7 +289,7 @@ private struct FocusCompactTimerLabel: View {
         TimelineView(.animation(minimumInterval: 1)) { timeline in
             let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
             Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot, fallback: "--"))
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundStyle(palette.title)
         }
@@ -284,13 +303,13 @@ private struct FocusMinimalTimer: View {
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 8.0)) { timeline in
             let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
-            VStack(spacing: 6) {
-                FocusTimerGlyph(size: 16, palette: palette)
+            VStack(spacing: 5) {
+                FocusTimerGlyph(size: 14, palette: palette)
                 FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
-                    .frame(width: 34, height: 4)
+                    .frame(width: 32, height: 3.5)
             }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 4)
+            .padding(.vertical, 3)
+            .padding(.horizontal, 3)
         }
     }
 }
@@ -301,15 +320,15 @@ private struct FocusTimerGlyph: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: size, style: .continuous)
+            RoundedRectangle(cornerRadius: size * 0.9, style: .continuous)
                 .fill(palette.badge)
-            RoundedRectangle(cornerRadius: size, style: .continuous)
-                .stroke(palette.chrome, lineWidth: 1)
+            RoundedRectangle(cornerRadius: size * 0.9, style: .continuous)
+                .stroke(palette.chrome, lineWidth: 0.5)
             Image(systemName: "timer")
-                .font(.system(size: size * 0.72, weight: .semibold))
+                .font(.system(size: size * 0.7, weight: .semibold))
                 .foregroundStyle(palette.accent)
         }
-        .frame(width: size * 1.8, height: size * 1.8)
+        .frame(width: size * 1.7, height: size * 1.7)
     }
 }
 
@@ -317,18 +336,19 @@ private struct FocusControlIcon: View {
     let symbol: String
     let palette: FocusColorPalette
     var isEmphasized: Bool = false
+    var size: CGFloat = 42
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: 18, weight: .semibold))
+            .font(.system(size: size * 0.4, weight: .semibold))
             .foregroundStyle(isEmphasized ? Color.black.opacity(0.85) : palette.title)
-            .frame(width: 46, height: 46)
+            .frame(width: size, height: size)
             .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
                     .fill(isEmphasized ? palette.accent : palette.badge)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .stroke(isEmphasized ? palette.accent.opacity(0.7) : palette.chrome, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
+                            .stroke(isEmphasized ? palette.accent.opacity(0.7) : palette.chrome, lineWidth: 0.5)
                     )
             )
     }
@@ -339,15 +359,15 @@ private struct FocusLinkButton: View {
 
     var body: some View {
         Image(systemName: "arrow.up.right")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(palette.title.opacity(0.85))
-            .frame(width: 28, height: 28)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(palette.title.opacity(0.8))
+            .frame(width: 24, height: 24)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(palette.badge)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .stroke(palette.chrome, lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(palette.chrome, lineWidth: 0.5)
                     )
             )
     }
@@ -377,7 +397,7 @@ private struct FocusLinearProgressBar: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: max(filled, clamped > 0 ? 3 : 0))
+                    .frame(width: max(filled, clamped > 0 ? 2.5 : 0))
             }
             .animation(.easeOut(duration: 0.25), value: progress)
         }

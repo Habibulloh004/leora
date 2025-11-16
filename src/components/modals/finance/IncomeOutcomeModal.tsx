@@ -147,14 +147,14 @@ export default function IncomeOutcomeModal() {
         setSelectedCategory(transaction.category ?? null);
         setSelectedAccount(transaction.accountId);
         setTransactionDate(new Date(transaction.date));
-        
+
         // Парсим note для извлечения информации о долге
         const noteText = transaction.note ?? transaction.description ?? '';
-        const debtRegex = tab === 'income' 
-          ? /^(.+?) owes me\.?\s?(.*)$/i 
+        const debtRegex = tab === 'income'
+          ? /^(.+?) owes me\.?\s?(.*)$/i
           : /^I owe to (.+?)\.?\s?(.*)$/i;
         const match = noteText.match(debtRegex);
-        
+
         if (match) {
           setDebtPerson(match[1].trim());
           setNote(match[2]?.trim() ?? '');
@@ -352,11 +352,11 @@ export default function IncomeOutcomeModal() {
     // Формируем заметку с информацией о долге
     let finalNote = note.trim();
     if (isDebtCategory && debtPerson.trim()) {
-      const debtInfo = activeTab === 'income' 
-        ? `${debtPerson} owes me` 
+      const debtInfo = activeTab === 'income'
+        ? `${debtPerson} owes me`
         : `I owe to ${debtPerson}`;
-      finalNote = finalNote 
-        ? `${debtInfo}. ${finalNote}` 
+      finalNote = finalNote
+        ? `${debtInfo}. ${finalNote}`
         : debtInfo;
     }
 
@@ -425,43 +425,49 @@ export default function IncomeOutcomeModal() {
 
             {/* Tab Switcher */}
             <View style={styles.section}>
-              <AdaptiveGlassView style={styles.tabContainer}>
+              <View style={styles.tabContainer}>
                 <Pressable
-                  onPress={() => setActiveTab('income')}
-                  style={({ pressed }) => [
-                    styles.tabOption,
-                    { borderBottomWidth: 1 },
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <View style={styles.tabOptionContent}>
-                    <Text
-                      style={[
-                        styles.tabLabel,
-                        { color: activeTab === 'income' ? '#FFFFFF' : '#7E8B9A' },
-                      ]}
-                    >
-                      {t('finance.income')}
-                    </Text>
-                  </View>
+                  style={[styles.tabOption]}
+
+                  onPress={() => setActiveTab('income')}>
+                  <AdaptiveGlassView
+                    style={[styles.tabOption]}
+                  >
+                    <View style={styles.tabOptionContent}>
+                      <Text
+                        style={[
+                          styles.tabLabel,
+                          { color: activeTab === 'income' ? '#FFFFFF' : '#7E8B9A' },
+                        ]}
+                      >
+                        {t('finance.income')}
+                      </Text>
+                    </View>
+                  </AdaptiveGlassView>
                 </Pressable>
 
                 <Pressable
-                  onPress={() => setActiveTab('outcome')}
-                  style={({ pressed }) => [styles.tabOption, pressed && styles.pressed]}
-                >
-                  <View style={styles.tabOptionContent}>
-                    <Text
-                      style={[
-                        styles.tabLabel,
-                        { color: activeTab === 'outcome' ? '#FFFFFF' : '#7E8B9A' },
-                      ]}
-                    >
-                      {t('finance.outcome')}
-                    </Text>
-                  </View>
+                  style={[styles.tabOption]}
+
+                  onPress={() => setActiveTab('outcome')}>
+                  <AdaptiveGlassView
+                    style={[styles.tabOption,{
+
+                    }]}
+                  >
+                    <View style={styles.tabOptionContent}>
+                      <Text
+                        style={[
+                          styles.tabLabel,
+                          { color: activeTab === 'outcome' ? '#FFFFFF' : '#7E8B9A' },
+                        ]}
+                      >
+                        {t('finance.outcome')}
+                      </Text>
+                    </View>
+                  </AdaptiveGlassView>
                 </Pressable>
-              </AdaptiveGlassView>
+              </View>
             </View>
 
             {/* Amount */}
@@ -582,16 +588,16 @@ export default function IncomeOutcomeModal() {
             {isDebtCategory && (
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>
-                  {activeTab === 'income' 
-                    ? 'Who owes you?' 
+                  {activeTab === 'income'
+                    ? 'Who owes you?'
                     : 'Who do you owe?'}
                 </Text>
                 <AdaptiveGlassView style={styles.inputContainer}>
                   <TextInput
                     value={debtPerson}
                     onChangeText={setDebtPerson}
-                    placeholder={activeTab === 'income' 
-                      ? 'Person name who owes you' 
+                    placeholder={activeTab === 'income'
+                      ? 'Person name who owes you'
                       : 'Person name you owe to'}
                     placeholderTextColor="#7E8B9A"
                     style={styles.textInput}
@@ -803,9 +809,13 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     borderRadius: 16,
+    flexDirection: "row",
+    gap:12
   },
   tabOption: {
-    borderBottomColor: 'rgba(255,255,255,0.1)',
+    flex: 1,
+    paddingVertical: 2,
+    borderRadius:20,
   },
   tabOptionContent: {
     flexDirection: 'row',

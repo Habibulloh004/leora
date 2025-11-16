@@ -1,5 +1,5 @@
 // app/(tabs)/(planner)/(tabs)/index.tsx
-import React, { useMemo, useCallback, useRef, useState } from 'react';
+import React, { useMemo, useCallback, useRef } from 'react';
 import {
   LayoutAnimation,
   Platform,
@@ -11,16 +11,12 @@ import {
   View,
   GestureResponderEvent,
 } from 'react-native';
-import { Swipeable } from 'react-native-gesture-handler';
 import {
   CheckSquare,
   Square,
   Zap,
   AlarmClock,
-  CalendarDays,
   Heart,
-  Bell,
-  ClipboardList,
   Trash2,
   Filter,
   Sun,
@@ -32,6 +28,7 @@ import {
 } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import EdgeSwipeable, { EdgeSwipeableRef } from '@/components/interaction/EdgeSwipeable';
 import { useAppTheme } from '@/constants/theme';
 import { useLocalization } from '@/localization/useLocalization';
 import type { AppTranslations } from '@/localization/strings';
@@ -54,11 +51,18 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 // -----------------------------
+// Constants
+// -----------------------------
+const SWIPE_ICON_SIZE = 18;
+const SWIPE_TEXT_SIZE = 11;
+const SWIPE_BUTTON_WIDTH = 70;
+const SWIPE_BUTTON_GAP = 8;
+
+// -----------------------------
 // Helpers
 // -----------------------------
 const energyIcons = (n: 1 | 2 | 3, color: string) =>
   Array.from({ length: n }).map((_, i) => <Zap key={i} size={14} color={color} />);
-const SWIPE_ACTIVATION_RATIO = 0.8;
 
 const sectionMeta = (
   theme: ReturnType<typeof useAppTheme>,
@@ -233,12 +237,6 @@ export default function PlannerTasksTab() {
       router.push({ pathname: '/focus-mode', params: { taskId: task.id } });
     },
     [router, startFocusForTask],
-  );
-  const handleEditTask = useCallback(
-    (task: PlannerTask) => {
-      openPlannerTaskModal({ mode: 'edit', taskId: task.id });
-    },
-    [openPlannerTaskModal],
   );
 
   const handleToggleExpand = useCallback(
@@ -439,9 +437,12 @@ function Section({
           {done}/{total} {tasksStrings.sectionCountLabel}
         </Text>
       </View>
-      <Text style={[styles.sectionTip, { color: theme.colors.textTertiary }]}>{tasksStrings.sectionTip}</Text>
+      <Text style={[styles.sectionTip, {
+        paddingHorizontal: 12,
+        color: theme.colors.textTertiary
+      }]}>{tasksStrings.sectionTip}</Text>
 
-      <View style={{ gap: 10 }}>
+      <View>
         {items.map((t) => (
           <TaskCard
             key={t.id}
@@ -486,7 +487,6 @@ function TaskCard({
   menuLabels: TaskMenuLabels;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
-  const swipeRef = useRef<Swipeable | null>(null);
   const isHistory = mode === 'history';
   const badgeColors = statusBadgeColors(theme, task.status);
   const statusLabel = tasksStrings.statuses[task.status];
@@ -499,33 +499,49 @@ function TaskCard({
   const editBg = theme.colors.warning ?? '#f59e0b';
   const deleteBg = theme.colors.danger ?? '#ef4444';
   const restoreBg = theme.colors.surface;
+  const doneBg = theme.colors.success ?? '#16a34a';
+  const undoBg = theme.colors.primary ?? '#3b82f6';
 
   const actionButtons = (
     [
+      !isHistory
+        ? {
+          id: 'done',
+          label: task.status === 'done' ? tasksStrings.actions.restore : tasksStrings.actions.complete,
+          icon: task.status === 'done' ? (
+            <RotateCcw size={SWIPE_ICON_SIZE} color="#fff" />
+          ) : (
+            <CheckSquare size={SWIPE_ICON_SIZE} color="#fff" />
+          ),
+          background: task.status === 'done' ? undoBg : doneBg,
+          color: '#fff',
+          onPress: onToggleDone,
+        }
+        : null,
       !isHistory && onEditTask
         ? {
-            id: 'edit',
-            label: menuLabels.edit,
-            icon: <Pencil size={18} color="#fff" />,
-            background: editBg,
-            color: '#fff',
-            onPress: () => onEditTask(task),
-          }
+          id: 'edit',
+          label: menuLabels.edit,
+          icon: <Pencil size={SWIPE_ICON_SIZE} color="#fff" />,
+          background: editBg,
+          color: '#fff',
+          onPress: () => onEditTask(task),
+        }
         : null,
       isHistory && onRestore
         ? {
-            id: 'restore',
-            label: tasksStrings.actions.restore,
-            icon: <RotateCcw size={18} color={theme.colors.textSecondary} />,
-            background: restoreBg,
-            color: theme.colors.textSecondary,
-            onPress: onRestore,
-          }
+          id: 'restore',
+          label: tasksStrings.actions.restore,
+          icon: <RotateCcw size={SWIPE_ICON_SIZE} color={theme.colors.textSecondary} />,
+          background: restoreBg,
+          color: theme.colors.textSecondary,
+          onPress: onRestore,
+        }
         : null,
       {
         id: 'delete',
         label: deleteLabel,
-        icon: <Trash2 size={18} color="#fff" />,
+        icon: <Trash2 size={SWIPE_ICON_SIZE} color="#fff" />,
         background: deleteBg,
         color: '#fff',
         onPress: onDelete,
@@ -540,43 +556,18 @@ function TaskCard({
     onPress: () => void;
   }[];
   const canSwipe = actionButtons.length > 0;
-  const [swipeEnabled, setSwipeEnabled] = useState(true);
-  const [isSwipeOpen, setIsSwipeOpen] = useState(false);
-  const cardWidthRef = useRef(0);
-
-  const handleContainerLayout = useCallback((event: { nativeEvent: { layout: { width: number } } }) => {
-    cardWidthRef.current = event.nativeEvent.layout.width ?? 0;
-  }, []);
-
-  const handleTouchStart = useCallback(
-    (event: GestureResponderEvent) => {
-      if (isSwipeOpen) {
-        setSwipeEnabled(true);
-        return false;
-      }
-      const width = cardWidthRef.current;
-      if (!width) {
-        setSwipeEnabled(false);
-        return false;
-      }
-      const startX = event.nativeEvent.locationX ?? 0;
-      const allow = startX >= width * SWIPE_ACTIVATION_RATIO;
-      setSwipeEnabled(allow);
-      return false;
-    },
-    [isSwipeOpen],
-  );
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isSwipeOpen) {
-      setSwipeEnabled(true);
-    }
-  }, [isSwipeOpen]);
+  const swipeRef = useRef<EdgeSwipeableRef>(null);
 
   const handleActionPress = useCallback(
     (handler: () => void) => () => {
-      swipeRef.current?.close();
-      handler();
+      // Close swipeable with a slight delay to show visual feedback
+      setTimeout(() => {
+        swipeRef.current?.close();
+      }, 100);
+      // Execute the action after a small delay
+      setTimeout(() => {
+        handler();
+      }, 150);
     },
     [],
   );
@@ -603,46 +594,41 @@ function TaskCard({
     },
     [handleCardPress],
   );
-
   return (
-    <View
-      onLayout={handleContainerLayout}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
+    <EdgeSwipeable
+      ref={swipeRef}
+      activationEdgeRatio={0.2}
+      enabled={canSwipe}
+      overshootRight={false}
+      overshootLeft={false}
+      rightThreshold={60}
+      renderRightActions={
+        canSwipe
+          ? () => (
+            <View style={styles.taskSwipeActions}>
+              {actionButtons.map((action, index) => (
+                <Pressable
+                  key={action.id}
+                  style={[
+                    styles.taskSwipeButton,
+                    {
+                      backgroundColor: action.background,
+                      marginLeft: index === 0 ? SWIPE_BUTTON_GAP : SWIPE_BUTTON_GAP / 2,
+                      marginRight: index === actionButtons.length - 1 ? SWIPE_BUTTON_GAP : SWIPE_BUTTON_GAP / 2,
+                      marginVertical: SWIPE_BUTTON_GAP,
+                    },
+                  ]}
+                  onPress={handleActionPress(action.onPress)}
+                >
+                  {action.icon}
+                  <Text style={[styles.taskSwipeLabel, { color: action.color }]}>{action.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          )
+          : undefined
+      }
     >
-      <Swipeable
-        ref={swipeRef}
-        enabled={(canSwipe && swipeEnabled) || isSwipeOpen}
-        overshootRight={false}
-        rightThreshold={80}
-        onSwipeableOpen={() => {
-          setIsSwipeOpen(true);
-          setSwipeEnabled(true);
-        }}
-        onSwipeableClose={() => {
-          setIsSwipeOpen(false);
-          setSwipeEnabled(true);
-        }}
-        renderRightActions={
-          canSwipe
-            ? () => (
-                <View style={styles.taskSwipeActions}>
-                  {actionButtons.map((action) => (
-                    <Pressable
-                      key={action.id}
-                      style={[styles.taskSwipeButton, { backgroundColor: action.background }]}
-                      onPress={handleActionPress(action.onPress)}
-                    >
-                      {action.icon}
-                      <Text style={[styles.taskSwipeLabel, { color: action.color }]}>{action.label}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-              )
-            : undefined
-        }
-      >
       <AdaptiveGlassView
         style={[
           styles.card,
@@ -650,129 +636,103 @@ function TaskCard({
             backgroundColor: theme.colors.card,
             borderColor: theme.colors.border,
             shadowOpacity: 0,
+            marginHorizontal:12,
+            marginVertical:6
           },
         ]}
       >
         <Pressable style={styles.cardPress} onPress={handleCardPress}>
-              {isHistory && task.deletedAt && (
-                <View style={[styles.historyBadge, { borderColor: theme.colors.danger }]}>
-                  <Text style={[styles.historyBadgeText, { color: theme.colors.danger }]}>
-                    {tasksStrings.history.deletedBadge}
-                  </Text>
-                </View>
-              )}
+          {isHistory && task.deletedAt && (
+            <View style={[styles.historyBadge, { borderColor: theme.colors.danger }]}>
+              <Text style={[styles.historyBadgeText, { color: theme.colors.danger }]}>
+                {tasksStrings.history.deletedBadge}
+              </Text>
+            </View>
+          )}
 
-              <View
-                style={[
-                  styles.stripe,
-                  { backgroundColor: stripeColor(theme, task) },
-                ]}
-              />
+          <View
+            style={[
+              styles.stripe,
+              { backgroundColor: stripeColor(theme, task) },
+            ]}
+          />
 
+          <Pressable
+            onPress={handleCheckboxPress}
+            disabled={!checkboxPress}
+            style={styles.checkboxWrap}
+          >
+            {task.status === 'done' ? (
+              <CheckSquare size={16} color={theme.colors.success} />
+            ) : task.deletedAt ? (
+              <Trash2 size={16} color={theme.colors.danger} />
+            ) : (
+              <Square size={16} color={theme.colors.textSecondary} />
+            )}
+          </Pressable>
+
+          <View style={styles.metaRow}>
+            <AlarmClock size={14} color={theme.colors.textSecondary} />
+            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.start}</Text>
+            <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
+            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.duration}</Text>
+            <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
+            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.context}</Text>
+
+            <View style={{ flex: 1 }} />
+            <View style={styles.energyRow}>{energyIcons(task.energy, theme.colors.textSecondary)}</View>
+          </View>
+
+          <View style={styles.statusRow}>
+            <View style={[styles.statusPill, { backgroundColor: badgeColors.bg }]}>
+              <Text style={[styles.statusPillText, { color: badgeColors.text }]}>{statusLabel}</Text>
+            </View>
+            {!isHistory && canFocus && (
               <Pressable
-                onPress={handleCheckboxPress}
-                disabled={!checkboxPress}
-                style={styles.checkboxWrap}
+                onPress={handleFocusPress}
+                style={[styles.focusButton, { borderColor: theme.colors.border }]}
               >
-                {task.status === 'done' ? (
-                  <CheckSquare size={16} color={theme.colors.success} />
-                ) : task.deletedAt ? (
-                  <Trash2 size={16} color={theme.colors.danger} />
-                ) : (
-                  <Square size={16} color={theme.colors.textSecondary} />
-                )}
+                <Zap size={12} color={theme.colors.textSecondary} />
+                <Text style={[styles.focusButtonText, { color: theme.colors.textSecondary }]}>
+                  {focusLabel}
+                </Text>
               </Pressable>
+            )}
+          </View>
 
-              <View style={styles.metaRow}>
-                <AlarmClock size={14} color={theme.colors.textSecondary} />
-                <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.start}</Text>
-                <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
-                <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.duration}</Text>
-                <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
-                <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.context}</Text>
+          <View style={styles.titleRow}>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.title,
+                {
+                  color: theme.colors.white,
+                  textDecorationLine: task.status === 'done' ? 'line-through' : 'none',
+                  opacity: task.status === 'done' ? 0.6 : 1,
+                },
+              ]}
+            >
+              {task.title}
+            </Text>
 
-                <View style={{ flex: 1 }} />
-                <View style={styles.energyRow}>{energyIcons(task.energy, theme.colors.textSecondary)}</View>
-                {!isHistory && (
-                  <Pressable hitSlop={10} onPress={handleChevronPress}>
-                    <ChevronDown
-                      size={16}
-                      color={theme.colors.textSecondary}
-                      style={{ transform: [{ rotate: task.expanded ? '180deg' : '0deg' }] }}
-                    />
-                  </Pressable>
-                )}
-              </View>
+            {task.projectHeart && <Heart size={16} color={theme.colors.textSecondary} />}
 
-              <View style={styles.statusRow}>
-                <View style={[styles.statusPill, { backgroundColor: badgeColors.bg }]}>
-                  <Text style={[styles.statusPillText, { color: badgeColors.text }]}>{statusLabel}</Text>
-                </View>
-                {!isHistory && canFocus && (
-                  <Pressable
-                    onPress={handleFocusPress}
-                    style={[styles.focusButton, { borderColor: theme.colors.border }]}
-                  >
-                    <Zap size={12} color={theme.colors.textSecondary} />
-                    <Text style={[styles.focusButtonText, { color: theme.colors.textSecondary }]}>
-                      {focusLabel}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
+            <Text style={[styles.timeRight, { color: theme.colors.textSecondary }]}>
+              {task.afterWork ? '' : task.costUZS ?? ''}
+            </Text>
+          </View>
 
-              <View style={styles.titleRow}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.title,
-                    {
-                      color: theme.colors.white,
-                      textDecorationLine: task.status === 'done' ? 'line-through' : 'none',
-                      opacity: task.status === 'done' ? 0.6 : 1,
-                    },
-                  ]}
-                >
-                  {task.title}
-                </Text>
-
-                {task.projectHeart && <Heart size={16} color={theme.colors.textSecondary} />}
-
-                <Text style={[styles.timeRight, { color: theme.colors.textSecondary }]}>
-                  {task.afterWork ? '' : task.costUZS ?? ''}
-                </Text>
-              </View>
-
-              {task.expanded && !isHistory && (
-                <View style={styles.expandArea}>
-                  {task.desc ? (
-                    <Text style={[styles.desc, { color: theme.colors.textSecondary }]} numberOfLines={3}>
-                      {task.desc}
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.iconBar}>
-                    <Bell size={16} color={theme.colors.textSecondary} />
-                    <ClipboardList size={16} color={theme.colors.textSecondary} />
-                    <Heart size={16} color={theme.colors.textSecondary} />
-                    <CalendarDays size={16} color={theme.colors.textSecondary} />
-                    <Trash2 size={16} color={theme.colors.textSecondary} />
-                  </View>
-                </View>
-              )}
-
-              {task.aiNote && !isHistory && (
-                <View style={styles.aiRow}>
-                  <SunMedium size={14} color={theme.colors.textSecondary} />
-                  <Text numberOfLines={1} style={[styles.aiText, { color: theme.colors.textSecondary }]}>
-                    {tasksStrings.aiPrefix} {task.aiNote}
-                  </Text>
-                </View>
-              )}
+          {task.aiNote && !isHistory && (
+            <View style={styles.aiRow}>
+              <SunMedium size={14} color={theme.colors.textSecondary} />
+              <Text numberOfLines={1} style={[styles.aiText, { color: theme.colors.textSecondary }]}>
+                {tasksStrings.aiPrefix} {task.aiNote}
+              </Text>
+            </View>
+          )}
         </Pressable>
       </AdaptiveGlassView>
-    </Swipeable>
-  </View>
+    </EdgeSwipeable>
   );
 }
 function HistorySection({
@@ -802,14 +762,14 @@ function HistorySection({
       </View>
       <Text style={[styles.sectionTip, { color: theme.colors.textTertiary }]}>{tasksStrings.history.tip}</Text>
 
-      <View style={{ gap: 10 }}>
+      <View>
         {items.map((task) => (
           <TaskCard
             key={task.id}
             task={task}
             theme={theme}
-            onToggleDone={() => {}}
-            onToggleExpand={() => {}}
+            onToggleDone={() => { }}
+            onToggleExpand={() => { }}
             onDelete={() => onRemove(task.id)}
             onRestore={() => onRestore(task.id)}
             mode="history"
@@ -828,7 +788,7 @@ function HistorySection({
 // -----------------------------
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  content: { paddingHorizontal: 12, paddingBottom: 40, gap: 16 },
+  content: { paddingBottom: 40, gap: 16 },
 
   topBar: {
     paddingTop: 10,
@@ -859,6 +819,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 12
   },
   sectionTip: {
     paddingLeft: 4,
@@ -885,7 +846,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     padding: 10,
-    overflow: 'hidden',
   },
   cardPress: { padding: 6, position: 'relative' },
   historyBadge: {
@@ -989,16 +949,17 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   taskSwipeButton: {
-    width: 88,
+    width: SWIPE_BUTTON_WIDTH,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
-    paddingVertical: 12,
+    gap: 4,
+    borderRadius: 12,
   },
   taskSwipeLabel: {
-    fontSize: 11,
+    fontSize: SWIPE_TEXT_SIZE,
     fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.2,
   },
 
   fab: {

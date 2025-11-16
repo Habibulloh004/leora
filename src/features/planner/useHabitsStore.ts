@@ -9,6 +9,7 @@ import {
   HabitTemplate,
   getHabitTemplates,
 } from '@/features/planner/habits/data';
+import { handleHabitMarkedEvent } from '@/features/goals/gpe/events';
 
 export interface PlannerHabitEntity extends HabitTemplate {
   description?: string;
@@ -43,6 +44,7 @@ type PlannerHabitsStore = {
 
 const STORAGE_ID = 'planner-habits';
 const storage = createJSONStorage(() => mmkvStorageAdapter);
+const HABIT_COMPLETION_MINUTES = 20;
 
 const withDefaults = (template: HabitTemplate): PlannerHabitEntity => ({
   ...template,
@@ -135,19 +137,35 @@ export const usePlannerHabitsStore = create<PlannerHabitsStore>()(
               : habit,
           ),
         })),
-      setWeeklyCompletion: (id, completionPct) =>
+      setWeeklyCompletion: (id, completionPct) => {
+        const events: Parameters<typeof handleHabitMarkedEvent>[0][] = [];
         set((state) => ({
-          habits: state.habits.map((habit) =>
-            habit.id === id
-              ? {
-                  ...habit,
-                  weeklyCompleted: Math.round(
-                    ((habit.weeklyTarget || 1) * completionPct) / 100,
-                  ),
-                }
-              : habit,
-          ),
-        })),
+          habits: state.habits.map((habit) => {
+            if (habit.id !== id) {
+              return habit;
+            }
+            const nextCompleted = Math.round(((habit.weeklyTarget || 1) * completionPct) / 100);
+            const delta = nextCompleted - (habit.weeklyCompleted ?? 0);
+            if (delta > 0 && habit.linkedGoalIds?.length) {
+              habit.linkedGoalIds.forEach((goalId) =>
+                events.push({
+                  goalId,
+                  habitId: id,
+                  completed: true,
+                  minutes: delta * HABIT_COMPLETION_MINUTES,
+                }),
+              );
+            }
+            return {
+              ...habit,
+              weeklyCompleted: nextCompleted,
+            };
+          }),
+        }));
+        if (events.length) {
+          events.forEach((event) => handleHabitMarkedEvent(event));
+        }
+      },
     }),
     {
       name: STORAGE_ID,
