@@ -18,6 +18,9 @@
       "bundleIdentifier": "com.habibulloh.leora",
       "icon": "./assets/images/logoIos.png",
       "buildNumber": "1.2.0",
+      "entitlements": {
+        "com.apple.security.application-groups": ["group.com.habibulloh.leora"]
+      },
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": false,
         "NSCameraUsageDescription": "LEORA needs access to your camera to capture receipts and documents.",
@@ -27,7 +30,9 @@
         "NSPhotoLibraryAddUsageDescription": "LEORA needs permission to save images.",
         "UIBackgroundModes": [
           "audio"
-        ]
+        ],
+        "NSSupportsLiveActivities": true,
+        "NSSupportsLiveActivitiesFrequentUpdates": false
       }
     },
     "android": {
@@ -49,6 +54,7 @@
     },
     "plugins": [
       "expo-router",
+      "@bacons/apple-targets",
       [
         "expo-splash-screen",
         {
