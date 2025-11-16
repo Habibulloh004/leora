@@ -14,12 +14,25 @@ type GoalCardProps = {
   onAddValue?: () => void;
   onRefresh?: () => void;
   onEdit?: () => void;
+  nextStep?: { title: string; dueDate?: string };
+  relationSummary?: { tasks: number; habits: number };
+  onAddStep?: () => void;
 };
 
-const GoalCardComponent: React.FC<GoalCardProps> = ({ goal, onPress, onAddValue, onRefresh, onEdit }) => {
+const GoalCardComponent: React.FC<GoalCardProps> = ({
+  goal,
+  onPress,
+  onAddValue,
+  onRefresh,
+  onEdit,
+  nextStep,
+  relationSummary,
+  onAddStep,
+}) => {
   const theme = useAppTheme();
   const { strings } = useLocalization();
   const cardStrings = strings.plannerScreens.goals.cards.actions;
+  const goalStrings = strings.plannerScreens.goals;
 
   const intercept = useCallback(
     (handler?: () => void) => (event: GestureResponderEvent) => {
@@ -84,6 +97,35 @@ const GoalCardComponent: React.FC<GoalCardProps> = ({ goal, onPress, onAddValue,
                 </Text>
               </View>
             ))}
+          </View>
+
+          <View style={[styles.nextStepCard, { backgroundColor: theme.colors.surfaceMuted }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.nextStepLabel, { color: theme.colors.textSecondary }]}>
+                {goalStrings.nextStep.title}
+              </Text>
+              <Text style={[styles.nextStepTitle, { color: theme.colors.white }]} numberOfLines={1}>
+                {nextStep?.title ?? goalStrings.nextStep.empty}
+              </Text>
+              {nextStep?.dueDate && (
+                <Text style={[styles.nextStepDue, { color: theme.colors.textTertiary }]}>{nextStep.dueDate}</Text>
+              )}
+              {relationSummary && (
+                <Text style={[styles.linkedSummary, { color: theme.colors.textTertiary }]}>
+                  {goalStrings.linkedSummary
+                    .replace('{tasks}', String(relationSummary.tasks))
+                    .replace('{habits}', String(relationSummary.habits))}
+                </Text>
+              )}
+            </View>
+            {onAddStep && (
+              <Pressable onPress={intercept(onAddStep)} style={[styles.nextStepAction, { borderColor: theme.colors.border }]}>
+                <Plus size={14} color={theme.colors.primary} />
+                <Text style={[styles.nextStepActionText, { color: theme.colors.primary }]}>
+                  {goalStrings.nextStep.cta}
+                </Text>
+              </Pressable>
+            )}
           </View>
 
           <View style={styles.actionsRow}>
@@ -219,6 +261,47 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     flexShrink: 1,
     textAlign: 'right',
+  },
+  nextStepCard: {
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  nextStepLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  nextStepTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  nextStepDue: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  linkedSummary: {
+    marginTop: 4,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  nextStepAction: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  nextStepActionText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   actionsRow: {
     flexDirection: 'row',

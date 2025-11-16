@@ -15,12 +15,12 @@ export default function PlannerFab() {
           <Ionicons name="timer-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.menuText}>Start focus</Text>
         </Pressable>
-        <Pressable style={styles.menuButton} onPress={() => openTask('create')}>
+        <Pressable style={styles.menuButton} onPress={() => openTask({ mode: 'create' })}>
           <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.menuText}>Add task</Text>
         </Pressable>
       </View>
-      <Pressable style={styles.mainFab} onPress={() => openTask('create')}>
+      <Pressable style={styles.mainFab} onPress={() => openTask({ mode: 'create' })}>
         <Ionicons name="add" size={26} color="#000" />
       </Pressable>
     </View>

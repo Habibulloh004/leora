@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  Alert,
   AppState,
   AppStateStatus,
   KeyboardAvoidingView,
@@ -26,13 +27,16 @@ import Animated, {
 import type { SharedValue } from 'react-native-reanimated';
 import Svg, { Circle, Defs, G, RadialGradient, Stop } from 'react-native-svg';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { useAppTheme, useThemeColors } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
 import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { TECHNIQUES, TOGGLE_OPTIONS, TechniqueConfig } from '@/features/focus/types';
 import { formatTimer } from '@/features/focus/utils';
+import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
+import { usePlannerTasksStore } from '@/features/planner/useTasksStore';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -167,6 +171,16 @@ export default function FocusModeScreen() {
   const colors = useThemeColors();
   const theme = useAppTheme();
   const router = useRouter();
+  const params = useLocalSearchParams<{ taskId?: string }>();
+  const { strings } = useLocalization();
+  const focusStrings = strings.plannerScreens.tasks.focus;
+  const goalTitles = strings.plannerScreens.goals.data;
+  const focusedTaskId = usePlannerFocusBridge((state) => state.focusedTaskId);
+  const startFocusForTask = usePlannerFocusBridge((state) => state.startFocusForTask);
+  const completeFocusedTask = usePlannerFocusBridge((state) => state.completeFocusedTask);
+  const focusTask = usePlannerTasksStore((state) =>
+    state.tasks.find((task) => task.id === focusedTaskId),
+  );
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const { timerState, elapsedSeconds, totalSeconds, start, pause, resume, reset, syncElapsed, startedAt } = useFocusTimerStore((state) => state);
@@ -205,12 +219,39 @@ export default function FocusModeScreen() {
     },
     [elapsedSeconds, recordSession, reset, totalSeconds],
   );
+  const promptFocusCompletion = useCallback(() => {
+    if (!focusTask) return;
+    Alert.alert(
+      focusStrings.finishTitle.replace('{task}', focusTask.title),
+      focusStrings.finishMessage,
+      [
+        { text: focusStrings.keep, style: 'cancel' },
+        { text: focusStrings.move, onPress: () => completeFocusedTask('move') },
+        { text: focusStrings.done, onPress: () => completeFocusedTask('done') },
+      ],
+    );
+  }, [completeFocusedTask, focusStrings, focusTask]);
+  const finalizeFocus = useCallback(
+    (completed: boolean) => {
+      handleSessionComplete(completed);
+      if (focusTask) {
+        promptFocusCompletion();
+      }
+    },
+    [focusTask, handleSessionComplete, promptFocusCompletion],
+  );
 
   useEffect(() => {
     if (timerState === 'ready') {
       reset(workMinutes * 60);
     }
   }, [reset, timerState, workMinutes]);
+  useEffect(() => {
+    const targetTaskId = Array.isArray(params.taskId) ? params.taskId[0] : params.taskId;
+    if (targetTaskId && !focusedTaskId) {
+      startFocusForTask(targetTaskId);
+    }
+  }, [focusedTaskId, params.taskId, startFocusForTask]);
 
   useEffect(() => {
     elapsedShared.value = withTiming(elapsedSeconds, { duration: 240 });
@@ -229,8 +270,8 @@ export default function FocusModeScreen() {
     if (timerState !== 'running') return;
     if (totalSeconds <= 0) return;
     if (elapsedSeconds < totalSeconds) return;
-    handleSessionComplete(true);
-  }, [elapsedSeconds, handleSessionComplete, timerState, totalSeconds]);
+    finalizeFocus(true);
+  }, [elapsedSeconds, finalizeFocus, timerState, totalSeconds]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
@@ -293,8 +334,8 @@ export default function FocusModeScreen() {
   const handleFinish = useCallback(() => {
     if (timerState === 'ready') return;
     const achieved = totalSeconds > 0 && elapsedSeconds >= totalSeconds;
-    handleSessionComplete(achieved);
-  }, [elapsedSeconds, handleSessionComplete, timerState, totalSeconds]);
+    finalizeFocus(achieved);
+  }, [elapsedSeconds, finalizeFocus, timerState, totalSeconds]);
 
   const isDarkMode = theme.mode === 'dark';
   const timerTextColor = isDarkMode ? colors.white : colors.textPrimary;
@@ -332,6 +373,22 @@ export default function FocusModeScreen() {
             </View>
 
           <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+            {focusTask && (
+              <View style={[styles.focusedTaskCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                <Text style={[styles.focusedTaskLabel, { color: colors.textSecondary }]}>{focusStrings.cardLabel}</Text>
+                <Text style={[styles.focusedTaskTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                  {focusTask.title}
+                </Text>
+                {focusTask.goalId && (
+                  <Text style={[styles.focusedTaskMeta, { color: colors.textTertiary }]}>
+                    {focusStrings.goalTag.replace(
+                      '{goal}',
+                      goalTitles[focusTask.goalId as keyof typeof goalTitles]?.title ?? focusTask.goalId,
+                    )}
+                  </Text>
+                )}
+              </View>
+            )}
             <View style={styles.hero}>
               <Text style={[styles.sessionTitle, { color: colors.textSecondary }]}>{technique.label}</Text>
               <View style={styles.timerContainer}>
@@ -480,6 +537,15 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 13, letterSpacing: 2, fontWeight: '600' },
   content: { flex: 1 },
   contentContainer: { paddingHorizontal: 18, paddingBottom: 32, flexGrow: 1 },
+  focusedTaskCard: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    marginBottom: 16,
+  },
+  focusedTaskLabel: { fontSize: 12, fontWeight: '600', letterSpacing: 0.5 },
+  focusedTaskTitle: { fontSize: 16, fontWeight: '800', marginTop: 4 },
+  focusedTaskMeta: { fontSize: 12, fontWeight: '600', marginTop: 2 },
   hero: { alignItems: 'center', gap: 14, marginTop: 12 },
   sessionTitle: { fontSize: 14, letterSpacing: 1, textAlign: 'center' },
   timerContainer: { alignItems: 'center' },

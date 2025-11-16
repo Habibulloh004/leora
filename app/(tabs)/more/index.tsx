@@ -492,7 +492,7 @@ export default function MoreHomeScreen() {
     </View>
   );
 
-  const completedTasks = useMemo(() => tasks.filter((task) => task.status === 'completed').length, [tasks]);
+  const completedTasks = useMemo(() => tasks.filter((task) => task.status === 'done').length, [tasks]);
   const activeTasks = useMemo(() => tasks.length - completedTasks, [tasks, completedTasks]);
   const xp = completedTasks * 50 + activeTasks * 20;
   const level = Math.max(1, Math.floor(xp / XP_PER_LEVEL) + 1);

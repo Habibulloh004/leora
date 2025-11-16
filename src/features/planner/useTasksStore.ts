@@ -1,68 +1,126 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+
+import { addDays, startOfDay } from '@/utils/calendar';
 import { mmkvStorageAdapter } from '@/utils/storage';
+import type {
+  PlannerGoalId,
+  PlannerHabitId,
+  PlannerTask,
+  PlannerTaskSection,
+  PlannerTaskStatus,
+} from '@/types/planner';
 
-export type PlannerTaskStatus = 'active' | 'completed' | 'deleted';
-export type PlannerTaskSection = 'morning' | 'afternoon' | 'evening';
+export type { PlannerTask, PlannerTaskStatus, PlannerTaskSection } from '@/types/planner';
 
-export type PlannerTask = {
-  id: string;
-  title: string;
-  desc?: string;
-  start: string;
-  duration: string;
-  context: string;
-  energy: 1 | 2 | 3;
-  projectHeart?: boolean;
-  aiNote?: string;
-  costUZS?: string;
-  afterWork?: boolean;
-  section: PlannerTaskSection;
-  status: PlannerTaskStatus;
-  done: boolean;
-  expanded?: boolean;
-  createdAt: number;
-  dueAt?: number | null;
-  deletedAt?: number | null;
+export type PlannerTaskInput = Omit<
+  PlannerTask,
+  'id' | 'status' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'focusMeta'
+> & {
+  status?: PlannerTaskStatus;
 };
 
-type PlannerTaskInput = Omit<
-  PlannerTask,
-  'id' | 'status' | 'done' | 'createdAt' | 'deletedAt'
->;
+export type FocusStartOptions = {
+  technique?: string;
+  durationMinutes?: number;
+};
 
 type PlannerTaskStore = {
   tasks: PlannerTask[];
   history: PlannerTask[];
   addTask: (task: PlannerTaskInput) => void;
+  updateTask: (id: string, task: PlannerTaskInput) => void;
   toggleDone: (id: string) => void;
   toggleExpand: (id: string) => void;
   deleteTask: (id: string) => void;
   restoreTask: (id: string) => void;
   removeFromHistory: (id: string) => void;
   overwriteTasks: (tasks: PlannerTask[]) => void;
+  startFocus: (id: string, options?: FocusStartOptions) => void;
+  completeFocus: (id: string, outcome?: 'done' | 'move') => void;
+  rescheduleTask: (id: string, newDate: Date) => void;
+  linkTaskToGoal: (id: string, goalId?: PlannerGoalId | null) => void;
+  linkTaskToHabit: (id: string, habitId?: string) => void;
+  syncStatuses: () => void;
 };
 
 const STORAGE_ID = 'planner-tasks-storage';
+const storage = createJSONStorage(() => mmkvStorageAdapter);
 const now = Date.now();
 const hoursFromNow = (hours: number) => now + hours * 60 * 60 * 1000;
-const storage = createJSONStorage(() => mmkvStorageAdapter);
+const KNOWN_GOAL_IDS: PlannerGoalId[] = ['dream-car', 'emergency-fund', 'fitness', 'language'];
+const KNOWN_HABIT_IDS: PlannerHabitId[] = ['h1', 'h2', 'h3', 'h4', 'h5'];
 
-const initialTasks: PlannerTask[] = [
+const sanitizeGoalId = (value?: string | PlannerGoalId | null): PlannerGoalId | undefined => {
+  if (!value) return undefined;
+  return KNOWN_GOAL_IDS.includes(value as PlannerGoalId) ? (value as PlannerGoalId) : undefined;
+};
+
+const sanitizeHabitId = (value?: string | PlannerHabitId | null): PlannerHabitId | undefined => {
+  if (!value) return undefined;
+  return KNOWN_HABIT_IDS.includes(value as PlannerHabitId) ? (value as PlannerHabitId) : undefined;
+};
+
+const normalizeStoredTask = (task: PlannerTask, nowTs?: number): PlannerTask => {
+  return normalizeTask(
+    {
+      ...task,
+      goalId: sanitizeGoalId(task.goalId),
+      linkedHabitId: sanitizeHabitId(task.linkedHabitId),
+    },
+    nowTs,
+  );
+};
+
+const deriveSectionFromDueAt = (dueAt?: number | null): PlannerTaskSection => {
+  if (!dueAt) {
+    return 'morning';
+  }
+  const hour = new Date(dueAt).getHours();
+  if (hour < 12) return 'morning';
+  if (hour < 18) return 'afternoon';
+  return 'evening';
+};
+
+const ensureSection = (section?: PlannerTaskSection, dueAt?: number | null): PlannerTaskSection =>
+  section ?? deriveSectionFromDueAt(dueAt);
+
+const normalizeTask = (task: PlannerTask, nowTs = Date.now()): PlannerTask => {
+  const section = ensureSection(task.section, task.dueAt);
+  if (task.status === 'done' || task.status === 'moved' || task.status === 'in_progress') {
+    return { ...task, section };
+  }
+  if (task.dueAt != null && task.dueAt < nowTs) {
+    return { ...task, status: 'overdue', section };
+  }
+  return { ...task, status: 'planned', section };
+};
+
+const shiftDueAtByDays = (task: PlannerTask, days: number) => {
+  if (task.dueAt != null) {
+    return task.dueAt + days * 24 * 60 * 60 * 1000;
+  }
+  const base = addDays(startOfDay(new Date()), days);
+  base.setHours(9, 0, 0, 0);
+  return base.getTime();
+};
+
+const seedTasks: PlannerTask[] = [
   {
     id: '1',
     title: 'Morning workout',
-    desc: 'Description',
+    desc: 'Strength + mobility circuit',
     start: '07:00',
     duration: '30 min',
     context: '@home',
     energy: 3,
     projectHeart: true,
     section: 'morning',
-    status: 'completed',
-    done: true,
-    createdAt: Date.now() - 1000 * 60 * 60 * 6,
+    status: 'done',
+    createdAt: now - 1000 * 60 * 60 * 6,
     dueAt: hoursFromNow(-6),
+    goalId: 'fitness',
+    linkedHabitId: 'h1',
   },
   {
     id: '2',
@@ -72,38 +130,38 @@ const initialTasks: PlannerTask[] = [
     context: '@work',
     energy: 2,
     section: 'morning',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 60 * 5,
+    status: 'planned',
+    createdAt: now - 1000 * 60 * 60 * 5,
     dueAt: hoursFromNow(-2),
   },
   {
     id: '3',
-    title: 'Team Collaboration',
+    title: 'Team collaboration',
     start: '10:00',
     duration: '1 hour',
     context: '@work',
     energy: 3,
     section: 'morning',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 60 * 4,
+    status: 'planned',
+    createdAt: now - 1000 * 60 * 60 * 4,
     dueAt: hoursFromNow(1),
+    goalId: 'dream-car',
   },
   {
     id: '4',
-    title: 'Working on LEORA',
+    title: 'Prototype: LEORA automation',
     start: '14:00',
     duration: '2 hours',
     context: '@work',
     energy: 3,
-    aiNote: 'At: Best time for deep work',
+    aiNote: 'Best deep-focus slot to finish the sprint deliverable',
     projectHeart: true,
     section: 'afternoon',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 60 * 3,
+    status: 'in_progress',
+    createdAt: now - 1000 * 60 * 60 * 3,
     dueAt: hoursFromNow(4),
+    goalId: 'dream-car',
+    focusMeta: { isActive: true, startedAt: now - 15 * 60 * 1000, technique: 'pomodoro', durationMinutes: 50 },
   },
   {
     id: '5',
@@ -113,38 +171,37 @@ const initialTasks: PlannerTask[] = [
     context: '@cafe',
     energy: 2,
     section: 'afternoon',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 60 * 2.5,
+    status: 'planned',
+    createdAt: now - 1000 * 60 * 60 * 2.5,
     dueAt: hoursFromNow(2),
+    goalId: 'dream-car',
   },
   {
     id: '6',
     title: 'Buy groceries',
     start: 'After work',
     duration: '1 hour',
-    context: '@work',
+    context: '@market',
     energy: 2,
     afterWork: true,
     section: 'afternoon',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 60 * 2,
+    status: 'planned',
+    createdAt: now - 1000 * 60 * 60 * 2,
     dueAt: null,
   },
   {
     id: '7',
-    title: 'Pay for home internet',
+    title: 'Top up emergency fund',
     start: '10:00',
-    duration: '1 hour',
-    context: '@work',
+    duration: '20 min',
+    context: '@home',
     energy: 1,
     costUZS: '280 000 UZS',
     section: 'afternoon',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 60,
+    status: 'planned',
+    createdAt: now - 1000 * 60 * 60,
     dueAt: hoursFromNow(-1),
+    goalId: 'emergency-fund',
   },
   {
     id: '8',
@@ -154,67 +211,112 @@ const initialTasks: PlannerTask[] = [
     context: '@park',
     energy: 3,
     section: 'evening',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 30,
+    status: 'planned',
+    createdAt: now - 1000 * 60 * 30,
     dueAt: hoursFromNow(6),
+    goalId: 'fitness',
+    linkedHabitId: 'h1',
   },
   {
     id: '9',
-    title: 'Check email',
+    title: 'Review language notes',
     start: '21:00',
     duration: '15 min',
     context: '@home',
     energy: 2,
     section: 'evening',
-    status: 'active',
-    done: false,
-    createdAt: Date.now() - 1000 * 60 * 15,
+    status: 'planned',
+    createdAt: now - 1000 * 60 * 15,
     dueAt: hoursFromNow(8),
+    goalId: 'language',
+    linkedHabitId: 'h3',
   },
 ];
 
-const computeStatus = (task: PlannerTask): PlannerTaskStatus => {
-  if (task.status === 'deleted') return 'deleted';
-  if (task.done) return 'completed';
-  return 'active';
-};
+const initialTasks: PlannerTask[] = seedTasks.map((task) => normalizeStoredTask(task, now));
 
 export const usePlannerTasksStore = create<PlannerTaskStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       tasks: initialTasks,
       history: [],
       overwriteTasks: (tasks) =>
         set({
-          tasks,
+          tasks: tasks.map((task) => normalizeStoredTask(task)),
         }),
       addTask: (input) => {
-        const newTask: PlannerTask = {
-          ...input,
-          id: String(Date.now()),
-          status: 'active',
-          done: false,
-          createdAt: Date.now(),
-          dueAt: input.dueAt ?? null,
-          expanded: false,
-        };
+        const createdAt = Date.now();
+        const goalId = sanitizeGoalId(input.goalId);
+        const newTask: PlannerTask = normalizeTask(
+          {
+            ...input,
+            id: `task-${createdAt}`,
+            status: input.status ?? 'planned',
+            createdAt,
+            updatedAt: createdAt,
+            dueAt: input.dueAt ?? null,
+            expanded: input.expanded ?? false,
+            goalId,
+            linkedHabitId: sanitizeHabitId(input.linkedHabitId),
+            metadata: input.metadata,
+          },
+          createdAt,
+        );
         set((state) => ({
           tasks: [newTask, ...state.tasks],
         }));
       },
-      toggleDone: (id) =>
-        set((state) => ({
-          tasks: state.tasks.map((task) =>
-            task.id === id
-              ? {
+      updateTask: (id, input) =>
+        set((state) => {
+          const nowTs = Date.now();
+          return {
+            tasks: state.tasks.map((task) => {
+              if (task.id !== id) return task;
+              return normalizeTask(
+                {
                   ...task,
-                  done: !task.done,
-                  status: !task.done ? 'completed' : 'active',
-                }
-              : task,
-          ),
-        })),
+                  ...input,
+                  id,
+                  status: input.status ?? task.status,
+                  updatedAt: nowTs,
+                  dueAt: input.dueAt ?? task.dueAt ?? null,
+                  goalId: sanitizeGoalId(input.goalId) ?? task.goalId,
+                  linkedHabitId: sanitizeHabitId(input.linkedHabitId) ?? task.linkedHabitId,
+                  metadata: input.metadata ?? task.metadata,
+                },
+                nowTs,
+              );
+            }),
+          };
+        }),
+      toggleDone: (id) =>
+        set((state) => {
+          const nowTs = Date.now();
+          return {
+            tasks: state.tasks.map((task) => {
+              if (task.id !== id) return task;
+              if (task.status === 'done') {
+                return normalizeTask(
+                  {
+                    ...task,
+                    status: 'planned',
+                    updatedAt: nowTs,
+                    focusMeta: task.focusMeta ? { ...task.focusMeta, isActive: false, lastResult: 'done' } : undefined,
+                  },
+                  nowTs,
+                );
+              }
+              return {
+                ...task,
+                status: 'done',
+                updatedAt: nowTs,
+                focusMeta: task.focusMeta
+                  ? { ...task.focusMeta, isActive: false, lastSessionEndedAt: nowTs, lastResult: 'done' }
+                  : { isActive: false, lastSessionEndedAt: nowTs, lastResult: 'done' },
+              };
+            }),
+          };
+        }),
       toggleExpand: (id) =>
         set((state) => ({
           tasks: state.tasks.map((task) =>
@@ -228,11 +330,12 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
         set((state) => {
           const task = state.tasks.find((t) => t.id === id);
           if (!task) return state;
-
           const updatedTask: PlannerTask = {
             ...task,
             expanded: false,
             deletedAt: Date.now(),
+            status: task.status === 'done' ? 'done' : 'moved',
+            focusMeta: task.focusMeta ? { ...task.focusMeta, isActive: false } : undefined,
           };
 
           return {
@@ -245,12 +348,15 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
           const task = state.history.find((t) => t.id === id);
           if (!task) return state;
 
-          const restored: PlannerTask = {
-            ...task,
-            deletedAt: null,
-            expanded: false,
-            status: computeStatus(task),
-          };
+          const restored: PlannerTask = normalizeStoredTask(
+            {
+              ...task,
+              deletedAt: null,
+              expanded: false,
+              status: task.status === 'done' ? 'done' : 'planned',
+            },
+            Date.now(),
+          );
 
           return {
             tasks: [restored, ...state.tasks],
@@ -261,15 +367,88 @@ export const usePlannerTasksStore = create<PlannerTaskStore>()(
         set((state) => ({
           history: state.history.filter((t) => t.id !== id),
         })),
+      startFocus: (id, options) =>
+        set((state) => ({
+          tasks: state.tasks.map((task) =>
+            task.id === id
+              ? {
+                  ...task,
+                  status: 'in_progress',
+                  focusMeta: {
+                    ...task.focusMeta,
+                    isActive: true,
+                    startedAt: Date.now(),
+                    technique: options?.technique ?? task.focusMeta?.technique,
+                    durationMinutes: options?.durationMinutes ?? task.focusMeta?.durationMinutes,
+                  },
+                }
+              : task,
+          ),
+        })),
+      completeFocus: (id, outcome = 'done') =>
+        set((state) => ({
+          tasks: state.tasks.map((task) => {
+            if (task.id !== id) return task;
+            const base: PlannerTask = {
+              ...task,
+              focusMeta: {
+                ...task.focusMeta,
+                isActive: false,
+                lastSessionEndedAt: Date.now(),
+                lastResult: outcome,
+              },
+            };
+            if (outcome === 'done') {
+              return { ...base, status: 'done' };
+            }
+            if (outcome === 'move') {
+              const nextDueAt = shiftDueAtByDays(task, 1);
+              return {
+                ...base,
+                status: 'moved',
+                dueAt: nextDueAt,
+                section: deriveSectionFromDueAt(nextDueAt),
+              };
+            }
+            return normalizeTask(base);
+          }),
+        })),
+      rescheduleTask: (id, newDate) =>
+        set((state) => ({
+          tasks: state.tasks.map((task) => {
+            if (task.id !== id) return task;
+            const dueAt = newDate.getTime();
+            return normalizeTask({
+              ...task,
+              status: 'moved',
+              dueAt,
+              section: deriveSectionFromDueAt(dueAt),
+              updatedAt: Date.now(),
+            });
+          }),
+        })),
+      linkTaskToGoal: (id, goalId) =>
+        set((state) => ({
+          tasks: state.tasks.map((task) =>
+            task.id === id ? { ...task, goalId: sanitizeGoalId(goalId) } : task,
+          ),
+        })),
+      linkTaskToHabit: (id, habitId) =>
+        set((state) => ({
+          tasks: state.tasks.map((task) =>
+            task.id === id ? { ...task, linkedHabitId: sanitizeHabitId(habitId) } : task,
+          ),
+        })),
+      syncStatuses: () =>
+        set((state) => ({
+          tasks: state.tasks.map((task) => normalizeStoredTask(task)),
+        })),
     }),
     {
       name: STORAGE_ID,
       storage,
       partialize: (state) => ({
-        tasks: state.tasks.map((task) => ({
-          ...task,
-          status: computeStatus(task),
-        })),
+        tasks: state.tasks.map((task) => normalizeStoredTask(task)),
         history: state.history,
       }),
     },

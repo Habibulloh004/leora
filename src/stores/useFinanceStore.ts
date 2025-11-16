@@ -62,6 +62,7 @@ const TYPE_COLORS: Record<AccountKind, string> = {
   usd: "#f59e0b",
   crypto: "#14b8a6",
   other: Colors.textSecondary,
+  custom: Colors.textSecondary,
 };
 
 const getCurrencyForType = (type: AccountKind): string => {
@@ -344,6 +345,9 @@ const hydrateAccount = (account: Partial<AccountItem>): AccountItem => {
     currency: account.currency ?? getCurrencyForType(type),
     subtitle: account.subtitle ?? "No description",
     iconColor: account.iconColor ?? TYPE_COLORS[type],
+    customTypeId: account.customTypeId,
+    customTypeLabel: account.customTypeLabel,
+    customIcon: account.customIcon,
     progress: account.progress,
     goal: account.goal,
     usdRate: account.usdRate,
@@ -363,6 +367,9 @@ const createAccountFromPayload = (payload: AddAccountPayload): AccountItem => {
     type,
     balance,
     goal,
+    customTypeId: payload.customTypeId,
+    customTypeLabel: payload.customTypeLabel,
+    customIcon: payload.customIcon,
   });
 };
 
@@ -380,6 +387,9 @@ const mergeAccountWithPayload = (
     type: nextType,
     balance: payload.amount,
     goal: nextGoal,
+    customTypeId: payload.customTypeId,
+    customTypeLabel: payload.customTypeLabel,
+    customIcon: payload.customIcon,
   });
 };
 

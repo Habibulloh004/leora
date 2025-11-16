@@ -9,15 +9,23 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import type { LucideIcon } from 'lucide-react-native';
 import {
   Archive,
+  Banknote,
   Bitcoin,
+  Briefcase,
+  Building,
+  Coins,
   CreditCard,
   DollarSign,
   Edit3,
   PiggyBank,
   Plus,
+  Shield,
+  Sparkles,
   Trash2,
+  TrendingUp,
   Wallet,
 } from 'lucide-react-native';
 
@@ -30,8 +38,8 @@ import { useFinanceStore } from '@/stores/useFinanceStore';
 import type {
   AccountItem,
   AccountTransaction,
-  AccountKind,
   AddAccountPayload,
+  AccountIconId,
 } from '@/types/accounts';
 import type { Transaction } from '@/types/store.types';
 import { useLocalization } from '@/localization/useLocalization';
@@ -53,8 +61,25 @@ const formatCurrency = (amount: number, currency: string = 'UZS'): string => {
   }).format(amount);
 };
 
-const getIconForType = (type: AccountKind) => {
-  switch (type) {
+const CUSTOM_ICON_MAP: Record<AccountIconId, LucideIcon> = {
+  wallet: Wallet,
+  'credit-card': CreditCard,
+  'piggy-bank': PiggyBank,
+  bank: Building,
+  briefcase: Briefcase,
+  coins: Coins,
+  sparkles: Sparkles,
+  bitcoin: Bitcoin,
+  shield: Shield,
+  'trending-up': TrendingUp,
+};
+
+const getIconForAccount = (account: AccountItem) => {
+  if (account.type === 'custom' && account.customIcon) {
+    return CUSTOM_ICON_MAP[account.customIcon] ?? Wallet;
+  }
+
+  switch (account.type) {
     case 'cash':
       return Wallet;
     case 'card':
@@ -65,6 +90,8 @@ const getIconForType = (type: AccountKind) => {
       return DollarSign;
     case 'crypto':
       return Bitcoin;
+    case 'other':
+      return Banknote;
     default:
       return Wallet;
   }
@@ -231,7 +258,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
   theme,
   strings,
 }) => {
-  const Icon = getIconForType(account.type);
+  const Icon = getIconForAccount(account);
   const transactions = account.transactions ?? [];
   const transactionLabels = useMemo(
     () => ({ income: strings.income, outcome: strings.outcome }),

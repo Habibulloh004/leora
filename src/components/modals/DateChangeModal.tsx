@@ -22,11 +22,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
 import type { CalendarIndicatorsMap, HomeDataStatus } from '@/types/home';
 import {
+  addDays,
   addMonths,
   buildCalendarDays,
   startOfDay,
+  startOfWeek,
   startOfMonth,
   toISODateKey,
   useCalendarWeeks,
@@ -41,8 +44,6 @@ interface DateModalProps {
   onSelectDate?: (date: Date) => void;
 }
 
-const WEEK_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 const YEARS_PER_VIEW = 12;
 
 function clampDay(date: Date, targetMonth: Date): Date {
@@ -56,6 +57,7 @@ function DateChangeModalComponent(
   ref: ForwardedRef<BottomSheetHandle>
 ) {
   const theme = useAppTheme();
+  const { strings, locale } = useLocalization();
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const indicatorSource = useMemo(() => indicators ?? {}, [indicators]);
@@ -147,11 +149,21 @@ function DateChangeModalComponent(
   const weeks = useCalendarWeeks(calendarDays);
 
   const monthName = useMemo(
-    () => new Intl.DateTimeFormat('en-US', { month: 'long' }).format(visibleMonth),
-    [visibleMonth],
+    () => new Intl.DateTimeFormat(locale, { month: 'long' }).format(visibleMonth),
+    [locale, visibleMonth],
   );
   const yearNumber = useMemo(() => visibleMonth.getFullYear(), [visibleMonth]);
   const pendingIso = useMemo(() => toISODateKey(pendingDate), [pendingDate]);
+  const weekLabels = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, { weekday: 'short' });
+    const start = startOfWeek(new Date());
+    return Array.from({ length: 7 }).map((_, idx) => formatter.format(addDays(start, idx)));
+  }, [locale]);
+
+  const monthLabels = useMemo(() => {
+    const formatter = new Intl.DateTimeFormat(locale, { month: 'short' });
+    return Array.from({ length: 12 }).map((_, idx) => formatter.format(new Date(2000, idx, 1)));
+  }, [locale]);
 
   const statusColors: Record<HomeDataStatus, string> = useMemo(
     () => ({
@@ -222,7 +234,7 @@ function DateChangeModalComponent(
 
   const renderMonthGrid = () => (
     <View style={styles.monthGrid}>
-      {MONTH_LABELS.map((label, idx) => {
+      {monthLabels.map((label, idx) => {
         const candidate = new Date(yearNumber, idx, 1);
         const isCurrentMonth = candidate.getMonth() === visibleMonth.getMonth() && candidate.getFullYear() === visibleMonth.getFullYear();
         const isSelectedMonth =
@@ -326,7 +338,7 @@ function DateChangeModalComponent(
         >
           <View style={[styles.sheetContent, { paddingTop: insets.top + 16 }]}>
             <View style={styles.header}>
-              <Text style={[styles.title, { color: theme.colors.textPrimary }]}>Select Date</Text>
+              <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{strings.calendar?.selectDateTitle ?? 'Select Date'}</Text>
               <Pressable onPress={handleClose} hitSlop={10}>
                 <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
               </Pressable>
@@ -393,7 +405,7 @@ function DateChangeModalComponent(
             {pickerMode === 'days' && (
               <>
                 <View style={styles.weekRow}>
-                  {WEEK_LABELS.map((label) => (
+                  {weekLabels.map((label) => (
                     <Text key={label} style={[styles.weekLabel, { color: theme.colors.textTertiary }]}>
                       {label}
                     </Text>

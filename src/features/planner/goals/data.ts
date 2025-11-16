@@ -1,5 +1,6 @@
 // src/features/planner/goals/data.ts
-import type { AppTranslations, PlannerGoalId, GoalSummaryKey } from '@/localization/strings';
+import type { AppTranslations } from '@/localization/strings';
+import type { PlannerGoalId, GoalSummaryKey } from '@/types/planner';
 
 export type GoalSummaryRow = {
   label: string;

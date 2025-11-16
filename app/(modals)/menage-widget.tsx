@@ -427,7 +427,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   categoryChipActive: {
-    backgroundColor: Colors.primaryDark,
+    backgroundColor: Colors.primary,
   },
   categoryChipText: {
     color: Colors.textSecondary,

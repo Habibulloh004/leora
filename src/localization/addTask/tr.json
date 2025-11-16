@@ -1,0 +1,42 @@
+{
+  "title": "Yeni görev",
+  "nameLabel": "Görev başlığı",
+  "namePlaceholder": "Başlık",
+  "whenLabel": "Ne zaman",
+  "whenOptions": {
+    "today": "Bugün",
+    "tomorrow": "Yarın",
+    "pick": "Tarih seç"
+  },
+  "timePlaceholder": "Saat seç",
+  "category": "Kategori",
+  "date": "Tarih",
+  "time": "Saat",
+  "notes": "Açıklama",
+  "notesPlaceholder": "Açıklama (zorunlu değil)",
+  "project": "Proje",
+  "projectPlaceholder": "Projenizi seçin",
+  "context": "Bağlam",
+  "energy": "Enerji",
+  "priority": "Öncelik",
+  "additional": "Ek ayarlar",
+  "reminder": "Önce hatırlat",
+  "repeat": "Tekrarla",
+  "needFocus": "Fokus gerekli",
+  "subtasks": "Alt görevler",
+  "subtaskPlaceholder": "Alt görev ekle",
+  "submit": "Görevi oluştur",
+  "submitMore": "Oluştur ve devam et",
+  "categories": {
+    "work": "İş",
+    "personal": "Kişisel",
+    "health": "Sağlık",
+    "learning": "Öğrenme",
+    "errands": "Günlük işler"
+  },
+  "priorityOptions": {
+    "low": "Düşük",
+    "medium": "Orta",
+    "high": "Yüksek"
+  }
+}

@@ -8,12 +8,42 @@ import GoalCard from '@/components/planner/goals/GoalCard';
 import { createThemedStyles } from '@/constants/theme';
 import { createGoalSections, type Goal, type GoalSection } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
+import { usePlannerTasksStore, type PlannerTask } from '@/features/planner/useTasksStore';
+import { getHabitTemplates } from '@/features/planner/habits/data';
+import type { PlannerGoalId } from '@/types/planner';
 
 const GoalsPage: React.FC = () => {
   const styles = useStyles();
   const router = useRouter();
-  const { strings } = useLocalization();
+  const { strings, locale } = useLocalization();
   const goalStrings = strings.plannerScreens.goals;
+  const tasks = usePlannerTasksStore((state) => state.tasks);
+  const habitTemplates = useMemo(() => getHabitTemplates(), []);
+  const goalTaskMap = useMemo(() => {
+    const map = new Map<PlannerGoalId, PlannerTask[]>();
+    tasks.forEach((task) => {
+      if (!task.goalId) return;
+      const goalId = task.goalId as PlannerGoalId;
+      const current = map.get(goalId) ?? [];
+      current.push(task);
+      map.set(goalId, current);
+    });
+    return map;
+  }, [tasks]);
+  const goalHabitMap = useMemo(() => {
+    const map = new Map<PlannerGoalId, number>();
+    habitTemplates.forEach((habit) => {
+      habit.linkedGoalIds.forEach((goalId) => {
+        const current = map.get(goalId as PlannerGoalId) ?? 0;
+        map.set(goalId as PlannerGoalId, current + 1);
+      });
+    });
+    return map;
+  }, [habitTemplates]);
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }),
+    [locale],
+  );
 
   const sections = useMemo(() => createGoalSections(goalStrings), [goalStrings]);
 
@@ -40,16 +70,37 @@ const GoalsPage: React.FC = () => {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: Goal }) => (
-      <GoalCard
-        goal={item}
-        onPress={() => handleOpenGoal(item.id)}
-        onAddValue={() => router.push('/(modals)/add-goal')}
-        onRefresh={() => {}}
-        onEdit={() => router.push('/(modals)/add-goal')}
-      />
-    ),
-    [handleOpenGoal, router],
+    ({ item }: { item: Goal }) => {
+      const goalId = item.id as PlannerGoalId;
+      const goalTasks = goalTaskMap.get(goalId) ?? [];
+      const pendingTasks = [...goalTasks].filter((task) => task.status !== 'done');
+      pendingTasks.sort((a, b) => (a.dueAt ?? Number.POSITIVE_INFINITY) - (b.dueAt ?? Number.POSITIVE_INFINITY));
+      const nextTask = pendingTasks[0];
+      const relationSummary = {
+        tasks: goalTasks.length,
+        habits: goalHabitMap.get(goalId) ?? 0,
+      };
+      const nextStep = nextTask
+        ? {
+            title: nextTask.title,
+            dueDate: nextTask.dueAt ? dateFormatter.format(new Date(nextTask.dueAt)) : undefined,
+          }
+        : undefined;
+
+      return (
+        <GoalCard
+          goal={item}
+          nextStep={nextStep}
+          relationSummary={relationSummary}
+          onAddStep={() => router.push({ pathname: '/(modals)/add-task', params: { goalId: item.id } })}
+          onPress={() => handleOpenGoal(item.id)}
+          onAddValue={() => router.push('/(modals)/add-goal')}
+          onRefresh={() => {}}
+          onEdit={() => router.push('/(modals)/add-goal')}
+        />
+      );
+    },
+    [dateFormatter, goalHabitMap, goalTaskMap, handleOpenGoal, router],
   );
 
   return (

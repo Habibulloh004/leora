@@ -373,6 +373,9 @@ const styles = StyleSheet.create({
     opacity: 0.65,
   },
   contentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
   },
   innerContent: {
     gap: 24,

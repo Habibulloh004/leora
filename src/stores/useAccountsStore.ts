@@ -16,6 +16,7 @@ const TYPE_COLORS: Record<AccountKind, string> = {
   usd: '#f59e0b',
   crypto: '#6366f1',
   other: '#64748b',
+  custom: '#3f3f46',
 };
 
 const DEFAULT_ACCOUNTS: AccountItem[] = [
@@ -107,6 +108,9 @@ const createAccountFromPayload = (payload: AddAccountPayload): AccountItem => {
     currency: getCurrencyForType(payload.type),
     subtitle: payload.description.trim() || 'No description',
     iconColor: TYPE_COLORS[payload.type],
+    customTypeId: payload.customTypeId,
+    customTypeLabel: payload.customTypeLabel,
+    customIcon: payload.customIcon,
     progress: payload.type === 'savings' ? 0 : undefined,
     goal: payload.type === 'savings' ? payload.amount : undefined,
     usdRate: payload.type === 'usd' ? 0 : undefined,
@@ -131,6 +135,9 @@ const mergeAccountWithPayload = (
     balance: payload.amount,
     currency: getCurrencyForType(updatedType),
     iconColor: TYPE_COLORS[updatedType],
+    customTypeId: payload.customTypeId,
+    customTypeLabel: payload.customTypeLabel,
+    customIcon: payload.customIcon,
     goal: updatedType === 'savings' ? payload.amount : undefined,
     progress:
       updatedType === 'savings' ? account.progress ?? 0 : undefined,

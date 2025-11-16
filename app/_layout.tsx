@@ -23,6 +23,7 @@ import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
 import * as Linking from 'expo-linking';
 import ProfileHeader from './(tabs)/more/_components/ProfileHeader';
 import { useLocalization } from '@/localization/useLocalization';
+import LoadingOverlay from '@/components/ui/LoadingOverlay';
 
 enableScreens(true);
 enableFreeze(true);
@@ -114,6 +115,8 @@ function RootNavigator({
   const setLoggedIn = useLockStore((state) => state.setLoggedIn);
   const setLocked = useLockStore((state) => state.setLocked);
   const updateLastActive = useLockStore((state) => state.updateLastActive);
+  const lockIsLoggedIn = useLockStore((state) => state.isLoggedIn);
+  const lockIsLocked = useLockStore((state) => state.isLocked);
   const router = useRouter();
   const segments = useSegments();
   const techniqueKey = useFocusSettingsStore((state) => state.techniqueKey);
@@ -238,13 +241,27 @@ function RootNavigator({
     if (!hasBooted) return;
 
     if (isAuthenticated) {
-      setLoggedIn(true);
+      if (!lockIsLoggedIn) {
+        setLoggedIn(true);
+      }
       updateLastActive({ keepInactive: true });
     } else {
-      setLoggedIn(false);
-      setLocked(false);
+      if (lockIsLoggedIn) {
+        setLoggedIn(false);
+      }
+      if (lockIsLocked) {
+        setLocked(false);
+      }
     }
-  }, [hasBooted, isAuthenticated, setLoggedIn, setLocked, updateLastActive]);
+  }, [
+    hasBooted,
+    isAuthenticated,
+    lockIsLoggedIn,
+    lockIsLocked,
+    setLoggedIn,
+    setLocked,
+    updateLastActive,
+  ]);
 
   const palette = useMemo(() => getTheme(theme).colors, [theme]);
   const navigationTheme = useMemo(() => {
@@ -477,7 +494,10 @@ function RootNavigator({
 
   return (
     <NavigationThemeProvider value={navigationTheme}>
-      {navigatorContent}
+      <>
+        {navigatorContent}
+        <LoadingOverlay />
+      </>
     </NavigationThemeProvider>
   );
 }

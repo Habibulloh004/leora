@@ -1,4 +1,11 @@
 import { SupportedLanguage } from '@/stores/useSettingsStore';
+import type { GoalSummaryKey, PlannerGoalId, PlannerHabitId } from '@/types/planner';
+
+import enAddTask from './addTask/en.json';
+import ruAddTask from './addTask/ru.json';
+import uzAddTask from './addTask/uz.json';
+import arAddTask from './addTask/ar.json';
+import trAddTask from './addTask/tr.json';
 
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'ru', 'uz', 'ar', 'tr'];
 
@@ -9,10 +16,6 @@ export const LANGUAGE_LOCALE_MAP: Record<SupportedLanguage, string> = {
   ar: 'ar',
   tr: 'tr-TR',
 };
-
-export type PlannerGoalId = 'dream-car' | 'emergency-fund' | 'fitness' | 'language';
-export type PlannerHabitId = 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
-export type GoalSummaryKey = 'left' | 'pace' | 'prediction';
 
 export type AppTranslations = {
   home: {
@@ -47,6 +50,38 @@ export type AppTranslations = {
     insights: string;
     more: string;
   };
+  calendar: {
+    todayLabel: string;
+    selectDateTitle: string;
+  };
+  addTask: {
+    title: string;
+    nameLabel: string;
+    namePlaceholder: string;
+    whenLabel: string;
+    whenOptions: Record<'today' | 'tomorrow' | 'pick', string>;
+    timePlaceholder: string;
+    category: string;
+    date: string;
+    time: string;
+    notes: string;
+    notesPlaceholder: string;
+    project: string;
+    projectPlaceholder: string;
+    context: string;
+    energy: string;
+    priority: string;
+    additional: string;
+    reminder: string;
+    repeat: string;
+    needFocus: string;
+    subtasks: string;
+    subtaskPlaceholder: string;
+    submit: string;
+    submitMore: string;
+    categories: Record<'work' | 'personal' | 'health' | 'learning' | 'errands', string>;
+    priorityOptions: Record<'low' | 'medium' | 'high', string>;
+  };
   plannerScreens: {
     tabs: {
       tasks: string;
@@ -80,6 +115,40 @@ export type AppTranslations = {
         defaultContext: string;
       };
       aiPrefix: string;
+      dailySummary: string;
+      statuses: Record<'planned' | 'in_progress' | 'done' | 'moved' | 'overdue', string>;
+      focus: {
+        cta: string;
+        inProgress: string;
+        cardLabel: string;
+        goalTag: string;
+        finishTitle: string;
+        finishMessage: string;
+        done: string;
+        move: string;
+        keep: string;
+      };
+      calendar: {
+        title: string;
+        summary: string;
+        addQuickTask: string;
+        quickTaskTitle: string;
+        scheduledTitle: string;
+        empty: string;
+        moveTitle: string;
+        moveHere: string;
+        moveTomorrow: string;
+        unscheduled: string;
+        noOtherTasks: string;
+      };
+      aiSuggestions: {
+        title: string;
+        time: string;
+        duration: string;
+        context: string;
+        energy: string;
+        apply: string;
+      };
     };
     goals: {
       header: { title: string; subtitle: string };
@@ -98,6 +167,14 @@ export type AppTranslations = {
         };
       };
       details: { milestones: string; history: string; showMore: string };
+      nextStep: { title: string; empty: string; cta: string };
+      linkedSummary: string;
+      ai: {
+        title: string;
+        milestones: string;
+        duration: string;
+        apply: string;
+      };
       data: Record<
         PlannerGoalId,
         {
@@ -119,6 +196,13 @@ export type AppTranslations = {
         streak: string;
         record: string;
         completion: string;
+      };
+      supportsGoals: string;
+      ai: {
+        title: string;
+        time: string;
+        stack: string;
+        apply: string;
       };
       ctas: {
         checkIn: string;
@@ -481,6 +565,7 @@ export type AppTranslations = {
 
 const t = {
   en: {
+    addTask: enAddTask as AppTranslations['addTask'],
     home: {
       header: {
         todayLabel: 'TODAY',
@@ -513,6 +598,10 @@ const t = {
       insights: 'Insight',
       more: 'More',
     },
+    calendar: {
+      todayLabel: 'today',
+      selectDateTitle: 'Select Date',
+    },
     plannerScreens: {
       tabs: {
         tasks: 'Tasks',
@@ -541,7 +630,7 @@ const t = {
           title: 'Tasks History',
           subtitle: 'Swipe to restore or remove',
           tip: 'Hold briefly, swipe right to restore a task or swipe left to remove it permanently.',
-          deletedBadge: 'Deleted',
+          deletedBadge: 'Moved',
         },
         defaults: {
           startToday: 'Today',
@@ -551,6 +640,46 @@ const t = {
           defaultContext: '@work',
         },
         aiPrefix: 'AI:',
+        dailySummary: 'Today: {tasks} tasks • {habits} habits • {goals} goal steps',
+        statuses: {
+          planned: 'Planned',
+          in_progress: 'In focus',
+          done: 'Done',
+          moved: 'Moved',
+          overdue: 'Overdue',
+        },
+        focus: {
+          cta: 'Focus',
+          inProgress: 'In focus',
+          cardLabel: 'Currently focusing on',
+          goalTag: 'Goal: {goal}',
+          finishTitle: 'Wrap up "{task}"?',
+          finishMessage: 'Mark it done or move the remaining effort to tomorrow.',
+          done: 'Mark done',
+          move: 'Move to tomorrow',
+          keep: 'Keep for later',
+        },
+        calendar: {
+          title: 'Planner calendar',
+          summary: '{tasks} tasks • {habits} habits • {goals} goal steps',
+          addQuickTask: 'Quick task',
+          quickTaskTitle: 'Quick task',
+          scheduledTitle: 'Scheduled for this day',
+          empty: 'Nothing scheduled yet.',
+          moveTitle: 'Move tasks here',
+          moveHere: 'Move here',
+          moveTomorrow: 'Move to tomorrow',
+          unscheduled: 'Unscheduled',
+          noOtherTasks: 'All tasks already here.',
+        },
+        aiSuggestions: {
+          title: 'AI recommendation',
+          time: 'Best slot: {value}',
+          duration: 'Duration: {value}',
+          context: 'Context: {value}',
+          energy: 'Energy: {value}',
+          apply: 'Apply suggestion',
+        },
       },
       goals: {
         header: {
@@ -592,6 +721,18 @@ const t = {
           milestones: 'Milestones',
           history: 'History',
           showMore: 'Show more',
+        },
+        nextStep: {
+          title: 'Next step',
+          empty: 'No active tasks',
+          cta: 'Add step',
+        },
+        linkedSummary: '{tasks} tasks • {habits} habits',
+        ai: {
+          title: 'AI plan',
+          milestones: 'Suggested milestones: kickoff → prototype → beta → launch.',
+          duration: 'Estimated completion: 3–6 months with weekly reviews.',
+          apply: 'Use this plan',
         },
         data: {
           'dream-car': {
@@ -672,6 +813,13 @@ const t = {
           streak: 'Streak: {days} days straight',
           record: 'Record: {days} days',
           completion: 'Completion: {percent}% ({completed}/{target} weekly)',
+        },
+        supportsGoals: 'Supports: {goals}',
+        ai: {
+          title: 'AI tips',
+          time: 'Best adherence between 06:30–07:00.',
+          stack: 'Stack with hydration reminders for more consistency.',
+          apply: 'Apply suggestion',
         },
         ctas: {
           checkIn: 'Check in today',
@@ -1074,6 +1222,7 @@ const t = {
     },
   },
   ru: {
+    addTask: ruAddTask as AppTranslations['addTask'],
     home: {
       header: {
         todayLabel: 'СЕГОДНЯ',
@@ -1106,6 +1255,10 @@ const t = {
       insights: 'Инсайт',
       more: 'Ещё',
     },
+    calendar: {
+      todayLabel: 'сегодня',
+      selectDateTitle: 'Выберите дату',
+    },
     plannerScreens: {
       tabs: {
         tasks: 'Задачи',
@@ -1134,7 +1287,7 @@ const t = {
           title: 'История задач',
           subtitle: 'Смахните, чтобы восстановить или удалить',
           tip: 'Удерживайте и смахните вправо, чтобы восстановить задачу, или влево — чтобы удалить навсегда.',
-          deletedBadge: 'Удалено',
+          deletedBadge: 'Перенесено',
         },
         defaults: {
           startToday: 'Сегодня',
@@ -1144,6 +1297,46 @@ const t = {
           defaultContext: '@work',
         },
         aiPrefix: 'ИИ:',
+        dailySummary: 'Сегодня: {tasks} задач • {habits} привычек • {goals} шага по целям',
+        statuses: {
+          planned: 'Запланировано',
+          in_progress: 'В фокусе',
+          done: 'Выполнено',
+          moved: 'Перенесено',
+          overdue: 'Просрочено',
+        },
+        focus: {
+          cta: 'Фокус',
+          inProgress: 'В фокусе',
+          cardLabel: 'Сейчас в работе',
+          goalTag: 'Цель: {goal}',
+          finishTitle: 'Завершить «{task}»?',
+          finishMessage: 'Отметьте выполнение или перенесите остаток на завтра.',
+          done: 'Готово',
+          move: 'Перенести на завтра',
+          keep: 'Оставить позже',
+        },
+        calendar: {
+          title: 'Календарь планера',
+          summary: '{tasks} задач • {habits} привычек • {goals} шага по целям',
+          addQuickTask: 'Быстрая задача',
+          quickTaskTitle: 'Быстрая задача',
+          scheduledTitle: 'Запланировано на день',
+          empty: 'На этот день ничего нет.',
+          moveTitle: 'Перенести задачи сюда',
+          moveHere: 'Перенести сюда',
+          moveTomorrow: 'Перенести на завтра',
+          unscheduled: 'Без даты',
+          noOtherTasks: 'Все задачи уже здесь.',
+        },
+        aiSuggestions: {
+          title: 'Рекомендация ИИ',
+          time: 'Лучшее окно: {value}',
+          duration: 'Длительность: {value}',
+          context: 'Контекст: {value}',
+          energy: 'Энергия: {value}',
+          apply: 'Применить рекомендацию',
+        },
       },
       goals: {
         header: {
@@ -1185,6 +1378,18 @@ const t = {
           milestones: 'Этапы',
           history: 'История',
           showMore: 'Показать ещё',
+        },
+        nextStep: {
+          title: 'Следующий шаг',
+          empty: 'Нет связанных задач',
+          cta: 'Добавить шаг',
+        },
+        linkedSummary: '{tasks} задач • {habits} привычек',
+        ai: {
+          title: 'План от ИИ',
+          milestones: 'Этапы: старт → прототип → бета → запуск.',
+          duration: 'Оценка: 3–6 месяцев с еженедельными обзорами.',
+          apply: 'Применить план',
         },
         data: {
           'dream-car': {
@@ -1265,6 +1470,13 @@ const t = {
           streak: 'Серия: {days} дн. подряд',
           record: 'Рекорд: {days} дн.',
           completion: 'Выполнение: {percent}% ({completed}/{target} в неделю)',
+        },
+        supportsGoals: 'Поддерживает: {goals}',
+        ai: {
+          title: 'Подсказки ИИ',
+          time: 'Лучшее время между 06:30–07:00.',
+          stack: 'Комбинируйте с напоминаниями о воде для стабильности.',
+          apply: 'Применить совет',
         },
         ctas: {
           checkIn: 'Отметиться сегодня',
@@ -1667,6 +1879,7 @@ const t = {
     },
   },
   uz: {
+    addTask: uzAddTask as AppTranslations['addTask'],
     home: {
       header: {
         todayLabel: 'BUGUN',
@@ -1699,6 +1912,10 @@ const t = {
       insights: 'Insayt',
       more: 'Ko‘proq',
     },
+    calendar: {
+      todayLabel: 'bugun',
+      selectDateTitle: 'Sanani tanlang',
+    },
     plannerScreens: {
       tabs: {
         tasks: 'Vazifalar',
@@ -1727,7 +1944,7 @@ const t = {
           title: 'Vazifalar tarixi',
           subtitle: 'Qaytarish yoki o‘chirish uchun suring',
           tip: 'Qisqa bosib, o‘ngga suring — vazifani qaytaring, chapga suring — butunlay o‘chiring.',
-          deletedBadge: 'O‘chirildi',
+          deletedBadge: 'Ko‘chirildi',
         },
         defaults: {
           startToday: 'Bugun',
@@ -1737,6 +1954,46 @@ const t = {
           defaultContext: '@work',
         },
         aiPrefix: 'AI:',
+        dailySummary: 'Bugun: {tasks} ta vazifa • {habits} ta odat • {goals} ta maqsad qadami',
+        statuses: {
+          planned: 'Rejalangan',
+          in_progress: 'Fokusda',
+          done: 'Bajarildi',
+          moved: 'Ko‘chirildi',
+          overdue: 'Muddati o‘tgan',
+        },
+        focus: {
+          cta: 'Fokus',
+          inProgress: 'Fokusda',
+          cardLabel: 'Hozir bajarilmoqda',
+          goalTag: 'Maqsad: {goal}',
+          finishTitle: '"{task}" yakunlansinmi?',
+          finishMessage: 'Bajarilgan deb belgilang yoki qoldiqni ertaga ko‘chiring.',
+          done: 'Bajarildi',
+          move: 'Ertaga ko‘chir',
+          keep: 'Keyinga qoldir',
+        },
+        calendar: {
+          title: 'Planner taqvimi',
+          summary: '{tasks} ta vazifa • {habits} ta odat • {goals} ta maqsad qadami',
+          addQuickTask: 'Tezkor vazifa',
+          quickTaskTitle: 'Tezkor vazifa',
+          scheduledTitle: 'Ushbu kun rejalari',
+          empty: 'Bu kunda hech narsa yo‘q.',
+          moveTitle: 'Vazifalarni shu kunga ko‘chirish',
+          moveHere: 'Bu kunga ko‘chir',
+          moveTomorrow: 'Ertaga ko‘chir',
+          unscheduled: 'Sana yo‘q',
+          noOtherTasks: 'Boshqa vazifalar qolmadi.',
+        },
+        aiSuggestions: {
+          title: 'AI tavsiyasi',
+          time: 'Eng yaxshi vaqt: {value}',
+          duration: 'Davomiylik: {value}',
+          context: 'Kontekst: {value}',
+          energy: 'Energiya: {value}',
+          apply: 'Tavsiyani qo‘llash',
+        },
       },
       goals: {
         header: {
@@ -1778,6 +2035,18 @@ const t = {
           milestones: 'Bosqichlar',
           history: 'Tarix',
           showMore: 'Ko‘proq ko‘rsat',
+        },
+        nextStep: {
+          title: 'Keyingi qadam',
+          empty: 'Bog‘langan vazifa yo‘q',
+          cta: 'Qadam qo‘shish',
+        },
+        linkedSummary: '{tasks} ta vazifa • {habits} ta odat',
+        ai: {
+          title: 'AI rejasi',
+          milestones: 'Bosqichlar: boshlash → prototip → beta → chiqarish.',
+          duration: 'Baholangan muddat: 3–6 oy (haftalik ko‘rib chiqish).',
+          apply: 'Rejani qo‘llash',
         },
         data: {
           'dream-car': {
@@ -1858,6 +2127,13 @@ const t = {
           streak: 'Seriya: {days} kun ketma-ket',
           record: 'Rekord: {days} kun',
           completion: 'Bajarilish: {percent}% ({completed}/{target} haftalik)',
+        },
+        supportsGoals: 'Qo‘llab-quvvatlaydi: {goals}',
+        ai: {
+          title: 'AI maslahatlari',
+          time: 'Eng yaxshi vaqt 06:30–07:00 oralig‘ida.',
+          stack: 'Suv ichish eslatmalari bilan birlashtiring.',
+          apply: 'Maslahatni qo‘llash',
         },
         ctas: {
           checkIn: 'Bugun belgilash',
@@ -2260,6 +2536,7 @@ const t = {
     },
   },
   ar: {
+    addTask: arAddTask as AppTranslations['addTask'],
     home: {
       header: {
         todayLabel: 'اليوم',
@@ -2292,6 +2569,10 @@ const t = {
       insights: 'إنسايت',
       more: 'المزيد',
     },
+    calendar: {
+      todayLabel: 'اليوم',
+      selectDateTitle: 'اختر التاريخ',
+    },
     plannerScreens: {
       tabs: {
         tasks: 'المهام',
@@ -2320,7 +2601,7 @@ const t = {
           title: 'سجل المهام',
           subtitle: 'اسحب للاستعادة أو الحذف',
           tip: 'اضغط قليلاً ثم اسحب لليمين لاستعادة المهمة أو لليسار لحذفها نهائياً.',
-          deletedBadge: 'تم الحذف',
+          deletedBadge: 'مؤجل',
         },
         defaults: {
           startToday: 'اليوم',
@@ -2330,6 +2611,46 @@ const t = {
           defaultContext: '@work',
         },
         aiPrefix: 'الذكاء الاصطناعي:',
+        dailySummary: 'اليوم: {tasks} مهام • {habits} عادات • {goals} خطوات هدف',
+        statuses: {
+          planned: 'مجدول',
+          in_progress: 'وضع تركيز',
+          done: 'منجز',
+          moved: 'مؤجل',
+          overdue: 'متأخر',
+        },
+        focus: {
+          cta: 'تركيز',
+          inProgress: 'في التركيز',
+          cardLabel: 'المهمة الحالية',
+          goalTag: 'الهدف: {goal}',
+          finishTitle: 'إنهاء "{task}"؟',
+          finishMessage: 'علّمها منجزة أو انقل الباقي إلى الغد.',
+          done: 'منجز',
+          move: 'انقل للغد',
+          keep: 'لاحقاً',
+        },
+        calendar: {
+          title: 'تقويم المخطط',
+          summary: '{tasks} مهام • {habits} عادات • {goals} خطوات هدف',
+          addQuickTask: 'مهمة سريعة',
+          quickTaskTitle: 'مهمة سريعة',
+          scheduledTitle: 'المجدول لهذا اليوم',
+          empty: 'لا شيء مجدول بعد.',
+          moveTitle: 'انقل المهام إلى هذا اليوم',
+          moveHere: 'انقل هنا',
+          moveTomorrow: 'انقل للغد',
+          unscheduled: 'بدون تاريخ',
+          noOtherTasks: 'لا توجد مهام أخرى.',
+        },
+        aiSuggestions: {
+          title: 'توصية الذكاء الاصطناعي',
+          time: 'أفضل توقيت: {value}',
+          duration: 'المدة: {value}',
+          context: 'السياق: {value}',
+          energy: 'الطاقة: {value}',
+          apply: 'تطبيق التوصية',
+        },
       },
       goals: {
         header: {
@@ -2371,6 +2692,18 @@ const t = {
           milestones: 'المعالم',
           history: 'السجل',
           showMore: 'عرض المزيد',
+        },
+        nextStep: {
+          title: 'الخطوة التالية',
+          empty: 'لا مهام مرتبطة',
+          cta: 'أضف خطوة',
+        },
+        linkedSummary: '{tasks} مهام • {habits} عادات',
+        ai: {
+          title: 'خطة الذكاء الاصطناعي',
+          milestones: 'المعالم: بدء → نموذج أولي → نسخة تجريبية → إطلاق.',
+          duration: 'المدة المقدرة: 3–6 أشهر مع مراجعة أسبوعية.',
+          apply: 'تطبيق الخطة',
         },
         data: {
           'dream-car': {
@@ -2451,6 +2784,13 @@ const t = {
           streak: 'سلسلة: {days} يوم متتالٍ',
           record: 'أفضل رقم: {days} يوم',
           completion: 'نسبة الإتمام: {percent}% ({completed}/{target} أسبوعياً)',
+        },
+        supportsGoals: 'تدعم: {goals}',
+        ai: {
+          title: 'إرشادات الذكاء الاصطناعي',
+          time: 'أفضل التزام بين 06:30 و07:00.',
+          stack: 'ادمجها مع تذكيرات شرب الماء لثبات أعلى.',
+          apply: 'تطبيق الإرشاد',
         },
         ctas: {
           checkIn: 'سجل اليوم',
@@ -2853,6 +3193,7 @@ const t = {
     },
   },
   tr: {
+    addTask: trAddTask as AppTranslations['addTask'],
     home: {
       header: {
         todayLabel: 'BUGÜN',
@@ -2885,6 +3226,10 @@ const t = {
       insights: 'İnsayt',
       more: 'Diğer',
     },
+    calendar: {
+      todayLabel: 'bugün',
+      selectDateTitle: 'Tarih seç',
+    },
     plannerScreens: {
       tabs: {
         tasks: 'Görevler',
@@ -2913,7 +3258,7 @@ const t = {
           title: 'Görev geçmişi',
           subtitle: 'Geri almak veya silmek için kaydır',
           tip: 'Kısaca basıp sağa kaydırarak geri alın, sola kaydırarak kalıcı olarak silin.',
-          deletedBadge: 'Silindi',
+          deletedBadge: 'Taşındı',
         },
         defaults: {
           startToday: 'Bugün',
@@ -2923,6 +3268,46 @@ const t = {
           defaultContext: '@work',
         },
         aiPrefix: 'YZ:',
+        dailySummary: 'Bugün: {tasks} görev • {habits} alışkanlık • {goals} hedef adımı',
+        statuses: {
+          planned: 'Planlandı',
+          in_progress: 'Fokusta',
+          done: 'Tamamlandı',
+          moved: 'Taşındı',
+          overdue: 'Gecikmiş',
+        },
+        focus: {
+          cta: 'Fokus',
+          inProgress: 'Fokusta',
+          cardLabel: 'Şu an odakta',
+          goalTag: 'Hedef: {goal}',
+          finishTitle: '"{task}" tamamlandı mı?',
+          finishMessage: 'Tamamlandı olarak işaretleyin ya da kalan kısmı yarına taşıyın.',
+          done: 'Tamamlandı',
+          move: 'Yarına taşı',
+          keep: 'Sonra yaparım',
+        },
+        calendar: {
+          title: 'Planner takvimi',
+          summary: '{tasks} görev • {habits} alışkanlık • {goals} hedef adımı',
+          addQuickTask: 'Hızlı görev',
+          quickTaskTitle: 'Hızlı görev',
+          scheduledTitle: 'Bugün için planlananlar',
+          empty: 'Bu güne hiçbir şey eklenmemiş.',
+          moveTitle: 'Görevleri buraya taşı',
+          moveHere: 'Buraya taşı',
+          moveTomorrow: 'Yarına taşı',
+          unscheduled: 'Tarihsiz',
+          noOtherTasks: 'Başka görev yok.',
+        },
+        aiSuggestions: {
+          title: 'AI önerisi',
+          time: 'En iyi zaman: {value}',
+          duration: 'Süre: {value}',
+          context: 'Kontekst: {value}',
+          energy: 'Enerji: {value}',
+          apply: 'Öneriyi uygula',
+        },
       },
       goals: {
         header: {
@@ -2964,6 +3349,18 @@ const t = {
           milestones: 'Kilometre taşları',
           history: 'Geçmiş',
           showMore: 'Daha fazlasını gör',
+        },
+        nextStep: {
+          title: 'Sonraki adım',
+          empty: 'Bağlı görev yok',
+          cta: 'Adım ekle',
+        },
+        linkedSummary: '{tasks} görev • {habits} alışkanlık',
+        ai: {
+          title: 'AI planı',
+          milestones: 'Adımlar: başlangıç → prototip → beta → lansman.',
+          duration: 'Tahmini süre: haftalık kontrollerle 3–6 ay.',
+          apply: 'Planı uygula',
         },
         data: {
           'dream-car': {
@@ -3044,6 +3441,13 @@ const t = {
           streak: 'Seri: {days} gün üst üste',
           record: 'Rekor: {days} gün',
           completion: 'Tamamlama: {percent}% ({completed}/{target} haftalık)',
+        },
+        supportsGoals: 'Destekler: {goals}',
+        ai: {
+          title: 'AI ipuçları',
+          time: 'En iyi uyum 06:30–07:00 arasında.',
+          stack: 'Daha yüksek istikrar için su hatırlatmalarıyla birleştirin.',
+          apply: 'Öneriyi uygula',
         },
         ctas: {
           checkIn: 'Bugün işaretle',

@@ -1,5 +1,5 @@
 // app/(tabs)/(planner)/(tabs)/index.tsx
-import React, { useMemo, useRef, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import {
   Dimensions,
   LayoutAnimation,
@@ -42,17 +42,19 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 import { useLocalization } from '@/localization/useLocalization';
 import type { AppTranslations } from '@/localization/strings';
-import AddTaskSheet, {
-  AddTaskSheetHandle,
-  AddTaskPayload,
-} from '@/components/modals/planner/AddTaskSheet';
+import { useRouter } from 'expo-router';
+
 import {
   PlannerTask,
   PlannerTaskSection,
+  PlannerTaskStatus,
   usePlannerTasksStore,
 } from '@/features/planner/useTasksStore';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
+import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
+import { getHabitTemplates } from '@/features/planner/habits/data';
 import { startOfDay } from '@/utils/calendar';
+import { useModalStore } from '@/stores/useModalStore';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -84,47 +86,50 @@ const sectionMeta = (
   }
 };
 
-const computeDueAtFromPayload = (payload: AddTaskPayload): number | null => {
-  try {
-    const now = new Date();
-    let date = new Date(now);
-
-    if (payload.dateMode === 'tomorrow') {
-      date.setDate(date.getDate() + 1);
-    } else if (payload.dateMode === 'pick' && payload.date) {
-      const parsed = new Date(payload.date);
-      if (!Number.isNaN(parsed.getTime())) {
-        date = parsed;
-      }
-    }
-
-    if (payload.time) {
-      const [hours, minutes] = payload.time.split(':').map(Number);
-      if (!Number.isNaN(hours) && !Number.isNaN(minutes)) {
-        date.setHours(hours, minutes, 0, 0);
-        return date.getTime();
-      }
-    }
-
-    // No explicit time — treat end of selected day as deadline
-    date.setHours(23, 59, 0, 0);
-    return date.getTime();
-  } catch (error) {
-    console.warn('[planner/tasks] Unable to compute due date from payload.', error);
-    return null;
-  }
-};
-
 const isTaskOverdue = (task: PlannerTask) => {
   if (!task.dueAt) return false;
-  if (task.status === 'completed' || task.status === 'deleted') return false;
-  return task.dueAt < Date.now();
+  if (task.status === 'done' || task.status === 'moved') return false;
+  return task.status === 'overdue' || task.dueAt < Date.now();
 };
 
 const stripeColor = (theme: ReturnType<typeof useAppTheme>, task: PlannerTask) => {
-  if (task.status === 'completed') return theme.colors.success;
-  if (task.status === 'deleted' || isTaskOverdue(task)) return theme.colors.danger;
+  if (task.status === 'done') return theme.colors.success;
+  if (task.status === 'in_progress') return theme.colors.primary;
+  if (task.status === 'moved') return theme.colors.warning ?? theme.colors.textSecondary;
+  if (task.status === 'overdue' || isTaskOverdue(task)) return theme.colors.danger;
   return theme.colors.textTertiary;
+};
+
+const statusBadgeColors = (
+  theme: ReturnType<typeof useAppTheme>,
+  status: PlannerTaskStatus,
+) => {
+  switch (status) {
+    case 'done':
+      return { bg: `${theme.colors.success}1A`, text: theme.colors.success };
+    case 'in_progress':
+      return { bg: `${theme.colors.primary}1A`, text: theme.colors.primary };
+    case 'moved':
+      return { bg: `${(theme.colors.warning ?? theme.colors.textSecondary)}1A`, text: theme.colors.warning ?? theme.colors.textSecondary };
+    case 'overdue':
+      return { bg: `${theme.colors.danger}1A`, text: theme.colors.danger };
+    default:
+      return { bg: theme.colors.surfaceMuted, text: theme.colors.textSecondary };
+  }
+};
+
+const durationToMinutes = (value?: string): number | undefined => {
+  if (!value) return undefined;
+  const normalized = value.toLowerCase();
+  const minuteMatch = normalized.match(/(\d+)\s*(?:min|m)\b/);
+  if (minuteMatch) {
+    return Number(minuteMatch[1]);
+  }
+  const hourMatch = normalized.match(/(\d+)\s*(?:hour|h)\b/);
+  if (hourMatch) {
+    return Number(hourMatch[1]) * 60;
+  }
+  return undefined;
 };
 
 // -----------------------------
@@ -134,11 +139,13 @@ export default function PlannerTasksTab() {
   const theme = useAppTheme();
   const { strings, locale } = useLocalization();
   const tasksStrings = strings.plannerScreens.tasks;
-  const addTaskRef = useRef<AddTaskSheetHandle>(null);
+  const router = useRouter();
+  const startFocusForTask = usePlannerFocusBridge((state) => state.startFocusForTask);
+  const habitTemplates = useMemo(() => getHabitTemplates(), []);
+  const openPlannerTaskModal = useModalStore((state) => state.openPlannerTaskModal);
 
   const tasks = usePlannerTasksStore((state) => state.tasks);
   const history = usePlannerTasksStore((state) => state.history);
-  const addTask = usePlannerTasksStore((state) => state.addTask);
   const toggleDone = usePlannerTasksStore((state) => state.toggleDone);
   const toggleExpand = usePlannerTasksStore((state) => state.toggleExpand);
   const deleteTask = usePlannerTasksStore((state) => state.deleteTask);
@@ -185,7 +192,21 @@ export default function PlannerTasksTab() {
     [historyForDay],
   );
 
-  const doneCount = (arr: PlannerTask[]) => arr.filter((t) => t.status === 'completed').length;
+  const doneCount = (arr: PlannerTask[]) => arr.filter((t) => t.status === 'done').length;
+  const dayOfWeek = normalizedSelectedDay.getDay();
+  const habitsDueToday = useMemo(
+    () => habitTemplates.filter((habit) => habit.scheduleDays.includes(dayOfWeek)).length,
+    [habitTemplates, dayOfWeek],
+  );
+  const goalStepsToday = useMemo(() => {
+    const goalIds = new Set<string>();
+    tasksForDay.forEach((task) => {
+      if (task.goalId) {
+        goalIds.add(task.goalId);
+      }
+    });
+    return goalIds.size;
+  }, [tasksForDay]);
 
   const handleToggleDone = useCallback(
     (id: string) => {
@@ -193,6 +214,15 @@ export default function PlannerTasksTab() {
       toggleDone(id);
     },
     [toggleDone],
+  );
+
+  const handleStartFocus = useCallback(
+    (task: PlannerTask) => {
+      const durationMinutes = durationToMinutes(task.duration);
+      startFocusForTask(task.id, durationMinutes ? { durationMinutes } : undefined);
+      router.push({ pathname: '/focus-mode', params: { taskId: task.id } });
+    },
+    [router, startFocusForTask],
   );
 
   const handleToggleExpand = useCallback(
@@ -227,48 +257,6 @@ export default function PlannerTasksTab() {
     [removeFromHistory],
   );
 
-  const handleCreate = useCallback(
-    (payload: AddTaskPayload) => {
-      const section: PlannerTaskSection =
-        payload.time && Number(payload.time.split(':')[0]) < 12
-          ? 'morning'
-          : payload.time && Number(payload.time.split(':')[0]) < 18
-          ? 'afternoon'
-          : 'evening';
-
-      const startLabel =
-        payload.time ||
-        (payload.dateMode === 'today'
-          ? tasksStrings.defaults.startToday
-          : payload.dateMode === 'tomorrow'
-          ? tasksStrings.defaults.startTomorrow
-          : tasksStrings.defaults.startPick);
-
-      const dueAt = computeDueAtFromPayload(payload);
-
-      addTask({
-        title: payload.title || tasksStrings.defaults.newTaskTitle,
-        desc: payload.description,
-        start: startLabel,
-        duration: '—',
-        context: payload.context || tasksStrings.defaults.defaultContext,
-        energy: payload.energy === 'high' ? 3 : payload.energy === 'low' ? 1 : 2,
-        projectHeart: payload.needFocus ? true : undefined,
-        section,
-        afterWork: startLabel.toLowerCase() === 'after work',
-        dueAt,
-      });
-    },
-    [
-      addTask,
-      tasksStrings.defaults.defaultContext,
-      tasksStrings.defaults.newTaskTitle,
-      tasksStrings.defaults.startPick,
-      tasksStrings.defaults.startToday,
-      tasksStrings.defaults.startTomorrow,
-    ],
-  );
-
   const dateFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(locale, {
@@ -291,6 +279,14 @@ export default function PlannerTasksTab() {
     () => tasksStrings.headerTemplate.replace('{date}', plansLabel),
     [plansLabel, tasksStrings.headerTemplate],
   );
+  const summaryLabel = useMemo(
+    () =>
+      tasksStrings.dailySummary
+        .replace('{tasks}', String(tasksForDay.length))
+        .replace('{habits}', String(habitsDueToday))
+        .replace('{goals}', String(goalStepsToday)),
+    [goalStepsToday, habitsDueToday, tasksForDay, tasksStrings.dailySummary],
+  );
 
   return (
     <>
@@ -310,6 +306,10 @@ export default function PlannerTasksTab() {
 
         <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
 
+        <View style={[styles.dailySummary, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.dailySummaryText, { color: theme.colors.textPrimary }]}>{summaryLabel}</Text>
+        </View>
+
         {/* Sections */}
         {grouped.morning.length > 0 && (
           <Section
@@ -322,6 +322,8 @@ export default function PlannerTasksTab() {
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
             onComplete={handleToggleDone}
+            onFocusTask={handleStartFocus}
+            onEditTask={handleEditTask}
             tasksStrings={tasksStrings}
           />
         )}
@@ -337,6 +339,8 @@ export default function PlannerTasksTab() {
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
             onComplete={handleToggleDone}
+            onFocusTask={handleStartFocus}
+            onEditTask={handleEditTask}
             tasksStrings={tasksStrings}
           />
         )}
@@ -352,6 +356,8 @@ export default function PlannerTasksTab() {
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
             onComplete={handleToggleDone}
+            onFocusTask={handleStartFocus}
+            onEditTask={handleEditTask}
             tasksStrings={tasksStrings}
           />
         )}
@@ -368,8 +374,6 @@ export default function PlannerTasksTab() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
-      {/* Add Task Modal */}
-      <AddTaskSheet ref={addTaskRef} onCreate={(p) => handleCreate(p)} />
     </>
   );
 }
@@ -387,6 +391,8 @@ function Section({
   onToggleExpand,
   onDelete,
   onComplete,
+  onFocusTask,
+  onEditTask,
   tasksStrings,
 }: {
   id: PlannerTaskSection;
@@ -398,6 +404,8 @@ function Section({
   onToggleExpand: (id: string) => void;
   onDelete: (id: string) => void;
   onComplete: (id: string) => void;
+  onFocusTask: (task: PlannerTask) => void;
+  onEditTask: (task: PlannerTask) => void;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   const meta = sectionMeta(theme, id, tasksStrings.sections);
@@ -425,6 +433,8 @@ function Section({
             onToggleExpand={() => onToggleExpand(t.id)}
             onDelete={() => onDelete(t.id)}
             onComplete={() => onComplete(t.id)}
+            onFocusTask={() => onFocusTask(t)}
+            onEditTask={() => onEditTask(t)}
             tasksStrings={tasksStrings}
           />
         ))}
@@ -445,6 +455,8 @@ function TaskCard({
   onComplete,
   onRestore,
   mode = 'active',
+  onFocusTask,
+  onEditTask,
   tasksStrings,
 }: {
   task: PlannerTask;
@@ -455,12 +467,14 @@ function TaskCard({
   onComplete: () => void;
   onRestore?: () => void;
   mode?: 'active' | 'history';
+  onFocusTask?: (task: PlannerTask) => void;
+  onEditTask?: (task: PlannerTask) => void;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   const translateX = useSharedValue(0);
 
   const isHistory = mode === 'history';
-  const isCompleted = task.status === 'completed';
+  const isCompleted = task.status === 'done';
   const allowComplete = !isHistory && !isCompleted;
   const allowDelete = isHistory ? !!onDelete : true;
   const allowRestore = isHistory;
@@ -470,6 +484,11 @@ function TaskCard({
     : allowComplete
     ? 'complete'
     : null;
+  const badgeColors = statusBadgeColors(theme, task.status);
+  const statusLabel = tasksStrings.statuses[task.status];
+  const canFocus = !isHistory && task.status !== 'done' && typeof onFocusTask === 'function';
+  const focusLabel =
+    task.status === 'in_progress' ? tasksStrings.focus.inProgress : tasksStrings.focus.cta;
 
   const animatedCardStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: translateX.value }],
@@ -665,7 +684,7 @@ function TaskCard({
                 disabled={!checkboxPress}
                 style={styles.checkboxWrap}
               >
-                {task.status === 'completed' ? (
+                {task.status === 'done' ? (
                   <CheckSquare size={16} color={theme.colors.success} />
                 ) : task.deletedAt ? (
                   <Trash2 size={16} color={theme.colors.danger} />
@@ -686,7 +705,28 @@ function TaskCard({
                 <View style={styles.energyRow}>
                   {energyIcons(task.energy, theme.colors.textSecondary)}
                 </View>
-                {!isHistory && <MoreHorizontal size={16} color={theme.colors.textSecondary} />}
+                {!isHistory && onEditTask && (
+                  <Pressable hitSlop={10} onPress={() => onEditTask(task)}>
+                    <MoreHorizontal size={16} color={theme.colors.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
+
+              <View style={styles.statusRow}>
+                <View style={[styles.statusPill, { backgroundColor: badgeColors.bg }]}>
+                  <Text style={[styles.statusPillText, { color: badgeColors.text }]}>{statusLabel}</Text>
+                </View>
+                {!isHistory && canFocus && (
+                  <Pressable
+                    onPress={() => onFocusTask?.(task)}
+                    style={[styles.focusButton, { borderColor: theme.colors.border }]}
+                  >
+                    <Zap size={12} color={theme.colors.textSecondary} />
+                    <Text style={[styles.focusButtonText, { color: theme.colors.textSecondary }]}>
+                      {focusLabel}
+                    </Text>
+                  </Pressable>
+                )}
               </View>
 
               <View style={styles.titleRow}>
@@ -696,8 +736,8 @@ function TaskCard({
                     styles.title,
                     {
                       color: theme.colors.white,
-                      textDecorationLine: task.status === 'completed' ? 'line-through' : 'none',
-                      opacity: task.status === 'completed' ? 0.6 : 1,
+                      textDecorationLine: task.status === 'done' ? 'line-through' : 'none',
+                      opacity: task.status === 'done' ? 0.6 : 1,
                     },
                   ]}
                 >
@@ -806,6 +846,16 @@ const styles = StyleSheet.create({
   filterBtn: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   filterText: { fontSize: 13, fontWeight: '600' },
   separator: { height: StyleSheet.hairlineWidth, opacity: 0.5 },
+  dailySummary: {
+    marginHorizontal: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+  },
+  dailySummaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
 
   sectionHeader: {
     paddingTop: 8,
@@ -893,6 +943,37 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 15, fontWeight: '700' },
   timeRight: { marginLeft: 'auto', fontSize: 12, fontWeight: '700' },
+  statusRow: {
+    paddingLeft: 38,
+    paddingRight: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 6,
+  },
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  statusPillText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  focusButton: {
+    marginLeft: 'auto',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  focusButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
 
   expandArea: {
     paddingLeft: 38,
@@ -943,3 +1024,9 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
 });
+  const handleEditTask = useCallback(
+    (task: PlannerTask) => {
+      openPlannerTaskModal({ mode: 'edit', taskId: task.id });
+    },
+    [openPlannerTaskModal],
+  );

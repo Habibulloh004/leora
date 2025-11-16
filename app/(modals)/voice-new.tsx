@@ -54,6 +54,7 @@ import type { RecordingOptions } from 'expo-audio/build/Audio.types';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { Theme, useAppTheme } from '@/constants/theme';
+import { executePlannerVoiceIntent } from '@/features/planner/voiceIntentHandler';
 
 type VoiceStage = 'idle' | 'listening' | 'analyzing';
 
@@ -813,6 +814,22 @@ const VoiceMode = () => {
   const scrollRef = useRef<ScrollView>(null);
   const resultsAnchorY = useRef(0);
   const recordingDurationRef = useRef(0);
+  const plannerCommands = useMemo(
+    () => [
+      { id: 'task', label: 'Add task "Write brief" tomorrow at 15:00', command: 'Add task "Write brief" tomorrow at 15:00 at @work' },
+      { id: 'habit', label: 'Add habit "Drink water" every morning', command: 'Add habit "Drink water" every morning' },
+      { id: 'focus', label: 'Start focus on "Prototype review"', command: 'Start focus on "Prototype review" pomodoro' },
+    ],
+    [],
+  );
+  const [plannerLogs, setPlannerLogs] = useState<string[]>([]);
+  const handlePlannerCommand = useCallback(
+    (command: string) => {
+      const result = executePlannerVoiceIntent(command);
+      setPlannerLogs((prev) => [result.message, ...prev].slice(0, 3));
+    },
+    [],
+  );
 
   const sphereSize = Math.min(width - 64, 320);
 
@@ -1096,6 +1113,29 @@ const VoiceMode = () => {
         )}
 
         {stage === 'idle' && !hasAnalysis && <HistoryCard theme={theme} />}
+
+        <View style={stylesWithTheme.plannerSection}>
+          <Text style={stylesWithTheme.sectionTitle}>Planner quick commands</Text>
+          {plannerCommands.map((cmd) => (
+            <TouchableOpacity
+              key={cmd.id}
+              style={stylesWithTheme.plannerCommand}
+              onPress={() => handlePlannerCommand(cmd.command)}
+              activeOpacity={0.9}
+            >
+              <Text style={stylesWithTheme.plannerCommandText}>{cmd.label}</Text>
+            </TouchableOpacity>
+          ))}
+          {plannerLogs.length > 0 && (
+            <View style={stylesWithTheme.plannerLog}>
+              {plannerLogs.map((log, index) => (
+                <Text key={`${log}-${index}`} style={stylesWithTheme.plannerLogText}>
+                  {log}
+                </Text>
+              ))}
+            </View>
+          )}
+        </View>
       </ScrollView>
 
       <View
@@ -1473,6 +1513,38 @@ const createStyles = (theme: Theme) =>
     waveformBar: {
       width: 2,
       borderRadius: 999,
+    },
+    plannerSection: {
+      marginTop: 24,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.cardItem,
+      padding: 18,
+      gap: 12,
+    },
+    plannerCommand: {
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+    },
+    plannerCommandText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+    },
+    plannerLog: {
+      marginTop: 8,
+      borderRadius: 12,
+      backgroundColor: theme.colors.card,
+      padding: 10,
+      gap: 4,
+    },
+    plannerLogText: {
+      fontSize: 12,
+      color: theme.colors.textSecondary,
     },
   });
 

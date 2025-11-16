@@ -55,16 +55,23 @@ export default function UniversalFAB() {
   ];
 
   const router = useRouter();
-  const { openIncomeOutcome, openTransferModal, openDebtModal, openPlannerTaskModal, openPlannerHabitModal } =
-    useModalStore(
-      useShallow((state) => ({
-        openIncomeOutcome: state.openIncomeOutcome,
-        openTransferModal: state.openTransferModal,
-        openDebtModal: state.openDebtModal,
-        openPlannerTaskModal: state.openPlannerTaskModal,
-        openPlannerHabitModal: state.openPlannerHabitModal,
-      }))
-    );
+  const {
+    openIncomeOutcome,
+    openTransferModal,
+    openDebtModal,
+    openPlannerTaskModal,
+    openPlannerGoalModal,
+    openPlannerHabitModal,
+  } = useModalStore(
+    useShallow((state) => ({
+      openIncomeOutcome: state.openIncomeOutcome,
+      openTransferModal: state.openTransferModal,
+      openDebtModal: state.openDebtModal,
+      openPlannerTaskModal: state.openPlannerTaskModal,
+      openPlannerGoalModal: state.openPlannerGoalModal,
+      openPlannerHabitModal: state.openPlannerHabitModal,
+    }))
+  );
 
   const actions: FABAction[] = useMemo(() => {
     switch (activeTab) {
@@ -330,7 +337,7 @@ export default function UniversalFAB() {
                         setTimeout(() => {
                           switch (action.id) {
                             case 'add-task':
-                              router.navigate('/(modals)/add-task');
+                              openPlannerTaskModal({ mode: 'create' });
                               break;
                             case 'quick-expense':
                             case 'add-expense':
@@ -344,10 +351,10 @@ export default function UniversalFAB() {
                               router.navigate('/(modals)/voice-new');
                               break;
                             case 'planner-task':
-                              openPlannerTaskModal('create');
+                              openPlannerTaskModal({ mode: 'create' });
                               break;
                             case 'planner-goal':
-                              router.navigate('/(modals)/add-goal');
+                              openPlannerGoalModal('create');
                               break;
                             case 'planner-habit':
                               openPlannerHabitModal('create');

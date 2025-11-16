@@ -189,7 +189,6 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.colors.background,
     },
     headerContainer: {
-      paddingHorizontal: 16,
       paddingVertical: 16,
       paddingTop: Platform.OS === 'ios' ? 12 : 40,
       backgroundColor: theme.colors.background,

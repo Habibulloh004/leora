@@ -1,19 +1,83 @@
+export type PlannerGoalId = 'dream-car' | 'emergency-fund' | 'fitness' | 'language';
+export type PlannerHabitId = 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
+export type GoalSummaryKey = 'left' | 'pace' | 'prediction';
+
+export type PlannerTaskStatus = 'planned' | 'in_progress' | 'done' | 'moved' | 'overdue';
+export type PlannerTaskSection = 'morning' | 'afternoon' | 'evening';
+export type PlannerTaskCategoryId = 'work' | 'personal' | 'health' | 'learning' | 'errands';
+
+export type AddTaskDateMode = 'today' | 'tomorrow' | 'pick';
+export type TaskEnergyLevel = 'low' | 'medium' | 'high';
+export type TaskPriorityLevel = 'low' | 'medium' | 'high';
+
+export interface AddTaskPayload {
+  title: string;
+  dateMode: AddTaskDateMode;
+  date?: string;
+  time?: string;
+  description?: string;
+  project?: string;
+  context?: string;
+  energy: TaskEnergyLevel;
+  priority: TaskPriorityLevel;
+  categoryId?: PlannerTaskCategoryId;
+  reminderEnabled: boolean;
+  remindBeforeMin?: number;
+  repeatEnabled: boolean;
+  repeatRule?: string;
+  needFocus: boolean;
+  subtasks: string[];
+}
+
+export interface PlannerTaskMetadata {
+  sourcePayload?: AddTaskPayload;
+}
+
+export interface PlannerTaskFocusMeta {
+  isActive: boolean;
+  startedAt?: number;
+  lastSessionEndedAt?: number;
+  lastResult?: 'done' | 'move';
+  technique?: string;
+  durationMinutes?: number;
+}
+
 export interface PlannerTask {
   id: string;
   title: string;
-  description?: string;
-  date: Date;
-  time: string;
-  duration: number;
+  desc?: string;
+  start: string;
+  duration: string;
   context: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  energy: 'low' | 'medium' | 'high';
+  energy: 1 | 2 | 3;
+  section: PlannerTaskSection;
+  status: PlannerTaskStatus;
+  goalId?: PlannerGoalId;
+  linkedHabitId?: PlannerHabitId;
+  milestoneId?: string;
+  aiNote?: string;
+  projectHeart?: boolean;
+  afterWork?: boolean;
+  costUZS?: string;
+  expanded?: boolean;
+  createdAt: number;
+  updatedAt?: number;
+  dueAt?: number | null;
+  deletedAt?: number | null;
+  focusMeta?: PlannerTaskFocusMeta;
+  metadata?: PlannerTaskMetadata;
+}
+
+export interface Milestone {
+  id: string;
+  title: string;
   completed: boolean;
-  timeBlock: 'morning' | 'afternoon' | 'evening';
+  date?: Date;
+  goalId?: PlannerGoalId;
 }
 
 export interface PlannerGoal {
-  id: string;
+  id: PlannerGoalId;
   title: string;
   description: string;
   type: 'financial' | 'quantitative' | 'qualitative';
@@ -23,17 +87,13 @@ export interface PlannerGoal {
   current: number;
   deadline?: Date;
   milestones: Milestone[];
+  linkedTaskIds: string[];
+  linkedHabitIds: PlannerHabitId[];
+  nextStepTaskId?: string;
 }
 
-export interface Milestone {
-  id: string;
-  title: string;
-  completed: boolean;
-  date?: Date;
-}
-
-export interface Habit {
-  id: string;
+export interface PlannerHabit {
+  id: PlannerHabitId;
   name: string;
   icon: string;
   category: string;
@@ -42,5 +102,22 @@ export interface Habit {
   completionRate: number;
   schedule: boolean[];
   reminderTime?: string;
+  linkedGoalIds: PlannerGoalId[];
 }
 
+export interface PlannerDailySummary {
+  dateKey: string;
+  tasks: {
+    total: number;
+    done: number;
+    overdue: number;
+  };
+  habits: {
+    dueToday: number;
+    completed: number;
+  };
+  goals: {
+    active: number;
+    nextSteps: number;
+  };
+}

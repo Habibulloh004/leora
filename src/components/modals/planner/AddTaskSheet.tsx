@@ -1,31 +1,45 @@
+/* eslint-disable react/no-unescaped-entities */
 // components/modals/planner/AddTaskSheet.tsx
 import React, {
   forwardRef,
   useCallback,
+  useEffect,
   useImperativeHandle,
   useMemo,
   useRef,
   useState,
 } from 'react';
 import {
+  Modal,
+  Platform,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   View,
-  Switch,
 } from 'react-native';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { Easing } from 'react-native-reanimated';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 import {
+  AtSign,
+  Bell,
   CalendarDays,
-  Clock4,
   ChevronDown,
-  ChevronUp,
-  Zap,
+  Clock4,
   Flag,
   FolderClosed,
-  AtSign,
+  Heart,
+  Lightbulb,
+  List,
   Plus,
+  Repeat,
+  Square,
+  SquareCheck,
+  Zap,
 } from 'lucide-react-native';
 
 import CustomBottomSheet, {
@@ -33,73 +47,85 @@ import CustomBottomSheet, {
 } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
+import type {
+  AddTaskDateMode,
+  AddTaskPayload,
+  PlannerTaskCategoryId,
+  TaskEnergyLevel,
+  TaskPriorityLevel,
+} from '@/types/planner';
 
-// =========================
-// Types
-// =========================
-export type EnergyLevel = 'low' | 'medium' | 'high';
-export type PriorityLevel = 'low' | 'medium' | 'high';
+const CATEGORY_PRESETS: { id: PlannerTaskCategoryId; context: string }[] = [
+  { id: 'work', context: '@work' },
+  { id: 'personal', context: '@home' },
+  { id: 'health', context: '@health' },
+  { id: 'learning', context: '@learning' },
+  { id: 'errands', context: '@city' },
+] as const;
 
-export type AddTaskPayload = {
-  title: string;
-  dateMode: 'today' | 'tomorrow' | 'pick';
-  date?: string; // ISO 8601, dateMode === 'pick' bo'lsa
-  time?: string; // "HH:mm"
-  description?: string;
-
-  project?: string;
-  context?: string;   // masalan: @work, @home
-  energy: EnergyLevel;
-  priority: PriorityLevel;
-
-  reminderEnabled: boolean;
-  remindBeforeMin?: number; // 5/10/15/30
-  repeatEnabled: boolean;
-  repeatRule?: string; // masalan: Everyday
-  needFocus: boolean;
-
-  subtasks: string[];
-};
+const REMIND_STEPS = [5, 10, 15, 30];
+const DATE_OPTIONS: AddTaskDateMode[] = ['today', 'tomorrow', 'pick'];
 
 export interface AddTaskSheetHandle {
   open: () => void;
   close: () => void;
-  edit: (initial: Partial<AddTaskPayload>) => void;
+  edit: (initial: Partial<AddTaskPayload>, options?: { taskId?: string }) => void;
 }
 
-type Pill = { id: string; label: string };
+type AddTaskSheetProps = {
+  onCreate?: (payload: AddTaskPayload, options?: { keepOpen?: boolean; editingTaskId?: string }) => void;
+  onDismiss?: () => void;
+};
 
-// =========================
-// Constants
-// =========================
-const DATE_PILLS: Pill[] = [
-  { id: 'today', label: 'Today' },
-  { id: 'tomorrow', label: 'Tomorrow' },
-  { id: 'pick', label: 'Pick a date' },
-];
-
-const REMIND_STEPS = [5, 10, 15, 30];
-
-// =========================
-// Component
-// =========================
-const AddTaskSheet = forwardRef<AddTaskSheetHandle, {
-  onCreate?: (payload: AddTaskPayload, options?: { keepOpen?: boolean }) => void;
-}>(({ onCreate }, ref) => {
+const AddTaskSheetComponent = (
+  { onCreate, onDismiss }: AddTaskSheetProps,
+  ref: React.Ref<AddTaskSheetHandle>,
+) => {
   const theme = useAppTheme();
+  const { strings, locale } = useLocalization();
+  const addTaskStrings = strings.addTask;
+
   const sheetRef = useRef<BottomSheetHandle>(null);
+  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const tokens = useMemo(
+    () => ({
+      card: theme.colors.card,
+      cardItem: theme.colors.cardItem,
+      elevated: theme.colors.surfaceElevated,
+      textPrimary: theme.colors.textPrimary,
+      textSecondary: theme.colors.textSecondary,
+      muted: theme.colors.textMuted,
+      separator: theme.colors.border,
+      accent: theme.colors.primary,
+    }),
+    [theme.colors],
+  );
+
+  const categoryOptions = useMemo(
+    () =>
+      CATEGORY_PRESETS.map((preset) => ({
+        ...preset,
+        label: addTaskStrings.categories[preset.id as keyof typeof addTaskStrings.categories],
+      })),
+    [addTaskStrings.categories],
+  );
+  const defaultCategoryId = categoryOptions[0]?.id ?? CATEGORY_PRESETS[0].id;
 
   // ---- form state
   const [title, setTitle] = useState('');
-  const [dateMode, setDateMode] = useState<'today' | 'tomorrow' | 'pick'>('tomorrow');
+  const [dateMode, setDateMode] = useState<AddTaskDateMode>('tomorrow');
   const [date, setDate] = useState<string | undefined>(undefined);
   const [time, setTime] = useState<string | undefined>(undefined);
   const [description, setDescription] = useState('');
 
   const [project, setProject] = useState<string | undefined>(undefined);
-  const [context, setContext] = useState<string | undefined>('@work');
-  const [energy, setEnergy] = useState<EnergyLevel>('medium');
-  const [priority, setPriority] = useState<PriorityLevel>('medium');
+  const [context, setContext] = useState<string | undefined>(CATEGORY_PRESETS[0].context);
+  const [energy, setEnergy] = useState<TaskEnergyLevel>('medium');
+  const [priority, setPriority] = useState<TaskPriorityLevel>('medium');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<PlannerTaskCategoryId>(defaultCategoryId);
 
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [remindBeforeMin, setRemindBeforeMin] = useState<number>(15);
@@ -110,34 +136,63 @@ const AddTaskSheet = forwardRef<AddTaskSheetHandle, {
   const [subtasksOpen, setSubtasksOpen] = useState(false);
   const [subtasks, setSubtasks] = useState<string[]>([]);
 
-  // ---- control
-  const snapPoints = useMemo<(string | number)[]>((): any => ['78%', '96%'], []);
+  const aiPreset = useMemo(
+    () => ({
+      time: '14:00',
+      duration: '45 min',
+      context: '@home',
+      energy: 'high' as TaskEnergyLevel,
+    }),
+    [],
+  );
 
-  const open = useCallback((): any => sheetRef.current?.present(), []);
-  const close = useCallback((): any => sheetRef.current?.dismiss(), []);
+  useEffect(() => {
+    if (!categoryOptions.some((option) => option.id === selectedCategoryId)) {
+      setSelectedCategoryId(defaultCategoryId);
+    }
+  }, [categoryOptions, defaultCategoryId, selectedCategoryId]);
 
-  const edit = useCallback((initial: Partial<AddTaskPayload>) => {
-    setTitle(initial.title ?? '');
-    setDateMode((initial.dateMode as any) ?? 'tomorrow');
-    setDate(initial.date);
-    setTime(initial.time);
-    setDescription(initial.description ?? '');
-    setProject(initial.project);
-    setContext(initial.context ?? '@work');
-    setEnergy(initial.energy ?? 'medium');
-    setPriority(initial.priority ?? 'medium');
-    setReminderEnabled(initial.reminderEnabled ?? true);
-    setRemindBeforeMin(initial.remindBeforeMin ?? 15);
-    setRepeatEnabled(initial.repeatEnabled ?? false);
-    setRepeatRule(initial.repeatRule ?? 'Everyday');
-    setNeedFocus(initial.needFocus ?? false);
-    setSubtasks(initial.subtasks ?? []);
-    open();
-  }, [open]);
+  const snapPoints = useMemo<(string | number)[]>(() => ['78%', '96%'], []);
+
+  const open = useCallback(() => sheetRef.current?.present(), []);
+  const close = useCallback(() => sheetRef.current?.dismiss(), []);
+
+  const selectCategoryByContext = useCallback(
+    (value?: string) => {
+      const match = categoryOptions.find((option) => option.context === value);
+      setSelectedCategoryId(match?.id ?? defaultCategoryId);
+    },
+    [categoryOptions, defaultCategoryId],
+  );
+
+  const edit = useCallback(
+    (initial: Partial<AddTaskPayload>, options?: { taskId?: string }) => {
+      setEditingTaskId(options?.taskId ?? null);
+      setShowDatePicker(false);
+      setShowTimePicker(false);
+      setTitle(initial.title ?? '');
+      setDateMode((initial.dateMode as AddTaskDateMode) ?? 'tomorrow');
+      setDate(initial.date);
+      setTime(initial.time);
+      setDescription(initial.description ?? '');
+      setProject(initial.project);
+      setContext(initial.context ?? CATEGORY_PRESETS[0].context);
+      selectCategoryByContext(initial.context ?? CATEGORY_PRESETS[0].context);
+      setEnergy(initial.energy ?? 'medium');
+      setPriority(initial.priority ?? 'medium');
+      setReminderEnabled(initial.reminderEnabled ?? true);
+      setRemindBeforeMin(initial.remindBeforeMin ?? 15);
+      setRepeatEnabled(initial.repeatEnabled ?? false);
+      setRepeatRule(initial.repeatRule ?? 'Everyday');
+      setNeedFocus(initial.needFocus ?? false);
+      setSubtasks(initial.subtasks ?? []);
+      open();
+    },
+    [open, selectCategoryByContext],
+  );
 
   useImperativeHandle(ref, () => ({ open, close, edit }), [open, close, edit]);
 
-  // ---- actions
   const cycleReminder = useCallback(() => {
     const idx = REMIND_STEPS.indexOf(remindBeforeMin);
     const next = REMIND_STEPS[(idx + 1) % REMIND_STEPS.length];
@@ -148,503 +203,693 @@ const AddTaskSheet = forwardRef<AddTaskSheetHandle, {
     setSubtasks((prev) => [...prev, '']);
   }, []);
 
-  const updateSubtask = useCallback((i: number, v: string) => {
-    setSubtasks((prev) => prev.map((s, idx) => (idx === i ? v : s)));
+  const updateSubtask = useCallback((index: number, value: string) => {
+    setSubtasks((prev) => prev.map((item, idx) => (idx === index ? value : item)));
   }, []);
 
-  const buildPayload = useCallback((): AddTaskPayload => ({
-    title,
-    dateMode,
-    date,
-    time,
-    description,
-    project,
-    context,
-    energy,
-    priority,
-    reminderEnabled,
-    remindBeforeMin,
-    repeatEnabled,
-    repeatRule,
-    needFocus,
-    subtasks,
-  }), [
-    title, dateMode, date, time, description, project, context,
-    energy, priority, reminderEnabled, remindBeforeMin,
-    repeatEnabled, repeatRule, needFocus, subtasks,
-  ]);
+  const handleApplyAiSuggestion = useCallback(() => {
+    setTime(aiPreset.time);
+    setContext(aiPreset.context);
+    selectCategoryByContext(aiPreset.context);
+    setEnergy(aiPreset.energy);
+  }, [aiPreset.context, aiPreset.energy, aiPreset.time, selectCategoryByContext]);
 
-  const handleCreate = useCallback((keepOpen?: boolean) => {
-    const payload = buildPayload();
-    onCreate?.(payload, { keepOpen });
-    if (!keepOpen) close();
-    // optional: reset for next
-    if (!keepOpen) {
-      setTitle('');
-      setDescription('');
-      setTime(undefined);
-      setDate(undefined);
-      setProject(undefined);
-      setEnergy('medium');
-      setPriority('medium');
-      setSubtasks([]);
-      setNeedFocus(false);
-      setRepeatEnabled(false);
-      setReminderEnabled(true);
-      setRemindBeforeMin(15);
-    }
-  }, [buildPayload, onCreate, close]);
-
-  // ---- UI helpers
-  const EnergyView = () => {
-    const iconColor = (lvl: EnergyLevel) =>
-      energy === lvl ? theme.colors.white : theme.colors.textSecondary;
-
-    const pillBg = (lvl: EnergyLevel) =>
-      energy === lvl ? theme.colors.primary : 'transparent';
-
-    const pillBorder = (lvl: EnergyLevel) =>
-      energy === lvl ? theme.colors.primary : theme.colors.border;
-
-    const count = (lvl: EnergyLevel) => (lvl === 'low' ? 1 : lvl === 'medium' ? 2 : 3);
-
-    return (
-      <View style={styles.inlineRow}>
-        {(['low', 'medium', 'high'] as EnergyLevel[]).map((lvl) => (
-          <Pressable
-            key={lvl}
-            onPress={() => setEnergy(lvl)}
-            style={({ pressed }) => [
-              styles.pill,
-              { backgroundColor: pillBg(lvl), borderColor: pillBorder(lvl) },
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={{ flexDirection: 'row', gap: 4 }}>
-              {Array.from({ length: count(lvl) }).map((_, i) => (
-                <Zap key={i} size={14} color={iconColor(lvl)} />
-              ))}
-            </View>
-          </Pressable>
-        ))}
-      </View>
-    );
-  };
-
-  const PriorityView = () => {
-    const label = (p: PriorityLevel) =>
-      p === 'low' ? 'Low' : p === 'medium' ? 'Medium' : 'High';
-
-    return (
-      <View style={styles.inlineRow}>
-        {(['low', 'medium', 'high'] as PriorityLevel[]).map((lvl) => {
-          const active = priority === lvl;
-          return (
-            <Pressable
-              key={lvl}
-              onPress={() => setPriority(lvl)}
-              style={({ pressed }) => [
-                styles.pill,
-                {
-                  backgroundColor: active ? theme.colors.primary : 'transparent',
-                  borderColor: active ? theme.colors.primary : theme.colors.border,
-                },
-                pressed && styles.pressed,
-              ]}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Flag size={14} color={active ? theme.colors.white : theme.colors.textSecondary} />
-                <Text
-                  style={[
-                    styles.pillLabel,
-                    { color: active ? theme.colors.white : theme.colors.textSecondary },
-                  ]}
-                >
-                  {label(lvl)}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        })}
-      </View>
-    );
-  };
-
-  const DatePills = () => (
-    <View style={styles.inlineRow}>
-      {DATE_PILLS.map((p) => {
-        const active = p.id === dateMode;
-        return (
-          <Pressable
-            key={p.id}
-            onPress={() => setDateMode(p.id as any)}
-            style={({ pressed }) => [
-              styles.pill,
-              {
-                backgroundColor: active ? theme.colors.primary : 'transparent',
-                borderColor: active ? theme.colors.primary : theme.colors.border,
-              },
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text
-              style={[
-                styles.pillLabel,
-                { color: active ? theme.colors.white : theme.colors.textSecondary },
-              ]}
-            >
-              {p.label}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </View>
+  const buildPayload = useCallback(
+    (): AddTaskPayload => ({
+      title,
+      dateMode,
+      date,
+      time,
+      description,
+      project,
+      context,
+      energy,
+      priority,
+      categoryId: selectedCategoryId,
+      reminderEnabled,
+      remindBeforeMin,
+      repeatEnabled,
+      repeatRule,
+      needFocus,
+      subtasks,
+    }),
+    [
+      context,
+      date,
+      dateMode,
+      description,
+      energy,
+      needFocus,
+      priority,
+      project,
+      reminderEnabled,
+      remindBeforeMin,
+      repeatEnabled,
+      repeatRule,
+      selectedCategoryId,
+      subtasks,
+      time,
+      title,
+    ],
   );
+
+  const resetForm = useCallback(() => {
+    setEditingTaskId(null);
+    setTitle('');
+    setDescription('');
+    setTime(undefined);
+    setDate(undefined);
+    setProject(undefined);
+    setContext(CATEGORY_PRESETS[0].context);
+    setSelectedCategoryId(defaultCategoryId);
+    setEnergy('medium');
+    setPriority('medium');
+    setSubtasks([]);
+    setNeedFocus(false);
+    setRepeatEnabled(false);
+    setReminderEnabled(true);
+    setRemindBeforeMin(15);
+    setDateMode('tomorrow');
+    setShowTimePicker(false);
+    setShowDatePicker(false);
+  }, [defaultCategoryId]);
+
+  const handleCreate = useCallback(
+    (keepOpen?: boolean) => {
+      const payload = buildPayload();
+      onCreate?.(payload, { keepOpen, editingTaskId: editingTaskId ?? undefined });
+      if (!keepOpen) {
+        close();
+        resetForm();
+      }
+    },
+    [buildPayload, close, editingTaskId, onCreate, resetForm],
+  );
+
+  const datePickerValue = useMemo(() => {
+    if (date) {
+      const parsed = new Date(date);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+    return new Date();
+  }, [date]);
+
+  const handleDateModePress = useCallback(
+    (mode: AddTaskDateMode) => {
+      setDateMode(mode);
+      if (mode === 'pick') {
+        if (Platform.OS === 'android') {
+          DateTimePickerAndroid.open({
+            value: datePickerValue,
+            mode: 'date',
+            display: 'calendar',
+            onChange: (event, selected) => {
+              if (event.type === 'set' && selected) {
+                setDateMode('pick');
+                setDate(selected.toISOString());
+              }
+            },
+          });
+        } else {
+          setShowDatePicker(true);
+        }
+      } else {
+        setDate(undefined);
+      }
+    },
+    [datePickerValue],
+  );
+
+  const handleSelectDate = useCallback((event: DateTimePickerEvent, selectedDate?: Date) => {
+    if (event.type === 'dismissed') {
+      setShowDatePicker(false);
+      return;
+    }
+    if (selectedDate) {
+      setDateMode('pick');
+      setDate(selectedDate.toISOString());
+    }
+    setShowDatePicker(false);
+  }, []);
+
+  const timePickerValue = useMemo(() => {
+    const base = new Date();
+    base.setSeconds(0);
+    base.setMilliseconds(0);
+    if (!time) {
+      return base;
+    }
+    const [hours, minutes] = time.split(':');
+    base.setHours(parseInt(hours, 10));
+    base.setMinutes(parseInt(minutes, 10));
+    return base;
+  }, [time]);
+
+  const applyTimeSelection = useCallback((selected: Date) => {
+    const hours = selected.getHours().toString().padStart(2, '0');
+    const minutes = selected.getMinutes().toString().padStart(2, '0');
+    setTime(`${hours}:${minutes}`);
+  }, []);
+
+  const handleSelectTime = useCallback((event: DateTimePickerEvent, selectedTime?: Date) => {
+    if (event.type === 'dismissed') {
+      setShowTimePicker(false);
+      return;
+    }
+    if (selectedTime) {
+      applyTimeSelection(selectedTime);
+    }
+    setShowTimePicker(false);
+  }, [applyTimeSelection]);
+
+  const handleOpenTimeSheet = useCallback(() => {
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        value: timePickerValue,
+        mode: 'time',
+        is24Hour: true,
+        display: 'clock',
+        onChange: (event, selected) => {
+          if (event.type === 'set' && selected) {
+            applyTimeSelection(selected);
+          }
+        },
+      });
+      return;
+    }
+    setShowTimePicker(true);
+  }, [applyTimeSelection, timePickerValue]);
+
+  const handleCategoryPress = useCallback(
+    (id: (typeof CATEGORY_PRESETS)[number]['id']) => {
+      setSelectedCategoryId(id);
+      const match = categoryOptions.find((option) => option.id === id);
+      if (match) {
+        setContext(match.context);
+      }
+    },
+    [categoryOptions],
+  );
+
+  const formattedDate = useMemo(() => {
+    if (dateMode === 'pick' && date) {
+      try {
+        return new Intl.DateTimeFormat(locale, {
+          weekday: 'short',
+          month: 'short',
+          day: 'numeric',
+        }).format(new Date(date));
+      } catch {
+        return addTaskStrings.whenOptions.pick;
+      }
+    }
+    return addTaskStrings.whenOptions[dateMode];
+  }, [addTaskStrings.whenOptions, date, dateMode, locale]);
+
+  const timeLabel = time ?? addTaskStrings.timePlaceholder;
+  const disablePrimary = !title.trim();
+  const handleSheetDismiss = useCallback(() => {
+    setShowTimePicker(false);
+    setShowDatePicker(false);
+    resetForm();
+    onDismiss?.();
+  }, [onDismiss, resetForm]);
 
   return (
-    <CustomBottomSheet
-      ref={sheetRef}
-      snapPoints={snapPoints}
-      animationConfigs={{ duration: 320, easing: Easing.linear }}
-      enableDynamicSizing={false}
-      backgroundStyle={[
-        styles.sheetBackground,
-        {
-          backgroundColor:
-            theme.mode === 'dark'
-              ? 'rgba(18,18,22,0.92)'
-              : 'rgba(24,24,28,0.92)',
-          borderColor: theme.colors.borderMuted,
-        },
-      ]}
-      handleIndicatorStyle={[
-        styles.handleIndicator,
-        { backgroundColor: theme.colors.textMuted },
-      ]}
-      scrollable
-      scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
-      contentContainerStyle={styles.containerPad}
-    >
-      {/* Header */}
-      <View style={styles.headerCenter}>
-        <Text style={[styles.headerTitle, { color: theme.colors.textSecondary }]}>
-          NEW TASK
-        </Text>
-      </View>
-
-      {/* Title */}
-      <View style={styles.group}>
-        <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
-          Task title
-        </Text>
-        <AdaptiveGlassView
-          style={[
-            styles.inputWrap,
-            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-          ]}
-        >
-          <BottomSheetTextInput
-            style={[styles.input, { color: theme.colors.textPrimary }]}
-            placeholder="Title"
-            placeholderTextColor={theme.colors.textMuted}
-            value={title}
-            onChangeText={setTitle}
-          />
-        </AdaptiveGlassView>
-      </View>
-
-      {/* When */}
-      <View style={styles.group}>
-        <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
-          When
-        </Text>
-
-        <DatePills />
-
-        <View style={styles.row2}>
-          <AdaptiveGlassView
-            style={[
-              styles.inputIconWrap,
-              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-            ]}
-          >
-            <CalendarDays size={16} color={theme.colors.textSecondary} />
-            <Pressable style={{ flex: 1 }} onPress={() => setDate(new Date().toISOString().slice(0, 10))}>
-              <Text style={[styles.inputLike, { color: theme.colors.textSecondary }]}>
-                {dateMode === 'pick' ? (date ?? 'Choose date') : (dateMode === 'today' ? 'Today' : 'Tomorrow')}
-              </Text>
-            </Pressable>
-            <ChevronDown size={16} color={theme.colors.textSecondary} />
-          </AdaptiveGlassView>
-
-          <AdaptiveGlassView
-            style={[
-              styles.inputIconWrap,
-              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-            ]}
-          >
-            <Clock4 size={16} color={theme.colors.textSecondary} />
-            <Pressable style={{ flex: 1 }} onPress={() => setTime('07:30')}>
-              <Text style={[styles.inputLike, { color: theme.colors.textSecondary }]}>
-                {time ?? 'Choose time'}
-              </Text>
-            </Pressable>
-            <ChevronDown size={16} color={theme.colors.textSecondary} />
-          </AdaptiveGlassView>
+    <>
+      <CustomBottomSheet
+        ref={sheetRef}
+        snapPoints={snapPoints}
+        animationConfigs={{ duration: 320, easing: Easing.linear }}
+        enableDynamicSizing={false}
+        backgroundStyle={[
+          styles.sheetBackground,
+          {
+            backgroundColor:
+              theme.mode === 'dark'
+                ? 'rgba(18,18,22,0.92)'
+                : 'rgba(255,255,255,0.94)',
+            borderColor: theme.colors.borderMuted,
+          },
+        ]}
+        handleIndicatorStyle={[
+          styles.handleIndicator,
+          { backgroundColor: theme.colors.textMuted },
+        ]}
+        scrollable
+        scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
+        contentContainerStyle={styles.scrollContent}
+        onDismiss={handleSheetDismiss}
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: tokens.textSecondary }]}>
+            NEW TASK
+          </Text>
         </View>
-      </View>
 
-      {/* Description */}
-      <View style={styles.group}>
-        <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
-          Description
-        </Text>
-        <AdaptiveGlassView
-          style={[
-            styles.inputWrap,
-            { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-          ]}
-        >
-          <BottomSheetTextInput
-            style={[styles.input, { color: theme.colors.textPrimary, height: 84 }]}
-            placeholder="Description (not necessary)"
-            placeholderTextColor={theme.colors.textMuted}
-            value={description}
-            onChangeText={setDescription}
-            multiline
-          />
-        </AdaptiveGlassView>
-      </View>
-
-      {/* Project / Context / Energy / Priority */}
-      <View style={styles.group}>
-        <View style={styles.row2}>
+        {/* Task title */}
+        <View style={styles.fieldSection}>
+          <Text style={[styles.fieldLabel, { color: tokens.textSecondary }]}>
+            Task title
+          </Text>
           <AdaptiveGlassView
             style={[
-              styles.inputIconWrap,
-              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+              styles.inputContainer,
+              { backgroundColor: tokens.cardItem },
             ]}
           >
-            <FolderClosed size={16} color={theme.colors.textSecondary} />
-            <Pressable style={{ flex: 1 }} onPress={() => setProject('LEORA')}>
-              <Text style={[styles.inputLike, { color: project ? theme.colors.textPrimary : theme.colors.textMuted }]}>
-                {project ? project : 'Choose your project'}
-              </Text>
-            </Pressable>
-            <ChevronDown size={16} color={theme.colors.textSecondary} />
-          </AdaptiveGlassView>
-
-          <AdaptiveGlassView
-            style={[
-              styles.inputIconWrap,
-              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-            ]}
-          >
-            <AtSign size={16} color={theme.colors.textSecondary} />
-            <Pressable style={{ flex: 1 }} onPress={() => setContext('@work')}>
-              <Text style={[styles.inputLike, { color: theme.colors.textPrimary }]}>
-                {context ?? '@context'}
-              </Text>
-            </Pressable>
-            <ChevronDown size={16} color={theme.colors.textSecondary} />
+            <BottomSheetTextInput
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Title"
+              placeholderTextColor={tokens.muted}
+              style={[styles.textInput, { color: tokens.textPrimary }]}
+            />
           </AdaptiveGlassView>
         </View>
 
-        <View style={styles.row2}>
+        {/* When */}
+        <View style={styles.fieldSection}>
+          <Text style={[styles.fieldLabel, { color: tokens.textSecondary }]}>
+            When
+          </Text>
+          <View style={styles.dateRow}>
+            {DATE_OPTIONS.map((option) => {
+              const isActive = dateMode === option;
+              const Icon = option === 'today' ? Square : option === 'tomorrow' ? SquareCheck : CalendarDays;
+              const label = option === 'today' ? 'Today' : option === 'tomorrow' ? 'Tomorrow' : 'Pick a date';
+
+              return (
+                <Pressable
+                  key={option}
+                  onPress={() => handleDateModePress(option)}
+                  style={({ pressed }) => [
+                    styles.dateButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.dateButtonInner,
+                      { backgroundColor: isActive ? tokens.card : tokens.cardItem },
+                    ]}
+                  >
+                    <Icon
+                      size={20}
+                      color={isActive ? tokens.accent : tokens.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.dateButtonText,
+                        { color: isActive ? tokens.textPrimary : tokens.textSecondary },
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <Pressable
+            onPress={handleOpenTimeSheet}
+            style={({ pressed }) => [styles.timeButton, pressed && styles.pressed]}
+          >
+            <AdaptiveGlassView
+              style={[
+                styles.timeButtonInner,
+                { backgroundColor: tokens.cardItem },
+              ]}
+            >
+              <Clock4 size={20} color={tokens.textSecondary} />
+              <Text style={[styles.timeButtonText, { color: tokens.textSecondary }]}>
+                {timeLabel}
+              </Text>
+            </AdaptiveGlassView>
+          </Pressable>
+        </View>
+
+        {/* Description */}
+        <View style={styles.fieldSection}>
+          <Text style={[styles.fieldLabel, { color: tokens.textSecondary }]}>
+            Description
+          </Text>
           <AdaptiveGlassView
             style={[
-              styles.inputIconWrap,
-              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+              styles.descriptionContainer,
+              { backgroundColor: tokens.cardItem },
             ]}
           >
-            <Zap size={16} color={theme.colors.textSecondary} />
-            <View style={{ flex: 1 }}>
-              <EnergyView />
+            <BottomSheetTextInput
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Description (not necessary)"
+              placeholderTextColor={tokens.muted}
+              multiline
+              style={[styles.descriptionInput, { color: tokens.textPrimary }]}
+            />
+          </AdaptiveGlassView>
+        </View>
+
+        {/* Project */}
+        <View style={styles.rowField}>
+          <Text style={[styles.rowLabel, { color: tokens.textSecondary }]}>
+            Project:
+          </Text>
+          <AdaptiveGlassView
+            style={[
+              styles.rowInput,
+              { backgroundColor: tokens.cardItem },
+            ]}
+          >
+            <FolderClosed size={18} color={tokens.textSecondary} />
+            <Text style={[styles.rowInputText, { color: tokens.textSecondary }]}>
+              {project ?? 'Choose your project'}
+            </Text>
+          </AdaptiveGlassView>
+        </View>
+
+        {/* Context */}
+        <View style={styles.rowField}>
+          <Text style={[styles.rowLabel, { color: tokens.textSecondary }]}>
+            Context:
+          </Text>
+          <AdaptiveGlassView
+            style={[
+              styles.rowInput,
+              { backgroundColor: tokens.cardItem },
+            ]}
+          >
+            <AtSign size={18} color={tokens.textSecondary} />
+            <Text style={[styles.rowInputText, { color: tokens.textPrimary }]}>
+              {context ?? '@work'}
+            </Text>
+          </AdaptiveGlassView>
+        </View>
+
+        {/* Energy */}
+        <View style={styles.rowField}>
+          <Text style={[styles.rowLabel, { color: tokens.textSecondary }]}>
+            Energy:
+          </Text>
+          <AdaptiveGlassView
+            style={[
+              styles.rowInput,
+              { backgroundColor: tokens.cardItem },
+            ]}
+          >
+            <Zap size={18} color={tokens.textSecondary} />
+            <Text style={[styles.rowInputText, { color: tokens.textPrimary }]}>
+              Medium
+            </Text>
+            <View style={styles.energyIcons}>
+              {[1, 2, 3].map((level) => (
+                <Zap
+                  key={level}
+                  size={16}
+                  color={level <= 2 ? tokens.textPrimary : tokens.textSecondary}
+                  fill={level <= 2 ? tokens.textPrimary : 'none'}
+                />
+              ))}
             </View>
           </AdaptiveGlassView>
+        </View>
 
+        {/* Priority */}
+        <View style={styles.rowField}>
+          <Text style={[styles.rowLabel, { color: tokens.textSecondary }]}>
+            Priority:
+          </Text>
           <AdaptiveGlassView
             style={[
-              styles.inputIconWrap,
-              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+              styles.rowInput,
+              { backgroundColor: tokens.cardItem },
             ]}
           >
-            <Flag size={16} color={theme.colors.textSecondary} />
-            <View style={{ flex: 1 }}>
-              <PriorityView />
-            </View>
+            <Flag size={18} color={tokens.textSecondary} />
+            <Text style={[styles.rowInputText, { color: tokens.textPrimary }]}>
+              Medium
+            </Text>
           </AdaptiveGlassView>
         </View>
-      </View>
 
-      {/* Additional */}
-      <View style={styles.group}>
-        <Text style={[styles.fieldLabel, { color: theme.colors.textSecondary }]}>
-          Additional
-        </Text>
+        {/* Additional */}
+        <View style={styles.fieldSection}>
+          <Text style={[styles.fieldLabel, { color: tokens.textSecondary }]}>
+            Additional
+          </Text>
 
-        {/* Reminder */}
-        <RowSwitch
-          label="Reminder before"
-          value={reminderEnabled}
-          onValueChange={setReminderEnabled}
-          rightEl={
-            <Pressable onPress={cycleReminder} style={({ pressed }) => [styles.badge, pressed && styles.pressed]}>
-              <Text style={[styles.badgeText, { color: theme.colors.textPrimary }]}>
+          {/* Reminder */}
+          <AdaptiveGlassView
+            style={[
+              styles.switchRow,
+              { backgroundColor: tokens.cardItem },
+            ]}
+          >
+            <View style={styles.switchLeft}>
+              <Bell size={18} color={tokens.textSecondary} />
+              <Text style={[styles.switchLabel, { color: tokens.textSecondary }]}>
+                Reminder before
+              </Text>
+            </View>
+            <View style={styles.switchRight}>
+              <Text style={[styles.switchValue, { color: tokens.textSecondary }]}>
                 ({remindBeforeMin} min)
               </Text>
-            </Pressable>
-          }
-          colors={theme.colors}
-        />
+              <Switch
+                value={reminderEnabled}
+                onValueChange={setReminderEnabled}
+                trackColor={{ true: tokens.accent, false: tokens.separator }}
+                thumbColor={tokens.card}
+                ios_backgroundColor={tokens.separator}
+              />
+            </View>
+          </AdaptiveGlassView>
 
-        {/* Repeat */}
-        <RowSwitch
-          label="Repeat"
-          value={repeatEnabled}
-          onValueChange={setRepeatEnabled}
-          rightEl={
-            <Pressable onPress={() => setRepeatRule('Everyday')} style={({ pressed }) => [styles.badge, pressed && styles.pressed]}>
-              <Text style={[styles.badgeText, { color: theme.colors.textPrimary }]}>
+          {/* Repeat */}
+          <AdaptiveGlassView
+            style={[
+              styles.switchRow,
+              { backgroundColor: tokens.cardItem },
+            ]}
+          >
+            <View style={styles.switchLeft}>
+              <Repeat size={18} color={tokens.textSecondary} />
+              <Text style={[styles.switchLabel, { color: tokens.textSecondary }]}>
+                Repeat
+              </Text>
+            </View>
+            <View style={styles.switchRight}>
+              <Text style={[styles.switchValue, { color: tokens.textSecondary }]}>
                 ({repeatRule})
               </Text>
-            </Pressable>
-          }
-          colors={theme.colors}
-        />
+              <Switch
+                value={repeatEnabled}
+                onValueChange={setRepeatEnabled}
+                trackColor={{ true: tokens.accent, false: tokens.separator }}
+                thumbColor={tokens.card}
+                ios_backgroundColor={tokens.separator}
+              />
+            </View>
+          </AdaptiveGlassView>
 
-        {/* Focus */}
-        <RowSwitch
-          label="Need FOCUS"
-          value={needFocus}
-          onValueChange={setNeedFocus}
-          colors={theme.colors}
-        />
+          {/* Need FOCUS */}
+          <AdaptiveGlassView
+            style={[
+              styles.switchRow,
+              { backgroundColor: tokens.cardItem },
+            ]}
+          >
+            <View style={styles.switchLeft}>
+              <Heart size={18} color={tokens.textSecondary} />
+              <Text style={[styles.switchLabel, { color: tokens.textSecondary }]}>
+                Need FOCUS
+              </Text>
+            </View>
+            <Switch
+              value={needFocus}
+              onValueChange={setNeedFocus}
+              trackColor={{ true: tokens.accent, false: tokens.separator }}
+              thumbColor={tokens.card}
+              ios_backgroundColor={tokens.separator}
+            />
+          </AdaptiveGlassView>
 
-        {/* Subtasks */}
-        <Pressable
-          onPress={() => setSubtasksOpen((v) => !v)}
-          style={({ pressed }) => [styles.subHeader, pressed && styles.pressed]}
-        >
-          <Text style={[styles.subHeaderText, { color: theme.colors.textSecondary }]}>
-            Subtasks:
-          </Text>
-          {subtasksOpen
-            ? <ChevronUp size={16} color={theme.colors.textSecondary} />
-            : <ChevronDown size={16} color={theme.colors.textSecondary} />}
-        </Pressable>
+          {/* Subtasks */}
+          <Pressable
+            onPress={() => setSubtasksOpen((prev) => !prev)}
+            style={({ pressed }) => [pressed && styles.pressed]}
+          >
+            <AdaptiveGlassView
+              style={[
+                styles.switchRow,
+                { backgroundColor: tokens.cardItem },
+              ]}
+            >
+              <View style={styles.switchLeft}>
+                <List size={18} color={tokens.textSecondary} />
+                <Text style={[styles.switchLabel, { color: tokens.textSecondary }]}>
+                  Subtasks:
+                </Text>
+              </View>
+              <ChevronDown size={18} color={tokens.textSecondary} />
+            </AdaptiveGlassView>
+          </Pressable>
 
-        {subtasksOpen && (
-          <View style={{ gap: 10 }}>
-            {subtasks.map((s, i) => (
-              <AdaptiveGlassView
-                key={`st-${i}`}
+          {subtasksOpen && (
+            <View style={styles.subtasksList}>
+              {subtasks.map((value, index) => (
+                <AdaptiveGlassView
+                  key={`subtask-${index}`}
+                  style={[
+                    styles.subtaskInput,
+                    { backgroundColor: tokens.cardItem },
+                  ]}
+                >
+                  <BottomSheetTextInput
+                    value={value}
+                    onChangeText={(textValue) => updateSubtask(index, textValue)}
+                    placeholder={addTaskStrings.subtaskPlaceholder}
+                    placeholderTextColor={tokens.muted}
+                    style={[styles.textInput, { color: tokens.textPrimary }]}
+                  />
+                </AdaptiveGlassView>
+              ))}
+              <Pressable
+                onPress={addSubtask}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView
+                  style={[
+                    styles.subtaskAddButton,
+                    { backgroundColor: tokens.cardItem },
+                  ]}
+                >
+                  <Plus size={16} color={tokens.accent} />
+                  <Text style={{ color: tokens.accent, fontSize: 13, fontWeight: '600' }}>
+                    {addTaskStrings.subtaskPlaceholder}
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+          )}
+        </View>
+
+        {/* AI Suggestions */}
+        <View style={styles.aiSuggestion}>
+          <Lightbulb size={22} color="#FFA500" />
+          <View style={styles.aiTextContainer}>
+            <Text style={[styles.aiText, { color: tokens.textSecondary }]}>
+              AI:{' '}
+              <Text style={{ color: tokens.textPrimary }}>
+                "At the current pace, you will reach your goal in March. If you increase contributions by 100k per month
+              </Text>
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.aiSuggestion}>
+          <Lightbulb size={22} color="#FFA500" />
+          <View style={styles.aiTextContainer}>
+            <Text style={[styles.aiText, { color: tokens.textSecondary }]}>
+              AI:{' '}
+              <Text style={{ color: tokens.textPrimary }}>
+                "At the current pace, you will reach your goal in March. If you increase contributions by 100k per month
+              </Text>
+            </Text>
+          </View>
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtons}>
+          <Pressable
+            onPress={() => handleCreate(true)}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+          >
+            <Text style={[styles.secondaryButtonText, { color: tokens.textSecondary }]}>
+              Create and more
+            </Text>
+          </Pressable>
+          <Pressable
+            disabled={disablePrimary}
+            onPress={() => handleCreate(false)}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && !disablePrimary && styles.pressed,
+            ]}
+          >
+            <AdaptiveGlassView
+              style={[
+                styles.primaryButtonInner,
+                {
+                  backgroundColor: disablePrimary ? tokens.cardItem : tokens.card,
+                },
+              ]}
+            >
+              <Text
                 style={[
-                  styles.inputWrap,
-                  { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+                  styles.primaryButtonText,
+                  { color: disablePrimary ? tokens.textSecondary : tokens.accent },
                 ]}
               >
-                <BottomSheetTextInput
-                  style={[styles.input, { color: theme.colors.textPrimary }]}
-                  placeholder={`Subtask ${i + 1}`}
-                  placeholderTextColor={theme.colors.textMuted}
-                  value={s}
-                  onChangeText={(v) => updateSubtask(i, v)}
-                />
-              </AdaptiveGlassView>
-            ))}
-            <Pressable onPress={addSubtask} style={({ pressed }) => [styles.addSubtask, { borderColor: theme.colors.border }, pressed && styles.pressed]}>
-              <Plus size={16} color={theme.colors.textSecondary} />
-              <Text style={[styles.addSubtaskText, { color: theme.colors.textSecondary }]}>
-                Add subtask
+                Create task
               </Text>
-            </Pressable>
+            </AdaptiveGlassView>
+          </Pressable>
+        </View>
+      </CustomBottomSheet>
+
+      {Platform.OS === 'ios' && showTimePicker && (
+        <Modal transparent visible animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
+          <View style={styles.timePickerModal}>
+            <Pressable style={styles.timePickerBackdrop} onPress={() => setShowTimePicker(false)} />
+            <AdaptiveGlassView style={[styles.timePickerCard, { backgroundColor: tokens.cardItem }]}>
+              <DateTimePicker
+                value={timePickerValue}
+                mode="time"
+                is24Hour
+                display="spinner"
+                onChange={handleSelectTime}
+              />
+              <Pressable style={styles.timePickerDoneButton} onPress={() => setShowTimePicker(false)}>
+                <Text style={[styles.timePickerDoneText, { color: tokens.accent }]}>Done</Text>
+              </Pressable>
+            </AdaptiveGlassView>
           </View>
-        )}
-      </View>
+        </Modal>
+      )}
 
-      {/* AI helper block (static copy as in mock) */}
-      <View style={styles.aiBlock}>
-        <Text style={[styles.aiText, { color: theme.colors.textSecondary }]}>
-          Ai: “At the current pace, you will reach your goal in March.
-          If you increase contributions by 100k per month…”
-        </Text>
-        <Text style={[styles.aiText, { color: theme.colors.textSecondary }]}>
-          Ai: “At the current pace, you will reach your goal in March.
-          if you increase contributions by 100k per month”
-        </Text>
-      </View>
-
-      {/* Bottom actions */}
-      <View
-        style={[
-          styles.actionsRow,
-          { borderColor: theme.colors.borderMuted },
-        ]}
-      >
-        <Pressable
-          onPress={() => handleCreate(true)}
-          style={({ pressed }) => [
-            styles.secondaryBtn,
-            { borderColor: theme.colors.border },
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={[styles.secondaryText, { color: theme.colors.textSecondary }]}>
-            Create and more
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={() => handleCreate(false)}
-          style={({ pressed }) => [
-            styles.primaryBtn,
-            { backgroundColor: theme.colors.primary },
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={[styles.primaryText, { color: theme.colors.white }]}>
-            Create task
-          </Text>
-        </Pressable>
-      </View>
-    </CustomBottomSheet>
+      {Platform.OS === 'ios' && showDatePicker && (
+        <Modal transparent visible animationType="fade" onRequestClose={() => setShowDatePicker(false)}>
+          <View style={styles.timePickerModal}>
+            <Pressable style={styles.timePickerBackdrop} onPress={() => setShowDatePicker(false)} />
+            <AdaptiveGlassView style={[styles.timePickerCard, { backgroundColor: tokens.cardItem }]}>
+              <DateTimePicker
+                value={datePickerValue}
+                mode="date"
+                display="inline"
+                onChange={handleSelectDate}
+              />
+              <Pressable style={styles.timePickerDoneButton} onPress={() => setShowDatePicker(false)}>
+                <Text style={[styles.timePickerDoneText, { color: tokens.accent }]}>Done</Text>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+        </Modal>
+      )}
+    </>
   );
-});
+};
 
+const AddTaskSheet = forwardRef<AddTaskSheetHandle, AddTaskSheetProps>(AddTaskSheetComponent);
 AddTaskSheet.displayName = 'AddTaskSheet';
 
 export default AddTaskSheet;
 
-// =========================
-// Small sub-components
-// =========================
-const RowSwitch: React.FC<{
-  label: string;
-  value: boolean;
-  onValueChange: (v: boolean) => void;
-  rightEl?: React.ReactNode;
-  colors: ReturnType<typeof useAppTheme>['colors'];
-}> = ({ label, value, onValueChange, rightEl, colors }) => {
-  return (
-    <View style={styles.switchRow}>
-      <Text style={[styles.switchLabel, { color: colors.textSecondary }]}>{label}</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        {rightEl}
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          thumbColor={value ? colors.white : colors.iconTextSecondary}
-          trackColor={{ true: colors.primary, false: colors.border }}
-        />
-      </View>
-    </View>
-  );
-};
-
-// =========================
-// Styles
-// =========================
 const styles = StyleSheet.create({
   sheetBackground: {
     borderTopLeftRadius: 28,
@@ -657,169 +902,231 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     opacity: 0.65,
   },
-  containerPad: {
-    paddingBottom: 18,
+  scrollContent: {
+    paddingTop: 12,
+    paddingBottom: 32,
+    gap: 24,
   },
-
-  headerCenter: {
+  header: {
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 12,
+    paddingHorizontal: 20,
   },
   headerTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-  },
-
-  group: {
-    gap: 12,
-    marginBottom: 16,
-  },
-
-  fieldLabel: {
     fontSize: 13,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+    letterSpacing: 1.2,
   },
-
-  inputWrap: {
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
+  fieldSection: {
+    gap: 16,
+    paddingHorizontal: 20,
+    marginTop: 24,
   },
-  input: {
+  fieldLabel: {
     fontSize: 14,
-    paddingVertical: 10,
+    fontWeight: '400',
   },
-
-  row2: {
+  inputContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  textInput: {
+    fontSize: 15,
+    fontWeight: '400',
+  },
+  dateRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
-  inputIconWrap: {
+  dateButton: {
     flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 16,
+  },
+  dateButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  dateButtonText: {
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  timeButton: {
+    borderRadius: 16,
+  },
+  timeButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
   },
-  inputLike: {
+  timeButtonText: {
     fontSize: 14,
-    paddingVertical: 2,
+    fontWeight: '400',
   },
-
-  inlineRow: {
+  descriptionContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 80,
+  },
+  descriptionInput: {
+    fontSize: 15,
+    fontWeight: '400',
+    textAlignVertical: 'top',
+  },
+  rowField: {
     flexDirection: 'row',
-    gap: 8,
-    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    marginTop: 12,
   },
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 14,
-    borderWidth: 1,
+  rowLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+    width: 70,
   },
-  pillLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+  rowInput: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
   },
-
+  rowInputText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '400',
+  },
+  energyIcons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
   switchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  switchLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   switchLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
   },
-  badge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    letterSpacing: 0.2,
-  },
-
-  subHeader: {
-    marginTop: 6,
+  switchRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
+    gap: 10,
   },
-  subHeaderText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  addSubtask: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  addSubtaskText: {
+  switchValue: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: '400',
   },
-
-  aiBlock: {
-    gap: 6,
-    marginTop: 4,
-    marginBottom: 8,
+  subtasksList: {
+    marginTop: 8,
+    gap: 10,
+    paddingHorizontal: 20,
+  },
+  subtaskInput: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  subtaskAddButton: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  aiSuggestion: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    marginTop: 12
+  },
+  aiTextContainer: {
+    flex: 1,
   },
   aiText: {
-    fontSize: 12,
-    lineHeight: 18,
+    fontSize: 13,
+    fontWeight: '400',
+    lineHeight: 19,
   },
-
-  actionsRow: {
-    marginTop: 8,
+  actionButtons: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
+    gap: 12,
+    marginTop: 8,
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
   },
-  secondaryBtn: {
+  secondaryButton: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryText: {
-    fontSize: 14,
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '400',
+  },
+  primaryButton: {
+    flex: 1,
+    borderRadius: 16,
+  },
+  primaryButtonInner: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  primaryButtonText: {
+    fontSize: 15,
     fontWeight: '600',
   },
-  primaryBtn: {
+  pressed: {
+    opacity: 0.7,
+  },
+  timePickerModal: {
     flex: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   },
-  primaryText: {
-    fontSize: 14,
-    fontWeight: '700',
+  timePickerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
   },
-
-  pressed: { opacity: 0.85 },
+  timePickerCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 24,
+    padding: 16,
+    gap: 12,
+  },
+  timePickerDoneButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  timePickerDoneText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
 });

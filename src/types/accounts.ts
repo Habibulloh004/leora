@@ -1,4 +1,29 @@
-export type AccountKind = 'cash' | 'card' | 'savings' | 'usd' | 'crypto' | 'other';
+export type AccountKind =
+  | 'cash'
+  | 'card'
+  | 'savings'
+  | 'usd'
+  | 'crypto'
+  | 'other'
+  | 'custom';
+
+export type AccountIconId =
+  | 'wallet'
+  | 'credit-card'
+  | 'piggy-bank'
+  | 'bank'
+  | 'briefcase'
+  | 'coins'
+  | 'sparkles'
+  | 'bitcoin'
+  | 'shield'
+  | 'trending-up';
+
+export interface CustomAccountType {
+  id: string;
+  label: string;
+  icon: AccountIconId;
+}
 
 export type AccountTransactionType = 'income' | 'outcome';
 
@@ -18,6 +43,9 @@ export interface AccountItem {
   currency: string;
   subtitle: string;
   iconColor: string;
+  customTypeId?: string;
+  customTypeLabel?: string;
+  customIcon?: AccountIconId;
   progress?: number;
   goal?: number;
   usdRate?: number;
@@ -30,4 +58,7 @@ export interface AddAccountPayload {
   description: string;
   amount: number;
   type: AccountKind;
+  customTypeId?: string;
+  customTypeLabel?: string;
+  customIcon?: AccountIconId;
 }

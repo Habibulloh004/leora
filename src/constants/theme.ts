@@ -11,8 +11,6 @@ import { useTheme as useThemePreference } from '@/contexts/ThemeContext';
 export const Colors = {
   // === Основные цвета бренда ===
   primary: '#59595F',      // Яркий синий
-  primaryLight: '#3b82f6',
-  primaryDark: '#1e40af',
   white: "#fff",
 
   secondary: '#7c3aed',     // Фиолетовый акцент
@@ -272,8 +270,6 @@ export interface ThemeColors {
   highlight: string;
   gradientScrim: string;
   primary: string;
-  primaryLight: string;
-  primaryDark: string;
   onPrimary: string;
   secondary: string;
   secondaryLight: string;
@@ -313,8 +309,6 @@ export interface Theme {
 
 const sharedPalette = {
   primary: Colors.primary,
-  primaryLight: Colors.primaryLight,
-  primaryDark: Colors.primaryDark,
   secondary: Colors.secondary,
   secondaryLight: Colors.secondaryLight,
   secondaryDark: Colors.secondaryDark,
@@ -366,8 +360,6 @@ const lightColors: ThemeColors = {
   infoBg: sharedPalette.infoBg,
   onInfo: '#FFFFFF',
   primary: sharedPalette.primary,
-  primaryLight: sharedPalette.primaryLight,
-  primaryDark: sharedPalette.primaryDark,
   secondary: sharedPalette.secondary,
   secondaryLight: sharedPalette.secondaryLight,
   secondaryDark: sharedPalette.secondaryDark,
@@ -416,8 +408,6 @@ const darkColors: ThemeColors = {
   infoBg: sharedPalette.infoBg,
   onInfo: Colors.background,
   primary: sharedPalette.primary,
-  primaryLight: sharedPalette.primaryLight,
-  primaryDark: sharedPalette.primaryDark,
   secondary: sharedPalette.secondary,
   secondaryLight: sharedPalette.secondaryLight,
   secondaryDark: sharedPalette.secondaryDark,
