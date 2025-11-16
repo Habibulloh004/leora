@@ -5,7 +5,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
 import { Platform } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { enableFreeze, enableScreens } from 'react-native-screens';
+import { enableScreens } from 'react-native-screens';
 import { Asset } from 'expo-asset';
 import * as Font from 'expo-font';
 import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -24,9 +24,10 @@ import * as Linking from 'expo-linking';
 import ProfileHeader from './(tabs)/more/_components/ProfileHeader';
 import { useLocalization } from '@/localization/useLocalization';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
+import FocusSettingsModal from '@/components/modals/FocusSettingsModal';
+import { useModalStore } from '@/stores/useModalStore';
 
 enableScreens(true);
-enableFreeze(true);
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -121,6 +122,7 @@ function RootNavigator({
   const segments = useSegments();
   const techniqueKey = useFocusSettingsStore((state) => state.techniqueKey);
   const recordSession = useFocusSettingsStore((state) => state.recordSession);
+  const openFocusSettingsModal = useModalStore((state) => state.openFocusSettingsModal);
   const focusSegments = segments.join('/');
 
   const ensureRoute = useCallback(
@@ -200,7 +202,8 @@ function RootNavigator({
       const action = typeof parsed.queryParams?.action === 'string' ? parsed.queryParams.action : undefined;
 
       if (route === 'focus-settings') {
-        ensureRoute('/(modals)/focus-settings');
+        ensureRoute('/focus-mode');
+        openFocusSettingsModal();
         return;
       }
 
@@ -213,7 +216,7 @@ function RootNavigator({
         ensureRoute('/focus-mode');
       }
     },
-    [ensureRoute, handleFocusAction],
+    [ensureRoute, handleFocusAction, openFocusSettingsModal],
   );
 
   useEffect(() => {
@@ -438,13 +441,6 @@ function RootNavigator({
           }}
         />
         <Stack.Screen
-          name="(modals)/focus-settings"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
           name="(modals)/lock"
           options={{
             headerShown: false,
@@ -497,6 +493,7 @@ function RootNavigator({
       <>
         {navigatorContent}
         <LoadingOverlay />
+        <FocusSettingsModal />
       </>
     </NavigationThemeProvider>
   );

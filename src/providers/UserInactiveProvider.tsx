@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { AppState, AppStateStatus, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -39,8 +40,22 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
   const currentModalRef = useRef<string | null>(null);
   const lastAppStateRef = useRef<AppStateStatus>(AppState.currentState ?? 'active');
   const isMountedRef = useRef(false);
+  const [lockHydrated, setLockHydrated] = useState(() => {
+    const hasHydrated = useLockStore.persist?.hasHydrated?.();
+    if (typeof hasHydrated === 'boolean') {
+      return hasHydrated;
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (lockHydrated) return;
+    const finishHydration = () => setLockHydrated(true);
+    useLockStore.persist?.onFinishHydration?.(finishHydration);
+  }, [lockHydrated]);
 
   const dismissModal = useCallback(() => {
+    if (!lockHydrated) return;
     if (currentModalRef.current) {
       if (router.canGoBack()) {
         router.back();
@@ -49,12 +64,13 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
       }
       currentModalRef.current = null;
     }
-  }, [router]);
+  }, [lockHydrated, router]);
 
   const presentModal = useCallback(
     (route: string) => {
       if (currentModalRef.current === route) return;
       if (!isMountedRef.current) return;
+      if (!lockHydrated) return;
 
       dismissModal();
       // Use setTimeout to ensure navigation happens after the Root Layout is mounted
@@ -65,13 +81,14 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
         }
       }, 0);
     },
-    [dismissModal, router]
+    [dismissModal, lockHydrated, router]
   );
 
   const handleActivity = useCallback(() => {
+    if (!lockHydrated) return;
     if (!isLoggedIn || isLocked) return;
     updateLastActive();
-  }, [isLocked, isLoggedIn, updateLastActive]);
+  }, [isLocked, isLoggedIn, lockHydrated, updateLastActive]);
 
   // Track when component is mounted
   useEffect(() => {
@@ -82,15 +99,22 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
+    if (!lockHydrated) {
+      return;
+    }
+
     if (!isLoggedIn) {
       dismissModal();
       setLocked(false);
       setLastBackgrounded(null);
       return;
     }
-  }, [dismissModal, isLoggedIn, setLastBackgrounded, setLocked]);
+  }, [dismissModal, isLoggedIn, lockHydrated, setLastBackgrounded, setLocked]);
 
   useEffect(() => {
+    if (!lockHydrated) {
+      return;
+    }
     if (!isLoggedIn || !lockEnabled) {
       return;
     }
@@ -105,9 +129,12 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
     if (shouldLock && !isLocked) {
       setLocked(true);
     }
-  }, [autoLockTimeoutMs, isLoggedIn, isLocked, lastActive, lockEnabled, setLocked]);
+  }, [autoLockTimeoutMs, isLoggedIn, isLocked, lastActive, lockEnabled, lockHydrated, setLocked]);
 
   useEffect(() => {
+    if (!lockHydrated) {
+      return;
+    }
     const handleAppStateChange = (nextState: AppStateStatus) => {
       if (!isLoggedIn) {
         lastAppStateRef.current = nextState;
@@ -159,6 +186,7 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
     isLoggedIn,
     lastBackgrounded,
     lockEnabled,
+    lockHydrated,
     presentModal,
     setLastBackgrounded,
     setLocked,
@@ -167,6 +195,9 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
   ]);
 
   useEffect(() => {
+    if (!lockHydrated) {
+      return;
+    }
     if (!isLoggedIn) return;
 
     if (isLocked && lockEnabled) {
@@ -178,7 +209,7 @@ export function UserInactiveProvider({ children }: PropsWithChildren) {
     if (isLocked && !lockEnabled) {
       setLocked(false);
     }
-  }, [isLoggedIn, isLocked, lockEnabled, presentModal, setLocked]);
+  }, [isLoggedIn, isLocked, lockEnabled, lockHydrated, presentModal, setLocked]);
 
   const value = useMemo(
     () => ({

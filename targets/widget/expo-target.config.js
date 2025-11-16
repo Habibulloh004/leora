@@ -2,7 +2,7 @@
 module.exports = (config) => {
   const appGroups =
     (config?.ios?.entitlements?.['com.apple.security.application-groups'] ?? [
-      'group.com.habibulloh.leora',
+      'group.com.sarvaryarbekov.leora',
     ]);
 
   return {
