@@ -147,6 +147,12 @@ export default function PlannerTasksTab() {
   const startFocusForTask = usePlannerFocusBridge((state) => state.startFocusForTask);
   const habitEntities = usePlannerHabitsStore((state) => state.habits);
   const openPlannerTaskModal = useModalStore((state) => state.openPlannerTaskModal);
+  const handleEditTask = useCallback(
+    (task: PlannerTask) => {
+      openPlannerTaskModal({ mode: 'edit', taskId: task.id });
+    },
+    [openPlannerTaskModal],
+  );
 
   const tasks = usePlannerTasksStore((state) => state.tasks);
   const history = usePlannerTasksStore((state) => state.history);

@@ -7,52 +7,45 @@ import React, {
 } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { ArrowRightLeft, Wallet } from 'lucide-react-native';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 
-import CustomModal from '@/components/modals/CustomModal';
-import DateChangeModal from '@/components/modals/DateChangeModal';
+import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { useAppTheme, type Theme } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useFinanceStore } from '@/stores/useFinanceStore';
 import { useModalStore } from '@/stores/useModalStore';
+import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
 import { useTranslation } from '../../../utils/localization';
 import type { Transaction } from '@/types/store.types';
 
 type AccountPickerContext = 'from' | 'to';
 
+const modalProps: Partial<CustomModalProps> = {
+  variant: 'form',
+  enableDynamicSizing: false,
+  fallbackSnapPoint: '96%',
+  scrollable: true,
+  scrollProps: { keyboardShouldPersistTaps: 'handled' },
+  contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+};
+
 export default function TransactionModal() {
   const modalRef = useRef<BottomSheetHandle>(null);
-  const dateModalRef = useRef<BottomSheetHandle>(null);
   const accountPickerRef = useRef<BottomSheetHandle>(null);
-
-  const theme = useAppTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
-
-  const [accountPickerContext, setAccountPickerContext] = useState<AccountPickerContext | null>(
-    null
-  );
-  const [fromAccountId, setFromAccountId] = useState<string | null>(null);
-  const [toAccountId, setToAccountId] = useState<string | null>(null);
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [transferDate, setTransferDate] = useState(new Date());
-
-  const openProgress = useSharedValue(0);
 
   const { t } = useTranslation();
 
@@ -62,6 +55,19 @@ export default function TransactionModal() {
   const accounts = useFinanceStore((state) => state.accounts);
   const addTransaction = useFinanceStore((state) => state.addTransaction);
   const updateTransaction = useFinanceStore((state) => state.updateTransaction);
+
+  const exchangeRates = useFinancePreferencesStore((state) => state.exchangeRates);
+
+  const [accountPickerContext, setAccountPickerContext] = useState<AccountPickerContext | null>(
+    null
+  );
+  const [fromAccountId, setFromAccountId] = useState<string | null>(null);
+  const [toAccountId, setToAccountId] = useState<string | null>(null);
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [transferDate, setTransferDate] = useState(new Date());
+  const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
+  const [customExchangeRate, setCustomExchangeRate] = useState('');
 
   const isEditing = Boolean(
     transferModal.mode === 'edit' && transferModal.transaction?.type === 'transfer'
@@ -82,7 +88,75 @@ export default function TransactionModal() {
     setAmount('');
     setNote('');
     setTransferDate(new Date());
+    setPickerMode(null);
+    setCustomExchangeRate('');
   }, [accounts]);
+
+  const formatCurrency = useCallback((value: number, currency: string = 'USD') => {
+    try {
+      return new Intl.NumberFormat(currency === 'UZS' ? 'uz-UZ' : 'en-US', {
+        style: 'currency',
+        currency,
+        maximumFractionDigits: currency === 'UZS' ? 0 : 2,
+      }).format(value);
+    } catch {
+      return `${currency} ${value.toFixed(2)}`;
+    }
+  }, []);
+
+  const fromAccount = useMemo(
+    () => accounts.find((account: any) => account.id === fromAccountId) ?? accounts[0],
+    [accounts, fromAccountId]
+  );
+
+  const toAccount = useMemo(
+    () => accounts.find((account: any) => account.id === toAccountId) ?? accounts[1],
+    [accounts, toAccountId]
+  );
+
+  const amountNumber = useMemo(() => {
+    const parsed = parseFloat(amount.replace(/,/g, '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }, [amount]);
+
+  const isSaveDisabled =
+    !fromAccount || !toAccount || fromAccount.id === toAccount.id || amountNumber <= 0;
+
+  // Проверка нужна ли конвертация
+  const needsConversion = useMemo(() => {
+    if (!fromAccount || !toAccount) return false;
+    return fromAccount.currency !== toAccount.currency;
+  }, [fromAccount, toAccount]);
+
+  // Получение автоматического курса обмена
+  const autoExchangeRate = useMemo(() => {
+    if (!needsConversion || !fromAccount || !toAccount) return 1;
+    
+    const fromCurrency = fromAccount.currency;
+    const toCurrency = toAccount.currency;
+    
+    // Получаем курс из настроек
+    const rate = exchangeRates[`${fromCurrency}_${toCurrency}`];
+    return rate ?? 1;
+  }, [needsConversion, fromAccount, toAccount, exchangeRates]);
+
+  // Текущий курс (кастомный или автоматический)
+  const currentExchangeRate = useMemo(() => {
+    if (!needsConversion) return 1;
+    
+    const customRate = parseFloat(customExchangeRate.replace(/,/g, '.'));
+    if (customExchangeRate && Number.isFinite(customRate) && customRate > 0) {
+      return customRate;
+    }
+    
+    return autoExchangeRate;
+  }, [needsConversion, customExchangeRate, autoExchangeRate]);
+
+  // Конвертированная сумма для получателя
+  const convertedAmount = useMemo(() => {
+    if (!needsConversion) return amountNumber;
+    return amountNumber / currentExchangeRate;
+  }, [needsConversion, amountNumber, currentExchangeRate]);
 
   useEffect(() => {
     if (transferModal.isOpen && editingTransaction) {
@@ -94,59 +168,30 @@ export default function TransactionModal() {
       setFromAccountId(editingTransaction.accountId);
       setToAccountId(editingTransaction.toAccountId ?? null);
       setAmount(editingTransaction.amount.toString());
-      setNote(editingTransaction.note ?? editingTransaction.description ?? '');
       setTransferDate(new Date(editingTransaction.date));
+
+      // Парсим note для извлечения информации о курсе обмена
+      const noteText = editingTransaction.note ?? editingTransaction.description ?? '';
+      const rateRegex = /Exchange rate: 1 [A-Z]+ = ([\d.]+) [A-Z]+\.?\s?(.*)$/i;
+      const match = noteText.match(rateRegex);
+
+      if (match) {
+        setCustomExchangeRate(match[1]);
+        setNote(match[2]?.replace(/^Received: [^.]+\.\s?/, '').trim() ?? '');
+      } else {
+        setNote(noteText);
+      }
     } else if (transferModal.isOpen) {
       resetForm();
     }
   }, [editingTransaction, resetForm, transferModal.isOpen]);
 
+  // Сбрасываем кастомный курс при смене счетов
   useEffect(() => {
-    openProgress.value = withTiming(transferModal.isOpen ? 1 : 0, {
-      duration: 250,
-      easing: Easing.out(Easing.cubic),
-    });
-  }, [openProgress, transferModal.isOpen]);
-
-  const pickerTitleStyle = useAnimatedStyle(() => ({
-    opacity: openProgress.value,
-  }));
-
-  const formatCurrency = useCallback((value: number, currency: string = 'USD') => {
-    try {
-      return new Intl.NumberFormat(
-        currency === 'UZS' ? 'uz-UZ' : 'en-US',
-        {
-          style: 'currency',
-          currency,
-          maximumFractionDigits: currency === 'UZS' ? 0 : 2,
-        }
-      ).format(value);
-    } catch {
-      return `${currency} ${value.toFixed(2)}`;
+    if (!needsConversion) {
+      setCustomExchangeRate('');
     }
-  }, []);
-
-  const fromAccount = useMemo(
-    () => accounts.find((account:any) => account.id === fromAccountId) ?? accounts[0],
-    [accounts, fromAccountId]
-  );
-
-  const toAccount = useMemo(
-    () => accounts.find((account:any) => account.id === toAccountId) ?? accounts[1],
-    [accounts, toAccountId]
-  );
-
-  const amountNumber = useMemo(() => {
-    const parsed = parseFloat(amount.replace(/,/g, '.'));
-    return Number.isFinite(parsed) ? parsed : 0;
-  }, [amount]);
-
-  const isSaveDisabled =
-    !fromAccount ||
-    !toAccount ||
-    fromAccount.id === toAccount.id ||
-    amountNumber <= 0;
+  }, [needsConversion, fromAccountId, toAccountId]);
 
   const handleAmountChange = useCallback((value: string) => {
     const sanitized = value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
@@ -158,6 +203,91 @@ export default function TransactionModal() {
     }
     setAmount(sanitized);
   }, []);
+
+  const handleExchangeRateChange = useCallback((value: string) => {
+    const sanitized = value.replace(/[^0-9.,]/g, '').replace(/,/g, '.');
+    const parts = sanitized.split('.');
+    if (parts.length > 2) {
+      const [integer, fraction] = parts;
+      setCustomExchangeRate(`${integer}.${fraction}`);
+      return;
+    }
+    setCustomExchangeRate(sanitized);
+  }, []);
+
+  const applyDateTimePart = useCallback((mode: 'date' | 'time', value: Date) => {
+    setTransferDate((prev) => {
+      const next = new Date(prev);
+      if (mode === 'date') {
+        next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
+      } else {
+        next.setHours(value.getHours(), value.getMinutes(), 0, 0);
+      }
+      return next;
+    });
+  }, []);
+
+  const openDateTimePicker = useCallback(
+    (mode: 'date' | 'time') => {
+      const baseValue = new Date(transferDate);
+      if (Platform.OS === 'android') {
+        DateTimePickerAndroid.open({
+          value: baseValue,
+          mode,
+          is24Hour: true,
+          display: mode === 'date' ? 'calendar' : 'clock',
+          onChange: (event, selected) => {
+            if (event.type === 'set' && selected) {
+              applyDateTimePart(mode, selected);
+            }
+          },
+        });
+        return;
+      }
+      setPickerMode(mode);
+    },
+    [applyDateTimePart, transferDate]
+  );
+
+  const handleIosPickerChange = useCallback(
+    (event: DateTimePickerEvent, selected?: Date) => {
+      if (event.type === 'dismissed') {
+        setPickerMode(null);
+        return;
+      }
+      if (selected && pickerMode) {
+        applyDateTimePart(pickerMode, selected);
+      }
+    },
+    [applyDateTimePart, pickerMode]
+  );
+
+  const closePicker = useCallback(() => setPickerMode(null), []);
+
+  const pickerValue = useMemo(() => new Date(transferDate), [transferDate]);
+
+  const dateLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(transferDate);
+    } catch {
+      return transferDate.toLocaleDateString();
+    }
+  }, [transferDate]);
+
+  const timeLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(transferDate);
+    } catch {
+      return transferDate.toLocaleTimeString();
+    }
+  }, [transferDate]);
 
   const handleSelectAccount = useCallback(
     (accountId: string) => {
@@ -182,13 +312,6 @@ export default function TransactionModal() {
     accountPickerRef.current?.present();
   }, []);
 
-  const handleSelectDate = useCallback((nextDate: Date) => {
-    if (!(nextDate instanceof Date) || Number.isNaN(nextDate.getTime())) {
-      return;
-    }
-    setTransferDate(nextDate);
-  }, []);
-
   const handleClose = useCallback(() => {
     closeTransferModal();
   }, [closeTransferModal]);
@@ -196,6 +319,13 @@ export default function TransactionModal() {
   const handleSubmit = useCallback(() => {
     if (isSaveDisabled || !fromAccount || !toAccount) {
       return;
+    }
+
+    // Формируем заметку с информацией о конвертации
+    let finalNote = note.trim();
+    if (needsConversion && amountNumber > 0) {
+      const rateInfo = `Exchange rate: 1 ${toAccount.currency} = ${currentExchangeRate.toFixed(4)} ${fromAccount.currency}. Received: ${formatCurrency(convertedAmount, toAccount.currency)}`;
+      finalNote = finalNote ? `${rateInfo}. ${finalNote}` : rateInfo;
     }
 
     const payload: Transaction = {
@@ -206,7 +336,7 @@ export default function TransactionModal() {
       toAccountId: toAccount.id,
       category: 'Transfer',
       date: transferDate,
-      note: note.trim().length ? note.trim() : undefined,
+      note: finalNote.length ? finalNote : undefined,
       currency: fromAccount.currency,
       createdAt: editingTransaction?.createdAt ?? new Date(),
     };
@@ -223,356 +353,598 @@ export default function TransactionModal() {
     addTransaction,
     amountNumber,
     closeTransferModal,
+    convertedAmount,
+    currentExchangeRate,
     editingTransaction,
+    formatCurrency,
     fromAccount,
     isEditing,
     isSaveDisabled,
+    needsConversion,
     note,
     toAccount,
     transferDate,
     updateTransaction,
   ]);
 
+  const handleSwapAccounts = useCallback(() => {
+    const temp = fromAccountId;
+    setFromAccountId(toAccountId);
+    setToAccountId(temp);
+  }, [fromAccountId, toAccountId]);
+
   return (
     <>
-      <CustomModal
-        ref={modalRef}
-        variant="form"
-        onDismiss={handleClose}
-        scrollable
-        scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
-        fallbackSnapPoint="88%"
-        enableDynamicSizing
-      >
-        <KeyboardAvoidingView behavior={Platform.select({ ios: 'padding' })}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>{t('finance.transferTitle')}</Text>
-              <Text style={styles.subtitle}>{t('finance.transferSubtitle')}</Text>
-            </View>
-            <Pressable onPress={handleClose} hitSlop={12}>
-              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.selectorRow}>
-            <TouchableOpacity
-              style={styles.selectorCard}
-              onPress={() => handleOpenAccountPicker('from')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.selectorLabel}>{t('finance.fromAccount')}</Text>
-              <Text style={styles.selectorValue}>{fromAccount?.name ?? t('finance.select')}</Text>
-              <Text style={styles.selectorHint}>
-                {fromAccount
-                  ? formatCurrency(fromAccount.balance, fromAccount.currency)
-                  : t('finance.balanceUnavailable')}
-              </Text>
-            </TouchableOpacity>
-
-            <View style={styles.arrowWrapper}>
-              <ArrowRightLeft size={22} color={theme.colors.textSecondary} />
+      <CustomModal ref={modalRef} onDismiss={handleClose} {...modalProps}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>TRANSFER</Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.selectorCard}
-              onPress={() => handleOpenAccountPicker('to')}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.selectorLabel}>{t('finance.toAccount')}</Text>
-              <Text style={styles.selectorValue}>{toAccount?.name ?? t('finance.select')}</Text>
-              <Text style={styles.selectorHint}>
-                {toAccount
-                  ? formatCurrency(toAccount.balance, toAccount.currency)
-                  : t('finance.balanceUnavailable')}
-              </Text>
-            </TouchableOpacity>
-          </View>
+            {/* From Account */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.fromAccount')}</Text>
+              <Pressable
+                onPress={() => handleOpenAccountPicker('from')}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.accountContainer}>
+                  <View style={styles.accountInfo}>
+                    <View style={styles.accountNameRow}>
+                      <Text style={styles.accountName}>{fromAccount?.name ?? 'Select'}</Text>
+                      {fromAccount && (
+                        <View style={styles.currencyBadge}>
+                          <Text style={styles.currencyBadgeText}>{fromAccount.currency}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.accountBalance}>
+                      {fromAccount
+                        ? formatCurrency(fromAccount.balance, fromAccount.currency)
+                        : 'No balance'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
 
-          <View style={styles.amountSection}>
-            <Text style={styles.sectionTitle}>{t('finance.amount')}</Text>
-            <TextInput
-              value={amount}
-              onChangeText={handleAmountChange}
-              placeholder="0"
-              placeholderTextColor={theme.colors.textMuted}
-              style={styles.amountInput}
-              keyboardType="numeric"
-            />
-          </View>
+            {/* Swap Button */}
+            <View style={styles.swapContainer}>
+              <Pressable
+                onPress={handleSwapAccounts}
+                style={({ pressed }) => [styles.swapButton, pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.swapButtonInner}>
+                  <ArrowRightLeft size={20} color="#FFFFFF" />
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('finance.date')}</Text>
-            <TouchableOpacity
-              style={styles.dateCard}
-              onPress={() => dateModalRef.current?.present()}
-              activeOpacity={0.85}
-            >
-              <View>
-                <Text style={styles.dateLabel}>{transferDate.toLocaleDateString()}</Text>
-                <Text style={styles.dateHint}>{t('finance.changeDate')}</Text>
+            {/* To Account */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.toAccount')}</Text>
+              <Pressable
+                onPress={() => handleOpenAccountPicker('to')}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.accountContainer}>
+                  <View style={styles.accountInfo}>
+                    <View style={styles.accountNameRow}>
+                      <Text style={styles.accountName}>{toAccount?.name ?? 'Select'}</Text>
+                      {toAccount && (
+                        <View style={styles.currencyBadge}>
+                          <Text style={styles.currencyBadgeText}>{toAccount.currency}</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.accountBalance}>
+                      {toAccount
+                        ? formatCurrency(toAccount.balance, toAccount.currency)
+                        : 'No balance'}
+                    </Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+
+            {/* Amount */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.amount')}</Text>
+              <AdaptiveGlassView style={styles.inputContainer}>
+                <TextInput
+                  value={amount}
+                  onChangeText={handleAmountChange}
+                  placeholder="Amount"
+                  placeholderTextColor="#7E8B9A"
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                />
+              </AdaptiveGlassView>
+            </View>
+
+            {/* Exchange Rate - показываем только если валюты разные */}
+            {needsConversion && fromAccount && toAccount && (
+              <View style={styles.section}>
+                <View style={styles.exchangeRateLabelRow}>
+                  <Text style={styles.sectionLabel}>Exchange rate</Text>
+                  {!customExchangeRate && (
+                    <View style={styles.autoBadge}>
+                      <Text style={styles.autoBadgeText}>Auto</Text>
+                    </View>
+                  )}
+                </View>
+                <AdaptiveGlassView style={styles.exchangeRateContainer}>
+                  <View style={styles.exchangeRateRow}>
+                    <Text style={styles.exchangeRateLabel}>
+                      1 {toAccount.currency} =
+                    </Text>
+                    <TextInput
+                      value={customExchangeRate || autoExchangeRate.toFixed(4)}
+                      onChangeText={handleExchangeRateChange}
+                      placeholder={autoExchangeRate.toFixed(4)}
+                      placeholderTextColor="#7E8B9A"
+                      keyboardType="numeric"
+                      style={styles.exchangeRateInput}
+                    />
+                    <Text style={styles.exchangeRateLabel}>{fromAccount.currency}</Text>
+                  </View>
+                  
+                  {/* Показываем конвертированную сумму */}
+                  {amountNumber > 0 && (
+                    <View style={styles.conversionInfo}>
+                      <Ionicons name="arrow-forward" size={16} color="#7E8B9A" />
+                      <Text style={styles.conversionText}>
+                        {formatCurrency(convertedAmount, toAccount.currency)} will be received
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {/* Показываем если курс изменён */}
+                  {customExchangeRate && (
+                    <Pressable
+                      onPress={() => setCustomExchangeRate('')}
+                      style={styles.resetRateButton}
+                    >
+                      <Text style={styles.resetRateText}>Reset to auto rate</Text>
+                    </Pressable>
+                  )}
+                </AdaptiveGlassView>
               </View>
+            )}
 
-              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('finance.note')}</Text>
-            <View style={styles.noteInputWrapper}>
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder={t('finance.notePlaceholder')}
-                placeholderTextColor={theme.colors.textMuted}
-                style={styles.noteInput}
-                multiline
-              />
+            {/* Date & Time */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.date')}</Text>
+              <View style={styles.dateTimeRow}>
+                <Pressable
+                  onPress={() => openDateTimePicker('date')}
+                  style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                    <Ionicons name="calendar-outline" size={18} color="#7E8B9A" />
+                    <Text style={styles.dateTimeText}>{dateLabel}</Text>
+                  </AdaptiveGlassView>
+                </Pressable>
+                <Pressable
+                  onPress={() => openDateTimePicker('time')}
+                  style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                    <Ionicons name="time-outline" size={18} color="#7E8B9A" />
+                    <Text style={styles.dateTimeText}>{timeLabel}</Text>
+                  </AdaptiveGlassView>
+                </Pressable>
+              </View>
             </View>
-          </View>
 
-          <TouchableOpacity
-            style={[styles.saveButton, isSaveDisabled && styles.saveButtonDisabled]}
-            onPress={handleSubmit}
-            activeOpacity={0.9}
-            disabled={isSaveDisabled}
-          >
-            <Text style={styles.saveButtonText}>{t('finance.transfer')}</Text>
-          </TouchableOpacity>
+            {/* Note */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.note')}</Text>
+              <AdaptiveGlassView style={styles.noteContainer}>
+                <TextInput
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder={t('finance.notePlaceholder')}
+                  placeholderTextColor="#7E8B9A"
+                  multiline
+                  style={styles.noteInput}
+                />
+              </AdaptiveGlassView>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+                onPress={handleClose}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isSaveDisabled}
+                onPress={handleSubmit}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && !isSaveDisabled && styles.pressed,
+                ]}
+              >
+                <AdaptiveGlassView
+                  style={[styles.primaryButtonInner, { opacity: isSaveDisabled ? 0.4 : 1 }]}
+                >
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      { color: isSaveDisabled ? '#7E8B9A' : '#FFFFFF' },
+                    ]}
+                  >
+                    {t('finance.transfer')}
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </CustomModal>
 
-      <DateChangeModal
-        ref={dateModalRef}
-        selectedDate={transferDate}
-        onSelectDate={handleSelectDate}
-      />
+      {/* iOS Date/Time Picker Modal */}
+      {Platform.OS === 'ios' && pickerMode && (
+        <Modal transparent visible onRequestClose={closePicker} animationType="fade">
+          <View style={styles.pickerModal}>
+            <Pressable style={styles.pickerBackdrop} onPress={closePicker} />
+            <AdaptiveGlassView style={styles.pickerCard}>
+              <DateTimePicker
+                value={pickerValue}
+                mode={pickerMode}
+                display={pickerMode === 'date' ? 'inline' : 'spinner'}
+                onChange={handleIosPickerChange}
+                is24Hour
+              />
+              <Pressable onPress={closePicker} style={styles.pickerDoneButton}>
+                <Text style={styles.pickerDoneText}>Done</Text>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+        </Modal>
+      )}
 
+      {/* Account Picker Modal */}
       <CustomModal
         ref={accountPickerRef}
-        variant="picker"
-        fallbackSnapPoint="40%"
+        variant="form"
+        fallbackSnapPoint="50%"
         onDismiss={() => setAccountPickerContext(null)}
       >
-        <Animated.View style={[styles.accountPickerHeader, pickerTitleStyle]}>
-          <Text style={styles.accountPickerTitle}>
-            {accountPickerContext === 'from'
-              ? t('finance.selectFromAccount')
-              : t('finance.selectToAccount')}
-          </Text>
-          <Pressable onPress={() => accountPickerRef.current?.dismiss()} hitSlop={10}>
-            <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
-          </Pressable>
-        </Animated.View>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {accountPickerContext === 'from'
+                ? t('finance.selectFromAccount')
+                : t('finance.selectToAccount')}
+            </Text>
+            <Pressable onPress={() => accountPickerRef.current?.dismiss()} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#7E8B9A" />
+            </Pressable>
+          </View>
 
-        <View style={styles.accountPickerList}>
-          {accounts.map((account) => {
-            const selected =
-              accountPickerContext === 'from'
-                ? account.id === fromAccount?.id
-                : account.id === toAccount?.id;
-            return (
-              <TouchableOpacity
-                key={account.id}
-                style={[
-                  styles.accountPickerItem,
-                  selected && styles.accountPickerItemSelected,
-                ]}
-                onPress={() => handleSelectAccount(account.id)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.accountPickerIcon}>
-                  <Wallet size={18} color={theme.colors.textSecondary} />
-                </View>
-                <View style={styles.accountPickerInfo}>
-                  <Text style={styles.accountPickerName}>{account.name}</Text>
-                  <Text style={styles.accountPickerBalance}>
-                    {formatCurrency(account.balance, account.currency)}
-                  </Text>
-                </View>
-                {selected && (
-                  <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
-                )}
-              </TouchableOpacity>
-            );
-          })}
+          <View style={styles.accountList}>
+            {accounts.map((account) => {
+              const selected =
+                accountPickerContext === 'from'
+                  ? account.id === fromAccount?.id
+                  : account.id === toAccount?.id;
+              return (
+                <Pressable
+                  key={account.id}
+                  onPress={() => handleSelectAccount(account.id)}
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[styles.accountItem, { opacity: selected ? 1 : 0.7 }]}
+                  >
+                    <View style={styles.accountPickerIcon}>
+                      <Wallet size={18} color="#7E8B9A" />
+                    </View>
+                    <View style={styles.accountPickerInfo}>
+                      <Text style={[styles.textInput, { marginBottom: 4 }]}>{account.name}</Text>
+                      <Text style={styles.accountBalance}>
+                        {formatCurrency(account.balance, account.currency)}
+                      </Text>
+                    </View>
+                    {selected && <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />}
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </View>
         </View>
       </CustomModal>
     </>
   );
 }
 
-const createStyles = (theme: Theme) =>
-  StyleSheet.create({
+const styles = StyleSheet.create({
   header: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  headerTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    color: '#7E8B9A',
+  },
+  section: {
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    marginBottom: 12,
+  },
+  exchangeRateLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  autoBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(126,139,154,0.2)',
+  },
+  autoBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#7E8B9A',
+  },
+  accountContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
+  accountInfo: {
+    flex: 1,
   },
-  subtitle: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  selectorRow: {
-    marginTop: 24,
+  accountNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
-  selectorCard: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 16,
+  accountName: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
   },
-  selectorLabel: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
+  currencyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
-  selectorValue: {
-    marginTop: 6,
-    fontSize: 16,
+  currencyBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    color: theme.colors.textPrimary,
+    color: '#FFFFFF',
   },
-  selectorHint: {
-    marginTop: 8,
-    fontSize: 12,
-    color: theme.colors.textSecondary,
+  accountBalance: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    marginTop: 4,
   },
-  arrowWrapper: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
+  swapContainer: {
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  swapButton: {
+    borderRadius: 16,
+  },
+  swapButtonInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  amountSection: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  amountInput: {
-    marginTop: 12,
-    fontSize: 32,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    textAlign: 'center',
-  },
-  section: {
-    marginTop: 24,
-  },
-  dateCard: {
-    marginTop: 12,
+  inputContainer: {
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  dateLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  dateHint: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  noteInputWrapper: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 14,
-  },
-  noteInput: {
-    minHeight: 60,
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    marginTop: 28,
-    borderRadius: 16,
-    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 16,
     paddingVertical: 16,
-    alignItems: 'center',
   },
-  saveButtonDisabled: {
-    backgroundColor: theme.colors.textMuted,
+  textInput: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
   },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  accountPickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  accountPickerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  accountPickerList: {
-    marginTop: 16,
+  exchangeRateContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     gap: 12,
   },
-  accountPickerItem: {
+  exchangeRateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
+    gap: 8,
   },
-  accountPickerItemSelected: {
-    borderColor: theme.colors.primary,
+  exchangeRateLabel: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  exchangeRateInput: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    paddingVertical: 4,
+  },
+  conversionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.1)',
+  },
+  conversionText: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#7E8B9A',
+  },
+  resetRateButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+  },
+  resetRateText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#7E8B9A',
+    textDecorationLine: 'underline',
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dateTimeButton: {
+    flex: 1,
+    borderRadius: 16,
+  },
+  dateTimeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  dateTimeText: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  noteContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 80,
+  },
+  noteInput: {
+    fontSize: 15,
+    fontWeight: '400',
+    textAlignVertical: 'top',
+    color: '#FFFFFF',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#7E8B9A',
+  },
+  primaryButton: {
+    flex: 1,
+    borderRadius: 16,
+  },
+  primaryButtonInner: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  pickerModal: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  pickerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  pickerCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 24,
+    padding: 16,
+    gap: 12,
+  },
+  pickerDoneButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  pickerDoneText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  modalContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  accountList: {
+    gap: 12,
+  },
+  accountItem: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   accountPickerIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.colors.surface,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   accountPickerInfo: {
     flex: 1,
-  },
-  accountPickerName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  accountPickerBalance: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
   },
 });
