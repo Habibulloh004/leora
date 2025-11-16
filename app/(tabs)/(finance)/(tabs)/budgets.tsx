@@ -8,18 +8,15 @@ import {
   Switch,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import { RectButton } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { AlertCircle, Check } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 
-import CustomModal from '@/components/modals/CustomModal';
+import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
-import { useAppTheme } from '@/constants/theme';
 import { getCategoriesForType } from '@/constants/financeCategories';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
 import { startOfDay } from '@/utils/calendar';
@@ -44,6 +41,15 @@ type CategoryBudget = {
 const PROGRESS_HEIGHT = 32;
 const PROGRESS_RADIUS = 18;
 
+const modalProps: Partial<CustomModalProps> = {
+  variant: 'form',
+  enableDynamicSizing: false,
+  fallbackSnapPoint: '96%',
+  scrollable: true,
+  scrollProps: { keyboardShouldPersistTaps: 'handled' },
+  contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+};
+
 const formatCurrency = (value: number, currency: string) => {
   const locale = currency === 'UZS' ? 'uz-UZ' : 'en-US';
   const maximumFractionDigits = currency === 'UZS' ? 0 : 2;
@@ -52,17 +58,6 @@ const formatCurrency = (value: number, currency: string) => {
     currency,
     maximumFractionDigits,
   }).format(value);
-};
-
-const applyAlpha = (hex: string, alpha: number) => {
-  const normalized = hex.replace('#', '');
-  if (normalized.length !== 6 && normalized.length !== 8) {
-    return hex;
-  }
-  const alphaHex = Math.round(Math.min(Math.max(alpha, 0), 1) * 255)
-    .toString(16)
-    .padStart(2, '0');
-  return `#${normalized.substring(0, 6)}${alphaHex}`;
 };
 
 type ProgressAppearance = {
@@ -78,7 +73,6 @@ type ProgressBarProps = {
 };
 
 const AnimatedProgressBar: React.FC<ProgressBarProps> = ({ percentage, appearance }) => {
-  const theme = useAppTheme();
   const widthValue = useSharedValue(0);
   const [trackWidth, setTrackWidth] = useState(0);
 
@@ -106,32 +100,9 @@ const AnimatedProgressBar: React.FC<ProgressBarProps> = ({ percentage, appearanc
       style={styles.progressShellWrapper}
       onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
     >
-      <AdaptiveGlassView
-        style={[
-          styles.progressShell,
-          {
-            borderColor: applyAlpha(theme.colors.borderMuted, 0.55),
-            backgroundColor: applyAlpha(theme.colors.textSecondary, 0.16),
-          },
-        ]}
-      >
-        <View
-          style={[
-            styles.progressTrack,
-            {
-              backgroundColor: applyAlpha(
-                theme.colors.backgroundMuted,
-                theme.mode === 'dark' ? 0.38 : 1,
-              ),
-            },
-          ]}
-        />
+      <AdaptiveGlassView style={styles.progressShell}>
         <Animated.View
-          style={[
-            styles.progressFill,
-            fillStyle,
-            { backgroundColor: appearance.fillColor },
-          ]}
+          style={[styles.progressFill, fillStyle, { backgroundColor: appearance.fillColor }]}
         />
 
         <View style={styles.progressOverlay} pointerEvents="none">
@@ -155,36 +126,30 @@ const AnimatedProgressBar: React.FC<ProgressBarProps> = ({ percentage, appearanc
 };
 
 const buildProgressAppearance = (
-  theme: ReturnType<typeof useAppTheme>,
   state: BudgetState,
-  labels: Record<BudgetState, string>,
+  labels: Record<BudgetState, string>
 ): ProgressAppearance => {
-  const neutralFill =
-    theme.mode === 'dark'
-      ? applyAlpha(theme.colors.white, 0.45)
-      : applyAlpha(theme.colors.primary, 0.6);
-
   switch (state) {
     case 'exceeding':
       return {
-        fillColor: theme.colors.danger,
+        fillColor: '#FF6B6B',
         label: labels.exceeding,
         icon: 'alert',
-        textColor: theme.mode === 'dark' ? theme.colors.white : theme.colors.onDanger,
+        textColor: '#FFFFFF',
       };
     case 'fixed':
       return {
-        fillColor: theme.colors.success,
+        fillColor: '#51CF66',
         label: labels.fixed,
         icon: 'check',
-        textColor: theme.mode === 'dark' ? theme.colors.white : theme.colors.onSuccess,
+        textColor: '#FFFFFF',
       };
     default:
       return {
-        fillColor: neutralFill,
+        fillColor: 'rgba(255,255,255,0.4)',
         label: labels.within,
         icon: 'check',
-        textColor: theme.mode === 'dark' ? theme.colors.white : theme.colors.textPrimary,
+        textColor: '#FFFFFF',
       };
   }
 };
@@ -192,27 +157,16 @@ const buildProgressAppearance = (
 const MainBudgetProgress: React.FC<{
   budget: { current: number; total: number; currency: string };
   labels: Record<BudgetState, string>;
-}> = ({
-  budget,
-  labels,
-}) => {
-  const theme = useAppTheme();
+}> = ({ budget, labels }) => {
   const percentage =
     budget.total === 0 ? 0 : Math.min((budget.current / budget.total) * 100, 125);
-  const appearance = useMemo(
-    () => buildProgressAppearance(theme, 'within', labels),
-    [theme, labels],
-  );
+  const appearance = useMemo(() => buildProgressAppearance('within', labels), [labels]);
 
   return (
     <View style={styles.mainSection}>
       <View style={styles.mainAmountsRow}>
-        <Text style={[styles.mainAmount, { color: theme.colors.textSecondary }]}>
-          {formatCurrency(budget.current, budget.currency)}
-        </Text>
-        <Text style={[styles.mainAmount, { color: theme.colors.textSecondary }]}>
-          / {formatCurrency(budget.total, budget.currency)}
-        </Text>
+        <Text style={styles.mainAmount}>{formatCurrency(budget.current, budget.currency)}</Text>
+        <Text style={styles.mainAmount}>/ {formatCurrency(budget.total, budget.currency)}</Text>
       </View>
 
       <AnimatedProgressBar percentage={percentage} appearance={appearance} />
@@ -237,7 +191,6 @@ const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
   actionLabel,
   onManage,
 }) => {
-  const theme = useAppTheme();
   const fade = useSharedValue(0);
   const translateY = useSharedValue(12);
 
@@ -261,8 +214,8 @@ const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
   }));
 
   const appearance = useMemo(
-    () => buildProgressAppearance(theme, category.state, labels),
-    [category.state, labels, theme],
+    () => buildProgressAppearance(category.state, labels),
+    [category.state, labels]
   );
 
   const categoriesSummary = category.categories.join(', ');
@@ -270,63 +223,57 @@ const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
 
   return (
     <Animated.View style={[styles.categoryBlock, animatedStyle]}>
-      <View style={styles.categoryHeaderRow}>
-        <Text style={[styles.categoryTitle, { color: theme.colors.textSecondary }]}>
-          {category.name}
+      <AdaptiveGlassView style={styles.categoryCard}>
+        <View style={styles.categoryHeaderRow}>
+          <Text style={styles.categoryTitle}>{category.name}</Text>
+          <Pressable
+            style={({ pressed }) => [styles.categoryActionButton, pressed && styles.pressed]}
+            onPress={() => onManage?.(category.id)}
+          >
+            <Text style={styles.categoryAction}>{actionLabel}</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.categorySubtitle}>
+          {category.accountName}
+          {categoriesSummary ? ` · ${categoriesSummary}` : ''}
         </Text>
-        <RectButton
-          style={styles.categoryActionButton}
-          rippleColor={applyAlpha(theme.colors.textSecondary, 0.15)}
-          onPress={() => onManage?.(category.id)}
-        >
-          <Text style={[styles.categoryAction, { color: theme.colors.textSecondary }]}>
-            {actionLabel}
+
+        <View style={styles.categoryAmountsRow}>
+          <Text style={styles.categoryAmount}>
+            {formatCurrency(category.spent, category.currency)}
           </Text>
-        </RectButton>
-      </View>
-      <Text style={[styles.categorySubtitle, { color: theme.colors.textTertiary }]}>
-        {category.accountName}
-        {categoriesSummary ? ` · ${categoriesSummary}` : ''}
-      </Text>
+          <Text style={styles.categoryAmount}>
+            / {formatCurrency(category.limit, category.currency)}
+          </Text>
+        </View>
 
-      <View style={styles.categoryAmountsRow}>
-        <Text style={[styles.categoryAmount, { color: theme.colors.textSecondary }]}>
-          {formatCurrency(category.spent, category.currency)}
+        <AnimatedProgressBar percentage={progress} appearance={appearance} />
+        <Text style={styles.remainingLabel}>
+          {appearance.label === labels.exceeding
+            ? `${formatCurrency(category.spent - category.limit, category.currency)} over limit`
+            : `Remaining ${formatCurrency(remainingAmount, category.currency)}`}
         </Text>
-        <Text style={[styles.categoryAmount, { color: theme.colors.textSecondary }]}>
-          / {formatCurrency(category.limit, category.currency)}
-        </Text>
-      </View>
-
-      <AnimatedProgressBar percentage={progress} appearance={appearance} />
-      <Text style={[styles.remainingLabel, { color: theme.colors.textSecondary }]}>
-        {appearance.label === labels.exceeding
-          ? `${formatCurrency(category.spent - category.limit, category.currency)} over limit`
-          : `Remaining ${formatCurrency(remainingAmount, category.currency)}`}
-      </Text>
-
-      {isLast ? null : (
-        <View style={[styles.divider, { backgroundColor: applyAlpha(theme.colors.borderMuted, 0.5) }]} />
-      )}
+      </AdaptiveGlassView>
     </Animated.View>
   );
 };
 
 const BudgetsScreen: React.FC = () => {
-  const theme = useAppTheme();
   const { strings, locale } = useLocalization();
   const budgetsStrings = strings.financeScreens.budgets;
-  const dividerColor = applyAlpha(theme.colors.borderMuted, theme.mode === 'dark' ? 0.4 : 0.6);
+
   const selectedDate = useSelectedDayStore((state) => state.selectedDate);
   const budgets = useFinanceStore((state) => state.budgets);
   const accounts = useFinanceStore((state) => state.accounts);
   const addBudget = useFinanceStore((state) => state.addBudget);
   const updateBudget = useFinanceStore((state) => state.updateBudget);
   const deleteBudget = useFinanceStore((state) => state.deleteBudget);
+
   const accountMap = useMemo(
     () => new Map(accounts.map((account) => [account.id, account])),
-    [accounts],
+    [accounts]
   );
+
   const budgetModalRef = useRef<BottomSheetHandle>(null);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
   const [formName, setFormName] = useState('');
@@ -337,9 +284,10 @@ const BudgetsScreen: React.FC = () => {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [isFormVisible, setIsFormVisible] = useState(false);
+
   const availableCategories = useMemo(
     () => getCategoriesForType(transactionType),
-    [transactionType],
+    [transactionType]
   );
 
   useEffect(() => {
@@ -385,7 +333,7 @@ const BudgetsScreen: React.FC = () => {
       setSelectedCategories(defaultCategory ? [defaultCategory] : []);
       setNotifyEnabled(true);
     },
-    [accounts],
+    [accounts]
   );
 
   const handleCloseBudgetModal = useCallback(() => {
@@ -402,7 +350,7 @@ const BudgetsScreen: React.FC = () => {
       setIsFormVisible(true);
       budgetModalRef.current?.present();
     },
-    [resetFormState],
+    [resetFormState]
   );
 
   const isBudgetFormValid =
@@ -420,7 +368,7 @@ const BudgetsScreen: React.FC = () => {
 
   const toggleCategory = useCallback((name: string) => {
     setSelectedCategories((prev) =>
-      prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name],
+      prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]
     );
   }, []);
 
@@ -473,12 +421,13 @@ const BudgetsScreen: React.FC = () => {
         handleOpenBudgetModal(target);
       }
     },
-    [budgets, handleOpenBudgetModal],
+    [budgets, handleOpenBudgetModal]
   );
 
   const handleOpenCreateBudget = useCallback(() => {
     handleOpenBudgetModal();
   }, [handleOpenBudgetModal]);
+
   const aggregate = useMemo(() => {
     const total = budgets.reduce(
       (acc, budget) => {
@@ -486,7 +435,7 @@ const BudgetsScreen: React.FC = () => {
         acc.total += budget.limit;
         return acc;
       },
-      { current: 0, total: 0 },
+      { current: 0, total: 0 }
     );
     const categories = budgets.map((budget) => {
       const account = accountMap.get(budget.accountId);
@@ -511,6 +460,7 @@ const BudgetsScreen: React.FC = () => {
       categories,
     };
   }, [accountMap, budgets, strings.financeScreens.accounts.header]);
+
   const selectedDateLabel = useMemo(() => {
     const normalized = startOfDay(selectedDate ?? new Date());
     const today = startOfDay(new Date());
@@ -524,270 +474,269 @@ const BudgetsScreen: React.FC = () => {
     }).format(normalized);
     return budgetsStrings.dateTemplate.replace('{date}', formatted);
   }, [budgetsStrings, locale, selectedDate]);
-  const manageLabel = strings.financeScreens.accounts.actions.edit;
 
+  const manageLabel = strings.financeScreens.accounts.actions.edit;
   const selectedAccount = selectedAccountId ? accountMap.get(selectedAccountId) : null;
   const selectedCurrency = selectedAccount?.currency ?? 'UZS';
 
   return (
     <>
       <ScrollView
-        style={[styles.screen, { backgroundColor: theme.colors.background }]}
+        style={styles.screen}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-      <Text style={[styles.dateCaption, { color: theme.colors.textSecondary }]}>{selectedDateLabel}</Text>
-      <Text style={[styles.sectionHeading, { color: theme.colors.textSecondary }]}>
-        {budgetsStrings.mainTitle}
-      </Text>
-      <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+        <Text style={styles.dateCaption}>{selectedDateLabel}</Text>
+        <Text style={styles.sectionHeading}>{budgetsStrings.mainTitle}</Text>
 
-      <MainBudgetProgress budget={aggregate.main} labels={budgetsStrings.states} />
+        <MainBudgetProgress budget={aggregate.main} labels={budgetsStrings.states} />
 
-      <View style={styles.sectionHeaderRow}>
-        <Text style={[styles.sectionHeading, { color: theme.colors.textSecondary }]}>
-          {budgetsStrings.categoriesTitle}
-        </Text>
-        <RectButton
-          style={[
-            styles.addCategoryButton,
-            { borderColor: applyAlpha(theme.colors.textSecondary, 0.35) },
-          ]}
-          rippleColor={applyAlpha(theme.colors.textSecondary, 0.15)}
-          onPress={handleOpenCreateBudget}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>{budgetsStrings.categoriesTitle}</Text>
+          <Pressable
+            style={({ pressed }) => [styles.addCategoryButton, pressed && styles.pressed]}
+            onPress={handleOpenCreateBudget}
+          >
+            <AdaptiveGlassView style={styles.addCategoryButtonInner}>
+              <Text style={styles.addCategoryText}>{budgetsStrings.setLimit}</Text>
+            </AdaptiveGlassView>
+          </Pressable>
+        </View>
+
+        <View style={styles.categoriesList}>
+          {aggregate.categories.map((category, index) => (
+            <CategoryBudgetCard
+              key={category.id}
+              category={category}
+              index={index}
+              isLast={index === aggregate.categories.length - 1}
+              labels={budgetsStrings.states}
+              actionLabel={manageLabel}
+              onManage={handleManageBudget}
+            />
+          ))}
+        </View>
+      </ScrollView>
+
+      <CustomModal ref={budgetModalRef} onDismiss={handleCloseBudgetModal} {...modalProps}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <Text style={[styles.addCategoryText, { color: theme.colors.textSecondary }]}>
-            {budgetsStrings.setLimit}
-          </Text>
-        </RectButton>
-      </View>
-      <View style={[styles.divider, { backgroundColor: dividerColor }]} />
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>
+                {editingBudget ? 'EDIT BUDGET' : 'NEW BUDGET'}
+              </Text>
+            </View>
 
-      <View style={styles.categoriesList}>
-        {aggregate.categories.map((category, index) => (
-          <CategoryBudgetCard
-            key={category.id}
-            category={category}
-            index={index}
-            isLast={index === aggregate.categories.length - 1}
-            labels={budgetsStrings.states}
-            actionLabel={manageLabel}
-            onManage={handleManageBudget}
-          />
-        ))}
-      </View>
-    </ScrollView>
+            {/* Name */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Budget name</Text>
+              <AdaptiveGlassView style={styles.inputContainer}>
+                <TextInput
+                  value={formName}
+                  onChangeText={setFormName}
+                  placeholder="Budget name"
+                  placeholderTextColor="#7E8B9A"
+                  style={styles.textInput}
+                />
+              </AdaptiveGlassView>
+            </View>
 
-      <CustomModal
-        ref={budgetModalRef}
-        variant='form'
-        scrollable
-        scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
-        fallbackSnapPoint='85%'
-        onDismiss={handleCloseBudgetModal}
-      >
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
-              {editingBudget ? manageLabel : budgetsStrings.setLimit}
-            </Text>
-            <Pressable onPress={handleCloseBudgetModal} hitSlop={12}>
-              <Ionicons name='close' size={20} color={theme.colors.textSecondary} />
-            </Pressable>
-          </View>
+            {/* Limit */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>
+                {`${strings.financeScreens.transactions.details.amount} (${selectedCurrency})`}
+              </Text>
+              <AdaptiveGlassView style={styles.inputContainer}>
+                <TextInput
+                  value={limitInput}
+                  onChangeText={handleLimitInputChange}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#7E8B9A"
+                  style={styles.textInput}
+                />
+              </AdaptiveGlassView>
+            </View>
 
-          <View style={styles.modalSection}>
-            <Text style={[styles.modalLabel, { color: theme.colors.textSecondary }]}>
-              {strings.financeScreens.debts.modal.person}
-            </Text>
-            <TextInput
-              value={formName}
-              onChangeText={setFormName}
-              placeholder={strings.financeScreens.debts.modal.defaults.name}
-              placeholderTextColor={theme.colors.textMuted}
-              style={[
-                styles.modalInput,
-                {
-                  backgroundColor: theme.colors.cardItem,
-                  borderColor: applyAlpha(theme.colors.borderMuted, 0.6),
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-            />
-          </View>
-
-          <View style={styles.modalSection}>
-            <Text style={[styles.modalLabel, { color: theme.colors.textSecondary }]}>
-              {`${strings.financeScreens.transactions.details.amount} (${selectedCurrency})`}
-            </Text>
-            <TextInput
-              value={limitInput}
-              onChangeText={handleLimitInputChange}
-              keyboardType='numeric'
-              placeholder='0'
-              placeholderTextColor={theme.colors.textMuted}
-              style={[
-                styles.modalInput,
-                {
-                  backgroundColor: theme.colors.cardItem,
-                  borderColor: applyAlpha(theme.colors.borderMuted, 0.6),
-                  color: theme.colors.textPrimary,
-                },
-              ]}
-            />
-          </View>
-
-          <View style={styles.modalSection}>
-            <Text style={[styles.modalLabel, { color: theme.colors.textSecondary }]}>
-              {strings.financeScreens.debts.modal.accountLabel}
-            </Text>
-            <View style={styles.accountList}>
-              {accounts.length === 0 ? (
-                <Text style={{ color: theme.colors.textMuted }}>
-                  {strings.financeScreens.accounts.header}
-                </Text>
-              ) : (
-                accounts.map((account) => {
+            {/* Account */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{strings.financeScreens.debts.modal.accountLabel}</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.accountScroll}
+              >
+                {accounts.map((account) => {
                   const isSelected = account.id === selectedAccountId;
                   return (
                     <Pressable
                       key={account.id}
-                      style={[
-                        styles.accountChip,
-                        {
-                          borderColor: isSelected ? theme.colors.primary : applyAlpha(theme.colors.borderMuted, 0.8),
-                          backgroundColor: isSelected ? applyAlpha(theme.colors.primary, 0.12) : theme.colors.cardItem,
-                        },
-                      ]}
                       onPress={() => setSelectedAccountId(account.id)}
+                      style={({ pressed }) => [pressed && styles.pressed]}
                     >
-                      <Text
-                        style={[
-                          styles.accountChipLabel,
-                          { color: isSelected ? theme.colors.primary : theme.colors.textSecondary },
-                        ]}
+                      <AdaptiveGlassView
+                        style={[styles.accountChip, { opacity: isSelected ? 1 : 0.6 }]}
                       >
-                        {account.name}
-                      </Text>
-                      <Text style={[styles.accountChipSubtext, { color: theme.colors.textTertiary }]}>
-                        {account.currency}
-                      </Text>
+                        <Text style={[styles.accountChipLabel, { color: isSelected ? '#FFFFFF' : '#9E9E9E' }]}>
+                          {account.name}
+                        </Text>
+                        <Text style={styles.accountChipSubtext}>{account.currency}</Text>
+                      </AdaptiveGlassView>
                     </Pressable>
                   );
-                })
-              )}
+                })}
+              </ScrollView>
             </View>
-          </View>
 
-          <View style={styles.modalSection}>
-            <Text style={[styles.modalLabel, { color: theme.colors.textSecondary }]}>
-              {strings.financeScreens.accounts.header}
-            </Text>
-            <View style={styles.typeToggle}>
-              {(['outcome', 'income'] as const).map((type) => {
-                const isSelected = transactionType === type;
-                return (
-                  <Pressable
-                    key={type}
-                    style={[
-                      styles.typeOption,
-                      {
-                        backgroundColor: isSelected ? theme.colors.primary : theme.colors.cardItem,
-                      },
-                    ]}
-                    onPress={() => setTransactionType(type)}
-                  >
+            {/* Type */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>Type</Text>
+              <AdaptiveGlassView style={styles.typeContainer}>
+                <Pressable
+                  onPress={() => setTransactionType('outcome')}
+                  style={({ pressed }) => [
+                    styles.typeOption,
+                    { borderBottomWidth: 1 },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={styles.typeOptionContent}>
                     <Text
                       style={[
-                        styles.typeOptionLabel,
-                        { color: isSelected ? theme.colors.onPrimary : theme.colors.textSecondary },
+                        styles.typeLabel,
+                        { color: transactionType === 'outcome' ? '#FFFFFF' : '#7E8B9A' },
                       ]}
                     >
-                      {type === 'outcome'
-                        ? strings.financeScreens.accounts.outcome
-                        : strings.financeScreens.accounts.income}
+                      {strings.financeScreens.accounts.outcome}
                     </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
+                  </View>
+                </Pressable>
 
-          <View style={styles.modalSection}>
-            <Text style={[styles.modalLabel, { color: theme.colors.textSecondary }]}>
-              {strings.financeScreens.transactions.details.category}
-            </Text>
-            <View style={styles.categoryChipGrid}>
-              {availableCategories.map((category) => {
-                const Icon = category.icon;
-                const isActive = selectedCategories.includes(category.name);
-                return (
-                  <Pressable
-                    key={category.id}
-                    style={[
-                      styles.categoryChip,
-                      {
-                        borderColor: isActive ? theme.colors.primary : applyAlpha(theme.colors.borderMuted, 0.7),
-                        backgroundColor: isActive ? applyAlpha(theme.colors.primary, 0.12) : theme.colors.cardItem,
-                      },
-                    ]}
-                    onPress={() => toggleCategory(category.name)}
-                  >
-                    <Icon size={14} color={isActive ? theme.colors.primary : theme.colors.textSecondary} />
+                <Pressable
+                  onPress={() => setTransactionType('income')}
+                  style={({ pressed }) => [styles.typeOption, pressed && styles.pressed]}
+                >
+                  <View style={styles.typeOptionContent}>
                     <Text
                       style={[
-                        styles.categoryChipLabel,
-                        { color: isActive ? theme.colors.primary : theme.colors.textSecondary },
+                        styles.typeLabel,
+                        { color: transactionType === 'income' ? '#FFFFFF' : '#7E8B9A' },
                       ]}
                     >
-                      {category.name}
+                      {strings.financeScreens.accounts.income}
                     </Text>
-                  </Pressable>
-                );
-              })}
+                  </View>
+                </Pressable>
+              </AdaptiveGlassView>
             </View>
-          </View>
 
-          <View style={[styles.modalSection, styles.modalRow]}>
-            <View>
-              <Text style={[styles.modalLabel, { color: theme.colors.textSecondary }]}>
-                {strings.financeScreens.debts.modal.reminderToggle}
+            {/* Categories */}
+            <View style={[styles.section, { paddingHorizontal: 0 }]}>
+              <Text style={[styles.sectionLabel, { paddingHorizontal: 20 }]}>
+                {strings.financeScreens.transactions.details.category}
               </Text>
-              <Text style={{ color: theme.colors.textTertiary }}>
-                {notifyEnabled
-                  ? strings.financeScreens.debts.modal.reminderEnabledLabel
-                  : strings.financeScreens.debts.modal.reminderDisabledLabel}
-              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryChipScroll}
+              >
+                {availableCategories.map((category) => {
+                  const Icon = category.icon;
+                  const isActive = selectedCategories.includes(category.name);
+                  return (
+                    <Pressable
+                      key={category.id}
+                      onPress={() => toggleCategory(category.name)}
+                      style={({ pressed }) => [pressed && styles.pressed]}
+                    >
+                      <AdaptiveGlassView
+                        style={[styles.categoryChipCard, { opacity: isActive ? 1 : 0.6 }]}
+                      >
+                        <Icon size={20} color={isActive ? '#FFFFFF' : '#9E9E9E'} />
+                        <Text
+                          style={[
+                            styles.categoryChipLabel,
+                            { color: isActive ? '#FFFFFF' : '#9E9E9E' },
+                          ]}
+                        >
+                          {category.name}
+                        </Text>
+                      </AdaptiveGlassView>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
             </View>
-            <Switch value={notifyEnabled} onValueChange={setNotifyEnabled} />
-          </View>
 
-          <TouchableOpacity
-            style={[
-              styles.primaryButton,
-              (!isBudgetFormValid || !selectedAccountId) && styles.primaryButtonDisabled,
-              { backgroundColor: theme.colors.primary },
-            ]}
-            onPress={handleSubmitBudget}
-            activeOpacity={0.85}
-            disabled={!isBudgetFormValid || !selectedAccountId}
-          >
-            <Text style={[styles.primaryButtonText, { color: theme.colors.onPrimary }]}>
-              {editingBudget ? strings.financeScreens.debts.modal.buttons.saveChanges : budgetsStrings.setLimit}
-            </Text>
-          </TouchableOpacity>
+            {/* Notifications */}
+            <View style={styles.section}>
+              <AdaptiveGlassView style={styles.notificationRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.notificationLabel}>
+                    {strings.financeScreens.debts.modal.reminderToggle}
+                  </Text>
+                  <Text style={styles.notificationSubtext}>
+                    {notifyEnabled
+                      ? strings.financeScreens.debts.modal.reminderEnabledLabel
+                      : strings.financeScreens.debts.modal.reminderDisabledLabel}
+                  </Text>
+                </View>
+                <Switch value={notifyEnabled} onValueChange={setNotifyEnabled} />
+              </AdaptiveGlassView>
+            </View>
 
-          {editingBudget ? (
-            <TouchableOpacity
-              style={[styles.deleteButton, { borderColor: applyAlpha(theme.colors.danger, 0.4) }]}
-              onPress={handleDeleteCurrentBudget}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.deleteButtonText, { color: theme.colors.danger }]}>
-                {strings.financeScreens.accounts.actions.delete}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+                onPress={handleCloseBudgetModal}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={!isBudgetFormValid || !selectedAccountId}
+                onPress={handleSubmitBudget}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && isBudgetFormValid && selectedAccountId && styles.pressed,
+                ]}
+              >
+                <AdaptiveGlassView
+                  style={[
+                    styles.primaryButtonInner,
+                    { opacity: !isBudgetFormValid || !selectedAccountId ? 0.4 : 1 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      { color: !isBudgetFormValid || !selectedAccountId ? '#7E8B9A' : '#FFFFFF' },
+                    ]}
+                  >
+                    {editingBudget
+                      ? strings.financeScreens.debts.modal.buttons.saveChanges
+                      : budgetsStrings.setLimit}
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+
+            {/* Delete Button */}
+            {editingBudget && (
+              <Pressable
+                onPress={handleDeleteCurrentBudget}
+                style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
+              >
+                <Text style={styles.deleteButtonText}>
+                  {strings.financeScreens.accounts.actions.delete}
+                </Text>
+              </Pressable>
+            )}
+          </ScrollView>
         </KeyboardAvoidingView>
       </CustomModal>
     </>
@@ -810,15 +759,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.4,
     textTransform: 'uppercase',
+    color: '#7E8B9A',
   },
   sectionHeading: {
     fontSize: 16,
     fontWeight: '600',
     letterSpacing: 0.4,
-  },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    width: '100%',
+    color: '#7E8B9A',
   },
   mainSection: {
     gap: 12,
@@ -832,6 +779,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     letterSpacing: 0.2,
+    color: '#7E8B9A',
   },
   progressShellWrapper: {
     height: PROGRESS_HEIGHT,
@@ -843,18 +791,9 @@ const styles = StyleSheet.create({
     flex: 1,
     height: PROGRESS_HEIGHT,
     borderRadius: PROGRESS_RADIUS,
-    borderWidth: 1,
     justifyContent: 'center',
     overflow: 'hidden',
     position: 'relative',
-  },
-  progressTrack: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    borderRadius: PROGRESS_RADIUS,
   },
   progressFill: {
     position: 'absolute',
@@ -892,20 +831,28 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   addCategoryButton: {
+    borderRadius: 16,
+  },
+  addCategoryButtonInner: {
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-    borderWidth: 1,
+    paddingVertical: 8,
+    borderRadius: 16,
   },
   addCategoryText: {
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: '600',
     letterSpacing: 1,
+    color: '#FFFFFF',
   },
   categoriesList: {
-    gap: 18,
+    gap: 12,
   },
   categoryBlock: {
+    marginBottom: 8,
+  },
+  categoryCard: {
+    borderRadius: 16,
+    padding: 16,
     gap: 10,
   },
   categoryHeaderRow: {
@@ -916,6 +863,7 @@ const styles = StyleSheet.create({
   categorySubtitle: {
     fontSize: 13,
     marginTop: 2,
+    color: '#7E8B9A',
   },
   categoryActionButton: {
     paddingHorizontal: 6,
@@ -925,11 +873,13 @@ const styles = StyleSheet.create({
   categoryTitle: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#FFFFFF',
   },
   categoryAction: {
     fontSize: 13,
     fontWeight: '500',
     letterSpacing: 0.2,
+    color: '#7E8B9A',
   },
   categoryAmountsRow: {
     flexDirection: 'row',
@@ -940,49 +890,56 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '500',
     letterSpacing: 0.2,
+    color: '#7E8B9A',
   },
   remainingLabel: {
     fontSize: 13,
     fontWeight: '500',
     marginTop: 4,
+    color: '#7E8B9A',
   },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  pressed: {
+    opacity: 0.7,
+  },
+  header: {
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 24,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-  },
-  modalSection: {
-    marginBottom: 16,
-    gap: 8,
-  },
-  modalLabel: {
+  headerTitle: {
     fontSize: 13,
     fontWeight: '600',
-    letterSpacing: 0.2,
+    letterSpacing: 1.2,
+    color: '#7E8B9A',
   },
-  modalInput: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  section: {
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    marginBottom: 12,
+  },
+  inputContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  textInput: {
     fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
   },
-  accountList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  accountScroll: {
+    gap: 12,
+    paddingVertical: 10,
   },
   accountChip: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minWidth: 140,
+    minWidth: 120,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
   },
   accountChipLabel: {
     fontSize: 14,
@@ -991,66 +948,103 @@ const styles = StyleSheet.create({
   accountChipSubtext: {
     fontSize: 11,
     marginTop: 2,
+    color: '#7E8B9A',
   },
-  typeToggle: {
-    flexDirection: 'row',
-    gap: 10,
+  typeContainer: {
+    borderRadius: 16,
   },
   typeOption: {
-    flex: 1,
-    borderRadius: 12,
-    paddingVertical: 10,
-    alignItems: 'center',
+    borderBottomColor: 'rgba(255,255,255,0.1)',
   },
-  typeOptionLabel: {
+  typeOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+  },
+  typeLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: '400',
   },
-  categoryChipGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+  categoryChipScroll: {
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
-  categoryChip: {
-    flexDirection: 'row',
+  categoryChipCard: {
+    width: 90,
+    height: 90,
+    borderRadius: 16,
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderRadius: 18,
+    justifyContent: 'center',
+    gap: 8,
   },
   categoryChipLabel: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  modalRow: {
+  notificationRow: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  notificationLabel: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  notificationSubtext: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    marginTop: 4,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#7E8B9A',
   },
   primaryButton: {
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 8,
+    flex: 1,
+    borderRadius: 16,
   },
-  primaryButtonDisabled: {
-    opacity: 0.5,
+  primaryButtonInner: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
   },
   primaryButtonText: {
     fontSize: 15,
     fontWeight: '600',
   },
   deleteButton: {
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 12,
+    marginTop: 16,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginTop: 12,
+    paddingHorizontal: 20,
   },
   deleteButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '600',
+    color: '#FF6B6B',
   },
 });

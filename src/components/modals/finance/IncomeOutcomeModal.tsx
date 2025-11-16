@@ -7,27 +7,25 @@ import React, {
 } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
-import Animated, {
-  Easing,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { Wallet } from 'lucide-react-native';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 
 import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
-import DateChangeModal from '@/components/modals/DateChangeModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { useAppTheme, type Theme } from '@/constants/theme';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import {
   FINANCE_CATEGORIES,
   FinanceCategory,
@@ -37,7 +35,6 @@ import { useFinanceStore } from '@/stores/useFinanceStore';
 import { useModalStore } from '@/stores/useModalStore';
 import { useTranslation } from '../../../utils/localization';
 import type { Transaction } from '@/types/store.types';
-import { applyOpacity } from '@/utils/color';
 
 type IncomeOutcomeTab = 'income' | 'outcome';
 
@@ -46,23 +43,19 @@ interface CategoryModalState {
   baseValue?: string;
 }
 
-const iconSize = 22;
-
-const amountInputConfig: Partial<CustomModalProps> = {
+const modalProps: Partial<CustomModalProps> = {
+  variant: 'form',
+  enableDynamicSizing: false,
+  fallbackSnapPoint: '96%',
   scrollable: true,
-  scrollProps: {
-    keyboardShouldPersistTaps: 'handled',
-  },
+  scrollProps: { keyboardShouldPersistTaps: 'handled' },
+  contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
 };
 
 export default function IncomeOutcomeModal() {
   const modalRef = useRef<BottomSheetHandle>(null);
-  const dateModalRef = useRef<BottomSheetHandle>(null);
   const categoryModalRef = useRef<BottomSheetHandle>(null);
   const accountModalRef = useRef<BottomSheetHandle>(null);
-
-  const theme = useAppTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const { t } = useTranslation();
 
@@ -84,14 +77,19 @@ export default function IncomeOutcomeModal() {
   const [transactionDate, setTransactionDate] = useState(new Date());
   const [categoryModalState, setCategoryModalState] = useState<CategoryModalState | null>(null);
   const [categoryDraft, setCategoryDraft] = useState('');
-
-  const indicatorProgress = useSharedValue(0);
-  const segmentWidth = useSharedValue(0);
+  const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
+  const [debtPerson, setDebtPerson] = useState('');
 
   const isEditing = Boolean(
     incomeOutcome.mode === 'edit' && incomeOutcome.transaction?.type !== 'transfer'
   );
   const editingTransaction = incomeOutcome.transaction;
+
+  const isDebtCategory = useMemo(() => {
+    if (!selectedCategory) return false;
+    const lower = selectedCategory.toLowerCase();
+    return lower === 'debt' || lower === 'debts' || lower.includes('долг');
+  }, [selectedCategory]);
 
   const availableCategories = useMemo(() => {
     const baseList = getCategoriesForType(activeTab);
@@ -115,14 +113,6 @@ export default function IncomeOutcomeModal() {
     return Array.from(aggregated.values());
   }, [activeTab, categories]);
 
-  const resolveCategoryColor = useCallback(
-    (category: FinanceCategory & { colorToken?: FinanceCategory['colorToken'] }) => {
-      const token = category.colorToken ?? 'primary';
-      return theme.colors[token] ?? theme.colors.primary;
-    },
-    [theme.colors],
-  );
-
   useEffect(() => {
     if (incomeOutcome.isOpen) {
       modalRef.current?.present();
@@ -139,6 +129,8 @@ export default function IncomeOutcomeModal() {
       setSelectedAccount(accounts[0]?.id ?? null);
       setTransactionDate(new Date());
       setNote('');
+      setDebtPerson('');
+      setPickerMode(null);
     },
     [accounts]
   );
@@ -155,7 +147,20 @@ export default function IncomeOutcomeModal() {
         setSelectedCategory(transaction.category ?? null);
         setSelectedAccount(transaction.accountId);
         setTransactionDate(new Date(transaction.date));
-        setNote(transaction.note ?? transaction.description ?? '');
+        
+        // Парсим note для извлечения информации о долге
+        const noteText = transaction.note ?? transaction.description ?? '';
+        const debtRegex = tab === 'income' 
+          ? /^(.+?) owes me\.?\s?(.*)$/i 
+          : /^I owe to (.+?)\.?\s?(.*)$/i;
+        const match = noteText.match(debtRegex);
+        
+        if (match) {
+          setDebtPerson(match[1].trim());
+          setNote(match[2]?.trim() ?? '');
+        } else {
+          setNote(noteText);
+        }
       } else {
         resetForm(fallbackTab);
       }
@@ -163,13 +168,6 @@ export default function IncomeOutcomeModal() {
       resetForm('income');
     }
   }, [incomeOutcome, resetForm]);
-
-  useEffect(() => {
-    indicatorProgress.value = withTiming(activeTab === 'income' ? 0 : 1, {
-      duration: 220,
-      easing: Easing.bezier(0.16, 1, 0.3, 1),
-    });
-  }, [activeTab, indicatorProgress]);
 
   useEffect(() => {
     if (!selectedCategory) {
@@ -181,19 +179,12 @@ export default function IncomeOutcomeModal() {
     }
   }, [availableCategories, selectedCategory]);
 
-  const indicatorStyle = useAnimatedStyle(() => ({
-    width: segmentWidth.value,
-    transform: [{ translateX: indicatorProgress.value * segmentWidth.value }],
-  }));
-
-  const handleTabLayout = useCallback(
-    (event: any) => {
-      const { width } = event.nativeEvent.layout;
-      const segment = Math.max((width - 8) / 2, 0);
-      segmentWidth.value = segment;
-    },
-    [segmentWidth]
-  );
+  useEffect(() => {
+    // Сбрасываем debtPerson если категория больше не Debt
+    if (!isDebtCategory && debtPerson) {
+      setDebtPerson('');
+    }
+  }, [isDebtCategory, debtPerson]);
 
   const formatCurrency = useCallback((value: number, currency: string = 'USD') => {
     try {
@@ -239,12 +230,79 @@ export default function IncomeOutcomeModal() {
     setAmount(sanitized);
   }, []);
 
-  const handleSelectDate = useCallback((nextDate: Date) => {
-    if (!(nextDate instanceof Date) || Number.isNaN(nextDate.getTime())) {
-      return;
-    }
-    setTransactionDate(nextDate);
+  const applyDateTimePart = useCallback((mode: 'date' | 'time', value: Date) => {
+    setTransactionDate((prev) => {
+      const next = new Date(prev);
+      if (mode === 'date') {
+        next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
+      } else {
+        next.setHours(value.getHours(), value.getMinutes(), 0, 0);
+      }
+      return next;
+    });
   }, []);
+
+  const openDateTimePicker = useCallback(
+    (mode: 'date' | 'time') => {
+      const baseValue = new Date(transactionDate);
+      if (Platform.OS === 'android') {
+        DateTimePickerAndroid.open({
+          value: baseValue,
+          mode,
+          is24Hour: true,
+          display: mode === 'date' ? 'calendar' : 'clock',
+          onChange: (event, selected) => {
+            if (event.type === 'set' && selected) {
+              applyDateTimePart(mode, selected);
+            }
+          },
+        });
+        return;
+      }
+      setPickerMode(mode);
+    },
+    [applyDateTimePart, transactionDate]
+  );
+
+  const handleIosPickerChange = useCallback(
+    (event: DateTimePickerEvent, selected?: Date) => {
+      if (event.type === 'dismissed') {
+        setPickerMode(null);
+        return;
+      }
+      if (selected && pickerMode) {
+        applyDateTimePart(pickerMode, selected);
+      }
+    },
+    [applyDateTimePart, pickerMode]
+  );
+
+  const closePicker = useCallback(() => setPickerMode(null), []);
+
+  const pickerValue = useMemo(() => new Date(transactionDate), [transactionDate]);
+
+  const dateLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(transactionDate);
+    } catch {
+      return transactionDate.toLocaleDateString();
+    }
+  }, [transactionDate]);
+
+  const timeLabel = useMemo(() => {
+    try {
+      return new Intl.DateTimeFormat('en', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(transactionDate);
+    } catch {
+      return transactionDate.toLocaleTimeString();
+    }
+  }, [transactionDate]);
 
   const handleOpenCategoryModal = useCallback((state: CategoryModalState) => {
     setCategoryModalState(state);
@@ -254,11 +312,7 @@ export default function IncomeOutcomeModal() {
 
   const handleConfirmCategory = useCallback(() => {
     const trimmed = categoryDraft.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    if (!categoryModalState) {
+    if (!trimmed || !categoryModalState) {
       return;
     }
 
@@ -295,6 +349,17 @@ export default function IncomeOutcomeModal() {
       return;
     }
 
+    // Формируем заметку с информацией о долге
+    let finalNote = note.trim();
+    if (isDebtCategory && debtPerson.trim()) {
+      const debtInfo = activeTab === 'income' 
+        ? `${debtPerson} owes me` 
+        : `I owe to ${debtPerson}`;
+      finalNote = finalNote 
+        ? `${debtInfo}. ${finalNote}` 
+        : debtInfo;
+    }
+
     const payload: Transaction = {
       id: editingTransaction?.id ?? '',
       type: activeTab,
@@ -303,7 +368,7 @@ export default function IncomeOutcomeModal() {
       accountId: selectedAccountData.id,
       date: transactionDate,
       toAccountId: undefined,
-      note: note.trim().length ? note.trim() : undefined,
+      note: finalNote.length ? finalNote : undefined,
       currency: selectedAccountData.currency,
       createdAt: editingTransaction?.createdAt ?? new Date(),
     };
@@ -321,7 +386,9 @@ export default function IncomeOutcomeModal() {
     addTransaction,
     amountNumber,
     closeIncomeOutcome,
+    debtPerson,
     editingTransaction,
+    isDebtCategory,
     isEditing,
     isSaveDisabled,
     note,
@@ -331,319 +398,379 @@ export default function IncomeOutcomeModal() {
     updateTransaction,
   ]);
 
+  const renderCategoryIcon = (category: FinanceCategory, size: number, color: string) => {
+    const IconComponent = category.icon as React.ComponentType<{
+      size?: number;
+      color?: string;
+    }>;
+    return <IconComponent size={size} color={color} />;
+  };
+
   const buttonLabel = isEditing ? t('finance.saveChanges') : t('finance.addEntry');
 
   return (
     <>
-      <CustomModal
-        ref={modalRef}
-        variant="form"
-        onDismiss={handleClose}
-        {...amountInputConfig}
-        fallbackSnapPoint="88%"
-        enableDynamicSizing
-      >
+      <CustomModal ref={modalRef} onDismiss={handleClose} {...modalProps}>
         <KeyboardAvoidingView
-          behavior={Platform.select({ ios: 'padding', android: undefined })}
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.title}>{t('finance.incomeOutcomeTitle')}</Text>
-              <Text style={styles.subtitle}>
-                {t(activeTab === 'income' ? 'finance.incomeSubtitle' : 'finance.outcomeSubtitle')}
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>
+                {activeTab === 'income' ? '+ INCOME' : '- OUTCOME'}
               </Text>
             </View>
 
-            <Pressable onPress={handleClose} hitSlop={12}>
-              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
-            </Pressable>
-          </View>
+            {/* Tab Switcher */}
+            <View style={styles.section}>
+              <AdaptiveGlassView style={styles.tabContainer}>
+                <Pressable
+                  onPress={() => setActiveTab('income')}
+                  style={({ pressed }) => [
+                    styles.tabOption,
+                    { borderBottomWidth: 1 },
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <View style={styles.tabOptionContent}>
+                    <Text
+                      style={[
+                        styles.tabLabel,
+                        { color: activeTab === 'income' ? '#FFFFFF' : '#7E8B9A' },
+                      ]}
+                    >
+                      {t('finance.income')}
+                    </Text>
+                  </View>
+                </Pressable>
 
-          <View style={styles.tabContainer} onLayout={handleTabLayout}>
-            <TouchableOpacity
-              style={[
-                styles.tabButton,
-                activeTab === 'income' && styles.tabButtonActive,
-              ]}
-              onPress={() => setActiveTab('income')}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  activeTab === 'income' && styles.tabLabelActive,
-                ]}
-              >
-                {t('finance.income')}
-              </Text>
-            </TouchableOpacity>
+                <Pressable
+                  onPress={() => setActiveTab('outcome')}
+                  style={({ pressed }) => [styles.tabOption, pressed && styles.pressed]}
+                >
+                  <View style={styles.tabOptionContent}>
+                    <Text
+                      style={[
+                        styles.tabLabel,
+                        { color: activeTab === 'outcome' ? '#FFFFFF' : '#7E8B9A' },
+                      ]}
+                    >
+                      {t('finance.outcome')}
+                    </Text>
+                  </View>
+                </Pressable>
+              </AdaptiveGlassView>
+            </View>
 
-            <TouchableOpacity
-              style={[
-                styles.tabButton,
-                activeTab === 'outcome' && styles.tabButtonActive,
-              ]}
-              onPress={() => setActiveTab('outcome')}
-              activeOpacity={0.85}
-            >
-              <Text
-                style={[
-                  styles.tabLabel,
-                  activeTab === 'outcome' && styles.tabLabelActive,
-                ]}
-              >
-                {t('finance.outcome')}
-              </Text>
-            </TouchableOpacity>
+            {/* Amount */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.amount')}</Text>
+              <AdaptiveGlassView style={styles.inputContainer}>
+                <TextInput
+                  value={amount}
+                  onChangeText={handleAmountChange}
+                  placeholder="Input amount"
+                  placeholderTextColor="#7E8B9A"
+                  keyboardType="numeric"
+                  style={styles.textInput}
+                />
+              </AdaptiveGlassView>
+            </View>
 
-            <Animated.View style={[styles.tabIndicator, indicatorStyle]}>
-              <View style={styles.tabIndicatorFill} />
-            </Animated.View>
-          </View>
-
-          <View style={styles.amountSection}>
-            <Text style={styles.amountLabel}>{t('finance.amount')}</Text>
-            <TextInput
-              value={amount}
-              onChangeText={handleAmountChange}
-              keyboardType="numeric"
-              placeholder="0"
-              placeholderTextColor={theme.colors.textMuted}
-              style={styles.amountInput}
-            />
-          </View>
-
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{t('finance.category')}</Text>
-              <View style={styles.sectionActions}>
+            {/* Category */}
+            <View style={[styles.section, { paddingHorizontal: 0 }]}>
+              <View style={styles.categoryHeader}>
+                <Text style={[styles.sectionLabel, { paddingHorizontal: 20 }]}>
+                  {t('finance.category')}
+                </Text>
                 <Pressable
                   onPress={() => handleOpenCategoryModal({ mode: 'add' })}
                   hitSlop={10}
-                  style={styles.iconButton}
+                  style={{ paddingHorizontal: 20 }}
                 >
-                  <Ionicons name="add" size={16} color={theme.colors.textSecondary} />
+                  <Ionicons name="add" size={18} color="#7E8B9A" />
+                </Pressable>
+              </View>
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoriesScroll}
+              >
+                {availableCategories.map((cat) => {
+                  const isActive = selectedCategory === cat.name;
+                  return (
+                    <Pressable
+                      key={cat.id}
+                      onPress={() => setSelectedCategory(cat.name)}
+                      style={({ pressed }) => [styles.categoryCard, pressed && styles.pressed]}
+                    >
+                      <AdaptiveGlassView
+                        style={[
+                          styles.categoryCardInner,
+                          { opacity: isActive ? 1 : 0.6 },
+                        ]}
+                      >
+                        {renderCategoryIcon(cat, 28, isActive ? '#FFFFFF' : '#9E9E9E')}
+                        <Text
+                          style={[
+                            styles.categoryCardText,
+                            { color: isActive ? '#FFFFFF' : '#9E9E9E' },
+                          ]}
+                          numberOfLines={2}
+                        >
+                          {cat.name}
+                        </Text>
+                      </AdaptiveGlassView>
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
+
+            {/* Date & Time */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.date')}</Text>
+              <View style={styles.dateTimeRow}>
+                <Pressable
+                  onPress={() => openDateTimePicker('date')}
+                  style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                    <Ionicons name="calendar-outline" size={18} color="#7E8B9A" />
+                    <Text style={styles.dateTimeText}>{dateLabel}</Text>
+                  </AdaptiveGlassView>
+                </Pressable>
+                <Pressable
+                  onPress={() => openDateTimePicker('time')}
+                  style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                    <Ionicons name="time-outline" size={18} color="#7E8B9A" />
+                    <Text style={styles.dateTimeText}>{timeLabel}</Text>
+                  </AdaptiveGlassView>
                 </Pressable>
               </View>
             </View>
 
-            <View style={styles.categoryGrid}>
-              {availableCategories.map((category) => {
-                const IconComponent = category.icon as React.ComponentType<{
-                  size?: number;
-                  color?: string;
-                }>;
-                const selected = category.name === selectedCategory;
-                const accentColor = resolveCategoryColor(category);
-                const cardBackground = selected
-                  ? applyOpacity(accentColor, 0.08)
-                  : theme.colors.surface;
-                const borderColor = selected ? accentColor : theme.colors.border;
-                const iconBackground = applyOpacity(accentColor, selected ? 0.24 : 0.12);
-                const iconColor = selected ? theme.colors.onPrimary : accentColor;
-                const textColor = selected ? theme.colors.textPrimary : theme.colors.textSecondary;
-
-                return (
-                  <View key={category.id} style={styles.categoryWrapper}>
-                    <TouchableOpacity
-                      onPress={() => setSelectedCategory(category.name)}
-                      style={[
-                        styles.categoryCard,
-                        {
-                          borderColor,
-                          backgroundColor: cardBackground,
-                        },
-                      ]}
-                      activeOpacity={0.85}
-                    >
-                      <View
-                        style={[
-                          styles.categoryIconWrapper,
-                          { backgroundColor: iconBackground },
-                        ]}
-                      >
-                        <IconComponent size={iconSize} color={iconColor} />
-                      </View>
-
-                      <Text numberOfLines={2} style={[styles.categoryName, { color: textColor }]}>
-                        {category.name}
+            {/* Account */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.account')}</Text>
+              <Pressable
+                onPress={() => accountModalRef.current?.present()}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.inputContainer}>
+                  <View style={styles.accountRow}>
+                    <View>
+                      <Text style={styles.textInput}>{selectedAccountData?.name}</Text>
+                      <Text style={styles.accountBalance}>
+                        {selectedAccountData
+                          ? formatCurrency(selectedAccountData.balance, selectedAccountData.currency)
+                          : ''}
                       </Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.categoryActions}>
-                      <Pressable
-                        style={styles.categoryActionButton}
-                        hitSlop={6}
-                        onPress={() => handleOpenCategoryModal({ mode: 'add' })}
-                      >
-                        <Ionicons name="add-circle" size={18} color={theme.colors.textSecondary} />
-                      </Pressable>
-                      <Pressable
-                        style={styles.categoryActionButton}
-                        hitSlop={6}
-                        onPress={() =>
-                          handleOpenCategoryModal({ mode: 'edit', baseValue: category.name })
-                        }
-                      >
-                        <Ionicons name="create-outline" size={18} color={theme.colors.textSecondary} />
-                      </Pressable>
                     </View>
+                    <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
                   </View>
-                );
-              })}
+                </AdaptiveGlassView>
+              </Pressable>
             </View>
-          </View>
 
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('finance.account')}</Text>
-            <TouchableOpacity
-              style={styles.accountCard}
-              onPress={() => accountModalRef.current?.present()}
-              activeOpacity={0.85}
-            >
-              <View>
-                <Text style={styles.accountName}>{selectedAccountData?.name}</Text>
-                <Text style={styles.accountBalance}>
-                  {selectedAccountData
-                    ? formatCurrency(selectedAccountData.balance, selectedAccountData.currency)
-                    : t('finance.selectAccountPlaceholder')}
+            {/* Debt Person - показываем только когда выбрана категория Debt */}
+            {isDebtCategory && (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>
+                  {activeTab === 'income' 
+                    ? 'Who owes you?' 
+                    : 'Who do you owe?'}
                 </Text>
+                <AdaptiveGlassView style={styles.inputContainer}>
+                  <TextInput
+                    value={debtPerson}
+                    onChangeText={setDebtPerson}
+                    placeholder={activeTab === 'income' 
+                      ? 'Person name who owes you' 
+                      : 'Person name you owe to'}
+                    placeholderTextColor="#7E8B9A"
+                    style={styles.textInput}
+                  />
+                </AdaptiveGlassView>
               </View>
+            )}
 
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('finance.date')}</Text>
-            <TouchableOpacity
-              style={styles.accountCard}
-              activeOpacity={0.85}
-              onPress={() => dateModalRef.current?.present()}
-            >
-              <View>
-                <Text style={styles.accountName}>
-                  {transactionDate.toLocaleDateString()}
-                </Text>
-                <Text style={styles.accountBalance}>{t('finance.changeDate')}</Text>
-              </View>
-
-              <Ionicons name="calendar-outline" size={18} color={theme.colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>{t('finance.note')}</Text>
-            <View style={styles.noteInputWrapper}>
-              <TextInput
-                value={note}
-                onChangeText={setNote}
-                placeholder={t('finance.notePlaceholder')}
-                placeholderTextColor={theme.colors.textMuted}
-                multiline
-                style={styles.noteInput}
-              />
+            {/* Note */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{t('finance.note')}</Text>
+              <AdaptiveGlassView style={styles.noteContainer}>
+                <TextInput
+                  value={note}
+                  onChangeText={setNote}
+                  placeholder={t('finance.notePlaceholder')}
+                  placeholderTextColor="#7E8B9A"
+                  multiline
+                  style={styles.noteInput}
+                />
+              </AdaptiveGlassView>
             </View>
-          </View>
 
-          <TouchableOpacity
-            style={[
-              styles.saveButton,
-              isSaveDisabled && styles.saveButtonDisabled,
-            ]}
-            onPress={handleSubmit}
-            activeOpacity={0.9}
-            disabled={isSaveDisabled}
-          >
-            <Text style={styles.saveButtonText}>{buttonLabel}</Text>
-          </TouchableOpacity>
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+                onPress={handleClose}
+              >
+                <Text style={styles.secondaryButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isSaveDisabled}
+                onPress={handleSubmit}
+                style={({ pressed }) => [
+                  styles.primaryButton,
+                  pressed && !isSaveDisabled && styles.pressed,
+                ]}
+              >
+                <AdaptiveGlassView
+                  style={[
+                    styles.primaryButtonInner,
+                    { opacity: isSaveDisabled ? 0.4 : 1 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.primaryButtonText,
+                      { color: isSaveDisabled ? '#7E8B9A' : '#FFFFFF' },
+                    ]}
+                  >
+                    {buttonLabel}
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+          </ScrollView>
         </KeyboardAvoidingView>
       </CustomModal>
 
-      <DateChangeModal
-        ref={dateModalRef}
-        selectedDate={transactionDate}
-        onSelectDate={handleSelectDate}
-      />
+      {/* iOS Date/Time Picker Modal */}
+      {Platform.OS === 'ios' && pickerMode && (
+        <Modal transparent visible onRequestClose={closePicker} animationType="fade">
+          <View style={styles.pickerModal}>
+            <Pressable style={styles.pickerBackdrop} onPress={closePicker} />
+            <AdaptiveGlassView style={styles.pickerCard}>
+              <DateTimePicker
+                value={pickerValue}
+                mode={pickerMode}
+                display={pickerMode === 'date' ? 'inline' : 'spinner'}
+                onChange={handleIosPickerChange}
+                is24Hour
+              />
+              <Pressable onPress={closePicker} style={styles.pickerDoneButton}>
+                <Text style={styles.pickerDoneText}>Done</Text>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+        </Modal>
+      )}
 
+      {/* Category Editor Modal */}
       <CustomModal
         ref={categoryModalRef}
-        variant="picker"
-        fallbackSnapPoint="40%"
+        variant="form"
+        fallbackSnapPoint="50%"
         onDismiss={() => setCategoryModalState(null)}
       >
-        <View style={styles.categoryEditorContainer}>
-          <View style={styles.categoryEditorHeader}>
-            <Text style={styles.categoryEditorTitle}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
               {categoryModalState?.mode === 'edit'
                 ? t('finance.editCategory')
                 : t('finance.addCategory')}
             </Text>
             <Pressable onPress={handleDismissCategoryModal} hitSlop={10}>
-              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+              <Ionicons name="close" size={22} color="#7E8B9A" />
             </Pressable>
           </View>
 
-          <View style={styles.noteInputWrapper}>
+          <AdaptiveGlassView style={styles.inputContainer}>
             <TextInput
               value={categoryDraft}
               onChangeText={setCategoryDraft}
               placeholder={t('finance.categoryPlaceholder')}
-              placeholderTextColor={theme.colors.textMuted}
-              style={styles.modalInput}
+              placeholderTextColor="#7E8B9A"
+              style={styles.textInput}
             />
-          </View>
+          </AdaptiveGlassView>
 
-          <TouchableOpacity
-            style={[
-              styles.saveButton,
-              !categoryDraft.trim() && styles.saveButtonDisabled,
-            ]}
-            onPress={handleConfirmCategory}
-            activeOpacity={0.9}
+          <Pressable
             disabled={!categoryDraft.trim()}
+            onPress={handleConfirmCategory}
+            style={({ pressed }) => [
+              styles.primaryButton,
+              pressed && categoryDraft.trim() && styles.pressed,
+            ]}
           >
-            <Text style={styles.saveButtonText}>{t('finance.save')}</Text>
-          </TouchableOpacity>
+            <AdaptiveGlassView
+              style={[
+                styles.primaryButtonInner,
+                { opacity: !categoryDraft.trim() ? 0.4 : 1 },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.primaryButtonText,
+                  { color: !categoryDraft.trim() ? '#7E8B9A' : '#FFFFFF' },
+                ]}
+              >
+                {t('finance.save')}
+              </Text>
+            </AdaptiveGlassView>
+          </Pressable>
         </View>
       </CustomModal>
 
+      {/* Account Picker Modal */}
       <CustomModal
         ref={accountModalRef}
-        variant="picker"
-        fallbackSnapPoint="40%"
+        variant="form"
+        fallbackSnapPoint="50%"
       >
-        <View style={styles.accountPickerContainer}>
-          <View style={styles.categoryEditorHeader}>
-            <Text style={styles.categoryEditorTitle}>{t('finance.selectAccount')}</Text>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{t('finance.selectAccount')}</Text>
             <Pressable onPress={() => accountModalRef.current?.dismiss()} hitSlop={10}>
-              <Ionicons name="close" size={22} color={theme.colors.textSecondary} />
+              <Ionicons name="close" size={22} color="#7E8B9A" />
             </Pressable>
           </View>
 
-          <View style={styles.accountPickerList}>
+          <View style={styles.accountList}>
             {accounts.map((account) => {
               const selected = account.id === selectedAccountData?.id;
               return (
-                <TouchableOpacity
+                <Pressable
                   key={account.id}
-                  style={[
-                    styles.accountPickerItem,
-                    selected && styles.accountPickerItemSelected,
-                  ]}
                   onPress={() => handleSelectAccount(account.id)}
-                  activeOpacity={0.85}
+                  style={({ pressed }) => [pressed && styles.pressed]}
                 >
-                  <View>
-                    <Text style={styles.accountName}>{account.name}</Text>
-                    <Text style={styles.accountBalance}>
-                      {formatCurrency(account.balance, account.currency)}
-                    </Text>
-                  </View>
-                  {selected && (
-                    <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
-                  )}
-                </TouchableOpacity>
+                  <AdaptiveGlassView
+                    style={[
+                      styles.accountItem,
+                      { opacity: selected ? 1 : 0.7 },
+                    ]}
+                  >
+                    <View>
+                      <Text style={[styles.textInput, { marginBottom: 4 }]}>
+                        {account.name}
+                      </Text>
+                      <Text style={styles.accountBalance}>
+                        {formatCurrency(account.balance, account.currency)}
+                      </Text>
+                    </View>
+                    {selected && (
+                      <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                    )}
+                  </AdaptiveGlassView>
+                </Pressable>
               );
             })}
           </View>
@@ -653,244 +780,216 @@ export default function IncomeOutcomeModal() {
   );
 }
 
-const createStyles = (theme: Theme) =>
-  StyleSheet.create({
+const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 8,
+    marginBottom: 24,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-  },
-  subtitle: {
-    marginTop: 4,
+  headerTitle: {
     fontSize: 13,
-    color: theme.colors.textSecondary,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    color: '#7E8B9A',
+  },
+  section: {
+    marginBottom: 8,
+    paddingHorizontal: 20,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    marginBottom: 12,
   },
   tabContainer: {
-    marginTop: 16,
-    flexDirection: 'row',
-    backgroundColor: theme.colors.surfaceElevated,
-    borderRadius: 14,
-    padding: 4,
-    position: 'relative',
+    borderRadius: 16,
   },
-  tabButton: {
-    flex: 1,
+  tabOption: {
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+  },
+  tabOptionContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  tabButtonActive: {
-    zIndex: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   tabLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.textSecondary,
+    fontWeight: '400',
   },
-  tabLabelActive: {
-    color: theme.colors.textPrimary,
-  },
-  tabIndicator: {
-    position: 'absolute',
-    top: 4,
-    bottom: 4,
-    left: 4,
-    borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-  tabIndicatorFill: {
-    flex: 1,
-    borderRadius: 12,
-    backgroundColor: theme.colors.surface,
-  },
-  amountSection: {
-    marginTop: 24,
-    alignItems: 'center',
-  },
-  amountLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: theme.colors.textSecondary,
-    marginBottom: 8,
-  },
-  amountInput: {
-    fontSize: 36,
-    fontWeight: '700',
-    color: theme.colors.textPrimary,
-    textAlign: 'center',
-    letterSpacing: 1,
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  sectionActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  categoryGrid: {
-    marginTop: 16,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  categoryWrapper: {
-    width: '30%',
-    minWidth: 96,
-    alignItems: 'center',
-  },
-  categoryCard: {
-    width: '100%',
-    alignItems: 'center',
+  inputContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
     paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
   },
-  categoryIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 16,
+  textInput: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  categoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
     marginBottom: 12,
   },
-  categoryName: {
-    fontSize: 12,
-    fontWeight: '600',
-    textAlign: 'center',
-    color: theme.colors.textSecondary,
+  categoriesScroll: {
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
   },
-  categoryActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
+  categoryCard: {
+    borderRadius: 16,
   },
-  categoryActionButton: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
+  categoryCardInner: {
+    width: 90,
+    height: 90,
+    borderRadius: 16,
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    gap: 8,
   },
-  accountCard: {
-    marginTop: 12,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surfaceElevated,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+  categoryCardText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  dateRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  accountName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  accountBalance: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-  },
-  noteInputWrapper: {
-    marginTop: 12,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
-    padding: 14,
-  },
-  noteInput: {
-    minHeight: 60,
-    color: theme.colors.textPrimary,
-    fontSize: 14,
-    textAlignVertical: 'top',
-  },
-  saveButton: {
-    marginTop: 28,
-    paddingVertical: 16,
-    borderRadius: 16,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
-  },
-  saveButtonDisabled: {
-    backgroundColor: theme.colors.textMuted,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  categoryEditorContainer: {
-    paddingTop: 12,
-  },
-  categoryEditorHeader: {
+  dateTimeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  categoryEditorTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.textPrimary,
-  },
-  modalInput: {
-    fontSize: 15,
-    color: theme.colors.textPrimary,
-  },
-  accountPickerContainer: {
-    paddingTop: 12,
-  },
-  accountPickerList: {
-    marginTop: 16,
     gap: 12,
   },
-  accountPickerItem: {
-    padding: 16,
+  dateTimeButton: {
+    flex: 1,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.surfaceElevated,
+  },
+  dateTimeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderRadius: 16,
+  },
+  dateTimeText: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  accountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  accountPickerItemSelected: {
-    borderColor: theme.colors.primary,
+  accountBalance: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    marginTop: 4,
+  },
+  noteContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    minHeight: 80,
+  },
+  noteInput: {
+    fontSize: 15,
+    fontWeight: '400',
+    textAlignVertical: 'top',
+    color: '#FFFFFF',
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    paddingHorizontal: 20,
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 15,
+    fontWeight: '400',
+    color: '#7E8B9A',
+  },
+  primaryButton: {
+    flex: 1,
+    borderRadius: 16,
+  },
+  primaryButtonInner: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+  },
+  primaryButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  modalContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  accountList: {
+    gap: 12,
+  },
+  accountItem: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  pickerModal: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  pickerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  pickerCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    borderRadius: 24,
+    padding: 16,
+    gap: 12,
+  },
+  pickerDoneButton: {
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  pickerDoneText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
