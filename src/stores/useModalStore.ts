@@ -1,8 +1,5 @@
 import { create } from 'zustand';
 import type { StateCreator } from 'zustand';
-import { createJSONStorage, persist } from 'zustand/middleware';
-
-import { mmkvStorageAdapter } from '@/utils/storage';
 
 import type { Debt, Transaction } from '@/types/store.types';
 import type { Goal } from '@/features/planner/goals/data';
@@ -63,6 +60,9 @@ interface ModalStore {
   plannerGoalModal: PlannerGoalModalState;
   plannerHabitModal: PlannerHabitModalState;
   plannerFocusModal: PlannerModalState;
+  focusSettingsModal: {
+    isOpen: boolean;
+  };
   insightsReportModal: PlannerModalState;
 
   openIncomeOutcome: (options?: {
@@ -97,6 +97,8 @@ interface ModalStore {
   closePlannerHabitModal: () => void;
   openPlannerFocusModal: () => void;
   closePlannerFocusModal: () => void;
+  openFocusSettingsModal: () => void;
+  closeFocusSettingsModal: () => void;
   openInsightsReportModal: () => void;
   closeInsightsReportModal: () => void;
 }
@@ -154,6 +156,7 @@ const createModalStore: StateCreator<ModalStore> = (set) => ({
   plannerGoalModal: initialPlannerGoalState,
   plannerHabitModal: initialPlannerHabitState,
   plannerFocusModal: { isOpen: false, mode: 'create' },
+  focusSettingsModal: { isOpen: false },
   insightsReportModal: { isOpen: false, mode: 'create' },
 
   openIncomeOutcome: (options) =>
@@ -238,13 +241,10 @@ const createModalStore: StateCreator<ModalStore> = (set) => ({
   closePlannerHabitModal: () => set({ plannerHabitModal: initialPlannerHabitState }),
   openPlannerFocusModal: () => set({ plannerFocusModal: { isOpen: true, mode: 'create' } }),
   closePlannerFocusModal: () => set({ plannerFocusModal: { isOpen: false, mode: 'create' } }),
+  openFocusSettingsModal: () => set({ focusSettingsModal: { isOpen: true } }),
+  closeFocusSettingsModal: () => set({ focusSettingsModal: { isOpen: false } }),
   openInsightsReportModal: () => set({ insightsReportModal: { isOpen: true, mode: 'create' } }),
   closeInsightsReportModal: () => set({ insightsReportModal: { isOpen: false, mode: 'create' } }),
 });
 
-export const useModalStore = create<ModalStore>()(
-  persist(createModalStore, {
-    name: 'modal-storage',
-    storage: createJSONStorage(() => mmkvStorageAdapter),
-  })
-);
+export const useModalStore = create<ModalStore>(createModalStore);

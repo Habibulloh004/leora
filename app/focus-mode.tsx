@@ -37,6 +37,8 @@ import { TECHNIQUES, TOGGLE_OPTIONS, TechniqueConfig } from '@/features/focus/ty
 import { formatTimer } from '@/features/focus/utils';
 import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
 import { usePlannerTasksStore } from '@/features/planner/useTasksStore';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useModalStore } from '@/stores/useModalStore';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -100,17 +102,19 @@ const FocusToggle = ({
       onPress={onToggle}
       onPressIn={() => (press.value = withSpring(1))}
       onPressOut={() => (press.value = withSpring(0))}
-      style={[styles.toggleCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.surfaceElevated }, containerStyle]}
+      style={containerStyle}
     >
-      <View style={styles.toggleLeft}>
-        <View style={[styles.iconTile, { backgroundColor: colors.surface }]}>
-          <MaterialCommunityIcons name={icon} size={18} color={colors.textSecondary} />
+      <AdaptiveGlassView style={styles.toggleCard}>
+        <View style={styles.toggleLeft}>
+          <AdaptiveGlassView style={styles.iconTile}>
+            <MaterialCommunityIcons name={icon} size={18} color={colors.textSecondary} />
+          </AdaptiveGlassView>
+          <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>{label}</Text>
         </View>
-        <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>{label}</Text>
-      </View>
-      <Animated.View style={[styles.switchTrack, trackStyle]}>
-        <Animated.View style={[styles.switchKnob, { backgroundColor: colors.white }, knobStyle]} />
-      </Animated.View>
+        <Animated.View style={[styles.switchTrack, trackStyle]}>
+          <Animated.View style={[styles.switchKnob, { backgroundColor: colors.white }, knobStyle]} />
+        </Animated.View>
+      </AdaptiveGlassView>
     </AnimatedPressable>
   );
 };
@@ -287,11 +291,29 @@ export default function FocusModeScreen() {
   const startTimer = useCallback(() => start(), [start]);
   const pauseTimer = useCallback(() => pause(), [pause]);
   const resumeTimer = useCallback(() => resume(), [resume]);
+  const handleReset = useCallback(() => {
+    if (timerState === 'ready') return;
+    Alert.alert(
+      'Reset Timer?',
+      'This will reset your timer and discard current progress.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Reset', 
+          style: 'destructive',
+          onPress: () => {
+            handleSessionComplete(false);
+          }
+        },
+      ],
+    );
+  }, [handleSessionComplete, timerState]);
 
   const startTime = useMemo(() => (startedAt ? new Date(startedAt) : undefined), [startedAt]);
   const endTime = useMemo(() => (startTime ? new Date(startTime.getTime() + totalSeconds * 1000) : undefined), [startTime, totalSeconds]);
   const remainingSeconds = Math.max(totalSeconds - elapsedSeconds, 0);
   const isFinishDisabled = timerState === 'ready';
+  const isResetDisabled = timerState === 'ready';
 
   const enterEditMode = useCallback(() => {
     if (timerState === 'running') return;
@@ -318,10 +340,9 @@ export default function FocusModeScreen() {
   }, [isEditingDuration, pauseTimer, resumeTimer, saveEditedDuration, startTimer, timerState]);
 
   const finishLabelColor = isFinishDisabled ? colors.textDisabled : colors.textPrimary;
+  const resetLabelColor = isResetDisabled ? colors.textDisabled : colors.textPrimary;
 
-  const openSettings = useCallback(() => {
-    router.push('/(modals)/focus-settings');
-  }, [router]);
+  const openSettings = useModalStore((state) => state.openFocusSettingsModal);
 
   const handleBack = useCallback(() => {
     if (router.canGoBack()) {
@@ -352,29 +373,33 @@ export default function FocusModeScreen() {
               <View style={styles.headerLeft}>
                 <Pressable
                   onPress={handleBack}
-                  style={[styles.headerIcon, styles.headerBack, { backgroundColor: colors.surface }]}
+                  style={({ pressed }) => [styles.pressed, pressed && { opacity: 0.7 }]}
                   accessibilityRole="button"
                   accessibilityLabel="Back"
                 >
-                  <Feather name="chevron-left" size={18} color={colors.textSecondary} />
+                  <AdaptiveGlassView style={[styles.headerIcon, styles.headerBack]}>
+                    <Feather name="chevron-left" size={18} color={colors.textSecondary} />
+                  </AdaptiveGlassView>
                 </Pressable>
-                <View style={[styles.headerIcon, { backgroundColor: colors.surface }]}>
+                <AdaptiveGlassView style={styles.headerIcon}>
                   {toggles.appBlock || toggles.notifications ? (
                     <MaterialCommunityIcons name="lock" size={18} color={colors.textSecondary} />
                   ) : (
                     <MaterialCommunityIcons name="lock-open-variant" size={18} color={colors.textSecondary} />
                   )}
-                </View>
+                </AdaptiveGlassView>
               </View>
               <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>FOCUS MODE</Text>
-              <Pressable style={[styles.headerIcon, { backgroundColor: colors.surface }]} onPress={openSettings}>
-                <Feather name="settings" size={18} color={colors.textSecondary} />
+              <Pressable onPress={openSettings} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
+                <AdaptiveGlassView style={styles.headerIcon}>
+                  <Feather name="settings" size={18} color={colors.textSecondary} />
+                </AdaptiveGlassView>
               </Pressable>
             </View>
 
           <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
             {focusTask && (
-              <View style={[styles.focusedTaskCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <AdaptiveGlassView style={styles.focusedTaskCard}>
                 <Text style={[styles.focusedTaskLabel, { color: colors.textSecondary }]}>{focusStrings.cardLabel}</Text>
                 <Text style={[styles.focusedTaskTitle, { color: colors.textPrimary }]} numberOfLines={1}>
                   {focusTask.title}
@@ -387,7 +412,7 @@ export default function FocusModeScreen() {
                     )}
                   </Text>
                 )}
-              </View>
+              </AdaptiveGlassView>
             )}
             <View style={styles.hero}>
               <Text style={[styles.sessionTitle, { color: colors.textSecondary }]}>{technique.label}</Text>
@@ -487,8 +512,8 @@ export default function FocusModeScreen() {
               ))}
             </View>
 
-            <View style={[styles.statisticsCard, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.statisticsTitle, { color: colors.textSecondary }]}>Today’s statistics</Text>
+            <AdaptiveGlassView style={styles.statisticsCard}>
+              <Text style={[styles.statisticsTitle, { color: colors.textSecondary }]}>Today's statistics</Text>
               <View style={styles.statisticsRow}>
                 <Text style={[styles.statisticsLabel, { color: colors.textSecondary }]}>Focus time:</Text>
                 <Text style={[styles.statisticsValue, { color: colors.textPrimary }]}>{formatFocusTime(stats.focusSeconds)}</Text>
@@ -501,20 +526,45 @@ export default function FocusModeScreen() {
                 <Text style={[styles.statisticsLabel, { color: colors.textSecondary }]}>Productivity:</Text>
                 <Text style={[styles.statisticsValue, { color: colors.textPrimary }]}>{productivity} %</Text>
               </View>
-            </View>
+            </AdaptiveGlassView>
           </ScrollView>
 
           <View style={styles.bottomButtons}>
             <Pressable
-              onPress={handleFinish}
-              disabled={isFinishDisabled}
-              style={[
+              onPress={handleReset}
+              disabled={isResetDisabled}
+              style={({ pressed }) => [
                 styles.bottomButton,
                 styles.bottomButtonGhost,
-                { backgroundColor: isFinishDisabled ? colors.surface : colors.surfaceElevated, borderColor: colors.surface },
+                pressed && !isResetDisabled && styles.pressed,
               ]}
             >
-              <Text style={[styles.bottomButtonText, { color: finishLabelColor }]}>Finish</Text>
+              <AdaptiveGlassView 
+                style={[
+                  styles.bottomButtonInner,
+                  { opacity: isResetDisabled ? 0.4 : 1 }
+                ]}
+              >
+                <Text style={[styles.bottomButtonText, { color: resetLabelColor }]}>Reset</Text>
+              </AdaptiveGlassView>
+            </Pressable>
+            <Pressable
+              onPress={handleFinish}
+              disabled={isFinishDisabled}
+              style={({ pressed }) => [
+                styles.bottomButton,
+                styles.bottomButtonGhost,
+                pressed && !isFinishDisabled && styles.pressed,
+              ]}
+            >
+              <AdaptiveGlassView 
+                style={[
+                  styles.bottomButtonInner,
+                  { opacity: isFinishDisabled ? 0.4 : 1 }
+                ]}
+              >
+                <Text style={[styles.bottomButtonText, { color: finishLabelColor }]}>Finish</Text>
+              </AdaptiveGlassView>
             </Pressable>
             <Pressable onPress={openSettings} style={styles.bottomButtonTextOnly}>
               <Text style={[styles.bottomButtonText, { color: colors.textPrimary }]}>Settings</Text>
@@ -539,7 +589,6 @@ const styles = StyleSheet.create({
   contentContainer: { paddingHorizontal: 18, paddingBottom: 32, flexGrow: 1 },
   focusedTaskCard: {
     borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
     padding: 16,
     marginBottom: 16,
   },
@@ -565,7 +614,14 @@ const styles = StyleSheet.create({
   timerMetaValue: { fontSize: 16, fontWeight: '500', marginBottom: 4 },
   timerAction: { marginTop: 18, width: 62, height: 62, borderRadius: 31, alignItems: 'center', justifyContent: 'center' },
   togglesSection: { marginTop: 22, gap: 12 },
-  toggleCard: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: 14, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1 },
+  toggleCard: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    borderRadius: 14, 
+    paddingHorizontal: 14, 
+    paddingVertical: 12,
+  },
   toggleLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconTile: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   toggleLabel: { fontSize: 14, fontWeight: '500' },
@@ -577,8 +633,17 @@ const styles = StyleSheet.create({
   statisticsLabel: { fontSize: 13 },
   statisticsValue: { fontSize: 15, fontWeight: '600' },
   bottomButtons: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 26, paddingTop: 18, gap: 14 },
-  bottomButton: { flex: 1, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingVertical: 14 },
-  bottomButtonGhost: { borderWidth: 1 },
+  bottomButton: { flex: 1, borderRadius: 14 },
+  bottomButtonGhost: {},
+  bottomButtonInner: {
+    alignItems: 'center', 
+    justifyContent: 'center', 
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
   bottomButtonTextOnly: { paddingVertical: 14, paddingHorizontal: 8 },
   bottomButtonText: { fontSize: 15, fontWeight: '600' },
+  pressed: {
+    opacity: 0.7,
+  },
 });

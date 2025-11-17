@@ -15,11 +15,12 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.habibulloh.leora",
+      "bundleIdentifier": "com.sarvar.leora",
+      "appleTeamId": "APPLE_TEAM_ID",
       "icon": "./assets/images/logoIos.png",
       "buildNumber": "1.2.0",
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.habibulloh.leora"]
+        "com.apple.security.application-groups": ["group.com.sarvaryarbekov.leora"]
       },
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": false,
@@ -40,7 +41,7 @@
         "foregroundImage": "./assets/images/playstore-icon.png",
         "backgroundColor": "#000000"
       },
-      "package": "com.habibulloh.leora",
+      "package": "com.sarvar.leora",
       "versionCode": 1,
       "permissions": [
         "CAMERA",
@@ -95,6 +96,6 @@
         "projectId": "5fa3a555-1519-4da3-9e1a-0879915b84d9"
       }
     },
-    "owner": "habibulloh"
+    "owner": "sarvar"
   }
 }

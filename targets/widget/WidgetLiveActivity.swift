@@ -1,5 +1,7 @@
 import ActivityKit
+import Foundation
 import SwiftUI
+import UIKit
 import WidgetKit
 
 struct LiveActivityAttributes: ActivityAttributes {
@@ -59,43 +61,89 @@ private extension Color {
     }
 }
 
-private struct FocusColorPalette {
+// MARK: - Monochrome Color Palette
+private struct MonochromeColorPalette {
     let background: Color
-    let title: Color
-    let subtitle: Color
+    let primary: Color
+    let secondary: Color
+    let tertiary: Color
     let accent: Color
-    let track: Color
-    let chrome: Color
-    let badge: Color
+    let divider: Color
 
     init(attributes: LiveActivityAttributes) {
-        background = Color.fromHex(attributes.backgroundColor) ?? Color.black.opacity(0.92)
-        title = Color.fromHex(attributes.titleColor) ?? .white
-        subtitle = Color.fromHex(attributes.subtitleColor) ?? Color.white.opacity(0.68)
-        let accentBase = Color.fromHex(attributes.progressViewTint) ?? .white
-        accent = accentBase
-        track = accentBase.opacity(0.25)
-        chrome = Color.white.opacity(0.22)
-        badge = Color.white.opacity(0.12)
+        // Monochrome palette with subtle gradations
+        background = Color.fromHex(attributes.backgroundColor) ?? Color.black
+        
+        let baseAccent = Color.white.opacity(0.85)
+        primary = Color.fromHex(attributes.titleColor) ?? .white
+        secondary = primary.opacity(0.6)
+        tertiary = primary.opacity(0.4)
+        accent = baseAccent
+        divider = primary.opacity(0.2)
+    }
+}
+
+private enum LeoraAssets {
+    static let logoName = "liveActivityLogo"
+
+    #if SWIFT_PACKAGE
+    private static let bundle = Bundle.module
+    #else
+    private static let bundle = Bundle.main
+    #endif
+
+    static func logoImage() -> Image? {
+        guard UIImage(named: logoName, in: bundle, with: nil) != nil else {
+            return nil
+        }
+        return Image(logoName, bundle: bundle)
+    }
+}
+
+// MARK: - Minimalist Logo
+private struct MinimalistLogo: View {
+    var size: CGFloat
+    var color: Color
+
+    var body: some View {
+        Group {
+            if let image = LeoraAssets.logoImage() {
+                image
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(color)
+            } else {
+                Circle()
+                    .fill(color.opacity(0.2))
+                    .overlay(
+                        Text("L")
+                            .font(.system(size: size * 0.6, weight: .medium, design: .rounded))
+                            .foregroundStyle(color)
+                    )
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
     }
 }
 
 struct FocusLiveActivityWidget: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiveActivityAttributes.self) { context in
-            let palette = FocusColorPalette(attributes: context.attributes)
-            FocusLiveActivityExpandedView(state: context.state, palette: palette)
+            let palette = MonochromeColorPalette(attributes: context.attributes)
+            FocusLiveActivityExpandedView(state: context.state, attributes: context.attributes, palette: palette)
                 .activityBackgroundTint(palette.background)
-                .activitySystemActionForegroundColor(palette.title)
+                .activitySystemActionForegroundColor(palette.primary)
         } dynamicIsland: { context in
-            let palette = FocusColorPalette(attributes: context.attributes)
+            let palette = MonochromeColorPalette(attributes: context.attributes)
 
             return DynamicIsland {
                 FocusDynamicIslandExpandedRegions(state: context.state, palette: palette)
             } compactLeading: {
                 FocusCompactTimerLabel(state: context.state, palette: palette)
             } compactTrailing: {
-                FocusTimerGlyph(size: 18, palette: palette)
+                MinimalistLogo(size: 16, color: palette.primary)
             } minimal: {
                 FocusMinimalTimer(state: context.state, palette: palette)
             }
@@ -103,168 +151,213 @@ struct FocusLiveActivityWidget: Widget {
     }
 }
 
+// MARK: - Expanded Lock Screen View (Safe Area Compliant)
 private struct FocusLiveActivityExpandedView: View {
     let state: LiveActivityAttributes.ContentState
-    let palette: FocusColorPalette
+    let attributes: LiveActivityAttributes
+    let palette: MonochromeColorPalette
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 0.5)) { timeline in
             let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
-            FocusExpandedContent(snapshot: snapshot, palette: palette)
+            FocusExpandedContent(snapshot: snapshot, state: state, attributes: attributes, palette: palette)
         }
     }
 }
 
 private struct FocusExpandedContent: View {
     let snapshot: FocusTimerSnapshot
-    let palette: FocusColorPalette
+    let state: LiveActivityAttributes.ContentState
+    let attributes: LiveActivityAttributes
+    let palette: MonochromeColorPalette
+
+    @Environment(\.openURL) private var openURL
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(palette.background)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(palette.chrome, lineWidth: 0.5)
-                )
-
-            VStack(spacing: 16) {
-                headerRow
-                progressBlock
-                timerBlock
-                controlsRow
+        widgetSafeAreaContainer {
+            VStack(alignment: .leading, spacing: 4) {
+                topBar
+                progressSection
+                infoRow
+                timerRow
             }
-            .padding(.vertical, 20)
-            .padding(.horizontal, 20)
+            .padding(.vertical, 6)
+            .padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, 8)
     }
 
-    private var headerRow: some View {
-        HStack(spacing: 8) {
-            // Logo Image
-            if let uiImage = UIImage(named: "icon") {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 20, height: 20)
-                    .opacity(0.9)
-            }
-            
+    private var topBar: some View {
+        HStack(spacing: 6) {
+            MinimalistLogo(size: 18, color: palette.primary)
             Text("LEORA")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .kerning(1.0)
-                .foregroundStyle(palette.title.opacity(0.85))
-
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(palette.primary)
+                .tracking(1.5)
             Spacer()
-
-            FocusLinkButton(palette: palette)
-        }
-    }
-
-    private var progressBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(FocusStatusFormatter.display(from: snapshot).uppercased())
-                .font(.system(size: 10, weight: .semibold, design: .rounded))
-                .foregroundStyle(palette.subtitle.opacity(0.8))
-                .lineLimit(1)
-
-            FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
-                .frame(height: 8)
-
-            HStack {
-                Text("Elapsed \(FocusTimeFormatter.formattedElapsed(snapshot: snapshot, fallback: "--"))")
-                Spacer()
-                Text("Total \(FocusTimeFormatter.formattedTotal(snapshot: snapshot, fallback: "--"))")
+            MinimalistIconButton(symbol: "arrow.up.right", palette: palette) {
+                openDeeplink(path: "open")
             }
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundStyle(palette.subtitle.opacity(0.65))
-            .monospacedDigit()
         }
+        .padding(.trailing, 8)
     }
 
-    private var timerBlock: some View {
-        Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot))
-            .font(.system(size: 48, weight: .bold, design: .rounded))
-            .monospacedDigit()
-            .foregroundStyle(palette.title)
-            .frame(maxWidth: .infinity, alignment: .center)
-    }
-
-    private var controlsRow: some View {
-        HStack(spacing: 16) {
-            FocusControlIcon(symbol: "gearshape.fill", palette: palette)
-            FocusControlIcon(
-                symbol: snapshot.isRunning ? "pause.fill" : "play.fill",
+    private var progressSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("START")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(palette.secondary)
+                    .kerning(0.6)
+                Spacer()
+                Text(snapshot.subtitle.status.uppercased())
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(palette.tertiary)
+            }
+            MinimalistSlider(
+                progress: snapshot.progress,
                 palette: palette,
-                isEmphasized: true
+                currentLabel: FocusTimeFormatter.formattedRemaining(snapshot: snapshot),
+                startLabel: FocusTimeFormatter.formattedElapsed(snapshot: snapshot, fallback: "00:00"),
+                endLabel: FocusTimeFormatter.formattedTotal(snapshot: snapshot, fallback: "60:00")
             )
-            FocusControlIcon(symbol: "stop.fill", palette: palette)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var infoRow: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Task")
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(palette.tertiary)
+                Text(state.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(palette.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 0) {
+                Text(snapshot.subtitle.sessionLabel ?? "Session")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(palette.secondary)
+                    .lineLimit(1)
+                Text(snapshot.subtitle.breakLabel ?? "Break after 05:00")
+                    .font(.caption2)
+                    .foregroundStyle(palette.tertiary)
+            }
+        }
+    }
+
+    private var timerRow: some View {
+        Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot))
+            .font(.system(size: 28, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(palette.primary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 2)
+    }
+
+    private func openDeeplink(path: String) {
+        guard let url = deeplinkURL(for: path) else { return }
+        openURL(url)
+    }
+
+    private func deeplinkURL(for action: String) -> URL? {
+        let base = attributes.deepLinkUrl ?? "leora://"
+        if let url = URL(string: base), url.scheme != nil, url.host != nil {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+            let normalized = action.hasPrefix("/") ? String(action.dropFirst()) : action
+            components?.path = "/" + normalized
+            return components?.url
+        } else if let url = URL(string: base + (base.hasSuffix("/") ? "" : "/") + action) {
+            return url
+        } else {
+            return URL(string: "leora://\(action)")
+        }
+    }
+
+    @ViewBuilder
+    private func widgetSafeAreaContainer<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        if #available(iOS 17.0, *) {
+            content()
+                .containerBackground(for: .widget) {
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(palette.background)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .stroke(palette.primary.opacity(0.2), lineWidth: 1)
+                        )
+                }
+        } else {
+            content()
+                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(palette.background)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .stroke(palette.primary.opacity(0.2), lineWidth: 1)
+                        )
+                )
+        }
     }
 }
-
+// MARK: - Dynamic Island Views (Safe Area Compliant)
 @DynamicIslandExpandedContentBuilder
 private func FocusDynamicIslandExpandedRegions(
     state: LiveActivityAttributes.ContentState,
-    palette: FocusColorPalette
+    palette: MonochromeColorPalette
 ) -> DynamicIslandExpandedContent<some View> {
     DynamicIslandExpandedRegion(.center, priority: 1) {
         FocusDynamicIslandTimeline(state: state) { snapshot in
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 12) {
+                // Header
                 HStack(spacing: 6) {
-                    // Logo for Dynamic Island
-                    if let uiImage = UIImage(named: "icon") {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 16, height: 16)
-                            .opacity(0.85)
-                    }
+                    MinimalistLogo(size: 16, color: palette.primary)
                     
                     Text("LEORA")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
-                        .kerning(0.8)
-                        .foregroundStyle(palette.title.opacity(0.85))
-
+                        .font(.caption2.weight(.medium))
+                        .kerning(1.2)
+                        .foregroundStyle(palette.secondary)
+                    
                     Spacer()
-
-                    FocusLinkButton(palette: palette)
-                        .frame(width: 22, height: 22)
                 }
-
+                
+                // Status
                 Text(FocusStatusFormatter.display(from: snapshot).uppercased())
-                    .font(.system(size: 9, weight: .semibold, design: .rounded))
-                    .foregroundStyle(palette.subtitle.opacity(0.75))
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(palette.tertiary)
+                    .kerning(0.5)
                     .lineLimit(1)
-
-                FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
-                    .frame(height: 5)
-
+                
+                // Timer
                 Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot))
-                    .font(.system(size: 28, weight: .semibold, design: .rounded))
+                    .font(.system(size: 36, weight: .light, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(palette.title)
+                    .foregroundStyle(palette.primary)
                     .frame(maxWidth: .infinity, alignment: .center)
+                
+                // Progress
+                MinimalistProgressBar(progress: snapshot.progress, palette: palette)
+                    .frame(height: 2)
             }
+            // No explicit padding - let system handle it
         }
     }
 
     DynamicIslandExpandedRegion(.bottom) {
         FocusDynamicIslandTimeline(state: state) { snapshot in
-            HStack(alignment: .center, spacing: 20) {
-                FocusControlIcon(symbol: "gearshape.fill", palette: palette, size: 40)
-                Spacer(minLength: 20)
-                FocusControlIcon(
+            // Simplified controls
+            HStack(spacing: 0) {
+                Spacer()
+                MinimalistControlButton(
                     symbol: snapshot.isRunning ? "pause.fill" : "play.fill",
-                    palette: palette,
-                    isEmphasized: true,
-                    size: 40
+                    palette: palette
                 )
-                Spacer(minLength: 20)
-                FocusControlIcon(symbol: "stop.fill", palette: palette, size: 40)
+                Spacer()
             }
+            // No explicit padding - let system handle it
         }
     }
 }
@@ -283,99 +376,165 @@ private struct FocusDynamicIslandTimeline<Content: View>: View {
 
 private struct FocusCompactTimerLabel: View {
     let state: LiveActivityAttributes.ContentState
-    let palette: FocusColorPalette
+    let palette: MonochromeColorPalette
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1)) { timeline in
             let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
             Text(FocusTimeFormatter.formattedRemaining(snapshot: snapshot, fallback: "--"))
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .font(.system(size: 13, weight: .medium, design: .rounded))
                 .monospacedDigit()
-                .foregroundStyle(palette.title)
+                .foregroundStyle(palette.primary)
         }
     }
 }
 
 private struct FocusMinimalTimer: View {
     let state: LiveActivityAttributes.ContentState
-    let palette: FocusColorPalette
+    let palette: MonochromeColorPalette
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 8.0)) { timeline in
             let snapshot = FocusTimerAnalyzer.snapshot(for: state, at: timeline.date)
-            VStack(spacing: 5) {
-                FocusTimerGlyph(size: 14, palette: palette)
-                FocusLinearProgressBar(progress: snapshot.progress, palette: palette)
-                    .frame(width: 32, height: 3.5)
+            VStack(spacing: 4) {
+                MinimalistTimerIcon(palette: palette)
+                MinimalistProgressBar(progress: snapshot.progress, palette: palette)
+                    .frame(width: 28, height: 2)
             }
-            .padding(.vertical, 3)
-            .padding(.horizontal, 3)
         }
     }
 }
 
-private struct FocusTimerGlyph: View {
-    var size: CGFloat
-    var palette: FocusColorPalette
+// MARK: - Minimalist UI Components
+private struct MinimalistTimerIcon: View {
+    var palette: MonochromeColorPalette
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: size * 0.9, style: .continuous)
-                .fill(palette.badge)
-            RoundedRectangle(cornerRadius: size * 0.9, style: .continuous)
-                .stroke(palette.chrome, lineWidth: 0.5)
-            Image(systemName: "timer")
-                .font(.system(size: size * 0.7, weight: .semibold))
-                .foregroundStyle(palette.accent)
-        }
-        .frame(width: size * 1.7, height: size * 1.7)
+        Image(systemName: "clock.fill")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(palette.primary)
+            .frame(width: 20, height: 20)
     }
 }
 
-private struct FocusControlIcon: View {
+private struct MinimalistControlButton: View {
     let symbol: String
-    let palette: FocusColorPalette
-    var isEmphasized: Bool = false
-    var size: CGFloat = 42
+    var action: () -> Void = {}
+    let palette: MonochromeColorPalette
 
     var body: some View {
-        Image(systemName: symbol)
-            .font(.system(size: size * 0.4, weight: .semibold))
-            .foregroundStyle(isEmphasized ? Color.black.opacity(0.85) : palette.title)
-            .frame(width: size, height: size)
-            .background(
-                RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
-                    .fill(isEmphasized ? palette.accent : palette.badge)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
-                            .stroke(isEmphasized ? palette.accent.opacity(0.7) : palette.chrome, lineWidth: 0.5)
-                    )
-            )
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(palette.primary)
+                .frame(width: 30, height: 30)
+        }
+        .buttonStyle(.plain)
+        .background(
+            Circle()
+                .fill(palette.primary.opacity(0.1))
+                .overlay(
+                    Circle()
+                        .stroke(palette.divider, lineWidth: 0.5)
+                )
+        )
     }
 }
 
-private struct FocusLinkButton: View {
-    let palette: FocusColorPalette
+private struct TimeLabel: View {
+    let label: String
+    let value: String
+    let palette: MonochromeColorPalette
 
     var body: some View {
-        Image(systemName: "arrow.up.right")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(palette.title.opacity(0.8))
-            .frame(width: 24, height: 24)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(palette.badge)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(palette.chrome, lineWidth: 0.5)
-                    )
-            )
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(palette.tertiary)
+                .kerning(0.6)
+            Text(value)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(palette.secondary)
+                .monospacedDigit()
+        }
     }
 }
 
-private struct FocusLinearProgressBar: View {
+private struct MinimalistIconButton: View {
+    let symbol: String
+    let palette: MonochromeColorPalette
+    var action: () -> Void = {}
+
+    var body: some View {
+        Button(action: action) {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(palette.primary.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(palette.primary.opacity(0.25), lineWidth: 0.5)
+                )
+                .frame(width: 34, height: 34)
+                .overlay(
+                    Image(systemName: symbol)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(palette.primary)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct MinimalistSlider: View {
     let progress: Double
-    let palette: FocusColorPalette
+    let palette: MonochromeColorPalette
+    let currentLabel: String
+    let startLabel: String
+    let endLabel: String
+
+    var body: some View {
+        VStack(spacing: 4) {
+            GeometryReader { geometry in
+                let clamped = CGFloat(min(max(progress, 0), 1))
+                let width = geometry.size.width
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(palette.divider)
+                        .frame(height: 6)
+
+                    Capsule(style: .continuous)
+                        .fill(palette.accent.opacity(0.8))
+                        .frame(width: width * clamped, height: 6)
+
+                    Circle()
+                        .fill(palette.primary)
+                        .frame(width: 18, height: 18)
+                        .shadow(color: palette.primary.opacity(0.3), radius: 4, x: 0, y: 2)
+                        .offset(x: max(0, min(width - 18, width * clamped - 9)))
+                }
+            }
+            .frame(height: 18)
+
+            HStack {
+                Text(startLabel)
+                    .font(.caption2)
+                    .foregroundStyle(palette.tertiary)
+                Spacer()
+                Text(currentLabel)
+                    .font(.caption2.weight(.medium))
+                    .foregroundStyle(palette.secondary)
+                Spacer()
+                Text(endLabel)
+                    .font(.caption2)
+                    .foregroundStyle(palette.tertiary)
+            }
+            .monospacedDigit()
+        }
+    }
+}
+
+private struct MinimalistProgressBar: View {
+    let progress: Double
+    let palette: MonochromeColorPalette
 
     var body: some View {
         GeometryReader { geometry in
@@ -384,26 +543,21 @@ private struct FocusLinearProgressBar: View {
             let filled = width * clamped
 
             ZStack(alignment: .leading) {
+                // Track
                 Capsule(style: .continuous)
-                    .fill(palette.track)
+                    .fill(palette.divider)
+                
+                // Fill
                 Capsule(style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                palette.accent.opacity(0.9),
-                                palette.accent
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(width: max(filled, clamped > 0 ? 2.5 : 0))
+                    .fill(palette.accent)
+                    .frame(width: max(filled, clamped > 0 ? 2 : 0))
             }
-            .animation(.easeOut(duration: 0.25), value: progress)
+            .animation(.easeOut(duration: 0.3), value: progress)
         }
     }
 }
 
+// MARK: - Timer Logic
 private struct FocusTimerSnapshot {
     let date: Date
     let progress: Double

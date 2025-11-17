@@ -56,7 +56,7 @@ The focus timer now drives a Live Activity (iOS 16.2+) and an Android persistent
 **iOS setup (after any change run `npx expo prebuild -p ios --clean`):**
 
 1. The `@bacons/apple-targets` config plugin links the widget inside `targets/widget`. Open the generated workspace in Xcode and you will find the “expo:targets/widget” bundle already configured.
-2. Confirm the app and widget both use the shared App Group `group.com.habibulloh.leora` (added in `app.json` and mirrored in `targets/widget/expo-target.config.js`).
+2. Confirm the app and widget both use the shared App Group `group.com.sarvar.leora` (added in `app.json` and mirrored in `targets/widget/expo-target.config.js`).
 3. Build and run on an iOS 16.2+ device. When Focus Mode is running with the “Dynamic Island” toggle enabled and you background the app, the Dynamic Island + Lock Screen Live Activity will appear with live progress, session metadata, and controls. Live updates are driven by [`expo-live-activity`](https://github.com/software-mansion-labs/expo-live-activity) and ActivityKit.
 
 **Android experience:**
