@@ -7,26 +7,25 @@ import { Lightbulb, X } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
-import { createGoalSections } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
+import { usePlannerGoalsStore } from '@/features/planner/useGoalsStore';
+import { buildGoalViewModel } from '@/features/planner/goals/viewModel';
 
 export default function GoalDetailsModal() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const theme = useAppTheme();
   const params = useLocalSearchParams<{ goalId?: string }>();
-  const { strings } = useLocalization();
+  const { strings, locale } = useLocalization();
   const goalStrings = strings.plannerScreens.goals;
+  const goalEntities = usePlannerGoalsStore((state) => state.goals);
 
   const goal = useMemo(() => {
     if (!params.goalId) return undefined;
-    const sections = createGoalSections(goalStrings);
-    for (const section of sections) {
-      const match = section.data.find((item) => item.id === params.goalId);
-      if (match) return match;
-    }
-    return undefined;
-  }, [goalStrings, params.goalId]);
+    const entity = goalEntities.find((item) => item.id === params.goalId);
+    if (!entity) return undefined;
+    return buildGoalViewModel(entity, goalStrings, locale);
+  }, [goalEntities, goalStrings, locale, params.goalId]);
 
   useEffect(() => {
     if (!goal) {

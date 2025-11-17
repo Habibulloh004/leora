@@ -15,6 +15,10 @@ export interface Goal {
   target: number;
   unit: string;
   category: 'financial' | 'personal' | 'professional' | 'health';
+  status: 'on_track' | 'at_risk' | 'behind';
+  eta?: string;
+  paceActual?: number | null;
+  paceRequired?: number | null;
 }
 
 export interface ProgressData {

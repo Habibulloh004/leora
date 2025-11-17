@@ -1,5 +1,5 @@
-export type PlannerGoalId = 'dream-car' | 'emergency-fund' | 'fitness' | 'language';
-export type PlannerHabitId = 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
+export type PlannerGoalId = 'dream-car' | 'emergency-fund' | 'fitness' | 'language' | `goal-${string}`;
+export type PlannerHabitId = 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | `habit-${string}`;
 export type GoalSummaryKey = 'left' | 'pace' | 'prediction';
 
 export type PlannerTaskStatus = 'planned' | 'in_progress' | 'done' | 'moved' | 'overdue';

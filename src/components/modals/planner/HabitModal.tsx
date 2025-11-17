@@ -26,6 +26,9 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useModalStore } from '@/stores/useModalStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useLocalization } from '@/localization/useLocalization';
+import type { HabitCardModel } from '@/features/planner/habits/data';
+import { usePlannerHabitsStore, type HabitFormInput, type PlannerHabitEntity } from '@/features/planner/useHabitsStore';
+import type { PlannerHabitId } from '@/types/planner';
 
 // Custom SVG Icons with more detail
 const RunningIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
@@ -187,6 +190,10 @@ export default function PlannerHabitModal() {
   const hasHydratedRef = useRef(false);
   const { strings } = useLocalization();
   const habitAiStrings = strings.plannerScreens.habits.ai;
+  const habitContentStrings = strings.plannerScreens.habits.data;
+  const habits = usePlannerHabitsStore((state) => state.habits);
+  const createHabit = usePlannerHabitsStore((state) => state.createHabit);
+  const updateHabit = usePlannerHabitsStore((state) => state.updateHabit);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -200,6 +207,33 @@ export default function PlannerHabitModal() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [streakEnabled, setStreakEnabled] = useState(false);
   const [streakDays, setStreakDays] = useState(21);
+  const [editingHabitId, setEditingHabitId] = useState<string | null>(null);
+  const editingHabit = useMemo(
+    () => habits.find((habit) => habit.id === plannerHabitModal.habitId) ?? null,
+    [habits, plannerHabitModal.habitId],
+  );
+
+  const hydrateHabit = useCallback(
+    (habit?: PlannerHabitEntity | null) => {
+      if (!habit) {
+        setEditingHabitId(null);
+        return;
+      }
+      setEditingHabitId(habit.id);
+      const localized = habit.contentKey ? habitContentStrings[habit.contentKey] : undefined;
+      setTitle(habit.titleOverride ?? localized?.title ?? '');
+      setDescription(habit.description ?? '');
+      setSelectedIconId(habit.iconId ?? habit.contentKey ?? 'trophy');
+      setCountingType(habit.countingType ?? 'create');
+      setCategory(habit.category ?? 'health');
+      setDifficulty(habit.difficulty ?? 'medium');
+      setReminderEnabled(habit.reminderEnabled ?? false);
+      setReminderTime(habit.reminderTime ?? '07:00');
+      setStreakEnabled(habit.streakEnabled ?? false);
+      setStreakDays(habit.streakDays ?? habit.badgeDays ?? 21);
+    },
+    [habitContentStrings],
+  );
 
   useEffect(() => {
     if (!hasHydratedRef.current) {
@@ -230,8 +264,15 @@ export default function PlannerHabitModal() {
       setStreakEnabled(false);
       setStreakDays(21);
       setShowTimePicker(false);
+      setEditingHabitId(null);
+      return;
     }
-  }, [plannerHabitModal.isOpen]);
+    if (plannerHabitModal.mode === 'edit') {
+      hydrateHabit(editingHabit);
+    } else {
+      setEditingHabitId(null);
+    }
+  }, [editingHabit, hydrateHabit, plannerHabitModal.isOpen, plannerHabitModal.mode]);
 
   const handleTemplatePress = (template: typeof TEMPLATES[0]) => {
     setTitle(template.title);
@@ -293,6 +334,53 @@ export default function PlannerHabitModal() {
     setStreakDays(7);
     setCategory('health');
   };
+
+  const handleSubmit = useCallback(
+    (options?: { keepOpen?: boolean }) => {
+    const payload: HabitFormInput = {
+      title,
+      description,
+      iconId: selectedIconId,
+      countingType,
+      category,
+      difficulty: difficulty as HabitFormInput['difficulty'],
+      reminderEnabled,
+      reminderTime,
+      streakEnabled,
+      streakDays,
+      weeklyTarget: editingHabit?.weeklyTarget ?? 7,
+      weeklyCompleted: editingHabit?.weeklyCompleted ?? 0,
+      chips: editingHabit?.chips,
+      cta: editingHabit?.cta,
+      linkedGoalIds: editingHabit?.linkedGoalIds,
+    };
+      if (editingHabitId) {
+        updateHabit(editingHabitId as PlannerHabitId, payload);
+      } else {
+        createHabit(payload);
+      }
+      if (!options?.keepOpen) {
+        closePlannerHabitModal();
+      }
+    },
+    [
+      category,
+      closePlannerHabitModal,
+      countingType,
+    createHabit,
+    description,
+    difficulty,
+    editingHabit,
+    editingHabitId,
+    reminderEnabled,
+    reminderTime,
+    selectedIconId,
+      streakDays,
+      streakEnabled,
+      title,
+      updateHabit,
+    ],
+  );
 
   const renderHabitIcon = (iconId: string, size: number, color: string) => {
     switch (iconId) {
@@ -685,7 +773,10 @@ export default function PlannerHabitModal() {
 
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+              <Pressable
+                onPress={() => handleSubmit({ keepOpen: true })}
+                style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+              >
                 <Text style={styles.secondaryButtonText}>Create and more</Text>
               </Pressable>
               <Pressable
@@ -694,6 +785,7 @@ export default function PlannerHabitModal() {
                   styles.primaryButton,
                   pressed && !disablePrimary && styles.pressed,
                 ]}
+                onPress={() => handleSubmit()}
               >
                 <AdaptiveGlassView
                   style={[

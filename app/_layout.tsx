@@ -26,6 +26,7 @@ import { useLocalization } from '@/localization/useLocalization';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FocusSettingsModal from '@/components/modals/FocusSettingsModal';
 import { useModalStore } from '@/stores/useModalStore';
+import { JsStack } from '@/layouts/js-stack';
 
 enableScreens(true);
 
@@ -124,6 +125,7 @@ function RootNavigator({
   const recordSession = useFocusSettingsStore((state) => state.recordSession);
   const openFocusSettingsModal = useModalStore((state) => state.openFocusSettingsModal);
   const focusSegments = segments.join('/');
+
 
   const ensureRoute = useCallback(
     (target: string) => {
@@ -425,6 +427,13 @@ function RootNavigator({
         />
         <Stack.Screen
           name="(modals)/goal-details"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/planner-status"
           options={{
             presentation: 'modal',
             headerShown: false,

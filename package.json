@@ -23,6 +23,7 @@
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/material-top-tabs": "^7.3.8",
     "@react-navigation/native": "^7.1.8",
+    "@react-navigation/stack": "^7.6.4",
     "@realm/react": "^0.11.0",
     "expo": "^54.0.23",
     "expo-audio": "^1.0.14",

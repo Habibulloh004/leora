@@ -25,6 +25,14 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useModalStore } from '@/stores/useModalStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useLocalization } from '@/localization/useLocalization';
+import type { Goal } from '@/features/planner/goals/data';
+import {
+  usePlannerGoalsStore,
+  type GoalFormInput,
+  type PlannerGoalEntity,
+} from '@/features/planner/useGoalsStore';
+import type { PlannerGoalId } from '@/types/planner';
+import { LightIcon } from '@assets/icons';
 
 // SVG Icons
 const WalletIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
@@ -145,6 +153,10 @@ export default function PlannerGoalModal() {
   const hasHydratedRef = useRef(false);
   const { strings, locale } = useLocalization();
   const goalAiStrings = strings.plannerScreens.goals.ai;
+  const goalContentStrings = strings.plannerScreens.goals.data;
+  const goals = usePlannerGoalsStore((state) => state.goals);
+  const createGoal = usePlannerGoalsStore((state) => state.createGoal);
+  const updateGoal = usePlannerGoalsStore((state) => state.updateGoal);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -157,6 +169,31 @@ export default function PlannerGoalModal() {
   const [deadline, setDeadline] = useState<Date | undefined>(undefined);
   const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
   const [milestones, setMilestones] = useState<string[]>([]);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const editingGoal = useMemo(
+    () => goals.find((goal) => goal.id === plannerGoalModal.goalId) ?? null,
+    [goals, plannerGoalModal.goalId],
+  );
+
+  const hydrateGoal = useCallback(
+    (goal?: PlannerGoalEntity | null) => {
+      if (!goal) {
+        setEditingGoalId(null);
+        return;
+      }
+      setEditingGoalId(goal.id);
+      const localized = goal.contentKey ? goalContentStrings[goal.contentKey] : undefined;
+      setTitle(goal.customTitle ?? localized?.title ?? '');
+      setDescription(goal.customDescription ?? '');
+      setGoalType(goal.type ?? 'financial');
+      setCategory(goal.category ?? 'personal');
+      setAmount(goal.targetAmount ?? localized?.targetAmount ?? '');
+      setProgress(goal.progress ?? 0);
+      setDeadline(goal.deadline ? new Date(goal.deadline) : undefined);
+      setMilestones(goal.milestoneLabels ?? localized?.milestones ?? []);
+    },
+    [goalContentStrings],
+  );
 
   useEffect(() => {
     if (!hasHydratedRef.current) {
@@ -186,8 +223,15 @@ export default function PlannerGoalModal() {
       setDeadline(undefined);
       setMilestones([]);
       setPickerMode(null);
+      setEditingGoalId(null);
+      return;
     }
-  }, [plannerGoalModal.isOpen]);
+    if (plannerGoalModal.mode === 'edit') {
+      hydrateGoal(editingGoal);
+    } else {
+      setEditingGoalId(null);
+    }
+  }, [editingGoal, hydrateGoal, plannerGoalModal.isOpen, plannerGoalModal.mode]);
 
   const applyDeadlinePart = useCallback((mode: 'date' | 'time', value: Date) => {
     setDeadline((prev) => {
@@ -267,6 +311,45 @@ export default function PlannerGoalModal() {
     setGoalType('quantitative');
     setCategory('career');
   };
+
+  const handleSubmit = useCallback(
+    (options?: { keepOpen?: boolean }) => {
+      const payload: GoalFormInput = {
+        title,
+        description,
+        type: goalType as GoalFormInput['type'],
+        category: category as GoalFormInput['category'],
+        amount,
+        countingType,
+        progressPercent: typeof progress === 'number' ? progress * 100 : 0,
+        deadline,
+        milestones,
+      };
+      if (editingGoalId) {
+        updateGoal(editingGoalId as PlannerGoalId, payload);
+      } else {
+        createGoal(payload);
+      }
+      if (!options?.keepOpen) {
+        closePlannerGoalModal();
+      }
+    },
+    [
+      amount,
+      category,
+      closePlannerGoalModal,
+      countingType,
+      createGoal,
+      deadline,
+      description,
+      editingGoalId,
+      goalType,
+      milestones,
+      progress,
+      title,
+      updateGoal,
+    ],
+  );
 
   const renderGoalTypeIcon = (iconId: string, size: number, color: string) => {
     switch (iconId) {
@@ -548,6 +631,7 @@ export default function PlannerGoalModal() {
             {/* AI Suggestions */}
             <View style={styles.aiSuggestion}>
               <Text style={styles.aiSuggestionIcon}>💡</Text>
+              <LightIcon/>
               <View style={styles.aiTextContainer}>
                 <Text style={styles.aiText}>
                   AI:{' '}
@@ -574,7 +658,10 @@ export default function PlannerGoalModal() {
 
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+              <Pressable
+                onPress={() => handleSubmit({ keepOpen: true })}
+                style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+              >
                 <Text style={styles.secondaryButtonText}>Create and more</Text>
               </Pressable>
               <Pressable
@@ -583,6 +670,7 @@ export default function PlannerGoalModal() {
                   styles.primaryButton,
                   pressed && !disablePrimary && styles.pressed,
                 ]}
+                onPress={() => handleSubmit()}
               >
                 <AdaptiveGlassView
                   style={[

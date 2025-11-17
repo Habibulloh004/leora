@@ -1,5 +1,5 @@
 // app/(tabs)/(planner)/(tabs)/habits.tsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   LayoutAnimation,
   Platform,
@@ -9,8 +9,9 @@ import {
   Text,
   UIManager,
   View,
+  GestureResponderEvent,
 } from 'react-native';
-import { AlarmClock, Award, Check, Flame, MoreHorizontal, Sparkles, Trophy, X } from 'lucide-react-native';
+import { AlarmClock, Award, Check, Flame, Sparkles, Trophy, X, ChevronDown } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
@@ -18,6 +19,9 @@ import { useLocalization } from '@/localization/useLocalization';
 import type { AppTranslations } from '@/localization/strings';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
 import { buildHabits, type HabitCardModel, type HabitDayStatus } from '@/features/planner/habits/data';
+import { useModalStore } from '@/stores/useModalStore';
+import { usePlannerHabitsStore } from '@/features/planner/useHabitsStore';
+import type { PlannerHabitId } from '@/types/planner';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -28,7 +32,6 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 // -------------------------------------
 const pct = (a: number, b: number) => Math.round((a / Math.max(b, 1)) * 100);
 
-
 // -------------------------------------
 // Main Screen
 // -------------------------------------
@@ -37,19 +40,21 @@ export default function PlannerHabitsTab() {
   const { strings, locale } = useLocalization();
   const habitStrings = strings.plannerScreens.habits;
   const goalTitleMap = strings.plannerScreens.goals.data;
-  const [habits, setHabits] = useState<HabitCardModel[]>(() => buildHabits(habitStrings.data));
+  const habitEntities = usePlannerHabitsStore((state) => state.habits);
+  const deleteHabit = usePlannerHabitsStore((state) => state.deleteHabit);
+  const archiveHabit = usePlannerHabitsStore((state) => state.toggleArchiveHabit);
+  const openHabitModal = useModalStore((state) => state.openPlannerHabitModal);
   const storedSelectedDate = useSelectedDayStore((state) => state.selectedDate);
   const selectedDate = storedSelectedDate;
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
 
-  useEffect(() => {
-    setHabits((prev) => {
-      const expandedMap = new Map(prev.map((habit) => [habit.id, habit.expanded]));
-      return buildHabits(habitStrings.data).map((habit) => ({
-        ...habit,
-        expanded: expandedMap.get(habit.id),
-      }));
-    });
-  }, [habitStrings.data]);
+  const habits = useMemo(() => {
+    const localized = buildHabits(habitStrings.data, habitEntities);
+    return localized.map((habit) => ({
+      ...habit,
+      expanded: expandedIds[habit.id] ?? habit.expanded ?? false,
+    }));
+  }, [expandedIds, habitEntities, habitStrings.data]);
 
   const monthYearFormatter = useMemo(
     () =>
@@ -64,11 +69,31 @@ export default function PlannerHabitsTab() {
 
   const toggleExpand = useCallback((id: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setHabits((prev) =>
-      prev.map((habit) => (habit.id === id ? { ...habit, expanded: !habit.expanded } : habit)),
-    );
+    setExpandedIds((prev) => ({
+      ...prev,
+      [id]: !prev[id],
+    }));
   }, []);
 
+  const handleEditHabit = useCallback(
+    (habit: HabitCardModel) => {
+      openHabitModal({ mode: 'edit', habitId: habit.id, habit });
+    },
+    [openHabitModal],
+  );
+
+  const handleDeleteHabit = useCallback(
+    (id: string) => {
+      deleteHabit(id as PlannerHabitId);
+    },
+    [deleteHabit],
+  );
+  const handleArchiveHabit = useCallback(
+    (id: string) => {
+      archiveHabit(id as PlannerHabitId, true);
+    },
+    [archiveHabit],
+  );
   return (
     <ScrollView
       style={styles.container}
@@ -85,13 +110,16 @@ export default function PlannerHabitsTab() {
       {/* Habits list */}
       <View style={{ gap: 12 }}>
         {habits.map((habit) => (
-          <HabitCard
-            key={habit.id}
-            data={habit}
-            onToggleExpand={() => toggleExpand(habit.id)}
-            strings={habitStrings}
-            goalTitles={goalTitleMap}
-          />
+            <HabitCard
+              key={habit.id}
+              data={habit}
+              onToggleExpand={() => toggleExpand(habit.id)}
+              strings={habitStrings}
+              goalTitles={goalTitleMap}
+              onEdit={() => handleEditHabit(habit)}
+              onArchive={() => handleArchiveHabit(habit.id)}
+              onDelete={() => handleDeleteHabit(habit.id)}
+            />
         ))}
       </View>
 
@@ -108,11 +136,17 @@ function HabitCard({
   onToggleExpand,
   strings,
   goalTitles,
+  onEdit,
+  onArchive,
+  onDelete,
 }: {
   data: HabitCardModel;
   onToggleExpand: () => void;
   strings: AppTranslations['plannerScreens']['habits'];
   goalTitles: AppTranslations['plannerScreens']['goals']['data'];
+  onEdit?: () => void;
+  onArchive?: () => void;
+  onDelete?: () => void;
 }) {
   const theme = useAppTheme();
   const styles = useStyles();
@@ -129,14 +163,33 @@ function HabitCard({
   const badgeText = `${data.badgeDays ?? data.streak} ${strings.badgeSuffix}`;
   const goalLabels =
     data.linkedGoalIds?.map((goalId) => goalTitles[goalId as keyof typeof goalTitles]?.title ?? goalId) ?? [];
+  const handleCardPress = useCallback(() => {
+    onToggleExpand();
+  }, [onToggleExpand]);
+
+  const handleChevronPress = useCallback(
+    (event: GestureResponderEvent) => {
+      event.stopPropagation();
+      handleCardPress();
+    },
+    [handleCardPress],
+  );
 
   return (
     <AdaptiveGlassView style={styles.card}>
-      <Pressable onPress={onToggleExpand} style={styles.cardPress}>
+      <Pressable onPress={handleCardPress} style={styles.cardPress}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
             <Text style={styles.cardTitle}>{data.title}</Text>
-            <MoreHorizontal size={16} color={theme.colors.textSecondary} />
+          </View>
+          <View style={styles.headerRight}>
+            <Pressable hitSlop={10} onPress={handleChevronPress}>
+              <ChevronDown
+                size={16}
+                color={theme.colors.textSecondary}
+                style={{ transform: [{ rotate: data.expanded ? '180deg' : '0deg' }] }}
+              />
+            </Pressable>
           </View>
           <View style={styles.badgeRight}>
             <Flame size={14} color={theme.colors.textSecondary} />
@@ -234,11 +287,11 @@ function HabitCard({
             </View>
 
             <View style={styles.dualRow}>
-              <GlassButton label={strings.ctas.edit} compact />
-              <GlassButton label={strings.ctas.delete} compact variant="danger" />
+              <GlassButton label={strings.ctas.edit} compact onPress={onEdit} />
+              <GlassButton label={strings.ctas.delete} compact variant="danger" onPress={onDelete} />
             </View>
           </View>
-        )}
+          )}
       </Pressable>
     </AdaptiveGlassView>
   );
@@ -294,11 +347,13 @@ function GlassButton({
   icon,
   compact,
   variant = 'default',
+  onPress,
 }: {
   label: string;
   icon?: React.ReactNode;
   compact?: boolean;
   variant?: 'default' | 'danger';
+  onPress?: () => void;
 }) {
   const theme = useAppTheme();
   const styles = useStyles();
@@ -306,7 +361,7 @@ function GlassButton({
   const paddingStyle = { paddingVertical: compact ? 8 : 10 };
   const borderColor = danger ? theme.colors.danger : theme.colors.border;
   const textColor = danger ? theme.colors.danger : theme.colors.textSecondary;
-  return (
+  const content = (
     <AdaptiveGlassView style={[styles.glassBtn, paddingStyle, { borderColor }]}>
       <View style={styles.glassBtnRow}>
         {icon}
@@ -314,6 +369,14 @@ function GlassButton({
       </View>
     </AdaptiveGlassView>
   );
+  if (onPress) {
+    return (
+      <Pressable onPress={onPress} style={{ borderRadius: 16 }}>
+        {content}
+      </Pressable>
+    );
+  }
+  return content;
 }
 
 function GlassChip({ label }: { label: string }) {
@@ -359,6 +422,7 @@ const useStyles = createThemedStyles((theme) => ({
     overflow: 'hidden',
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.card,
+    position: 'relative',
   },
   cardPress: { padding: 12 },
   headerRow: {
@@ -367,6 +431,7 @@ const useStyles = createThemedStyles((theme) => ({
     marginBottom: 6,
   },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   cardTitle: { fontSize: 15, fontWeight: '700', color: theme.colors.textPrimary },
   badgeRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   badgeText: { fontSize: 12, fontWeight: '700', color: theme.colors.textSecondary },

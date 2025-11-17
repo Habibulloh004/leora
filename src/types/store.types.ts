@@ -1,5 +1,6 @@
 // types/store.types.ts
 import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
+import type { PlannerGoalId } from '@/types/planner';
 export interface Task {
   id: string;
   title: string;
@@ -25,6 +26,7 @@ export interface Transaction {
   createdAt: Date;
   updatedAt?: Date;
   relatedDebtId?: string;
+  goalId?: PlannerGoalId;
 }
 
 export interface Debt {

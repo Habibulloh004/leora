@@ -5,14 +5,17 @@ import type {
   InsightQuestionAnswer,
   InsightStatus,
 } from '@/types/insights';
+import type { GoalProgressSnapshot } from '@/features/goals/gpe/types';
 
 type QuestionsMap = Record<string, InsightQuestionAnswer>;
 
 interface InsightsExperienceState {
   answers: QuestionsMap;
   history: InsightHistorySnapshot[];
+  goalSnapshots: GoalProgressSnapshot[];
   answerQuestion: (questionId: string, payload: { optionId?: string; customAnswer?: string }) => void;
   markInsightStatus: (insightId: string, status: InsightStatus) => void;
+  recordGoalSnapshot: (snapshot: GoalProgressSnapshot) => void;
 }
 
 const isoDaysAgo = (days: number) => {
@@ -31,6 +34,7 @@ const initialHistory: InsightHistorySnapshot[] = [
 export const useInsightsExperienceStore = create<InsightsExperienceState>((set) => ({
   answers: {},
   history: initialHistory,
+  goalSnapshots: [],
   answerQuestion: (questionId, payload) =>
     set((state) => ({
       answers: {
@@ -58,6 +62,15 @@ export const useInsightsExperienceStore = create<InsightsExperienceState>((set) 
       }
       return {
         history: [{ id: insightId, status, date: updatedDate }, ...state.history],
+      };
+    }),
+  recordGoalSnapshot: (snapshot) =>
+    set((state) => {
+      const filtered = state.goalSnapshots.filter(
+        (item) => !(item.goalId === snapshot.goalId && item.date === snapshot.date),
+      );
+      return {
+        goalSnapshots: [snapshot, ...filtered],
       };
     }),
 }));

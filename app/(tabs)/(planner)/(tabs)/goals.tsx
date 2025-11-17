@@ -6,11 +6,14 @@ import { useRouter } from 'expo-router';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import GoalCard from '@/components/planner/goals/GoalCard';
 import { createThemedStyles } from '@/constants/theme';
-import { createGoalSections, type Goal, type GoalSection } from '@/features/planner/goals/data';
+import { type Goal, type GoalSection } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
 import { usePlannerTasksStore, type PlannerTask } from '@/features/planner/useTasksStore';
-import { getHabitTemplates } from '@/features/planner/habits/data';
-import type { PlannerGoalId } from '@/types/planner';
+import { usePlannerHabitsStore } from '@/features/planner/useHabitsStore';
+import { useModalStore } from '@/stores/useModalStore';
+import { usePlannerGoalsStore } from '@/features/planner/useGoalsStore';
+import { useShallow } from 'zustand/react/shallow';
+import { buildGoalViewModel } from '@/features/planner/goals/viewModel';
 
 const GoalsPage: React.FC = () => {
   const styles = useStyles();
@@ -18,12 +21,19 @@ const GoalsPage: React.FC = () => {
   const { strings, locale } = useLocalization();
   const goalStrings = strings.plannerScreens.goals;
   const tasks = usePlannerTasksStore((state) => state.tasks);
-  const habitTemplates = useMemo(() => getHabitTemplates(), []);
+  const habitEntities = usePlannerHabitsStore((state) => state.habits);
+  const goalEntities = usePlannerGoalsStore((state) => state.goals);
+  const { openGoalModal, openPlannerTaskModal } = useModalStore(
+    useShallow((state) => ({
+      openGoalModal: state.openPlannerGoalModal,
+      openPlannerTaskModal: state.openPlannerTaskModal,
+    })),
+  );
   const goalTaskMap = useMemo(() => {
-    const map = new Map<PlannerGoalId, PlannerTask[]>();
+    const map = new Map<string, PlannerTask[]>();
     tasks.forEach((task) => {
       if (!task.goalId) return;
-      const goalId = task.goalId as PlannerGoalId;
+      const goalId = task.goalId;
       const current = map.get(goalId) ?? [];
       current.push(task);
       map.set(goalId, current);
@@ -31,21 +41,52 @@ const GoalsPage: React.FC = () => {
     return map;
   }, [tasks]);
   const goalHabitMap = useMemo(() => {
-    const map = new Map<PlannerGoalId, number>();
-    habitTemplates.forEach((habit) => {
+    const map = new Map<string, number>();
+    habitEntities.forEach((habit) => {
       habit.linkedGoalIds.forEach((goalId) => {
-        const current = map.get(goalId as PlannerGoalId) ?? 0;
-        map.set(goalId as PlannerGoalId, current + 1);
+        const current = map.get(goalId) ?? 0;
+        map.set(goalId, current + 1);
       });
     });
     return map;
-  }, [habitTemplates]);
+  }, [habitEntities]);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }),
     [locale],
   );
 
-  const sections = useMemo(() => createGoalSections(goalStrings), [goalStrings]);
+  const localizedGoals = useMemo(
+    () =>
+      goalEntities
+        .filter((goal) => !goal.archived)
+        .map((entity) => ({ entity, goal: buildGoalViewModel(entity, goalStrings, locale) })),
+    [goalEntities, goalStrings, locale],
+  );
+
+  const sections = useMemo(() => {
+    const grouped = {
+      financial: [] as Goal[],
+      personal: [] as Goal[],
+    };
+    localizedGoals.forEach(({ entity, goal }) => {
+      const key = entity.category === 'financial' ? 'financial' : 'personal';
+      grouped[key].push(goal);
+    });
+    return [
+      {
+        id: 'financial',
+        title: goalStrings.sections.financial.title,
+        subtitle: goalStrings.sections.financial.subtitle,
+        data: grouped.financial,
+      },
+      {
+        id: 'personal',
+        title: goalStrings.sections.personal.title,
+        subtitle: goalStrings.sections.personal.subtitle,
+        data: grouped.personal,
+      },
+    ];
+  }, [goalStrings.sections, localizedGoals]);
 
   const renderSectionHeader = useCallback(
     ({ section }: { section: GoalSection }) => (
@@ -71,7 +112,7 @@ const GoalsPage: React.FC = () => {
 
   const renderItem = useCallback(
     ({ item }: { item: Goal }) => {
-      const goalId = item.id as PlannerGoalId;
+      const goalId = item.id;
       const goalTasks = goalTaskMap.get(goalId) ?? [];
       const pendingTasks = [...goalTasks].filter((task) => task.status !== 'done');
       pendingTasks.sort((a, b) => (a.dueAt ?? Number.POSITIVE_INFINITY) - (b.dueAt ?? Number.POSITIVE_INFINITY));
@@ -92,15 +133,15 @@ const GoalsPage: React.FC = () => {
           goal={item}
           nextStep={nextStep}
           relationSummary={relationSummary}
-          onAddStep={() => router.push({ pathname: '/(modals)/add-task', params: { goalId: item.id } })}
+          onAddStep={() => openPlannerTaskModal({ mode: 'create', goalId: item.id })}
           onPress={() => handleOpenGoal(item.id)}
-          onAddValue={() => router.push('/(modals)/add-goal')}
+          onAddValue={() => openGoalModal({ mode: 'create' })}
           onRefresh={() => {}}
-          onEdit={() => router.push('/(modals)/add-goal')}
+          onEdit={() => openGoalModal({ mode: 'edit', goalId: item.id, goal: item })}
         />
       );
     },
-    [dateFormatter, goalHabitMap, goalTaskMap, handleOpenGoal, router],
+    [dateFormatter, goalHabitMap, goalTaskMap, handleOpenGoal, openGoalModal, openPlannerTaskModal],
   );
 
   return (
