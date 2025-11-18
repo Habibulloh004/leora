@@ -1,4 +1,5 @@
 import React, {
+  ForwardedRef,
   forwardRef,
   useCallback,
   useImperativeHandle,
@@ -6,16 +7,34 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
-import { Easing } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
+import type { LucideIcon } from 'lucide-react-native';
+import { Wallet } from 'lucide-react-native';
 
-import CustomBottomSheet, {
-  BottomSheetHandle,
-} from '@/components/modals/BottomSheet';
+import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
+import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
+import { useLocalization } from '@/localization/useLocalization';
+import {
+  FINANCE_CATEGORIES,
+  type FinanceCategory,
+} from '@/constants/financeCategories';
 
 type ThemeColors = ReturnType<typeof useAppTheme>['colors'];
 
@@ -24,44 +43,19 @@ type FilterOption = {
   label: string;
 };
 
-const PERIOD_OPTIONS: FilterOption[] = [
-  { id: 'today', label: 'Today' },
-  { id: 'week', label: 'This Week' },
-  { id: 'month', label: 'This Month' },
-  { id: 'year', label: 'This Year' },
-];
-
-const TYPE_OPTIONS: FilterOption[] = [
-  { id: 'all', label: 'All' },
-  { id: 'income', label: 'Income' },
-  { id: 'outcome', label: 'Outcome' },
-  { id: 'transfer', label: 'Transfer' },
-];
-
-const CATEGORY_OPTIONS: FilterOption[] = [
-  { id: 'all', label: 'All' },
-  { id: 'salary', label: 'Salary' },
-  { id: 'transport', label: 'Transport' },
-  { id: 'food', label: 'Food' },
-  { id: 'shopping', label: 'Shopping' },
-  { id: 'entertainment', label: 'Entertainment' },
-];
-
-const ACCOUNT_OPTIONS: FilterOption[] = [
-  { id: 'all', label: 'All' },
-  { id: 'cash', label: 'Cash' },
-  { id: 'plastic-1', label: 'Plastik 1' },
-  { id: 'usd-balance', label: 'USD Balance' },
-  { id: 'savings', label: 'Savings' },
-];
+type CategoryOptionMeta = FilterOption & {
+  icon: LucideIcon;
+  colorToken: FinanceCategory['colorToken'];
+};
 
 export type FilterState = {
-  period: string;
   category: string;
   account: string;
   type: string;
   minAmount: string;
   maxAmount: string;
+  dateFrom: string;
+  dateTo: string;
 };
 
 export interface FilterTransactionSheetHandle {
@@ -78,29 +72,84 @@ interface FilterTransactionSheetProps {
 }
 
 const createInitialState = (): FilterState => ({
-  period: 'today',
   category: 'all',
   account: 'all',
   type: 'all',
   minAmount: '',
   maxAmount: '',
+  dateFrom: '',
+  dateTo: '',
 });
 
-const FilterTransactionSheet = forwardRef<
-  FilterTransactionSheetHandle,
-  FilterTransactionSheetProps
->(({ onApply, onReset, accountOptions, categoryOptions }, ref) => {
+const modalProps: Partial<CustomModalProps> = {
+  variant: 'form',
+  enableDynamicSizing: false,
+  fallbackSnapPoint: '92%',
+  scrollable: false,
+  contentContainerStyle: { paddingHorizontal: 0, paddingTop: 0, paddingBottom: 0 },
+};
+
+const FilterTransactionSheet = forwardRef(
+  (
+    { onApply, onReset, accountOptions, categoryOptions }: FilterTransactionSheetProps,
+    ref: ForwardedRef<FilterTransactionSheetHandle>,
+  ) => {
   const theme = useAppTheme();
-  const sheetRef = useRef<BottomSheetHandle>(null);
+  const { strings } = useLocalization();
+  const filterStrings = strings.financeScreens.transactions.filterSheet;
+  const modalRef = useRef<BottomSheetHandle>(null);
   const [filters, setFilters] = useState<FilterState>(() => createInitialState());
   const insets = useSafeAreaInsets();
+  const [datePickerState, setDatePickerState] = useState<{ target: 'from' | 'to'; value: Date } | null>(null);
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' }),
+    [],
+  );
+  const typeOptions = useMemo<FilterOption[]>(
+    () => [
+      { id: 'all', label: filterStrings.all },
+      { id: 'income', label: filterStrings.typeOptions.income },
+      { id: 'outcome', label: filterStrings.typeOptions.expense },
+      { id: 'transfer', label: filterStrings.typeOptions.transfer },
+      { id: 'debt', label: filterStrings.typeOptions.debt ?? 'Debt' },
+    ],
+    [filterStrings],
+  );
+
+  const resolvedCategoryOptions = useMemo(
+    () => (categoryOptions?.length ? categoryOptions : [{ id: 'all', label: filterStrings.all }]),
+    [categoryOptions, filterStrings],
+  );
+
+  const resolvedAccountOptions = useMemo(
+    () => (accountOptions?.length ? accountOptions : [{ id: 'all', label: filterStrings.all }]),
+    [accountOptions, filterStrings],
+  );
+
+  const categoryOptionsWithMeta = useMemo<CategoryOptionMeta[]>(
+    () =>
+      resolvedCategoryOptions.map((option) => {
+        if (option.id === 'all') {
+          return { ...option, icon: Wallet, colorToken: 'textSecondary' } as CategoryOptionMeta;
+        }
+        const match = FINANCE_CATEGORIES.find(
+          (category) => category.name.toLowerCase() === option.label.toLowerCase(),
+        );
+        return {
+          ...option,
+          icon: (match?.icon ?? Wallet) as LucideIcon,
+          colorToken: (match?.colorToken ?? 'textSecondary') as FinanceCategory['colorToken'],
+        };
+      }),
+    [resolvedCategoryOptions],
+  );
 
   const handleOpen = useCallback(() => {
-    sheetRef.current?.present();
+    modalRef.current?.present();
   }, []);
 
   const handleClose = useCallback(() => {
-    sheetRef.current?.dismiss();
+    modalRef.current?.dismiss();
   }, []);
 
   const handleReset = useCallback(() => {
@@ -123,8 +172,6 @@ const FilterTransactionSheet = forwardRef<
     [handleClose, handleOpen, handleReset],
   );
 
-  const snapPoints = useMemo<(string | number)[]>(() => ['68%', '88%'], []);
-
   const handleOptionSelect = useCallback(
     (key: keyof FilterState, value: string) => {
       setFilters((prev) => ({ ...prev, [key]: value }));
@@ -132,175 +179,306 @@ const FilterTransactionSheet = forwardRef<
     [],
   );
 
+  const formatDateLabel = useCallback(
+    (value: string) => (value ? dateFormatter.format(new Date(value)) : filterStrings.selectDate),
+    [dateFormatter, filterStrings.selectDate],
+  );
+
+  const applyDateValue = useCallback(
+    (target: 'from' | 'to', date: Date, keepOpen = false) => {
+      setFilters((prev) => ({
+        ...prev,
+        dateFrom: target === 'from' ? date.toISOString() : prev.dateFrom,
+        dateTo: target === 'to' ? date.toISOString() : prev.dateTo,
+      }));
+      setDatePickerState((prev) => {
+        if (!keepOpen) {
+          return null;
+        }
+        return prev ? { target, value: date } : { target, value: date };
+      });
+    },
+    [],
+  );
+
+  const openDatePicker = useCallback(
+    (target: 'from' | 'to') => {
+      const source = target === 'from' ? filters.dateFrom : filters.dateTo;
+      const initial = source ? new Date(source) : new Date();
+      if (Platform.OS === 'android') {
+        DateTimePickerAndroid.open({
+          value: initial,
+          mode: 'date',
+          onChange: (event, selected) => {
+            if (event.type === 'set' && selected) {
+              applyDateValue(target, selected);
+            }
+          },
+        });
+        return;
+      }
+      setDatePickerState({ target, value: initial });
+    },
+    [applyDateValue, filters.dateFrom, filters.dateTo],
+  );
+
+  const closeDatePicker = useCallback(() => setDatePickerState(null), []);
+
+  const handleIosDateChange = useCallback(
+    (event: DateTimePickerEvent, selected?: Date) => {
+      if (event.type === 'dismissed') {
+        closeDatePicker();
+        return;
+      }
+      if (selected && datePickerState) {
+        applyDateValue(datePickerState.target, selected, true);
+      }
+    },
+    [applyDateValue, closeDatePicker, datePickerState],
+  );
+
   return (
-    <CustomBottomSheet
-      ref={sheetRef}
-      snapPoints={snapPoints}
-      animationConfigs={{ duration: 320, easing: Easing.linear }}
-      enableDynamicSizing={false}
-      backgroundStyle={[
-        styles.sheetBackground,
-        {
-          backgroundColor:
-            theme.mode === 'dark'
-              ? 'rgba(18,18,22,0.92)'
-              : 'rgba(24,24,28,0.92)',
-          borderColor: theme.colors.borderMuted,
-        },
-      ]}
-      handleIndicatorStyle={[
-        styles.handleIndicator,
-        { backgroundColor: theme.colors.textMuted },
-      ]}
-      scrollable
-      scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
-      contentContainerStyle={[
-        styles.contentContainer,
-      ]}
-    >
-      <View style={styles.innerContent}>
-        <Text style={[styles.sheetTitle, { color: theme.colors.textSecondary }]}>
-          Filter by
-        </Text>
+    <>
+      <CustomModal ref={modalRef} {...modalProps}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.flex}
+      >
+        <SafeAreaView
+          edges={['bottom']}
+          style={[styles.safeArea, { paddingBottom: insets.bottom + 24 }]}
+        >
+          <ScrollView
+            style={styles.scrollContainer}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Text style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}>
+              {filterStrings.title}
+            </Text>
+            <View style={styles.sections}>
+              <FilterSection label={filterStrings.dateRange}>
+                <View style={styles.dateRow}>
+                  <Pressable
+                    style={[styles.dateInput, { borderColor: theme.colors.borderMuted }]}
+                    onPress={() => openDatePicker('from')}
+                  >
+                    <Text style={{ color: theme.colors.textPrimary }}>
+                      {formatDateLabel(filters.dateFrom)}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.dateInput, { borderColor: theme.colors.borderMuted }]}
+                    onPress={() => openDatePicker('to')}
+                  >
+                    <Text style={{ color: theme.colors.textPrimary }}>
+                      {formatDateLabel(filters.dateTo)}
+                    </Text>
+                  </Pressable>
+                </View>
+              </FilterSection>
 
-        <FilterSection title="Period" themeColor={theme.colors.textSecondary}>
-          <FilterOptionRow
-            options={PERIOD_OPTIONS}
-            selectedId={filters.period}
-            onSelect={(value) => handleOptionSelect('period', value)}
-            themeColors={theme.colors}
-          />
-        </FilterSection>
+              <FilterSection label={filterStrings.type}>
+                <FilterOptionRow
+                  options={typeOptions}
+                  selectedId={filters.type}
+                  onSelect={(value) => handleOptionSelect('type', value)}
+                  themeColors={theme.colors}
+                  scrollable
+                />
+              </FilterSection>
 
-        <FilterSection title="Category" themeColor={theme.colors.textSecondary}>
-          <FilterOptionRow
-            options={categoryOptions?.length ? categoryOptions : CATEGORY_OPTIONS}
-            selectedId={filters.category}
-            onSelect={(value) => handleOptionSelect('category', value)}
-            themeColors={theme.colors}
-            wrap
-          />
-        </FilterSection>
+              <FilterSection label={filterStrings.category}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoryList}
+                >
+                  {categoryOptionsWithMeta.map((option) => {
+                    const isActive = option.id === filters.category;
+                    const IconComponent = option.icon as React.ComponentType<{
+                      size?: number;
+                      color?: string;
+                    }>;
+                    const accentColor = theme.colors[option.colorToken] ?? theme.colors.primary;
+                    return (
+                      <Pressable
+                        key={option.id}
+                        onPress={() => handleOptionSelect('category', option.id)}
+                        style={({ pressed }) => [
+                          styles.categoryCard,
+                          pressed && styles.pressedOpacity,
+                        ]}
+                      >
+                        <AdaptiveGlassView
+                          style={[
+                            styles.glassSurface,
+                            styles.categoryCardInner,
+                            isActive && {
+                              borderColor: accentColor,
+                              backgroundColor:
+                                theme.mode === 'dark'
+                                  ? 'rgba(255,255,255,0.08)'
+                                  : 'rgba(0,0,0,0.04)',
+                            },
+                          ]}
+                        >
+                          <View
+                            style={[
+                              styles.categoryIconWrapper,
+                              {
+                                backgroundColor: isActive
+                                  ? accentColor
+                                  : theme.mode === 'dark'
+                                    ? 'rgba(255,255,255,0.08)'
+                                    : 'rgba(0,0,0,0.05)',
+                              },
+                            ]}
+                          >
+                            <IconComponent
+                              size={18}
+                              color={isActive ? theme.colors.background : theme.colors.textSecondary}
+                            />
+                          </View>
+                          <Text
+                            style={[
+                              styles.categoryCardLabel,
+                              { color: isActive ? theme.colors.textPrimary : theme.colors.textMuted },
+                            ]}
+                            numberOfLines={2}
+                          >
+                            {option.label}
+                          </Text>
+                        </AdaptiveGlassView>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+              </FilterSection>
 
-        <FilterSection title="Accounts" themeColor={theme.colors.textSecondary}>
-          <FilterOptionRow
-            options={accountOptions?.length ? accountOptions : ACCOUNT_OPTIONS}
-            selectedId={filters.account}
-            onSelect={(value) => handleOptionSelect('account', value)}
-            themeColors={theme.colors}
-            wrap
-          />
-        </FilterSection>
+              <FilterSection label={filterStrings.accounts}>
+                <FilterOptionRow
+                  options={resolvedAccountOptions}
+                  selectedId={filters.account}
+                  onSelect={(value) => handleOptionSelect('account', value)}
+                  themeColors={theme.colors}
+                  scrollable
+                />
+              </FilterSection>
 
-        <FilterSection title="Type" themeColor={theme.colors.textSecondary}>
-          <FilterOptionRow
-            options={TYPE_OPTIONS}
-            selectedId={filters.type}
-            onSelect={(value) => handleOptionSelect('type', value)}
-            themeColors={theme.colors}
-          />
-        </FilterSection>
+              <FilterSection label={filterStrings.amount}>
+                <View style={styles.amountRow}>
+                  <BottomSheetTextInput
+                    value={filters.minAmount}
+                    onChangeText={(value) => handleOptionSelect('minAmount', value)}
+                    placeholder={filterStrings.from}
+                    placeholderTextColor={theme.colors.textMuted}
+                    keyboardType="numeric"
+                    style={[
+                      styles.amountInput,
+                      {
+                        borderColor: theme.colors.borderMuted,
+                        color: theme.colors.textPrimary,
+                        backgroundColor: theme.colors.card,
+                      },
+                    ]}
+                  />
+                  <BottomSheetTextInput
+                    value={filters.maxAmount}
+                    onChangeText={(value) => handleOptionSelect('maxAmount', value)}
+                    placeholder={filterStrings.to}
+                    placeholderTextColor={theme.colors.textMuted}
+                    keyboardType="numeric"
+                    style={[
+                      styles.amountInput,
+                      {
+                        borderColor: theme.colors.borderMuted,
+                        color: theme.colors.textPrimary,
+                        backgroundColor: theme.colors.card,
+                      },
+                    ]}
+                  />
+                </View>
+              </FilterSection>
+            </View>
 
-        <FilterSection title="Amount Range" themeColor={theme.colors.textSecondary}>
-          <View style={styles.amountRow}>
-            <AdaptiveGlassView
-              style={[
-                styles.amountInputContainer,
-                { borderColor: theme.colors.border },
-              ]}
-            >
-              <BottomSheetTextInput
-                value={filters.minAmount}
-                onChangeText={(value) => handleOptionSelect('minAmount', value)}
-                placeholder="From"
-                placeholderTextColor={theme.colors.textMuted}
-                style={[
-                  styles.amountInput,
-                  { color: theme.colors.textPrimary },
+            <View style={styles.actionsContainer}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  {
+                    borderColor: theme.colors.borderMuted,
+                    backgroundColor: theme.colors.background,
+                  },
+                  pressed && styles.pressedOpacity,
                 ]}
-                keyboardType="numeric"
-                returnKeyType="done"
-              />
-            </AdaptiveGlassView>
-
-            <AdaptiveGlassView
-              style={[
-                styles.amountInputContainer,
-                { borderColor: theme.colors.border },
-              ]}
-            >
-              <BottomSheetTextInput
-                value={filters.maxAmount}
-                onChangeText={(value) => handleOptionSelect('maxAmount', value)}
-                placeholder="To"
-                placeholderTextColor={theme.colors.textMuted}
-                style={[
-                  styles.amountInput,
-                  { color: theme.colors.textPrimary },
+                onPress={handleReset}
+              >
+                <Text style={[styles.actionText, { color: theme.colors.textSecondary }]}>
+                  {filterStrings.reset}
+                </Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.actionButton,
+                  styles.applyButton,
+                  { backgroundColor: theme.colors.primary },
+                  pressed && styles.pressedOpacity,
                 ]}
-                keyboardType="numeric"
-                returnKeyType="done"
+                onPress={handleApply}
+              >
+                <Text style={[styles.actionText, { color: theme.colors.onPrimary }]}>
+                  {filterStrings.apply}
+                </Text>
+              </Pressable>
+            </View>
+            <View style={{ height: insets.bottom + 24 }} />
+          </ScrollView>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+      </CustomModal>
+      {Platform.OS === 'ios' && datePickerState && (
+        <Modal transparent visible animationType="fade" onRequestClose={closeDatePicker}>
+          <View style={styles.pickerModal}>
+            <Pressable style={styles.pickerBackdrop} onPress={closeDatePicker} />
+            <AdaptiveGlassView style={[styles.glassSurface, styles.pickerCard]}>
+              <DateTimePicker
+                value={datePickerState.value}
+                mode="date"
+                display="inline"
+                onChange={handleIosDateChange}
               />
+              <Pressable style={styles.pickerDoneButton} onPress={closeDatePicker}>
+                <Text style={styles.pickerDoneText}>{filterStrings.apply}</Text>
+              </Pressable>
             </AdaptiveGlassView>
           </View>
-        </FilterSection>
-      </View>
-      <View
-        style={[
-          styles.actionsContainer,
-          {
-            borderColor: theme.colors.borderMuted,
-          },
-        ]}
-      >
-        <Pressable
-          onPress={handleReset}
-          style={({ pressed }) => [
-            styles.resetButton,
-            { borderColor: theme.colors.border },
-            pressed && styles.pressedOpacity,
-          ]}
-        >
-          <Text style={[styles.resetText, { color: theme.colors.textSecondary }]}>
-            Reset All
-          </Text>
-        </Pressable>
-
-        <Pressable
-          onPress={handleApply}
-          style={({ pressed }) => [
-            styles.confirmButton,
-            { backgroundColor: theme.colors.primary },
-            pressed && styles.pressedOpacity,
-          ]}
-        >
-          <Text style={[styles.confirmText, { color: theme.colors.white }]}>
-            Confirm
-          </Text>
-        </Pressable>
-      </View>
-    </CustomBottomSheet>
+        </Modal>
+      )}
+    </>
   );
-});
+  },
+);
 
 FilterTransactionSheet.displayName = 'FilterTransactionSheet';
 
 type FilterSectionProps = {
-  title: string;
-  themeColor: string;
+  label: string;
   children: React.ReactNode;
 };
 
-const FilterSection: React.FC<FilterSectionProps> = ({
-  title,
-  themeColor,
-  children,
-}) => (
-  <View style={styles.section}>
-    <Text style={[styles.sectionTitle, { color: themeColor }]}>{title}</Text>
-    {children}
-  </View>
-);
+const FilterSection: React.FC<FilterSectionProps> = ({ label, children }) => {
+  const theme = useAppTheme();
+  return (
+    <AdaptiveGlassView
+      style={[styles.glassSurface, styles.sectionCard, { borderColor: theme.colors.borderMuted }]}
+    >
+      <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>{label}</Text>
+      {children}
+    </AdaptiveGlassView>
+  );
+};
 
 type FilterOptionRowProps = {
   options: FilterOption[];
@@ -308,6 +486,7 @@ type FilterOptionRowProps = {
   onSelect: (value: string) => void;
   themeColors: ThemeColors;
   wrap?: boolean;
+  scrollable?: boolean;
 };
 
 const FilterOptionRow: React.FC<FilterOptionRowProps> = ({
@@ -316,77 +495,125 @@ const FilterOptionRow: React.FC<FilterOptionRowProps> = ({
   onSelect,
   themeColors,
   wrap = false,
-}) => (
-  <View
-    style={[
-      styles.optionRow,
-      wrap && styles.optionRowWrap,
-    ]}
-  >
-    {options.map((option) => {
-      const isActive = option.id === selectedId;
-      return (
-        <Pressable
-          key={option.id}
-          onPress={() => onSelect(option.id)}
-          style={({ pressed }) => [
-            styles.optionPill,
+  scrollable = false,
+}) => {
+  const content = options.map((option) => {
+    const isActive = option.id === selectedId;
+    return (
+      <Pressable
+        key={option.id}
+        onPress={() => onSelect(option.id)}
+        style={({ pressed }) => [
+          styles.optionPill,
+          {
+            backgroundColor: isActive ? themeColors.primary : 'rgba(255,255,255,0.04)',
+            borderColor: isActive ? themeColors.primary : themeColors.border,
+          },
+          pressed && styles.pressedOpacity,
+        ]}
+      >
+        <Text
+          style={[
+            styles.optionLabel,
             {
-              backgroundColor: isActive
-                ? themeColors.primary
-                : 'rgba(255,255,255,0.04)',
-              borderColor: isActive
-                ? themeColors.primary
-                : themeColors.border,
+              color: isActive ? themeColors.white : themeColors.textSecondary,
             },
-            pressed && styles.pressedOpacity,
           ]}
         >
-          <Text
-            style={[
-              styles.optionLabel,
-              {
-                color: isActive
-                  ? themeColors.white
-                  : themeColors.textSecondary,
-              },
-            ]}
-          >
-            {option.label}
-          </Text>
-        </Pressable>
-      );
-    })}
-  </View>
-);
+          {option.label}
+        </Text>
+      </Pressable>
+    );
+  });
+
+  if (scrollable) {
+    return (
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={[styles.optionRow, styles.optionRowScroll]}
+      >
+        {content}
+      </ScrollView>
+    );
+  }
+
+  return (
+    <View
+      style={[
+        styles.optionRow,
+        wrap && styles.optionRowWrap,
+      ]}
+    >
+      {content}
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
-  sheetBackground: {
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
-    borderWidth: 1,
+  flex: {
+    flex: 1,
   },
-  handleIndicator: {
-    width: 42,
-    height: 4,
-    borderRadius: 10,
-    opacity: 0.65,
-  },
-  contentContainer: {
+  safeArea: {
+    flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 32,
   },
-  innerContent: {
-    gap: 24,
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    gap: 16,
+    paddingTop: 12,
+    paddingBottom: 20,
   },
   sheetTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    letterSpacing: 0.2,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
-  section: {
+  sections: {
+    gap: 16,
+  },
+  categoryList: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
     gap: 12,
+  },
+  categoryCard: {
+    marginRight: 12,
+    borderRadius: 18,
+  },
+  categoryCardInner: {
+    width: 110,
+    height: 100,
+    borderRadius: 18,
+    padding: 14,
+    gap: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  categoryCardLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  sectionCard: {
+    borderRadius: 24,
+    paddingHorizontal: 20,
+    paddingVertical: 18,
+    gap: 16,
   },
   sectionTitle: {
     fontSize: 13,
@@ -398,8 +625,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
   },
+  optionRowScroll: {
+    paddingVertical: 4,
+    paddingHorizontal: 2,
+  },
   optionRowWrap: {
     flexWrap: 'wrap',
+    rowGap: 10,
   },
   optionPill: {
     paddingHorizontal: 14,
@@ -415,51 +647,72 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  amountInputContainer: {
+  amountInput: {
     flex: 1,
     borderRadius: 14,
     borderWidth: 1,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  amountInput: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     fontSize: 14,
-    paddingVertical: 8,
+  },
+  dateRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  dateInput: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    justifyContent: 'center',
   },
   actionsContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 14,
-    borderTopWidth: 1,
+    gap: 12,
+    paddingTop: 16,
   },
-  resetButton: {
+  actionButton: {
     flex: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  resetText: {
-    fontSize: 14,
+  applyButton: {
+    borderWidth: 0,
+  },
+  actionText: {
+    fontSize: 15,
     fontWeight: '600',
-  },
-  confirmButton: {
-    flex: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmText: {
-    fontSize: 14,
-    fontWeight: '700',
   },
   pressedOpacity: {
     opacity: 0.85,
+  },
+  pickerModal: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+    padding: 20,
+  },
+  pickerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  pickerCard: {
+    borderRadius: 28,
+    paddingBottom: 16,
+    overflow: 'hidden',
+  },
+  pickerDoneButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.2)',
+  },
+  pickerDoneText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

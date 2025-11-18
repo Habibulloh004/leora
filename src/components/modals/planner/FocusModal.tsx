@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useShallow } from 'zustand/react/shallow';
 
 import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useModalStore } from '@/stores/useModalStore';
-import { useShallow } from 'zustand/react/shallow';
 
 const TECHNIQUES = [
   { key: 'pomodoro', title: 'Pomodoro', description: '25 min focus • 5 min break' },
@@ -57,31 +58,31 @@ export default function PlannerFocusModal() {
       <Text style={styles.sectionLabel}>Technique</Text>
       <View style={styles.cardGroup}>
         {TECHNIQUES.map((item) => (
-          <View key={item.key} style={styles.techniqueCard}>
+          <AdaptiveGlassView key={item.key} style={[styles.glassSurface, styles.techniqueCard]}>
             <Text style={styles.techniqueTitle}>{item.title}</Text>
             <Text style={styles.techniqueDescription}>{item.description}</Text>
-          </View>
+          </AdaptiveGlassView>
         ))}
       </View>
 
       <Text style={styles.sectionLabel}>Blocking options</Text>
       <View style={styles.blockList}>
         {BLOCKERS.map((item) => (
-          <View key={item.key} style={styles.blockRow}>
+          <AdaptiveGlassView key={item.key} style={[styles.glassSurface, styles.blockRow]}>
             <Ionicons name={item.icon as keyof typeof Ionicons.glyphMap} size={18} color="#FFFFFF" style={{ marginRight: 12 }} />
             <Text style={styles.blockLabel}>{item.label}</Text>
             <Ionicons name="toggle" size={24} color="#4CAF50" style={{ marginLeft: 'auto' }} />
-          </View>
+          </AdaptiveGlassView>
         ))}
       </View>
 
-      <View style={styles.aiBox}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.aiBox]}>
         <Text style={styles.aiTitle}>AI insight</Text>
         <View style={styles.aiRow}>
           <Ionicons name="time-outline" size={16} color="#FFD60A" style={{ marginRight: 8 }} />
           <Text style={styles.aiText}>Typical focus window: 14:00 – 16:00. Recommended 3 cycles.</Text>
         </View>
-      </View>
+      </AdaptiveGlassView>
 
       <Pressable style={styles.startButton}>
         <Ionicons name="play" size={18} color="#25252B" style={{ marginRight: 8 }} />
@@ -117,14 +118,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 10,
   },
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
   cardGroup: {
     gap: 12,
     marginBottom: 24,
   },
   techniqueCard: {
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#1F1F22',
     backgroundColor: '#111111',
     padding: 16,
   },
@@ -146,8 +150,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#1F1F22',
     backgroundColor: '#111111',
     paddingHorizontal: 16,
     paddingVertical: 14,
@@ -159,8 +161,6 @@ const styles = StyleSheet.create({
   },
   aiBox: {
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#1F1F22',
     backgroundColor: '#121212',
     padding: 16,
     marginBottom: 28,

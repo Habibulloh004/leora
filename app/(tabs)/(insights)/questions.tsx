@@ -107,7 +107,7 @@ const InsightsQuestionsScreen = () => {
           }
           return { id: questionId, ...entry };
         })
-        .filter(Boolean) as Array<{ id: string } & (typeof questions.entries)[string]>,
+        .filter(Boolean) as ({ id: string } & (typeof questions.entries)[string])[],
     [questions.dailyOrder, questions.entries],
   );
 

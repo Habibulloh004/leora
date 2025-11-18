@@ -31,6 +31,7 @@ export interface AccountTransaction {
   id: string;
   type: AccountTransactionType;
   amount: number;
+  currency?: string;
   time: string;
   description?: string;
 }
@@ -58,6 +59,7 @@ export interface AddAccountPayload {
   description: string;
   amount: number;
   type: AccountKind;
+  currency: string;
   customTypeId?: string;
   customTypeLabel?: string;
   customIcon?: AccountIconId;

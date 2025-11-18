@@ -45,7 +45,7 @@ import { ListItem, SectionHeader } from '@/features/more/components';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { usePlannerTasksStore } from '@/features/planner/useTasksStore';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 import { useLocalization } from '@/localization/useLocalization';
 
 
@@ -414,7 +414,7 @@ export default function MoreHomeScreen() {
   const router = useRouter();
   const logout = useAuthStore((state) => state.logout);
   const authUser = useAuthStore((state) => state.user);
-  const tasks = usePlannerTasksStore((state) => state.tasks);
+  const tasks = usePlannerDomainStore((state) => state.tasks);
   const [syncEnabled, setSyncEnabled] = useState(true);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
@@ -492,7 +492,10 @@ export default function MoreHomeScreen() {
     </View>
   );
 
-  const completedTasks = useMemo(() => tasks.filter((task) => task.status === 'done').length, [tasks]);
+  const completedTasks = useMemo(
+    () => tasks.filter((task) => task.status === 'completed').length,
+    [tasks],
+  );
   const activeTasks = useMemo(() => tasks.length - completedTasks, [tasks, completedTasks]);
   const xp = completedTasks * 50 + activeTasks * 20;
   const level = Math.max(1, Math.floor(xp / XP_PER_LEVEL) + 1);

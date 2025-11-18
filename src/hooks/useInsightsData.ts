@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import {
   type DayPartKey,
@@ -10,15 +10,25 @@ import {
   type OverviewChangeGroupKey,
 } from '@/localization/insightsContent';
 import { useInsightsContent } from '@/localization/useInsightsContent';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import {
   type FinanceCurrency,
   useFinancePreferencesStore,
 } from '@/stores/useFinancePreferencesStore';
-import { useTaskStore } from '@/stores/useTaskStore';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import { useInsightsStore } from '@/stores/useInsightsStore';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 import { useLocalization } from '@/localization/useLocalization';
-import type { InsightCardEntity } from '@/types/insights';
+import { requestDailyInsights } from '@/services/ai/insightsService';
+import { startOfDay } from '@/utils/calendar';
+import type {
+  Insight,
+  InsightCardEntity,
+  InsightLevel,
+  InsightKind,
+  InsightCategory,
+} from '@/types/insights';
+import { useShallow } from 'zustand/react/shallow';
 
 const WEEK_KEYS: WeeklyDayKey[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_PART_KEYS: DayPartKey[] = ['morning', 'day', 'evening', 'night'];
@@ -51,23 +61,128 @@ type ChangeSignalMap = Partial<Record<OverviewChangeGroupKey, string[]>>;
 
 export type InsightCard = InsightCardEntity;
 
+const toneMap: Record<InsightLevel, InsightCard['tone']> = {
+  info: 'friend',
+  warning: 'polite',
+  critical: 'strict',
+  celebration: 'friend',
+};
+
+const priorityMap: Record<InsightLevel, number> = {
+  critical: 10,
+  warning: 7,
+  celebration: 6,
+  info: 5,
+};
+
+const categoryMap: Record<InsightKind, InsightCategory> = {
+  finance: 'finance',
+  planner: 'productivity',
+  habit: 'productivity',
+  focus: 'productivity',
+  combined: 'overview',
+  wisdom: 'wisdom',
+};
+
+const mapInsightToCard = (insight: Insight): InsightCardEntity => {
+  const primaryAction = insight.actions?.[0];
+  return {
+    id: insight.id,
+    title: insight.title,
+    body: insight.body,
+    tone: toneMap[insight.level],
+    category: categoryMap[insight.kind],
+    priority: priorityMap[insight.level],
+    createdAt: insight.createdAt,
+    cta: {
+      label: primaryAction?.label ?? 'Открыть',
+      action: primaryAction?.action ?? 'open_history',
+      targetId: (primaryAction?.payload?.targetId as string | undefined) ?? undefined,
+      note: typeof primaryAction?.payload?.note === 'string' ? primaryAction.payload.note : undefined,
+    },
+    payload: insight.payload,
+  };
+};
+
 export const useInsightsData = () => {
-  const transactions = useFinanceStore((state) => state.transactions);
-  const debts = useFinanceStore((state) => state.debts);
-  const budgets = useFinanceStore((state) => state.budgets);
-  const accounts = useFinanceStore((state) => state.accounts);
-  const tasks = useTaskStore((state) => state.tasks);
+  const { transactions, debts, budgets, accounts } = useFinanceDomainStore(
+    useShallow((state) => ({
+      transactions: state.transactions,
+      debts: state.debts,
+      budgets: state.budgets,
+      accounts: state.accounts,
+    })),
+  );
+  const plannerTasks = usePlannerDomainStore((state) => state.tasks);
   const convertAmount = useFinancePreferencesStore((state) => state.convertAmount);
   const globalCurrency = useFinancePreferencesStore((state) => state.globalCurrency);
   const { locale } = useLocalization();
   const content = useInsightsContent();
+  const { insights, lastFetchedAt } = useInsightsStore(
+    useShallow((state) => ({
+      insights: state.insights,
+      lastFetchedAt: state.lastFetchedAt,
+    })),
+  );
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
-  return useMemo(() => {
+  useEffect(() => {
+    const iso = startOfDay(new Date()).toISOString();
+    if (lastFetchedAt === iso) {
+      return;
+    }
+    let isMounted = true;
+    setAiLoading(true);
+    requestDailyInsights(new Date())
+      .catch((error) => {
+        if (!isMounted) return;
+        setAiError(error instanceof Error ? error.message : 'AiGateway error');
+      })
+      .finally(() => {
+        if (!isMounted) return;
+        setAiLoading(false);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [lastFetchedAt]);
+
+  const refreshAiInsights = useCallback(async () => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      await requestDailyInsights(new Date(), { force: true });
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'AiGateway error');
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
+  const summary = useMemo(() => {
     const now = new Date();
     const thirtyDaysAgo = new Date(now);
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const sevenDaysAgo = new Date(now);
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+    const budgetViews = budgets.map((budget) => {
+      const limit = budget.limitAmount ?? 0;
+      const spent = budget.spentAmount ?? 0;
+      const state = limit > 0 && spent > limit ? 'exceeding' : 'within';
+      return {
+        id: budget.id,
+        name: budget.name,
+        limit,
+        spent,
+        state,
+      };
+    });
+    const tasks = plannerTasks.map((task) => ({
+      id: task.id,
+      priority: (task.priority ?? 'medium') as 'low' | 'medium' | 'high',
+      completed: task.status === 'completed',
+    }));
 
     const currencyFormatter = new Intl.NumberFormat(locale, {
       style: 'currency',
@@ -78,7 +193,7 @@ export const useInsightsData = () => {
     const toGlobal = (amount: number, currency?: string) =>
       convertAmount(amount, normalizeFinanceCurrency(currency as FinanceCurrency), globalCurrency);
 
-    const outcomeTx = transactions.filter((txn) => txn.type === 'outcome');
+    const outcomeTx = transactions.filter((txn) => txn.type === 'expense');
     const incomeTx = transactions.filter((txn) => txn.type === 'income');
     const recentOutcome = outcomeTx.filter((txn) => new Date(txn.date) >= thirtyDaysAgo);
     const recentIncome = incomeTx.filter((txn) => new Date(txn.date) >= thirtyDaysAgo);
@@ -88,15 +203,15 @@ export const useInsightsData = () => {
 
     const accountTotals = accounts.reduce(
       (acc, account) => {
-        const value = toGlobal(account.balance, account.currency);
+        const value = toGlobal(account.currentBalance, account.currency);
         acc.total += value;
-        if (account.type === 'savings') {
+        if (account.accountType === 'savings') {
           acc.savings += value;
         }
         if (account.currency?.toUpperCase() === 'USD') {
           acc.usd += value;
         }
-        if (account.type === 'cash' || account.type === 'card') {
+        if (account.accountType === 'cash' || account.accountType === 'card') {
           acc.cash += value;
         }
         return acc;
@@ -105,13 +220,13 @@ export const useInsightsData = () => {
     );
 
     const outstandingDebt = debts.reduce(
-      (sum, debt) => sum + toGlobal(debt.remainingAmount, debt.currency),
+      (sum, debt) => sum + toGlobal(debt.principalAmount, debt.principalCurrency),
       0,
     );
 
-    const budgetsOverLimit = budgets.filter((budget) => budget.spent > budget.limit).length;
-    const goalScore = budgets.length
-      ? clamp01(1 - budgetsOverLimit / budgets.length)
+    const budgetsOverLimit = budgetViews.filter((budget) => budget.spent > budget.limit).length;
+    const goalScore = budgetViews.length
+      ? clamp01(1 - budgetsOverLimit / budgetViews.length)
       : 0.75;
 
     const liquidityScore = clamp01(accountTotals.cash / Math.max(outcomeLast30 || 1, 1));
@@ -187,7 +302,7 @@ export const useInsightsData = () => {
     };
 
     const savingsMap: SavingsMap = {};
-    budgets.forEach((budget) => {
+    budgetViews.forEach((budget) => {
       const over = Math.max(0, budget.spent - budget.limit);
       if (!over) {
         return;
@@ -223,10 +338,13 @@ export const useInsightsData = () => {
     };
 
     const changeSignals: ChangeSignalMap = {
-      upgrades: budgets
+      upgrades: budgetViews
         .filter((budget) => budget.state === 'within')
-        .map((budget) => `${budget.name}: ${Math.round((1 - budget.spent / budget.limit) * 100)}% free`),
-      attention: budgets
+        .map((budget) => {
+          const remaining = budget.limit > 0 ? Math.round((1 - budget.spent / budget.limit) * 100) : 100;
+          return `${budget.name}: ${remaining}% free`;
+        }),
+      attention: budgetViews
         .filter((budget) => budget.state === 'exceeding')
         .map((budget) => `${budget.name}: ${formatCurrency(budget.spent - budget.limit)} over`),
     };
@@ -270,20 +388,20 @@ export const useInsightsData = () => {
     }
 
     const usdDebt = debts.find((debt) => {
-      if (!debt.expectedReturnDate) {
+      if (!debt.dueDate) {
         return false;
       }
       const diff =
-        new Date(debt.expectedReturnDate).setHours(0, 0, 0, 0) -
+        new Date(debt.dueDate).setHours(0, 0, 0, 0) -
         now.setHours(0, 0, 0, 0);
       return (
         Math.round(diff / (24 * 60 * 60 * 1000)) <= 3 &&
-        normalizeFinanceCurrency(debt.currency) === 'USD'
+        normalizeFinanceCurrency(debt.principalCurrency as FinanceCurrency) === 'USD'
       );
     });
     if (usdDebt && content.scenarios?.usdPayment) {
       const scenario = content.scenarios.usdPayment;
-      const debitNeeded = toGlobal(usdDebt.remainingAmount, usdDebt.currency);
+      const debitNeeded = toGlobal(usdDebt.principalAmount, usdDebt.principalCurrency);
       if (accountTotals.usd < debitNeeded) {
         cards.push({
           id: `usd-payment-${usdDebt.id}`,
@@ -307,10 +425,10 @@ export const useInsightsData = () => {
     }
 
     const dueTomorrow = debts.find((debt) => {
-      if (!debt.expectedReturnDate) {
+      if (!debt.dueDate) {
         return false;
       }
-      const due = new Date(debt.expectedReturnDate);
+      const due = new Date(debt.dueDate);
       const diffDays = Math.round(
         (due.setHours(0, 0, 0, 0) - now.setHours(0, 0, 0, 0)) /
           (24 * 60 * 60 * 1000),
@@ -322,7 +440,7 @@ export const useInsightsData = () => {
       cards.push({
         id: `debt-due-${dueTomorrow.id}`,
         title: scenario.title,
-        body: scenario.tones.friend.replace('{name}', dueTomorrow.person),
+        body: scenario.tones.friend.replace('{name}', dueTomorrow.counterpartyName),
         tone: 'friend',
         category: 'finance',
         priority: 6,
@@ -332,7 +450,7 @@ export const useInsightsData = () => {
         push: scenario.push,
         explain: scenario.explain.replace(
           '{amount}',
-          formatCurrency(toGlobal(dueTomorrow.remainingAmount, dueTomorrow.currency)),
+          formatCurrency(toGlobal(dueTomorrow.principalAmount, dueTomorrow.principalCurrency)),
         ),
       });
     }
@@ -367,9 +485,28 @@ export const useInsightsData = () => {
     debts,
     globalCurrency,
     locale,
-    tasks,
+    plannerTasks,
     transactions,
+    insights,
   ]);
+
+  const { overviewData, financeData, cards: fallbackCards } = summary;
+
+  const aiCards = useMemo(() => {
+    const dailyInsights = insights.filter((insight) => insight.scope === 'daily');
+    return dailyInsights.map(mapInsightToCard);
+  }, [insights]);
+
+  const cards = aiCards.length > 0 ? aiCards : fallbackCards;
+
+  return {
+    overviewData,
+    financeData,
+    cards,
+    isAiLoading: aiLoading,
+    aiError,
+    refreshAiInsights,
+  };
 };
 
 export default useInsightsData;

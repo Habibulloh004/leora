@@ -26,8 +26,9 @@ import {
 import { useInsightsContent } from '@/localization/useInsightsContent';
 import useInsightsDataHook, { type InsightCard } from '@/hooks/useInsightsData';
 import { useModalStore } from '@/stores/useModalStore';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useInsightsExperienceStore } from '@/stores/useInsightsExperienceStore';
+import { mapDomainDebtToLegacy } from '@/utils/finance/debtMappers';
 
 type ComponentMetric = {
   key: OverviewComponentKey;
@@ -539,7 +540,7 @@ const InsightsIndexScreen: React.FC = () => {
   const router = useRouter();
   const openIncomeOutcome = useModalStore((state) => state.openIncomeOutcome);
   const openDebtModal = useModalStore((state) => state.openDebtModal);
-  const debts = useFinanceStore((state) => state.debts);
+  const domainDebts = useFinanceDomainStore((state) => state.debts);
   const { overviewData, cards } = useInsightsDataHook();
   const answers = useInsightsExperienceStore((state) => state.answers);
   const answerQuestion = useInsightsExperienceStore((state) => state.answerQuestion);
@@ -578,7 +579,7 @@ const InsightsIndexScreen: React.FC = () => {
           }
           return { id: questionId, ...entry };
         })
-        .filter(Boolean) as Array<{ id: string } & (typeof questionsContent.entries)[string]>,
+        .filter(Boolean) as ({ id: string } & (typeof questionsContent.entries)[string])[],
     [questionsContent.dailyOrder, questionsContent.entries],
   );
 
@@ -681,9 +682,9 @@ const InsightsIndexScreen: React.FC = () => {
           break;
         case 'open_debt': {
           if (card.payload?.debtId) {
-            const debt = debts.find((item) => item.id === card.payload?.debtId);
-            if (debt) {
-              openDebtModal({ mode: 'edit', debt, focus: 'schedule' });
+            const domainDebt = domainDebts.find((item) => item.id === card.payload.debtId);
+            if (domainDebt) {
+              openDebtModal({ mode: 'edit', debt: mapDomainDebtToLegacy(domainDebt), focus: 'schedule' });
               break;
             }
           }
@@ -713,7 +714,7 @@ const InsightsIndexScreen: React.FC = () => {
         markInsightStatus(card.id, 'completed');
       }
     },
-    [debts, markInsightStatus, openDebtModal, openIncomeOutcome, router],
+    [domainDebts, markInsightStatus, openDebtModal, openIncomeOutcome, router],
   );
 
   return (

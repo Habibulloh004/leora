@@ -4,21 +4,34 @@ import { SectionList, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
-import GoalCard from '@/components/planner/goals/GoalCard';
+import { GoalCard } from '@/components/planner/goals/GoalCard';
 import { createThemedStyles } from '@/constants/theme';
 import { createGoalSections, type Goal, type GoalSection } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
-import { usePlannerTasksStore, type PlannerTask } from '@/features/planner/useTasksStore';
-import { getHabitTemplates } from '@/features/planner/habits/data';
 import type { PlannerGoalId } from '@/types/planner';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import { mapDomainTaskToPlannerTask } from '@/features/planner/taskAdapters';
+import { useShallow } from 'zustand/react/shallow';
+import { useModalStore } from '@/stores/useModalStore';
 
 const GoalsPage: React.FC = () => {
   const styles = useStyles();
   const router = useRouter();
   const { strings, locale } = useLocalization();
   const goalStrings = strings.plannerScreens.goals;
-  const tasks = usePlannerTasksStore((state) => state.tasks);
-  const habitTemplates = useMemo(() => getHabitTemplates(), []);
+  const openPlannerGoalModal = useModalStore((state) => state.openPlannerGoalModal);
+  const openPlannerTaskModal = useModalStore((state) => state.openPlannerTaskModal);
+  const { goals: domainGoals, habits: domainHabits, tasks: domainTasks } = usePlannerDomainStore(
+    useShallow((state) => ({
+      goals: state.goals,
+      habits: state.habits,
+      tasks: state.tasks,
+    })),
+  );
+  const tasks = useMemo(
+    () => domainTasks.map((task) => mapDomainTaskToPlannerTask(task, {})),
+    [domainTasks],
+  );
   const goalTaskMap = useMemo(() => {
     const map = new Map<PlannerGoalId, PlannerTask[]>();
     tasks.forEach((task) => {
@@ -32,20 +45,24 @@ const GoalsPage: React.FC = () => {
   }, [tasks]);
   const goalHabitMap = useMemo(() => {
     const map = new Map<PlannerGoalId, number>();
-    habitTemplates.forEach((habit) => {
-      habit.linkedGoalIds.forEach((goalId) => {
-        const current = map.get(goalId as PlannerGoalId) ?? 0;
-        map.set(goalId as PlannerGoalId, current + 1);
+    domainHabits.forEach((habit) => {
+      habit.linkedGoalIds?.forEach((goalId) => {
+        const key = goalId as PlannerGoalId;
+        const current = map.get(key) ?? 0;
+        map.set(key, current + 1);
       });
     });
     return map;
-  }, [habitTemplates]);
+  }, [domainHabits]);
   const dateFormatter = useMemo(
     () => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }),
     [locale],
   );
 
-  const sections = useMemo(() => createGoalSections(goalStrings), [goalStrings]);
+  const sections = useMemo(
+    () => createGoalSections(goalStrings, domainGoals, locale),
+    [domainGoals, goalStrings, locale],
+  );
 
   const renderSectionHeader = useCallback(
     ({ section }: { section: GoalSection }) => (
@@ -92,15 +109,22 @@ const GoalsPage: React.FC = () => {
           goal={item}
           nextStep={nextStep}
           relationSummary={relationSummary}
-          onAddStep={() => router.push({ pathname: '/(modals)/add-task', params: { goalId: item.id } })}
+          onAddStep={() => openPlannerTaskModal({ mode: 'create', goalId: item.id })}
           onPress={() => handleOpenGoal(item.id)}
-          onAddValue={() => router.push('/(modals)/add-goal')}
+          onAddValue={() => openPlannerGoalModal({ mode: 'edit', goalId: item.id })}
           onRefresh={() => {}}
-          onEdit={() => router.push('/(modals)/add-goal')}
+          onEdit={() => openPlannerGoalModal({ mode: 'edit', goalId: item.id })}
         />
       );
     },
-    [dateFormatter, goalHabitMap, goalTaskMap, handleOpenGoal, router],
+    [
+      dateFormatter,
+      goalHabitMap,
+      goalTaskMap,
+      handleOpenGoal,
+      openPlannerGoalModal,
+      openPlannerTaskModal,
+    ],
   );
 
   return (

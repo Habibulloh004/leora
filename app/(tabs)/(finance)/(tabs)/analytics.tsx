@@ -13,11 +13,12 @@ import {
 import { useAppTheme } from '@/constants/theme';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useLocalization } from '@/localization/useLocalization';
-import { useFinanceStore } from '@/stores/useFinanceStore';
-import type { Transaction } from '@/types/store.types';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
 import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
+import type { Transaction as FinanceTransaction } from '@/domain/finance/types';
 
 const percentageDelta = (current: number, previous: number) => {
   if (previous === 0) return current > 0 ? 100 : 0;
@@ -39,10 +40,14 @@ export default function AnalyticsTab() {
   const theme = useAppTheme();
   const { strings, locale } = useLocalization();
   const analyticsStrings = strings.financeScreens.analytics;
-  const transactions = useFinanceStore((state) => state.transactions);
-  const budgets = useFinanceStore((state) => state.budgets);
-  const debts = useFinanceStore((state) => state.debts);
-  const accounts = useFinanceStore((state) => state.accounts);
+  const { transactions, budgets, debts, accounts } = useFinanceDomainStore(
+    useShallow((state) => ({
+      transactions: state.transactions,
+      budgets: state.budgets,
+      debts: state.debts,
+      accounts: state.accounts,
+    })),
+  );
   const {
     convertAmount,
     formatCurrency: formatFinanceCurrency,
@@ -54,15 +59,19 @@ export default function AnalyticsTab() {
 
   const analyticsData = useMemo(() => {
     const accountCurrencyMap = new Map(
-      accounts.map((account) => [account.id, normalizeFinanceCurrency(account.currency)]),
+      accounts.map((account) => [account.id, normalizeFinanceCurrency(account.currency as FinanceCurrency)]),
     );
 
-    const resolveTransactionCurrency = (transaction: Transaction): FinanceCurrency =>
-      transaction.currency
-        ? normalizeFinanceCurrency(transaction.currency)
-        : accountCurrencyMap.get(transaction.accountId) ?? globalCurrency;
+    const resolveTransactionCurrency = (transaction: FinanceTransaction): FinanceCurrency => {
+      if (transaction.currency) {
+        return normalizeFinanceCurrency(transaction.currency as FinanceCurrency);
+      }
+      const accountCurrency =
+        (transaction.accountId ? accountCurrencyMap.get(transaction.accountId) : undefined) ?? globalCurrency;
+      return accountCurrency;
+    };
 
-    const convertTransaction = (transaction: Transaction) =>
+    const convertTransaction = (transaction: FinanceTransaction) =>
       convertAmount(transaction.amount, resolveTransactionCurrency(transaction), globalCurrency);
 
     const now = new Date();
@@ -80,20 +89,20 @@ export default function AnalyticsTab() {
     const currentMonthTransactions = filterBy(currentMonth, currentYear);
     const previousMonthTransactions = filterBy(previousMonth, previousYear);
 
-    const sumByType = (list: Transaction[], type: Transaction['type']) =>
+    const sumByType = (list: FinanceTransaction[], type: FinanceTransaction['type']) =>
       list
         .filter((transaction) => transaction.type === type)
         .reduce((sum, transaction) => sum + convertTransaction(transaction), 0);
 
     const currentIncome = sumByType(currentMonthTransactions, 'income');
     const previousIncome = sumByType(previousMonthTransactions, 'income');
-    const currentExpenses = sumByType(currentMonthTransactions, 'outcome');
-    const previousExpenses = sumByType(previousMonthTransactions, 'outcome');
+    const currentExpenses = sumByType(currentMonthTransactions, 'expense');
+    const previousExpenses = sumByType(previousMonthTransactions, 'expense');
     const savingsCurrent = currentIncome - currentExpenses;
     const savingsPrevious = previousIncome - previousExpenses;
 
     const dayTotals = currentMonthTransactions.reduce<Record<string, number>>((acc, transaction) => {
-      if (transaction.type !== 'outcome') {
+      if (transaction.type !== 'expense') {
         return acc;
       }
       const date = new Date(transaction.date);
@@ -113,9 +122,9 @@ export default function AnalyticsTab() {
       : 0;
 
     const categoryTotals = transactions
-      .filter((transaction) => transaction.type === 'outcome')
+      .filter((transaction) => transaction.type === 'expense')
       .reduce<Record<string, number>>((acc, transaction) => {
-        const key = transaction.category ?? 'Other';
+        const key = transaction.categoryId ?? 'Other';
         acc[key] = (acc[key] ?? 0) + convertTransaction(transaction);
         return acc;
       }, {});
@@ -131,12 +140,14 @@ export default function AnalyticsTab() {
         share: totalOutcomeForShare ? `${Math.round((amount / totalOutcomeForShare) * 100)}%` : '0%',
       }));
 
-    const overBudget = budgets.find((budget) => budget.state === 'exceeding');
+    const overBudget = budgets.find(
+      (budget) => budget.limitAmount > 0 && budget.spentAmount > budget.limitAmount,
+    );
     const dueDebt = debts
       .filter((debt) => debt.status === 'active')
       .sort((a, b) => {
-        const aTime = a.expectedReturnDate ? new Date(a.expectedReturnDate).getTime() : Number.MAX_SAFE_INTEGER;
-        const bTime = b.expectedReturnDate ? new Date(b.expectedReturnDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const aTime = a.dueDate ? new Date(a.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
+        const bTime = b.dueDate ? new Date(b.dueDate).getTime() : Number.MAX_SAFE_INTEGER;
         return aTime - bTime;
       })[0];
 
@@ -158,7 +169,7 @@ export default function AnalyticsTab() {
       dueDebt
         ? {
             id: 'debt-due',
-            title: `Debt with ${dueDebt.person} due soon`,
+            title: `Debt with ${dueDebt.counterpartyName} due soon`,
             detail: 'Send a reminder or plan repayment.',
           }
         : null,
@@ -229,7 +240,7 @@ export default function AnalyticsTab() {
       </View>
 
       {/* Expense dynamics */}
-      <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.glassCard, { backgroundColor: theme.colors.card }]}>
         <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
           {analyticsStrings.expenseDynamics}
         </Text>
@@ -283,7 +294,7 @@ export default function AnalyticsTab() {
       </AdaptiveGlassView>
 
       {/* Comparison with the previous month */}
-      <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.glassCard, { backgroundColor: theme.colors.card }]}>
         <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
           {analyticsStrings.comparison}
         </Text>
@@ -358,7 +369,7 @@ export default function AnalyticsTab() {
       </AdaptiveGlassView>
 
       {/* Top 5 categories of expenses */}
-      <AdaptiveGlassView style={[styles.glassCard, { backgroundColor: theme.colors.card }]}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.glassCard, { backgroundColor: theme.colors.card }]}>
         <Text style={[styles.sectionTitle, { color: theme.colors.textSecondary }]}>
           {analyticsStrings.topExpenses}
         </Text>
@@ -393,6 +404,7 @@ export default function AnalyticsTab() {
         <AdaptiveGlassView
           key={insight.id}
           style={[
+            styles.glassSurface,
             styles.insightCard,
             {
               backgroundColor: theme.colors.card,
@@ -424,6 +436,11 @@ export default function AnalyticsTab() {
 // Styles
 // -------------------------
 const styles = StyleSheet.create({
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
   scroll: { flex: 1 },
   content: {
     paddingHorizontal: 16,

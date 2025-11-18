@@ -18,11 +18,22 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
 import { LevelProgress } from '@/components/shared/LevelProgress';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { usePlannerTasksStore } from '@/features/planner/useTasksStore';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 import { useLocalization } from '@/localization/useLocalization';
 import type { AppTranslations } from '@/localization/strings';
 import type { User } from '@/types/auth.types';
 import CustomBottomSheet, { BottomSheetHandle } from '@/components/modals/BottomSheet';
+import {
+  AVAILABLE_FINANCE_CURRENCIES,
+  FINANCE_REGION_PRESETS,
+  type FinanceCurrency,
+  type FinanceRegion,
+  getFinanceRegionPreset,
+  useFinancePreferencesStore,
+} from '@/stores/useFinancePreferencesStore';
+import { useShallow } from 'zustand/react/shallow';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import type { FxProviderId } from '@/services/fx/providers';
 
 type VisibilityOption = NonNullable<User['visibility']> | 'public' | 'friends' | 'private';
 type EditProfileFormState = {
@@ -53,6 +64,18 @@ const LEVEL_REWARDS = [
   { label: 'Level 30', value: '1 Month Premium for Free' },
 ];
 
+const CURRENCY_LABELS: Record<FinanceCurrency, string> = {
+  UZS: 'Uzbekistani Som',
+  USD: 'US Dollar',
+  EUR: 'Euro',
+  GBP: 'British Pound',
+  TRY: 'Turkish Lira',
+  SAR: 'Saudi Riyal',
+  AED: 'UAE Dirham',
+  USDT: 'Tether (USDT)',
+  RUB: 'Russian Ruble',
+};
+
 const ProfileScreen = () => {
   const router = useRouter();
   const theme = useAppTheme();
@@ -63,8 +86,10 @@ const ProfileScreen = () => {
   const updateUser = useAuthStore((state) => state.updateUser);
   const deleteAccount = useAuthStore((state) => state.deleteAccount);
   const logout = useAuthStore((state) => state.logout);
-  const tasks = usePlannerTasksStore((state) => state.tasks);
+  const tasks = usePlannerDomainStore((state) => state.tasks);
   const editSheetRef = useRef<BottomSheetHandle>(null);
+  const regionSheetRef = useRef<BottomSheetHandle>(null);
+  const currencySheetRef = useRef<BottomSheetHandle>(null);
 
   const [formState, setFormState] = useState<EditProfileFormState>({
     fullName: user?.fullName ?? '',
@@ -75,6 +100,42 @@ const ProfileScreen = () => {
     visibility: (user?.visibility ?? 'friends') as VisibilityOption,
   });
   const [confirmAction, setConfirmAction] = useState<'delete' | 'logout' | null>(null);
+  const [currencyQuery, setCurrencyQuery] = useState('');
+  const [currencySheetMode, setCurrencySheetMode] = useState<'display' | 'override'>('display');
+  const [syncingRates, setSyncingRates] = useState(false);
+  const [overrideInput, setOverrideInput] = useState('');
+  const [overrideError, setOverrideError] = useState<string | null>(null);
+  const [overrideSuccess, setOverrideSuccess] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<FxProviderId>('central_bank_stub');
+  const [fxSyncStatus, setFxSyncStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+
+  const {
+    region: financeRegion,
+    baseCurrency,
+    globalCurrency,
+    setRegion: applyFinanceRegion,
+    setGlobalCurrency,
+    syncExchangeRates,
+    overrideExchangeRate,
+  } = useFinancePreferencesStore(
+    useShallow((state) => ({
+      region: state.region,
+      baseCurrency: state.baseCurrency,
+      globalCurrency: state.globalCurrency,
+      setRegion: state.setRegion,
+      setGlobalCurrency: state.setGlobalCurrency,
+      syncExchangeRates: state.syncExchangeRates,
+      overrideExchangeRate: state.overrideExchangeRate,
+    })),
+  );
+  const [overrideCurrency, setOverrideCurrency] = useState<FinanceCurrency>(() => {
+    if (globalCurrency !== baseCurrency) {
+      return globalCurrency;
+    }
+    const fallback = AVAILABLE_FINANCE_CURRENCIES.find((code) => code !== baseCurrency) ?? baseCurrency;
+    return fallback;
+  });
 
   const closeEditSheet = useCallback(() => {
     editSheetRef.current?.dismiss();
@@ -91,7 +152,10 @@ const ProfileScreen = () => {
     });
   }, [user]);
 
-  const completedTasks = useMemo(() => tasks.filter((task) => task.status === 'done').length, [tasks]);
+  const completedTasks = useMemo(
+    () => tasks.filter((task) => task.status === 'completed').length,
+    [tasks],
+  );
   const activeTasks = useMemo(() => tasks.length - completedTasks, [tasks, completedTasks]);
   const xp = completedTasks * 50 + activeTasks * 20;
   const level = Math.max(1, Math.floor(xp / XP_PER_LEVEL) + 1);
@@ -120,6 +184,58 @@ const ProfileScreen = () => {
       },
     [user?.preferences],
   );
+  const financeRegionPreset = useMemo(
+    () => getFinanceRegionPreset(financeRegion),
+    [financeRegion],
+  );
+  const currencyOptions = useMemo(
+    () =>
+      AVAILABLE_FINANCE_CURRENCIES.map((code) => ({
+        code,
+        label: CURRENCY_LABELS[code],
+      })),
+    [],
+  );
+  const filteredCurrencies = useMemo(() => {
+    if (!currencyQuery.trim()) {
+      return currencyOptions;
+    }
+    const needle = currencyQuery.trim().toLowerCase();
+    return currencyOptions.filter(
+      (option) =>
+        option.code.toLowerCase().includes(needle) ||
+        option.label.toLowerCase().includes(needle),
+    );
+  }, [currencyOptions, currencyQuery]);
+  const currencyDisplayLabel = useMemo(
+    () => `${globalCurrency} · ${CURRENCY_LABELS[globalCurrency] ?? globalCurrency}`,
+    [globalCurrency],
+  );
+  const currencySheetTitle =
+    currencySheetMode === 'override'
+      ? profileStrings.finance.fxOverrideSheetTitle
+      : profileStrings.finance.currencySheetTitle;
+  const currencySheetActiveCode = currencySheetMode === 'override' ? overrideCurrency : globalCurrency;
+  const providerOptions = useMemo(
+    () =>
+      [
+        { id: 'central_bank_stub' as FxProviderId, label: profileStrings.finance.fxProviders.central_bank_stub },
+        { id: 'market_stub' as FxProviderId, label: profileStrings.finance.fxProviders.market_stub },
+      ],
+    [profileStrings.finance.fxProviders],
+  );
+  const lastSyncLabel = useMemo(() => {
+    if (!lastSyncedAt) {
+      return null;
+    }
+    return new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(lastSyncedAt);
+  }, [lastSyncedAt, locale]);
 
   const statCards = useMemo(
     () => [
@@ -142,6 +258,34 @@ const ProfileScreen = () => {
     },
     [preferences, updateUser],
   );
+  const handleSelectRegionPreference = useCallback(
+    (regionId: FinanceRegion) => {
+      applyFinanceRegion(regionId);
+      regionSheetRef.current?.dismiss();
+    },
+    [applyFinanceRegion],
+  );
+  const handleSelectCurrencyPreference = useCallback(
+    (currency: FinanceCurrency) => {
+      if (currencySheetMode === 'override') {
+        setOverrideCurrency(currency);
+        setCurrencyQuery('');
+        currencySheetRef.current?.dismiss();
+        return;
+      }
+      setGlobalCurrency(currency);
+      setCurrencyQuery('');
+      currencySheetRef.current?.dismiss();
+    },
+    [currencySheetMode, setGlobalCurrency],
+  );
+  const openRegionSheet = useCallback(() => {
+    regionSheetRef.current?.present();
+  }, []);
+  const openCurrencySheet = useCallback((mode: 'display' | 'override' = 'display') => {
+    setCurrencySheetMode(mode);
+    currencySheetRef.current?.present();
+  }, []);
 
   const handleSaveProfile = useCallback(() => {
     updateUser({
@@ -154,6 +298,57 @@ const ProfileScreen = () => {
     });
     editSheetRef.current?.dismiss();
   }, [formState, updateUser]);
+
+  useEffect(() => {
+    if (overrideCurrency === baseCurrency) {
+      const fallback = AVAILABLE_FINANCE_CURRENCIES.find((code) => code !== baseCurrency) ?? baseCurrency;
+      setOverrideCurrency(fallback);
+    }
+  }, [baseCurrency, overrideCurrency]);
+
+  useEffect(() => {
+    setOverrideError(null);
+    setOverrideSuccess(null);
+  }, [overrideCurrency, overrideInput]);
+
+  const handleSyncRates = useCallback(async () => {
+    setFxSyncStatus(null);
+    try {
+      setSyncingRates(true);
+      await syncExchangeRates(selectedProvider);
+      setLastSyncedAt(new Date());
+      const providerLabel = providerOptions.find((item) => item.id === selectedProvider)?.label ?? '';
+      setFxSyncStatus({
+        type: 'success',
+        message: profileStrings.finance.fxSyncSuccess.replace('{provider}', providerLabel),
+      });
+    } catch (error) {
+      setFxSyncStatus({ type: 'error', message: profileStrings.finance.fxSyncError });
+    } finally {
+      setSyncingRates(false);
+    }
+  }, [profileStrings.finance.fxSyncError, profileStrings.finance.fxSyncSuccess, providerOptions, selectedProvider, syncExchangeRates]);
+
+  const handleApplyOverride = useCallback(() => {
+    const sanitizedInput = overrideInput.replace(/\s+/g, '').replace(',', '.');
+    const normalizedValue = Number(sanitizedInput);
+    if (overrideCurrency === baseCurrency) {
+      setOverrideError(profileStrings.finance.fxOverrideBaseError);
+      return;
+    }
+    if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+      setOverrideError(profileStrings.finance.fxOverrideError);
+      return;
+    }
+    overrideExchangeRate(overrideCurrency, normalizedValue);
+    setOverrideInput('');
+    setOverrideSuccess(
+      profileStrings.finance.fxOverrideSuccess.replace(
+        '{currency}',
+        `${overrideCurrency} · ${CURRENCY_LABELS[overrideCurrency] ?? overrideCurrency}`,
+      ),
+    );
+  }, [baseCurrency, overrideCurrency, overrideExchangeRate, overrideInput, profileStrings.finance.fxOverrideBaseError, profileStrings.finance.fxOverrideError, profileStrings.finance.fxOverrideSuccess]);
 
   const pickProfileImage = useCallback(async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -291,6 +486,131 @@ const ProfileScreen = () => {
         </View>
 
         <View style={styles.section}>
+          <SectionHeader label={profileStrings.sections.finance} />
+          <InfoRow
+            label={profileStrings.finance.regionLabel}
+            value={`${financeRegionPreset.label} · ${financeRegionPreset.currency}`}
+            onPress={openRegionSheet}
+            trailingIcon="chevron-down"
+          />
+          <InfoRow
+            label={profileStrings.finance.currencyLabel}
+            value={currencyDisplayLabel}
+            onPress={() => openCurrencySheet('display')}
+            trailingIcon="chevron-down"
+          />
+          <AdaptiveGlassView style={styles.fxCard}>
+            <Text style={[styles.fxTitle, { color: theme.colors.textPrimary }]}>{profileStrings.finance.fxTitle}</Text>
+            <Text style={[styles.fxSubtitle, { color: theme.colors.textSecondary }]}>
+              {profileStrings.finance.fxDescription}
+            </Text>
+            <Text style={[styles.fxMetaLabel, { color: theme.colors.textSecondary }]}>
+              {profileStrings.finance.fxProviderLabel}
+            </Text>
+            <View style={styles.fxProviderRow}>
+              {providerOptions.map((option) => {
+                const isActive = option.id === selectedProvider;
+                return (
+                  <Pressable
+                    key={option.id}
+                    onPress={() => setSelectedProvider(option.id)}
+                    style={({ pressed }) => [
+                      styles.fxProviderChip,
+                      {
+                        borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: isActive ? `${theme.colors.primary}22` : theme.colors.card,
+                      },
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.fxProviderChipLabel,
+                        { color: isActive ? theme.colors.primary : theme.colors.textPrimary },
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable
+              style={[styles.primaryButton, syncingRates && styles.primaryButtonDisabled]}
+              disabled={syncingRates}
+              onPress={handleSyncRates}
+            >
+              <Text style={styles.primaryButtonLabel}>
+                {syncingRates ? profileStrings.finance.fxSyncing : profileStrings.finance.fxSyncButton}
+              </Text>
+            </Pressable>
+            {fxSyncStatus ? (
+              <Text
+                style={[
+                  styles.fxStatusText,
+                  { color: fxSyncStatus.type === 'error' ? theme.colors.danger : theme.colors.success },
+                ]}
+              >
+                {fxSyncStatus.message}
+              </Text>
+            ) : null}
+            {lastSyncLabel ? (
+              <Text style={[styles.fxStatusText, { color: theme.colors.textSecondary }]}>
+                {profileStrings.finance.fxLastSync.replace('{value}', lastSyncLabel)}
+              </Text>
+            ) : null}
+          </AdaptiveGlassView>
+          <AdaptiveGlassView style={styles.fxCard}>
+            <Text style={[styles.fxTitle, { color: theme.colors.textPrimary }]}>{profileStrings.finance.fxManualTitle}</Text>
+            <Text style={[styles.fxSubtitle, { color: theme.colors.textSecondary }]}>
+              {profileStrings.finance.fxManualHint.replace('{base}', baseCurrency)}
+            </Text>
+            <View style={styles.fxOverrideRow}>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.fxCurrencyButton,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.card,
+                  },
+                  pressed && styles.pressed,
+                ]}
+                onPress={() => openCurrencySheet('override')}
+              >
+                <Text style={[styles.fxCurrencyLabel, { color: theme.colors.textSecondary }]}>
+                  {profileStrings.finance.fxManualCurrencyLabel}
+                </Text>
+                <Text style={[styles.fxCurrencyValue, { color: theme.colors.textPrimary }]}>{overrideCurrency}</Text>
+              </Pressable>
+              <TextInput
+                value={overrideInput}
+                onChangeText={setOverrideInput}
+                keyboardType="decimal-pad"
+                placeholder={profileStrings.finance.fxOverridePlaceholder}
+                placeholderTextColor={theme.colors.textSecondary}
+                style={[
+                  styles.fxRateInput,
+                  {
+                    color: theme.colors.textPrimary,
+                    borderColor: theme.colors.border,
+                    backgroundColor: theme.colors.card,
+                  },
+                ]}
+              />
+            </View>
+            <Pressable style={styles.secondaryButton} onPress={handleApplyOverride}>
+              <Text style={styles.secondaryButtonLabel}>{profileStrings.finance.fxOverrideButton}</Text>
+            </Pressable>
+            {overrideError ? (
+              <Text style={[styles.fxStatusText, { color: theme.colors.danger }]}>{overrideError}</Text>
+            ) : null}
+            {overrideSuccess ? (
+              <Text style={[styles.fxStatusText, { color: theme.colors.success }]}>{overrideSuccess}</Text>
+            ) : null}
+          </AdaptiveGlassView>
+        </View>
+
+        <View style={styles.section}>
           <SectionHeader label={profileStrings.sections.preferences} />
           <InfoRow
             label={profileStrings.fields.visibility}
@@ -412,6 +732,126 @@ const ProfileScreen = () => {
         onCancel={() => setConfirmAction(null)}
         onConfirm={confirmAction === 'delete' ? handleDeleteAccount : handleLogout}
       />
+      <CustomBottomSheet
+        ref={regionSheetRef}
+        snapPoints={['60%']}
+        enableDynamicSizing
+        scrollable
+      >
+        <View style={styles.sheetContent}>
+          <Text style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}>
+            {profileStrings.finance.regionSheetTitle}
+          </Text>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {FINANCE_REGION_PRESETS.map((preset) => {
+              const isActive = preset.id === financeRegion;
+              return (
+                <Pressable
+                  key={preset.id}
+                  onPress={() => handleSelectRegionPreference(preset.id as FinanceRegion)}
+                  style={({ pressed }) => [styles.preferencePressable, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.preferenceCard,
+                      {
+                        borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: theme.colors.card,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.preferenceCardTitle, { color: theme.colors.textPrimary }]}>
+                        {preset.label}
+                      </Text>
+                      <Text style={[styles.preferenceCardSubtitle, { color: theme.colors.textSecondary }]}>
+                        {preset.description}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.preferenceBadge,
+                        {
+                          borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                          backgroundColor: isActive ? `${theme.colors.primary}22` : 'transparent',
+                        },
+                      ]}
+                    >
+                      <Text style={[styles.preferenceBadgeText, { color: theme.colors.textPrimary }]}>
+                        {preset.currency}
+                      </Text>
+                    </View>
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </CustomBottomSheet>
+      <CustomBottomSheet
+        ref={currencySheetRef}
+        snapPoints={['65%']}
+        enableDynamicSizing
+        scrollable
+        onDismiss={() => setCurrencyQuery('')}
+      >
+        <View style={styles.sheetContent}>
+          <Text style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}>
+            {currencySheetTitle}
+          </Text>
+          <AdaptiveGlassView
+            style={[
+              styles.currencySearchContainer,
+              { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+            ]}
+          >
+            <BottomSheetTextInput
+              value={currencyQuery}
+              onChangeText={setCurrencyQuery}
+              placeholder={profileStrings.finance.currencySearchPlaceholder}
+              placeholderTextColor={theme.colors.textMuted}
+              style={[styles.input, styles.currencySearchInput, { color: theme.colors.textPrimary }]}
+            />
+          </AdaptiveGlassView>
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.currencyList}
+          >
+            {filteredCurrencies.map((option) => {
+              const isActive = option.code === currencySheetActiveCode;
+              return (
+                <Pressable
+                  key={option.code}
+                  onPress={() => handleSelectCurrencyPreference(option.code)}
+                  style={({ pressed }) => [styles.currencyRowPressable, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.currencyRow,
+                      {
+                        borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: theme.colors.card,
+                      },
+                    ]}
+                  >
+                    <View>
+                      <Text style={[styles.currencyCode, { color: theme.colors.textPrimary }]}>
+                        {option.code}
+                      </Text>
+                      <Text style={[styles.currencyLabel, { color: theme.colors.textSecondary }]}>
+                        {option.label}
+                      </Text>
+                    </View>
+                    {isActive && (
+                      <Feather name="check" size={16} color={theme.colors.primary} />
+                    )}
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </CustomBottomSheet>
     </SafeAreaView>
   );
 };
@@ -763,6 +1203,9 @@ const useStyles = createThemedStyles((theme) => ({
     fontWeight: '700',
     color: theme.colors.onPrimary,
   },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
   secondaryButton: {
     paddingVertical: 12,
     borderRadius: 14,
@@ -864,6 +1307,9 @@ const useStyles = createThemedStyles((theme) => ({
     fontSize: 14,
     fontWeight: '600',
   },
+  pressed: {
+    opacity: 0.9,
+  },
   keyValueRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -880,6 +1326,107 @@ const useStyles = createThemedStyles((theme) => ({
     fontWeight: '600',
     color: theme.colors.textPrimary,
   },
+  fxCard: {
+    borderRadius: 22,
+    padding: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  fxTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  fxSubtitle: {
+    fontSize: 13,
+    lineHeight: 20,
+  },
+  fxMetaLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fxProviderRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  fxProviderChip: {
+    borderRadius: 16,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  fxProviderChipLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  fxStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  fxOverrideRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    alignItems: 'center',
+  },
+  fxCurrencyButton: {
+    flexDirection: 'column',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    flex: 0.5,
+    minWidth: 130,
+  },
+  fxCurrencyLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+  },
+  fxCurrencyValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  fxRateInput: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  preferencePressable: {
+    marginBottom: theme.spacing.md,
+  },
+  preferenceCard: {
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.md,
+  },
+  preferenceCardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  preferenceCardSubtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  preferenceBadge: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  preferenceBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   sheetContent: {
     gap: 12,
     paddingBottom: 24,
@@ -892,6 +1439,37 @@ const useStyles = createThemedStyles((theme) => ({
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
+  },
+  currencySearchContainer: {
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: 12,
+  },
+  currencySearchInput: {
+    borderWidth: 0,
+  },
+  currencyList: {
+    paddingBottom: 24,
+  },
+  currencyRowPressable: {
+    marginBottom: 10,
+  },
+  currencyRow: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  currencyCode: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  currencyLabel: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,

@@ -26,11 +26,13 @@ import DateTimePicker, {
 import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useModalStore } from '@/stores/useModalStore';
 import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
 import { useTranslation } from '../../../utils/localization';
-import type { Transaction } from '@/types/store.types';
+import type { Transaction as LegacyTransaction } from '@/types/store.types';
+import { useShallow } from 'zustand/react/shallow';
+import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 
 type AccountPickerContext = 'from' | 'to';
 
@@ -52,11 +54,22 @@ export default function TransactionModal() {
   const transferModal = useModalStore((state) => state.transferModal);
   const closeTransferModal = useModalStore((state) => state.closeTransferModal);
 
-  const accounts = useFinanceStore((state) => state.accounts);
-  const addTransaction = useFinanceStore((state) => state.addTransaction);
-  const updateTransaction = useFinanceStore((state) => state.updateTransaction);
+  const { accounts, createTransaction, updateTransaction } = useFinanceDomainStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      createTransaction: state.createTransaction,
+      updateTransaction: state.updateTransaction,
+    })),
+  );
 
-  const exchangeRates = useFinancePreferencesStore((state) => state.exchangeRates);
+  const { baseCurrency, convertAmount, formatCurrency: formatCurrencyFormatter } =
+    useFinancePreferencesStore(
+      useShallow((state) => ({
+        baseCurrency: state.baseCurrency,
+        convertAmount: state.convertAmount,
+        formatCurrency: state.formatCurrency,
+      })),
+    );
 
   const [accountPickerContext, setAccountPickerContext] = useState<AccountPickerContext | null>(
     null
@@ -72,7 +85,7 @@ export default function TransactionModal() {
   const isEditing = Boolean(
     transferModal.mode === 'edit' && transferModal.transaction?.type === 'transfer'
   );
-  const editingTransaction = transferModal.transaction;
+  const editingTransaction = transferModal.transaction as LegacyTransaction | undefined;
 
   useEffect(() => {
     if (transferModal.isOpen) {
@@ -92,17 +105,13 @@ export default function TransactionModal() {
     setCustomExchangeRate('');
   }, [accounts]);
 
-  const formatCurrency = useCallback((value: number, currency: string = 'USD') => {
-    try {
-      return new Intl.NumberFormat(currency === 'UZS' ? 'uz-UZ' : 'en-US', {
-        style: 'currency',
-        currency,
-        maximumFractionDigits: currency === 'UZS' ? 0 : 2,
-      }).format(value);
-    } catch {
-      return `${currency} ${value.toFixed(2)}`;
-    }
-  }, []);
+  const formatCurrency = useCallback(
+    (value: number, currency: string = 'USD') => {
+      const normalized = normalizeFinanceCurrency(currency);
+      return formatCurrencyFormatter(value, { fromCurrency: normalized, convert: false });
+    },
+    [formatCurrencyFormatter],
+  );
 
   const fromAccount = useMemo(
     () => accounts.find((account: any) => account.id === fromAccountId) ?? accounts[0],
@@ -112,6 +121,16 @@ export default function TransactionModal() {
   const toAccount = useMemo(
     () => accounts.find((account: any) => account.id === toAccountId) ?? accounts[1],
     [accounts, toAccountId]
+  );
+
+  const normalizedFromCurrency = useMemo(
+    () => (fromAccount ? normalizeFinanceCurrency(fromAccount.currency) : null),
+    [fromAccount],
+  );
+
+  const normalizedToCurrency = useMemo(
+    () => (toAccount ? normalizeFinanceCurrency(toAccount.currency) : null),
+    [toAccount],
   );
 
   const amountNumber = useMemo(() => {
@@ -130,15 +149,15 @@ export default function TransactionModal() {
 
   // Получение автоматического курса обмена
   const autoExchangeRate = useMemo(() => {
-    if (!needsConversion || !fromAccount || !toAccount) return 1;
-    
-    const fromCurrency = fromAccount.currency;
-    const toCurrency = toAccount.currency;
-    
-    // Получаем курс из настроек
-    const rate = exchangeRates[`${fromCurrency}_${toCurrency}`];
-    return rate ?? 1;
-  }, [needsConversion, fromAccount, toAccount, exchangeRates]);
+    if (!needsConversion || !normalizedFromCurrency || !normalizedToCurrency) {
+      return 1;
+    }
+    const ratio = convertAmount(1, normalizedToCurrency, normalizedFromCurrency);
+    if (!Number.isFinite(ratio) || ratio <= 0) {
+      return 1;
+    }
+    return ratio;
+  }, [convertAmount, needsConversion, normalizedFromCurrency, normalizedToCurrency]);
 
   // Текущий курс (кастомный или автоматический)
   const currentExchangeRate = useMemo(() => {
@@ -154,7 +173,12 @@ export default function TransactionModal() {
 
   // Конвертированная сумма для получателя
   const convertedAmount = useMemo(() => {
-    if (!needsConversion) return amountNumber;
+    if (!needsConversion) {
+      return amountNumber;
+    }
+    if (!currentExchangeRate || currentExchangeRate <= 0) {
+      return 0;
+    }
     return amountNumber / currentExchangeRate;
   }, [needsConversion, amountNumber, currentExchangeRate]);
 
@@ -321,38 +345,54 @@ export default function TransactionModal() {
       return;
     }
 
+    const normalizedFromCurrency = normalizeFinanceCurrency(fromAccount.currency);
+    const normalizedToCurrency = normalizeFinanceCurrency(toAccount.currency);
+    const normalizedBaseCurrency = normalizeFinanceCurrency(baseCurrency);
+    const rateToBase =
+      normalizedFromCurrency === normalizedBaseCurrency
+        ? 1
+        : convertAmount(1, normalizedFromCurrency, normalizedBaseCurrency);
+    const convertedAmountToBase = amountNumber * rateToBase;
+    const recipientAmount = needsConversion ? convertedAmount : amountNumber;
+    const effectiveRateFromTo = needsConversion ? currentExchangeRate : 1;
+
     // Формируем заметку с информацией о конвертации
     let finalNote = note.trim();
     if (needsConversion && amountNumber > 0) {
-      const rateInfo = `Exchange rate: 1 ${toAccount.currency} = ${currentExchangeRate.toFixed(4)} ${fromAccount.currency}. Received: ${formatCurrency(convertedAmount, toAccount.currency)}`;
+      const rateInfo = `Exchange rate: 1 ${toAccount.currency} = ${currentExchangeRate.toFixed(4)} ${fromAccount.currency}. Received: ${formatCurrency(recipientAmount, toAccount.currency)}`;
       finalNote = finalNote ? `${rateInfo}. ${finalNote}` : rateInfo;
     }
 
-    const payload: Transaction = {
-      id: editingTransaction?.id ?? '',
-      type: 'transfer',
+    const basePayload = {
+      userId: 'local-user',
+      type: 'transfer' as const,
       amount: amountNumber,
       accountId: fromAccount.id,
+      fromAccountId: fromAccount.id,
       toAccountId: toAccount.id,
-      category: 'Transfer',
-      date: transferDate,
-      note: finalNote.length ? finalNote : undefined,
       currency: fromAccount.currency,
-      createdAt: editingTransaction?.createdAt ?? new Date(),
-    };
+      toCurrency: toAccount.currency,
+      toAmount: recipientAmount,
+      baseCurrency: normalizedBaseCurrency,
+      rateUsedToBase: rateToBase,
+      convertedAmountToBase,
+      effectiveRateFromTo,
+      description: finalNote.length ? finalNote : undefined,
+      date: transferDate.toISOString(),
+    } satisfies Parameters<typeof createTransaction>[0];
 
     if (isEditing && editingTransaction) {
-      updateTransaction(editingTransaction.id, payload);
+      updateTransaction(editingTransaction.id, basePayload);
     } else {
-      const { id, createdAt, ...rest } = payload;
-      addTransaction(rest);
+      createTransaction(basePayload);
     }
 
     closeTransferModal();
   }, [
-    addTransaction,
     amountNumber,
+    baseCurrency,
     closeTransferModal,
+    convertAmount,
     convertedAmount,
     currentExchangeRate,
     editingTransaction,
@@ -360,6 +400,7 @@ export default function TransactionModal() {
     fromAccount,
     isEditing,
     isSaveDisabled,
+    createTransaction,
     needsConversion,
     note,
     toAccount,
@@ -405,7 +446,7 @@ export default function TransactionModal() {
                     </View>
                     <Text style={styles.accountBalance}>
                       {fromAccount
-                        ? formatCurrency(fromAccount.balance, fromAccount.currency)
+                        ? formatCurrency(fromAccount.currentBalance, fromAccount.currency)
                         : 'No balance'}
                     </Text>
                   </View>
@@ -445,7 +486,7 @@ export default function TransactionModal() {
                     </View>
                     <Text style={styles.accountBalance}>
                       {toAccount
-                        ? formatCurrency(toAccount.balance, toAccount.currency)
+                        ? formatCurrency(toAccount.currentBalance, toAccount.currency)
                         : 'No balance'}
                     </Text>
                   </View>
@@ -654,7 +695,7 @@ export default function TransactionModal() {
                     <View style={styles.accountPickerInfo}>
                       <Text style={[styles.textInput, { marginBottom: 4 }]}>{account.name}</Text>
                       <Text style={styles.accountBalance}>
-                        {formatCurrency(account.balance, account.currency)}
+                        {formatCurrency(account.currentBalance, account.currency)}
                       </Text>
                     </View>
                     {selected && <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />}

@@ -1,6 +1,6 @@
 // src/features/planner/goals/data.ts
 import type { AppTranslations } from '@/localization/strings';
-import type { PlannerGoalId, GoalSummaryKey } from '@/types/planner';
+import type { Goal as PlannerDomainGoal } from '@/domain/planner/types';
 
 export type GoalSummaryRow = {
   label: string;
@@ -38,61 +38,117 @@ export type GoalSection = {
   data: Goal[];
 };
 
-const SUMMARY_ORDER: GoalSummaryKey[] = ['left', 'pace', 'prediction'];
-
-const createMilestones = (labels: string[]): GoalMilestone[] => {
-  const steps = [25, 50, 75, 100];
-  return steps.map((percent, index) => ({
-    percent,
-    label: labels[index] ?? '—',
-  }));
+const clampPercent = (value?: number) => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(Math.max(value as number, 0), 1);
 };
 
-const createHistory = (entries: { label: string; delta: string }[]): GoalHistoryEntry[] =>
-  entries.map((entry, index) => ({
-    ...entry,
-    id: `${entry.label}-${index}`,
-  }));
+const milestonePercent = (value?: number) => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.min(Math.max(Math.round((value as number) * 100), 0), 100);
+};
 
-const GOAL_SECTION_TEMPLATES: {
-  id: 'financial' | 'personal';
-  goalIds: PlannerGoalId[];
-}[] = [
-  { id: 'financial', goalIds: ['dream-car', 'emergency-fund'] },
-  { id: 'personal', goalIds: ['fitness', 'language'] },
-];
+const resolveSectionKey = (goal: PlannerDomainGoal): 'financial' | 'personal' => {
+  if (goal.goalType === 'financial') {
+    return 'financial';
+  }
+  return 'personal';
+};
 
-const GOAL_META: Record<PlannerGoalId, { progress: number }> = {
-  'dream-car': { progress: 0.82 },
-  'emergency-fund': { progress: 0.58 },
-  fitness: { progress: 0.44 },
-  language: { progress: 0.68 },
+const formatMetricValue = (
+  goal: PlannerDomainGoal,
+  value: number | undefined,
+  locale: string,
+): string => {
+  if (value == null) {
+    return '—';
+  }
+  if (goal.metricType === 'amount' && goal.currency) {
+    const maximumFractionDigits = goal.currency === 'UZS' ? 0 : 2;
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: goal.currency,
+      maximumFractionDigits,
+    }).format(value);
+  }
+  if (goal.unit) {
+    return `${Math.round(value)} ${goal.unit}`;
+  }
+  return `${Math.round(value)}`;
 };
 
 export const createGoalSections = (
   strings: AppTranslations['plannerScreens']['goals'],
-): GoalSection[] =>
-  GOAL_SECTION_TEMPLATES.map((section) => ({
-    id: section.id,
-    title: strings.sections[section.id].title,
-    subtitle: strings.sections[section.id].subtitle,
-    data: section.goalIds.map((goalId) => {
-      const meta = GOAL_META[goalId];
-      const content = strings.data[goalId];
-      return {
-        id: goalId,
-        title: content.title,
-        progress: meta.progress,
-        currentAmount: content.currentAmount,
-        targetAmount: content.targetAmount,
-        summary: SUMMARY_ORDER.map((key) => ({
-          label: strings.cards.summaryLabels[key],
-          value: content.summary[key],
-        })),
-        milestones: createMilestones(content.milestones),
-        history: createHistory(content.history),
-        aiTip: content.aiTip,
-        aiTipHighlight: content.aiTipHighlight,
-      };
-    }),
-  }));
+  domainGoals: PlannerDomainGoal[] = [],
+  locale: string,
+): GoalSection[] => {
+  if (!domainGoals.length) {
+    return [];
+  }
+  const sectionMap = new Map<'financial' | 'personal', GoalSection>();
+
+  domainGoals.forEach((goal) => {
+    const sectionKey = resolveSectionKey(goal);
+    if (!sectionMap.has(sectionKey)) {
+      sectionMap.set(sectionKey, {
+        id: sectionKey,
+        title: strings.sections[sectionKey].title,
+        subtitle: strings.sections[sectionKey].subtitle,
+        data: [],
+      });
+    }
+    const targetValue = goal.targetValue ?? 0;
+    const progress = clampPercent(goal.progressPercent);
+    const currentValue =
+      targetValue > 0 && progress > 0 ? targetValue * progress : goal.initialValue ?? undefined;
+    const leftValue =
+      targetValue != null && currentValue != null ? Math.max(targetValue - currentValue, 0) : undefined;
+    const paceValue =
+      goal.stats?.tasksProgressPercent ??
+      goal.stats?.habitsProgressPercent ??
+      goal.stats?.financialProgressPercent ??
+      progress;
+    const prediction = goal.targetDate
+      ? new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric' }).format(
+          new Date(goal.targetDate),
+        )
+      : strings.nextStep.empty;
+
+    const card: Goal = {
+      id: goal.id,
+      title: goal.title,
+      progress,
+      currentAmount: formatMetricValue(goal, currentValue, locale),
+      targetAmount: formatMetricValue(goal, targetValue || undefined, locale),
+      summary: [
+        {
+          label: strings.cards.summaryLabels.left,
+          value: formatMetricValue(goal, leftValue, locale),
+        },
+        {
+          label: strings.cards.summaryLabels.pace,
+          value: `${Math.round(clampPercent(paceValue) * 100)}%`,
+        },
+        {
+          label: strings.cards.summaryLabels.prediction,
+          value: prediction,
+        },
+      ],
+      milestones:
+        goal.milestones?.map((milestone) => ({
+          percent: milestonePercent(milestone.targetPercent),
+          label: milestone.title,
+        })) ?? [],
+      history: [],
+      aiTip: strings.nextStep.title,
+    };
+
+    sectionMap.get(sectionKey)!.data.push(card);
+  });
+
+  return Array.from(sectionMap.values()).filter((section) => section.data.length > 0);
+};

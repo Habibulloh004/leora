@@ -35,6 +35,16 @@ interface PlannerModalState {
 
 interface PlannerTaskModalState extends PlannerModalState {
   taskId?: string | null;
+  goalId?: string | null;
+}
+
+interface PlannerGoalModalState extends PlannerModalState {
+  goalId?: string | null;
+}
+
+interface PlannerHabitModalState extends PlannerModalState {
+  goalId?: string | null;
+  habitId?: string | null;
 }
 
 interface ModalStore {
@@ -42,8 +52,8 @@ interface ModalStore {
   transferModal: TransferState;
   debtModal: DebtState;
   plannerTaskModal: PlannerTaskModalState;
-  plannerGoalModal: PlannerModalState;
-  plannerHabitModal: PlannerModalState;
+  plannerGoalModal: PlannerGoalModalState;
+  plannerHabitModal: PlannerHabitModalState;
   plannerFocusModal: PlannerModalState;
   focusSettingsModal: {
     isOpen: boolean;
@@ -69,11 +79,11 @@ interface ModalStore {
   closeDebtModal: () => void;
   consumeDebtModalFocus: () => void;
 
-  openPlannerTaskModal: (options?: { mode?: ModalMode; taskId?: string }) => void;
+  openPlannerTaskModal: (options?: { mode?: ModalMode; taskId?: string; goalId?: string }) => void;
   closePlannerTaskModal: () => void;
-  openPlannerGoalModal: (mode?: ModalMode) => void;
+  openPlannerGoalModal: (options?: { mode?: ModalMode; goalId?: string }) => void;
   closePlannerGoalModal: () => void;
-  openPlannerHabitModal: (mode?: ModalMode) => void;
+  openPlannerHabitModal: (options?: { mode?: ModalMode; goalId?: string; habitId?: string }) => void;
   closePlannerHabitModal: () => void;
   openPlannerFocusModal: () => void;
   closePlannerFocusModal: () => void;
@@ -101,15 +111,24 @@ const initialDebtState: DebtState = {
   showPrimarySheet: false,
 };
 
-const initialPlannerState: PlannerModalState = {
-  isOpen: false,
-  mode: 'create',
-};
-
 const initialPlannerTaskState: PlannerTaskModalState = {
   isOpen: false,
   mode: 'create',
   taskId: null,
+  goalId: null,
+};
+
+const initialPlannerGoalState: PlannerGoalModalState = {
+  isOpen: false,
+  mode: 'create',
+  goalId: null,
+};
+
+const initialPlannerHabitState: PlannerHabitModalState = {
+  isOpen: false,
+  mode: 'create',
+  goalId: null,
+  habitId: null,
 };
 
 const createModalStore: StateCreator<ModalStore> = (set) => ({
@@ -117,8 +136,8 @@ const createModalStore: StateCreator<ModalStore> = (set) => ({
   transferModal: initialTransferState,
   debtModal: initialDebtState,
   plannerTaskModal: initialPlannerTaskState,
-  plannerGoalModal: initialPlannerState,
-  plannerHabitModal: initialPlannerState,
+  plannerGoalModal: initialPlannerGoalState,
+  plannerHabitModal: initialPlannerHabitState,
   plannerFocusModal: { isOpen: false, mode: 'create' },
   focusSettingsModal: { isOpen: false },
   insightsReportModal: { isOpen: false, mode: 'create' },
@@ -178,13 +197,29 @@ const createModalStore: StateCreator<ModalStore> = (set) => ({
         isOpen: true,
         mode: options?.mode ?? 'create',
         taskId: options?.taskId ?? null,
+        goalId: options?.goalId ?? null,
       },
     }),
   closePlannerTaskModal: () => set({ plannerTaskModal: initialPlannerTaskState }),
-  openPlannerGoalModal: (mode = 'create') => set({ plannerGoalModal: { isOpen: true, mode } }),
-  closePlannerGoalModal: () => set({ plannerGoalModal: initialPlannerState }),
-  openPlannerHabitModal: (mode = 'create') => set({ plannerHabitModal: { isOpen: true, mode } }),
-  closePlannerHabitModal: () => set({ plannerHabitModal: initialPlannerState }),
+  openPlannerGoalModal: (options) =>
+    set({
+      plannerGoalModal: {
+        isOpen: true,
+        mode: options?.mode ?? (options?.goalId ? 'edit' : 'create'),
+        goalId: options?.goalId ?? null,
+      },
+    }),
+  closePlannerGoalModal: () => set({ plannerGoalModal: initialPlannerGoalState }),
+  openPlannerHabitModal: (options) =>
+    set({
+      plannerHabitModal: {
+        isOpen: true,
+        mode: options?.mode ?? 'create',
+        goalId: options?.goalId ?? null,
+        habitId: options?.habitId ?? null,
+      },
+    }),
+  closePlannerHabitModal: () => set({ plannerHabitModal: initialPlannerHabitState }),
   openPlannerFocusModal: () => set({ plannerFocusModal: { isOpen: true, mode: 'create' } }),
   closePlannerFocusModal: () => set({ plannerFocusModal: { isOpen: false, mode: 'create' } }),
   openFocusSettingsModal: () => set({ focusSettingsModal: { isOpen: true } }),

@@ -18,6 +18,9 @@ export interface Transaction {
   category?: string;
   accountId: string;
   toAccountId?: string;
+  toAmount?: number;
+  toCurrency?: string;
+  effectiveRateFromTo?: number;
   note?: string;
   description?: string;
   date: Date;
@@ -25,6 +28,8 @@ export interface Transaction {
   createdAt: Date;
   updatedAt?: Date;
   relatedDebtId?: string;
+  sourceTransactionId?: string;
+  transferDirection?: 'incoming' | 'outgoing';
 }
 
 export interface Debt {

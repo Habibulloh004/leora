@@ -9,6 +9,7 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useAppTheme } from '@/constants/theme';
 import { createGoalSections } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 export default function GoalDetailsModal() {
   const insets = useSafeAreaInsets();
@@ -17,10 +18,11 @@ export default function GoalDetailsModal() {
   const params = useLocalSearchParams<{ goalId?: string }>();
   const { strings } = useLocalization();
   const goalStrings = strings.plannerScreens.goals;
+  const domainGoals = usePlannerDomainStore((state) => state.goals);
 
   const goal = useMemo(() => {
     if (!params.goalId) return undefined;
-    const sections = createGoalSections(goalStrings);
+    const sections = createGoalSections(goalStrings, domainGoals);
     for (const section of sections) {
       const match = section.data.find((item) => item.id === params.goalId);
       if (match) return match;

@@ -1,5 +1,5 @@
 // app/(tabs)/(planner)/(tabs)/index.tsx
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import {
   Dimensions,
   LayoutAnimation,
@@ -44,17 +44,15 @@ import { useLocalization } from '@/localization/useLocalization';
 import type { AppTranslations } from '@/localization/strings';
 import { useRouter } from 'expo-router';
 
-import {
-  PlannerTask,
-  PlannerTaskSection,
-  PlannerTaskStatus,
-  usePlannerTasksStore,
-} from '@/features/planner/useTasksStore';
+import type { PlannerGoalId, PlannerHabitId, PlannerTask, PlannerTaskSection, PlannerTaskStatus } from '@/types/planner';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
 import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
 import { getHabitTemplates } from '@/features/planner/habits/data';
 import { startOfDay } from '@/utils/calendar';
 import { useModalStore } from '@/stores/useModalStore';
+import { usePlannerDomainStore, type PlannerHistoryItem } from '@/stores/usePlannerDomainStore';
+import { mapDomainTaskToPlannerTask, mapHistoryEntryToPlannerTask, type PlannerTaskCard } from '@/features/planner/taskAdapters';
+import { useShallow } from 'zustand/react/shallow';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -150,36 +148,55 @@ export default function PlannerTasksTab() {
     [openPlannerTaskModal],
   );
 
-  const tasks = usePlannerTasksStore((state) => state.tasks);
-  const history = usePlannerTasksStore((state) => state.history);
-  const toggleDone = usePlannerTasksStore((state) => state.toggleDone);
-  const toggleExpand = usePlannerTasksStore((state) => state.toggleExpand);
-  const deleteTask = usePlannerTasksStore((state) => state.deleteTask);
-  const restoreTask = usePlannerTasksStore((state) => state.restoreTask);
-  const removeFromHistory = usePlannerTasksStore((state) => state.removeFromHistory);
+  const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
+  const {
+    tasks: domainTasks,
+    taskHistory,
+    setTaskStatus,
+    completeTask,
+    deleteTask: deleteDomainTask,
+    restoreTaskFromHistory,
+    removeHistoryEntry,
+  } = usePlannerDomainStore(
+    useShallow((state) => ({
+      tasks: state.tasks,
+      taskHistory: state.taskHistory,
+      setTaskStatus: state.setTaskStatus,
+      completeTask: state.completeTask,
+      deleteTask: state.deleteTask,
+      restoreTaskFromHistory: state.restoreTaskFromHistory,
+      removeHistoryEntry: state.removeHistoryEntry,
+    })),
+  );
 
   const selectedDay = useSelectedDayStore((state) => state.selectedDate);
   const normalizedSelectedDay = useMemo(() => startOfDay(selectedDay ?? new Date()), [selectedDay]);
   const dayStart = normalizedSelectedDay.getTime();
   const dayEnd = dayStart + 24 * 60 * 60 * 1000;
 
-  const tasksForDay = useMemo(() => {
-    return tasks.filter((task) => {
+  const plannerTasks: PlannerTaskCard[] = useMemo(
+    () => domainTasks.map((task) => mapDomainTaskToPlannerTask(task, expandedMap)),
+    [domainTasks, expandedMap],
+  );
+
+  const tasksForDay: PlannerTaskCard[] = useMemo(() => {
+    return plannerTasks.filter((task) => {
       if (task.dueAt == null) return true;
       return task.dueAt >= dayStart && task.dueAt < dayEnd;
     });
-  }, [dayEnd, dayStart, tasks]);
+  }, [dayEnd, dayStart, plannerTasks]);
 
-  const historyForDay = useMemo(() => {
-    return history.filter((task) => {
-      const reference = task.dueAt ?? task.deletedAt;
-      if (!reference) return false;
-      return reference >= dayStart && reference < dayEnd;
-    });
-  }, [dayEnd, dayStart, history]);
+  const historyForDay: PlannerTaskCard[] = useMemo(() => {
+    return taskHistory
+      .filter((entry) => {
+        const ts = new Date(entry.timestamp).getTime();
+        return ts >= dayStart && ts < dayEnd;
+      })
+      .map((entry) => mapHistoryEntryToPlannerTask(entry, expandedMap));
+  }, [dayEnd, dayStart, expandedMap, taskHistory]);
 
   const grouped = useMemo(() => {
-    const base: Record<PlannerTaskSection, PlannerTask[]> = {
+    const base: Record<PlannerTaskSection, PlannerTaskCard[]> = {
       morning: [],
       afternoon: [],
       evening: [],
@@ -190,15 +207,13 @@ export default function PlannerTasksTab() {
     return base;
   }, [tasksForDay]);
 
-  const sortedHistory = useMemo(
+  const sortedHistory: PlannerTaskCard[] = useMemo(
     () =>
-      [...historyForDay].sort(
-        (a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0),
-      ),
+      [...historyForDay].sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
     [historyForDay],
   );
 
-  const doneCount = (arr: PlannerTask[]) => arr.filter((t) => t.status === 'done').length;
+  const doneCount = (arr: PlannerTaskCard[]) => arr.filter((t) => t.status === 'done').length;
   const dayOfWeek = normalizedSelectedDay.getDay();
   const habitsDueToday = useMemo(
     () => habitTemplates.filter((habit) => habit.scheduleDays.includes(dayOfWeek)).length,
@@ -215,15 +230,19 @@ export default function PlannerTasksTab() {
   }, [tasksForDay]);
 
   const handleToggleDone = useCallback(
-    (id: string) => {
+    (task: PlannerTaskCard) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      toggleDone(id);
+      if (task.status === 'done') {
+        setTaskStatus(task.id, 'planned');
+        return;
+      }
+      completeTask(task.id);
     },
-    [toggleDone],
+    [completeTask, setTaskStatus],
   );
 
   const handleStartFocus = useCallback(
-    (task: PlannerTask) => {
+    (task: PlannerTaskCard) => {
       const durationMinutes = durationToMinutes(task.duration);
       startFocusForTask(task.id, durationMinutes ? { durationMinutes } : undefined);
       router.push({ pathname: '/focus-mode', params: { taskId: task.id } });
@@ -231,36 +250,33 @@ export default function PlannerTasksTab() {
     [router, startFocusForTask],
   );
 
-  const handleToggleExpand = useCallback(
-    (id: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      toggleExpand(id);
-    },
-    [toggleExpand],
-  );
+  const handleToggleExpand = useCallback((id: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setExpandedMap((prev) => ({ ...prev, [id]: !prev[id] }));
+  }, []);
 
   const handleDelete = useCallback(
     (id: string) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      deleteTask(id);
+      deleteDomainTask(id);
     },
-    [deleteTask],
+    [deleteDomainTask],
   );
 
   const handleRestore = useCallback(
-    (id: string) => {
+    (historyId: string) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      restoreTask(id);
+      restoreTaskFromHistory(historyId);
     },
-    [restoreTask],
+    [restoreTaskFromHistory],
   );
 
   const handleRemoveFromHistory = useCallback(
-    (id: string) => {
+    (historyId: string) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      removeFromHistory(id);
+      removeHistoryEntry(historyId);
     },
-    [removeFromHistory],
+    [removeHistoryEntry],
   );
 
   const dateFormatter = useMemo(
@@ -402,15 +418,15 @@ function Section({
   tasksStrings,
 }: {
   id: PlannerTaskSection;
-  items: PlannerTask[];
+  items: PlannerTaskCard[];
   theme: ReturnType<typeof useAppTheme>;
   done: number;
   total: number;
-  onToggleDone: (id: string) => void;
+  onToggleDone: (task: PlannerTaskCard) => void;
   onToggleExpand: (id: string) => void;
   onDelete: (id: string) => void;
-  onComplete: (id: string) => void;
-  onFocusTask: (task: PlannerTask) => void;
+  onComplete: (task: PlannerTaskCard) => void;
+  onFocusTask: (task: PlannerTaskCard) => void;
   onEditTask: (task: PlannerTask) => void;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
@@ -435,10 +451,10 @@ function Section({
             key={t.id}
             task={t}
             theme={theme}
-            onToggleDone={() => onToggleDone(t.id)}
+            onToggleDone={() => onToggleDone(t)}
             onToggleExpand={() => onToggleExpand(t.id)}
             onDelete={() => onDelete(t.id)}
-            onComplete={() => onComplete(t.id)}
+            onComplete={() => onComplete(t)}
             onFocusTask={() => onFocusTask(t)}
             onEditTask={() => onEditTask(t)}
             tasksStrings={tasksStrings}
@@ -465,7 +481,7 @@ function TaskCard({
   onEditTask,
   tasksStrings,
 }: {
-  task: PlannerTask;
+  task: PlannerTaskCard;
   theme: ReturnType<typeof useAppTheme>;
   onToggleDone: () => void;
   onToggleExpand: () => void;
@@ -797,10 +813,10 @@ function HistorySection({
   onRemove,
   tasksStrings,
 }: {
-  items: PlannerTask[];
+  items: PlannerTaskCard[];
   theme: ReturnType<typeof useAppTheme>;
-  onRestore: (id: string) => void;
-  onRemove: (id: string) => void;
+  onRestore: (historyId: string) => void;
+  onRemove: (historyId: string) => void;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   return (
@@ -816,14 +832,14 @@ function HistorySection({
       <View style={{ gap: 10 }}>
         {items.map((task) => (
           <TaskCard
-            key={task.id}
+            key={task.historyId ?? task.id}
             task={task}
             theme={theme}
             onToggleDone={() => {}}
             onToggleExpand={() => {}}
-            onDelete={() => onRemove(task.id)}
+            onDelete={() => onRemove(task.historyId ?? task.id)}
             onComplete={() => {}}
-            onRestore={() => onRestore(task.id)}
+            onRestore={() => onRestore(task.historyId ?? task.id)}
             mode="history"
             tasksStrings={tasksStrings}
           />

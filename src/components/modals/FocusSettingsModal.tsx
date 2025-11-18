@@ -75,7 +75,7 @@ const SettingsNumberInput = ({
   }, [textValue, value]);
 
   return (
-    <AdaptiveGlassView style={styles.sessionInput}>
+    <AdaptiveGlassView style={[styles.glassSurface, styles.sessionInput]}>
       <TextInput
         value={textValue}
         onChangeText={handleChange}
@@ -116,7 +116,7 @@ const FocusCheckbox = ({
 
   return (
     <Pressable onPress={onToggle} style={({ pressed }) => [styles.checkboxPressable, pressed && styles.pressed]}>
-      <AdaptiveGlassView style={styles.checkboxCard}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.checkboxCard]}>
         <View style={styles.checkboxLeft}>
           <Animated.View style={[styles.checkboxBox, checkboxStyle]}>
             <Animated.View style={[StyleSheet.absoluteFill, styles.checkboxFill, checkOpacity]}>
@@ -211,6 +211,7 @@ export default function FocusSettingsModal() {
                 >
                   <AdaptiveGlassView
                     style={[
+                      styles.glassSurface,
                       styles.segmentButton,
                       {
                         opacity: selected ? 1 : 0.6,
@@ -303,7 +304,7 @@ export default function FocusSettingsModal() {
             <Text style={[styles.modalButtonGhostText, { color: colors.textSecondary }]}>Reset</Text>
           </Pressable>
           <Pressable onPress={handleSave} style={({ pressed }) => [styles.modalButton, pressed && styles.pressed]}>
-            <AdaptiveGlassView style={styles.modalButtonInner}>
+            <AdaptiveGlassView style={[styles.glassSurface, styles.modalButtonInner]}>
               <Text style={[styles.modalButtonText, { color: colors.textPrimary }]}>Confirm</Text>
             </AdaptiveGlassView>
           </Pressable>
@@ -340,6 +341,11 @@ const styles = StyleSheet.create({
   },
   section: {
     gap: 12,
+  },
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   sectionLabel: {
     fontSize: 14,

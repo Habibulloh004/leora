@@ -38,5 +38,8 @@
     "low": "Low",
     "medium": "Medium",
     "high": "High"
-  }
+  },
+  "goalLabel": "Linked goal",
+  "goalUnset": "No goal",
+  "goalHelper": "Attach a goal so insights keep your progress connected."
 }

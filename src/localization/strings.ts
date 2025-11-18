@@ -6,6 +6,11 @@ import ruAddTask from './addTask/ru.json';
 import uzAddTask from './addTask/uz.json';
 import arAddTask from './addTask/ar.json';
 import trAddTask from './addTask/tr.json';
+import enGoalModal from './goalModal/en.json';
+import ruGoalModal from './goalModal/ru.json';
+import uzGoalModal from './goalModal/uz.json';
+import arGoalModal from './goalModal/ar.json';
+import trGoalModal from './goalModal/tr.json';
 
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'ru', 'uz', 'ar', 'tr'];
 
@@ -17,7 +22,111 @@ export const LANGUAGE_LOCALE_MAP: Record<SupportedLanguage, string> = {
   tr: 'tr-TR',
 };
 
+export type GoalModalScenarioKey = 'financialSave' | 'financialSpend' | 'habitSupport' | 'skillGrowth' | 'custom';
+
+type GoalModalMetricOption = 'amount' | 'count' | 'duration' | 'custom';
+
+export type GoalModalStrings = {
+  title: string;
+  subtitle: string;
+  scenarioSection: { title: string; subtitle: string };
+  scenarios: Record<GoalModalScenarioKey, { title: string; subtitle: string }>;
+  detailsSection: {
+    title: string;
+    titleLabel: string;
+    descriptionLabel: string;
+    titlePlaceholder: string;
+    descriptionPlaceholder: string;
+  };
+  measurementSection: {
+    title: string;
+    metricLabel: string;
+    metricOptions: Record<GoalModalMetricOption, string>;
+    currentLabel: string;
+    targetLabel: string;
+    unitLabel: string;
+    currencyLabel: string;
+    financeModeLabel: string;
+    financeModes: Record<'save' | 'spend' | 'debt_close', string>;
+    placeholders: {
+      current: string;
+      target: string;
+      unit: string;
+    };
+  };
+  timelineSection: {
+    title: string;
+    startLabel: string;
+    dueLabel: string;
+    noDate: string;
+  };
+  milestoneSection: {
+    title: string;
+    description: string;
+    percentLabel: string;
+    dueLabel: string;
+    add: string;
+    empty: string;
+    delete: string;
+  };
+  actions: {
+    cancel: string;
+    create: string;
+    createMore: string;
+    update: string;
+  };
+  alerts: {
+    missingTitle: string;
+    invalidTarget: string;
+  };
+};
+
 export type AppTranslations = {
+  auth: {
+    register: {
+      title: string;
+      description: string;
+      fields: {
+        email: string;
+        fullName: string;
+        password: string;
+        confirmPassword: string;
+      };
+      placeholders: {
+        email: string;
+        fullName: string;
+        password: string;
+        confirmPassword: string;
+      };
+      buttons: {
+        submit: string;
+        socialComingSoon: string;
+      };
+      links: {
+        haveAccount: string;
+        signIn: string;
+      };
+      selectors: {
+        sectionTitle: string;
+        helper: string;
+        regionLabel: string;
+        currencyLabel: string;
+        currencyHint: string;
+      };
+      sheets: {
+        regionTitle: string;
+        currencyTitle: string;
+        currencySearch: string;
+      };
+      alerts: {
+        successTitle: string;
+        successMessage: string;
+        failureTitle: string;
+        socialTitle: string;
+        socialMessage: string;
+      };
+    };
+  };
   home: {
     header: {
       todayLabel: string;
@@ -29,6 +138,13 @@ export type AppTranslations = {
       morning: string;
       afternoon: string;
       evening: string;
+      night: string;
+      defaultName: string;
+    };
+    status: {
+      online: string;
+      offline: string;
+      connecting: string;
     };
     widgets: {
       title: string;
@@ -81,6 +197,9 @@ export type AppTranslations = {
     submitMore: string;
     categories: Record<'work' | 'personal' | 'health' | 'learning' | 'errands', string>;
     priorityOptions: Record<'low' | 'medium' | 'high', string>;
+    goalLabel: string;
+    goalUnset: string;
+    goalHelper: string;
   };
   plannerScreens: {
     tabs: {
@@ -192,6 +311,16 @@ export type AppTranslations = {
     habits: {
       headerTitle: string;
       badgeSuffix: string;
+      calendarTitle: string;
+      calendarLegend: { done: string; miss: string; none: string };
+      calendarLegendHint: { done: string; miss: string; none: string };
+      challenge: {
+        title: string;
+        subtitle: string;
+        options: { short: string; medium: string; long: string };
+        pinMessage: string;
+      };
+      calendarButton: string;
       stats: {
         streak: string;
         record: string;
@@ -230,6 +359,10 @@ export type AppTranslations = {
           marathoner: string;
         };
       };
+      empty: {
+        title: string;
+        subtitle: string;
+      };
       data: Record<
         PlannerHabitId,
         {
@@ -239,6 +372,9 @@ export type AppTranslations = {
         }
       >;
     };
+  };
+  plannerModals: {
+    goal: GoalModalStrings;
   };
   widgets: {
     budgetProgress: {
@@ -378,6 +514,7 @@ export type AppTranslations = {
       personal: string;
       stats: string;
       preferences: string;
+      finance: string;
       actions: string;
     };
     fields: {
@@ -392,6 +529,31 @@ export type AppTranslations = {
       showLevel: string;
       showAchievements: string;
       showStatistics: string;
+    };
+    finance: {
+      regionLabel: string;
+      currencyLabel: string;
+      regionSheetTitle: string;
+      currencySheetTitle: string;
+      currencySearchPlaceholder: string;
+      fxTitle: string;
+      fxDescription: string;
+      fxProviderLabel: string;
+      fxProviders: Record<'central_bank_stub' | 'market_stub', string>;
+      fxSyncButton: string;
+      fxSyncing: string;
+      fxSyncSuccess: string;
+      fxSyncError: string;
+      fxLastSync: string;
+      fxManualTitle: string;
+      fxManualHint: string;
+      fxManualCurrencyLabel: string;
+      fxOverridePlaceholder: string;
+      fxOverrideButton: string;
+      fxOverrideSuccess: string;
+      fxOverrideError: string;
+      fxOverrideBaseError: string;
+      fxOverrideSheetTitle: string;
     };
     stats: {
       daysWithApp: string;
@@ -438,6 +600,44 @@ export type AppTranslations = {
       seeAll: string;
       importantEvents: string;
       table: { type: string; amount: string; date: string };
+      fxQuick: {
+        title: string;
+        providerLabel: string;
+        providers: Record<'central_bank_stub' | 'market_stub', string>;
+        syncButton: string;
+        syncDescription: string;
+        syncing: string;
+        syncSuccess: string;
+        syncError: string;
+        lastSync: string;
+        overrideButton: string;
+        overrideHint: string;
+        overrideTitle: string;
+        overridePlaceholder: string;
+        overrideConfirm: string;
+        overrideCancel: string;
+        overrideSuccess: string;
+        overrideError: string;
+        overrideBaseError: string;
+      };
+      accountFilterTitle: string;
+      accountFilterAll: string;
+      accountFilterSelected: string;
+      accountFilterSelectAll: string;
+      accountFilterApply: string;
+      accountFilterCurrencyLabel: string;
+      monitorTitle: string;
+      monitorSearchPlaceholder: string;
+      monitorAccounts: string;
+      monitorTypesTitle: string;
+      monitorTypes: Record<'income' | 'expense' | 'transfer', string>;
+      monitorDateFrom: string;
+      monitorDateTo: string;
+      monitorResults: string;
+      monitorNoDate: string;
+      monitorEmpty: string;
+      monitorApply: string;
+      monitorReset: string;
     };
     accounts: {
       header: string;
@@ -452,6 +652,7 @@ export type AppTranslations = {
       header: string;
       details: {
         title: string;
+        type: string;
         amount: string;
         account: string;
         category: string;
@@ -459,6 +660,21 @@ export type AppTranslations = {
         note: string;
         relatedDebt: string;
         close: string;
+      };
+      filterSheet: {
+        title: string;
+        dateRange: string;
+        category: string;
+        accounts: string;
+        type: string;
+        amount: string;
+        from: string;
+        to: string;
+        selectDate: string;
+        reset: string;
+        apply: string;
+        all: string;
+        typeOptions: Record<'income' | 'expense' | 'transfer' | 'debt', string>;
       };
     };
     budgets: {
@@ -469,6 +685,12 @@ export type AppTranslations = {
       addCategory: string;
       setLimit: string;
       states: { exceeding: string; fixed: string; within: string };
+      form: {
+        periodLabel: string;
+        periodOptions: Record<'weekly' | 'monthly' | 'custom_range', string>;
+        selectedRangeLabel: string;
+        customRange: { start: string; end: string; helper: string; error: string };
+      };
     };
     analytics: {
       header: string;
@@ -521,8 +743,32 @@ export type AppTranslations = {
         selectDate: string;
         note: string;
         notePlaceholder: string;
+        personDirectional: {
+          incoming: { label: string; placeholder: string };
+          outgoing: { label: string; placeholder: string };
+        };
         toggles: { incoming: string; outgoing: string };
         manageActions: string;
+        accountDirectional: {
+          incoming: { label: string; helper: string };
+          outgoing: { label: string; helper: string };
+        };
+        currencyFlow: { incoming: string; outgoing: string };
+        counterpartyPickerTitle: string;
+        counterpartySearchPlaceholder: string;
+        counterpartyAddAction: string;
+        counterpartyEmpty: string;
+        counterpartyActions: {
+          renameTitle: string;
+          renamePlaceholder: string;
+          renameSave: string;
+          renameCancel: string;
+          deleteTitle: string;
+          deleteDescription: string;
+          deleteConfirm: string;
+          deleteBlocked: string;
+          duplicateName: string;
+        };
         buttons: {
           cancel: string;
           save: string;
@@ -555,6 +801,12 @@ export type AppTranslations = {
           notify: string;
           schedule: string;
         };
+        manualRate: {
+          title: string;
+          description: string;
+          toggle: string;
+          amountLabel: string;
+        };
         fullPaymentTitle: string;
         fullPaymentDescription: string;
         fullPaymentSubmit: string;
@@ -565,6 +817,51 @@ export type AppTranslations = {
 
 const t = {
   en: {
+    auth: {
+      register: {
+        title: 'Register',
+        description: 'Create an account to continue!',
+        fields: {
+          email: 'Email',
+          fullName: 'Full Name',
+          password: 'Password',
+          confirmPassword: 'Confirm Password',
+        },
+        placeholders: {
+          email: 'name@example.com',
+          fullName: 'Enter your full name',
+          password: 'Create a password',
+          confirmPassword: 'Re-enter your password',
+        },
+        buttons: {
+          submit: 'Sign Up',
+          socialComingSoon: 'Coming soon',
+        },
+        links: {
+          haveAccount: 'Already have an account?',
+          signIn: 'Sign In',
+        },
+        selectors: {
+          sectionTitle: 'Region & currency',
+          helper: 'Main currency will be set to {currency}',
+          regionLabel: 'Region',
+          currencyLabel: 'Currency',
+          currencyHint: 'Tap to change',
+        },
+        sheets: {
+          regionTitle: 'Choose region',
+          currencyTitle: 'Choose currency',
+          currencySearch: 'Search currency',
+        },
+        alerts: {
+          successTitle: 'Registration Successful',
+          successMessage: 'Welcome! Your account has been created.',
+          failureTitle: 'Registration Failed',
+          socialTitle: 'Coming Soon',
+          socialMessage: '{provider} registration will be available soon!',
+        },
+      },
+    },
     addTask: enAddTask as AppTranslations['addTask'],
     home: {
       header: {
@@ -577,6 +874,13 @@ const t = {
         morning: 'Good morning',
         afternoon: 'Good afternoon',
         evening: 'Good evening',
+        night: 'Good night',
+        defaultName: 'friend',
+      },
+      status: {
+        online: 'Online',
+        offline: 'Offline',
+        connecting: 'Checking…',
       },
       widgets: {
         title: 'Widgets',
@@ -807,10 +1111,24 @@ const t = {
         },
       },
       habits: {
-        headerTitle: 'Habits',
-        badgeSuffix: 'days',
-        stats: {
-          streak: 'Streak: {days} days straight',
+      headerTitle: 'Habits',
+      badgeSuffix: 'days',
+      calendarTitle: 'Monthly check-ins — {month}',
+      calendarLegend: { done: 'Done', miss: 'Missed', none: 'No data' },
+      calendarLegendHint: {
+        done: '{count} days completed ({percent}%)',
+        miss: '{count} misses ({percent}%)',
+        none: '{count} days still open ({percent}%)',
+      },
+      challenge: {
+        title: 'Challenge length',
+        subtitle: 'Choose a classic 20/40/90-day streak target.',
+        options: { short: '20 days', medium: '40 days', long: '90 days' },
+        pinMessage: 'Complete {days} days straight to pin this habit.',
+      },
+      calendarButton: 'Open calendar view',
+      stats: {
+        streak: 'Streak: {days} days straight',
           record: 'Record: {days} days',
           completion: 'Completion: {percent}% ({completed}/{target} weekly)',
         },
@@ -844,18 +1162,22 @@ const t = {
             worstTime: 'Worst time: Weekends (45%)',
             afterWeekends: 'After weekends: −30% probability',
           },
-          badges: {
-            firstWeek: 'First week',
-            monthNoBreak: 'Month without break',
-            hundredCompletions: '100 completions',
-            marathoner: 'Marathoner (42 days straight)',
-          },
+        badges: {
+          firstWeek: 'First week',
+          monthNoBreak: 'Month without break',
+          hundredCompletions: '100 completions',
+          marathoner: 'Marathoner (42 days straight)',
         },
-        data: {
-          h1: {
-            title: 'Morning workout',
-            aiNote: 'Try it in the morning, right after your workout',
-          },
+      },
+      empty: {
+        title: 'No habits yet',
+        subtitle: 'Add a habit from the planner to start tracking streaks and progress.',
+      },
+      data: {
+        h1: {
+          title: 'Morning workout',
+          aiNote: 'Try it in the morning, right after your workout',
+        },
           h2: {
             title: 'Meditation',
             aiNote: 'AI: “Try it in the morning, right after your workout”',
@@ -873,6 +1195,9 @@ const t = {
           },
         },
       },
+    },
+    plannerModals: {
+      goal: enGoalModal as AppTranslations['plannerModals']['goal'],
     },
     widgets: {
       budgetProgress: {
@@ -1034,6 +1359,7 @@ const t = {
         personal: 'Personal info',
         stats: 'Usage stats',
         preferences: 'Public profile',
+        finance: 'Finance preferences',
         actions: 'Account actions',
       },
       fields: {
@@ -1048,6 +1374,34 @@ const t = {
         showLevel: 'Show level badge',
         showAchievements: 'Show achievements',
         showStatistics: 'Show statistics',
+      },
+      finance: {
+        regionLabel: 'Primary region',
+        currencyLabel: 'Display currency',
+        regionSheetTitle: 'Choose your region',
+        currencySheetTitle: 'Choose currency',
+        currencySearchPlaceholder: 'Search currency',
+        fxTitle: 'Exchange rates',
+        fxDescription: 'Sync provider data or override a specific currency.',
+        fxProviderLabel: 'FX provider',
+        fxProviders: {
+          central_bank_stub: 'Central bank',
+          market_stub: 'Market',
+        },
+        fxSyncButton: 'Sync rates',
+        fxSyncing: 'Syncing...',
+        fxSyncSuccess: 'Rates synced via {provider}',
+        fxSyncError: 'Unable to sync rates. Try again.',
+        fxLastSync: 'Last sync: {value}',
+        fxManualTitle: 'Manual override',
+        fxManualHint: 'Override rate vs {base}',
+        fxManualCurrencyLabel: 'Currency',
+        fxOverridePlaceholder: 'Enter rate',
+        fxOverrideButton: 'Apply override',
+        fxOverrideSuccess: 'Override saved for {currency}',
+        fxOverrideError: 'Enter a valid rate',
+        fxOverrideBaseError: 'Choose a currency different from base',
+        fxOverrideSheetTitle: 'Choose currency to override',
       },
       stats: {
         daysWithApp: 'Days with LEORA',
@@ -1094,7 +1448,52 @@ const t = {
         seeAll: 'See all',
         importantEvents: 'Important events',
         table: { type: 'Type', amount: 'Amount', date: 'Date' },
+        fxQuick: {
+          title: 'Currency controls',
+          providerLabel: 'Provider',
+          providers: {
+            central_bank_stub: 'Central bank',
+            market_stub: 'Market',
+          },
+          syncButton: 'Sync rates',
+          syncDescription: 'Fetch latest provider rates',
+          syncing: 'Syncing...',
+          syncSuccess: 'Rates synced via {provider}',
+          syncError: 'Unable to sync rates. Try again.',
+          lastSync: 'Last sync: {value}',
+          overrideButton: 'Manual override',
+          overrideHint: 'Rate vs {base}',
+          overrideTitle: 'Manual override',
+          overridePlaceholder: 'Enter rate',
+          overrideConfirm: 'Apply',
+          overrideCancel: 'Cancel',
+        overrideSuccess: 'Override saved for {currency}',
+        overrideError: 'Enter a valid rate',
+        overrideBaseError: 'Choose a currency different from base',
       },
+      accountFilterTitle: 'Choose accounts',
+      accountFilterAll: 'All accounts',
+      accountFilterSelected: '{count} selected',
+      accountFilterSelectAll: 'Select all',
+      accountFilterApply: 'Apply',
+      accountFilterCurrencyLabel: 'Display currency',
+      monitorTitle: 'Balance monitoring',
+      monitorSearchPlaceholder: 'Search transactions',
+      monitorAccounts: 'Accounts',
+      monitorTypesTitle: 'Transaction types',
+      monitorTypes: {
+        income: 'Income',
+        expense: 'Expense',
+        transfer: 'Transfer',
+      },
+      monitorDateFrom: 'From',
+      monitorDateTo: 'To',
+      monitorResults: 'Transactions',
+      monitorNoDate: 'Not selected',
+      monitorEmpty: 'No transactions match the filters',
+      monitorApply: 'Done',
+      monitorReset: 'Reset filters',
+    },
       accounts: {
         header: 'My accounts',
         income: 'Income',
@@ -1108,6 +1507,7 @@ const t = {
         header: 'Transactions history',
         details: {
           title: 'Transaction details',
+          type: 'Operation type',
           amount: 'Amount',
           account: 'Account',
           category: 'Category',
@@ -1116,16 +1516,47 @@ const t = {
           relatedDebt: 'Linked debt',
           close: 'Close',
         },
+        filterSheet: {
+          title: 'Filter transactions',
+          dateRange: 'Date range',
+          category: 'Category',
+          accounts: 'Accounts',
+          type: 'Type',
+          amount: 'Amount range',
+          from: 'From',
+          to: 'To',
+          selectDate: 'Select date',
+          reset: 'Reset',
+          apply: 'Apply',
+          all: 'All',
+          typeOptions: {
+            income: 'Income',
+            expense: 'Expense',
+            transfer: 'Transfer',
+            debt: 'Debt',
+          },
+        },
       },
       budgets: {
         today: "Today's budget overview",
         dateTemplate: 'Budget overview for {date}',
         mainTitle: 'Main budget',
-        categoriesTitle: 'Categories',
-        addCategory: 'Add category',
-        setLimit: 'Set a limit',
-        states: { exceeding: 'Exceeding', fixed: 'Fixed', within: 'Within' },
+      categoriesTitle: 'Categories',
+      addCategory: 'Add category',
+      setLimit: 'Set a limit',
+      states: { exceeding: 'Exceeding', fixed: 'Fixed', within: 'Within' },
+      form: {
+        periodLabel: 'Budget period',
+        periodOptions: { weekly: 'Weekly', monthly: 'Monthly', custom_range: 'Custom range' },
+        selectedRangeLabel: 'Selected range: {range}',
+        customRange: {
+          start: 'Start date',
+          end: 'End date',
+          helper: 'Select a custom range',
+          error: 'Select both start and end dates',
+        },
       },
+    },
       analytics: {
         header: 'Financial analytics',
         expenseDynamics: 'Expense dynamics',
@@ -1177,8 +1608,41 @@ const t = {
         selectDate: 'Select date',
         note: 'Note',
         notePlaceholder: 'Add optional description or context…',
+        personDirectional: {
+          incoming: { label: 'Who lent you money?', placeholder: 'Enter the lender name' },
+          outgoing: { label: 'Who are you lending to?', placeholder: 'Enter the recipient name' },
+        },
         toggles: { incoming: 'They owe me', outgoing: 'I owe' },
         manageActions: 'Manage debt',
+        accountDirectional: {
+          incoming: {
+            label: 'Deposit to wallet',
+            helper: 'Money will be credited to the selected wallet ({accountCurrency}).',
+          },
+          outgoing: {
+            label: 'Withdraw from wallet',
+            helper: 'Money will be taken from the selected wallet ({accountCurrency}).',
+          },
+        },
+        currencyFlow: {
+          incoming: 'Receiving {debtCurrency} → crediting {accountCurrency}',
+          outgoing: 'Sending {debtCurrency} → debiting {accountCurrency}',
+        },
+        counterpartyPickerTitle: 'Select person',
+        counterpartySearchPlaceholder: 'Search name',
+        counterpartyAddAction: 'Add "{query}"',
+        counterpartyEmpty: 'No people yet. Start by adding one.',
+        counterpartyActions: {
+          renameTitle: 'Rename person',
+          renamePlaceholder: 'Enter new name',
+          renameSave: 'Save name',
+          renameCancel: 'Cancel',
+          deleteTitle: 'Remove person?',
+          deleteDescription: 'This will permanently remove the selected person.',
+          deleteConfirm: 'Remove',
+          deleteBlocked: 'You cannot delete a person linked to debts.',
+          duplicateName: 'A person with this name already exists.',
+        },
         buttons: {
           cancel: 'Cancel',
           save: 'Save',
@@ -1214,6 +1678,13 @@ const t = {
           notify: 'Notification',
           schedule: 'Manage dates',
         },
+        manualRate: {
+          title: 'Conversion',
+          description:
+            'Debt currency {debtCurrency}. Wallet currency {accountCurrency}. Enter the debit amount in {accountCurrency}.',
+          toggle: 'Enter manually',
+          amountLabel: 'Debit amount ({currency})',
+        },
         fullPaymentTitle: 'Pay debt in full',
         fullPaymentDescription: 'You will settle the entire remaining balance of {amount}.',
         fullPaymentSubmit: 'Pay in full',
@@ -1222,6 +1693,51 @@ const t = {
     },
   },
   ru: {
+    auth: {
+      register: {
+        title: 'Регистрация',
+        description: 'Создайте аккаунт, чтобы продолжить.',
+        fields: {
+          email: 'Email',
+          fullName: 'Полное имя',
+          password: 'Пароль',
+          confirmPassword: 'Повторите пароль',
+        },
+        placeholders: {
+          email: 'name@example.com',
+          fullName: 'Введите ваше имя',
+          password: 'Придумайте пароль',
+          confirmPassword: 'Повторите пароль',
+        },
+        buttons: {
+          submit: 'Создать аккаунт',
+          socialComingSoon: 'Скоро',
+        },
+        links: {
+          haveAccount: 'Уже есть аккаунт?',
+          signIn: 'Войти',
+        },
+        selectors: {
+          sectionTitle: 'Регион и валюта',
+          helper: 'Основная валюта будет {currency}',
+          regionLabel: 'Регион',
+          currencyLabel: 'Валюта',
+          currencyHint: 'Нажмите, чтобы выбрать',
+        },
+        sheets: {
+          regionTitle: 'Выберите регион',
+          currencyTitle: 'Выберите валюту',
+          currencySearch: 'Поиск валюты',
+        },
+        alerts: {
+          successTitle: 'Регистрация выполнена',
+          successMessage: 'Добро пожаловать! Аккаунт создан.',
+          failureTitle: 'Ошибка регистрации',
+          socialTitle: 'Скоро',
+          socialMessage: 'Регистрация через {provider} появится позже.',
+        },
+      },
+    },
     addTask: ruAddTask as AppTranslations['addTask'],
     home: {
       header: {
@@ -1234,6 +1750,13 @@ const t = {
         morning: 'Доброе утро',
         afternoon: 'Добрый день',
         evening: 'Добрый вечер',
+        night: 'Доброй ночи',
+        defaultName: 'друг',
+      },
+      status: {
+        online: 'Онлайн',
+        offline: 'Офлайн',
+        connecting: 'Проверяем…',
       },
       widgets: {
         title: 'Виджеты',
@@ -1464,12 +1987,26 @@ const t = {
         },
       },
       habits: {
-        headerTitle: 'Привычки',
-        badgeSuffix: 'дн.',
-        stats: {
-          streak: 'Серия: {days} дн. подряд',
-          record: 'Рекорд: {days} дн.',
-          completion: 'Выполнение: {percent}% ({completed}/{target} в неделю)',
+      headerTitle: 'Привычки',
+      badgeSuffix: 'дн.',
+      calendarTitle: 'Календарь отметок — {month}',
+      calendarLegend: { done: 'Выполнено', miss: 'Пропущено', none: 'Нет данных' },
+      calendarLegendHint: {
+        done: '{count} дн. выполнено ({percent}%)',
+        miss: '{count} дн. пропущено ({percent}%)',
+        none: '{count} дн. без отметки ({percent}%)',
+      },
+      challenge: {
+        title: 'Длительность челленджа',
+        subtitle: 'Выберите цикл 20/40/90 дней — как в популярных трекерах.',
+        options: { short: '20 дней', medium: '40 дней', long: '90 дней' },
+        pinMessage: 'Отметьте {days} дней подряд, чтобы зафиксировать привычку.',
+      },
+      calendarButton: 'Открыть календарь',
+      stats: {
+        streak: 'Серия: {days} дн. подряд',
+        record: 'Рекорд: {days} дн.',
+        completion: 'Выполнение: {percent}% ({completed}/{target} в неделю)',
         },
         supportsGoals: 'Поддерживает: {goals}',
         ai: {
@@ -1501,16 +2038,20 @@ const t = {
             worstTime: 'Худшее время: выходные (45%)',
             afterWeekends: 'После выходных: −30% вероятность',
           },
-          badges: {
-            firstWeek: 'Первая неделя',
-            monthNoBreak: 'Месяц без перерывов',
-            hundredCompletions: '100 выполнений',
-            marathoner: 'Марафонец (42 дня подряд)',
-          },
+        badges: {
+          firstWeek: 'Первая неделя',
+          monthNoBreak: 'Месяц без перерывов',
+          hundredCompletions: '100 выполнений',
+          marathoner: 'Марафонец (42 дня подряд)',
         },
-        data: {
-          h1: {
-            title: 'Утренние тренировки',
+      },
+      empty: {
+        title: 'Пока нет привычек',
+        subtitle: 'Добавьте привычку через кнопку «+», чтобы начать отслеживать прогресс и серии.',
+      },
+      data: {
+        h1: {
+          title: 'Утренние тренировки',
             aiNote: 'Попробуйте утром, сразу после разминки',
           },
           h2: {
@@ -1528,8 +2069,11 @@ const t = {
           h5: {
             title: 'Без соцсетей',
           },
-        },
       },
+      },
+    },
+    plannerModals: {
+      goal: ruGoalModal as AppTranslations['plannerModals']['goal'],
     },
     widgets: {
       budgetProgress: {
@@ -1691,6 +2235,7 @@ const t = {
         personal: 'Личные данные',
         stats: 'Статистика использования',
         preferences: 'Публичный профиль',
+        finance: 'Финансовые настройки',
         actions: 'Действия с аккаунтом',
       },
       fields: {
@@ -1705,6 +2250,34 @@ const t = {
         showLevel: 'Показывать уровень',
         showAchievements: 'Показывать достижения',
         showStatistics: 'Показывать статистику',
+      },
+      finance: {
+        regionLabel: 'Основной регион',
+        currencyLabel: 'Валюта отображения',
+        regionSheetTitle: 'Выберите регион',
+        currencySheetTitle: 'Выберите валюту',
+        currencySearchPlaceholder: 'Поиск валюты',
+        fxTitle: 'Курсы валют',
+        fxDescription: 'Синхронизируйте провайдера или задайте курс вручную.',
+        fxProviderLabel: 'Поставщик курсов',
+        fxProviders: {
+          central_bank_stub: 'ЦБ',
+          market_stub: 'Рынок',
+        },
+        fxSyncButton: 'Синхронизировать',
+        fxSyncing: 'Синхронизация...',
+        fxSyncSuccess: 'Курсы обновлены через {provider}',
+        fxSyncError: 'Не удалось обновить курсы. Повторите попытку.',
+        fxLastSync: 'Последнее обновление: {value}',
+        fxManualTitle: 'Ручной курс',
+        fxManualHint: 'Курс по отношению к {base}',
+        fxManualCurrencyLabel: 'Валюта',
+        fxOverridePlaceholder: 'Введите курс',
+        fxOverrideButton: 'Сохранить курс',
+        fxOverrideSuccess: 'Курс сохранён для {currency}',
+        fxOverrideError: 'Введите корректное значение',
+        fxOverrideBaseError: 'Выберите валюту, отличную от базовой',
+        fxOverrideSheetTitle: 'Выберите валюту для ручного курса',
       },
       stats: {
         daysWithApp: 'Дней с LEORA',
@@ -1751,7 +2324,52 @@ const t = {
         seeAll: 'Показать все',
         importantEvents: 'Важные события',
         table: { type: 'Тип', amount: 'Сумма', date: 'Дата' },
+        fxQuick: {
+          title: 'Курсы валют',
+          providerLabel: 'Поставщик',
+          providers: {
+            central_bank_stub: 'ЦБ',
+            market_stub: 'Рынок',
+          },
+          syncButton: 'Синхронизировать',
+          syncDescription: 'Получить свежие курсы провайдера',
+          syncing: 'Синхронизация...',
+          syncSuccess: 'Курсы обновлены через {provider}',
+          syncError: 'Не удалось обновить курсы. Повторите попытку.',
+          lastSync: 'Последнее обновление: {value}',
+          overrideButton: 'Ручной курс',
+          overrideHint: 'Курс к {base}',
+          overrideTitle: 'Ручной курс',
+          overridePlaceholder: 'Введите значение',
+          overrideConfirm: 'Сохранить',
+          overrideCancel: 'Отмена',
+        overrideSuccess: 'Курс сохранён для {currency}',
+        overrideError: 'Введите корректное значение',
+        overrideBaseError: 'Выберите валюту, отличную от базовой',
       },
+      accountFilterTitle: 'Выберите счета',
+      accountFilterAll: 'Все счета',
+      accountFilterSelected: 'Выбрано: {count}',
+      accountFilterSelectAll: 'Выбрать все',
+      accountFilterApply: 'Применить',
+      accountFilterCurrencyLabel: 'Валюта отображения',
+      monitorTitle: 'Мониторинг баланса',
+      monitorSearchPlaceholder: 'Поиск транзакций',
+      monitorAccounts: 'Счета',
+      monitorTypesTitle: 'Типы операций',
+      monitorTypes: {
+        income: 'Доход',
+        expense: 'Расход',
+        transfer: 'Конвертация',
+      },
+      monitorDateFrom: 'С',
+      monitorDateTo: 'По',
+      monitorResults: 'Транзакции',
+      monitorNoDate: 'Не выбрана',
+      monitorEmpty: 'Нет транзакций по заданным фильтрам',
+      monitorApply: 'Готово',
+      monitorReset: 'Сбросить фильтры',
+    },
       accounts: {
         header: 'Мои счета',
         income: 'Доход',
@@ -1765,6 +2383,7 @@ const t = {
         header: 'История транзакций',
         details: {
           title: 'Детали транзакции',
+          type: 'Тип операции',
           amount: 'Сумма',
           account: 'Счёт',
           category: 'Категория',
@@ -1773,16 +2392,51 @@ const t = {
           relatedDebt: 'Связанный долг',
           close: 'Закрыть',
         },
+        filterSheet: {
+          title: 'Фильтр транзакций',
+          dateRange: 'Период',
+          category: 'Категория',
+          accounts: 'Счета',
+          type: 'Тип операции',
+          amount: 'Диапазон суммы',
+          from: 'От',
+          to: 'До',
+          selectDate: 'Выберите дату',
+          reset: 'Сбросить',
+          apply: 'Применить',
+          all: 'Все',
+          typeOptions: {
+            income: 'Доход',
+            expense: 'Расход',
+            transfer: 'Перевод',
+            debt: 'Долг',
+          },
+        },
       },
       budgets: {
         today: 'Обзор бюджета на сегодня',
         dateTemplate: 'Обзор бюджета за {date}',
         mainTitle: 'Главный бюджет',
-        categoriesTitle: 'Категории',
-        addCategory: 'Добавить категорию',
-        setLimit: 'Установить лимит',
-        states: { exceeding: 'Превышение', fixed: 'Фиксировано', within: 'В пределах' },
+      categoriesTitle: 'Категории',
+      addCategory: 'Добавить категорию',
+      setLimit: 'Установить лимит',
+      states: { exceeding: 'Превышение', fixed: 'Фиксировано', within: 'В пределах' },
+      form: {
+        periodLabel: 'Период бюджета',
+        periodOptions: {
+          weekly: 'Неделя',
+          monthly: 'Месяц',
+          custom_range: 'Произвольный период',
+        },
+        selectedRangeLabel: 'Выбранный период: {range}',
+        customRange: {
+          start: 'Дата начала',
+          end: 'Дата окончания',
+          helper: 'Укажите произвольный диапазон',
+          error: 'Выберите даты начала и окончания',
+        },
       },
+    },
       analytics: {
         header: 'Финансовая аналитика',
         expenseDynamics: 'Динамика расходов',
@@ -1831,11 +2485,44 @@ const t = {
           selectAccount: 'Выберите кошелёк',
           expectedReturn: 'Ожидаемая дата возврата',
           expectedPlaceholder: 'Дата возврата не установлена',
-          selectDate: 'Выберите дату',
-          note: 'Заметка',
-          notePlaceholder: 'Добавьте описание или детали…',
-          toggles: { incoming: 'Мне должны', outgoing: 'Я должен' },
-          manageActions: 'Управление долгом',
+        selectDate: 'Выберите дату',
+        note: 'Заметка',
+        notePlaceholder: 'Добавьте описание или детали…',
+        personDirectional: {
+          incoming: { label: 'От кого получили?', placeholder: 'Укажите, у кого заняли' },
+          outgoing: { label: 'Кому даёте?', placeholder: 'Укажите получателя' },
+        },
+        toggles: { incoming: 'Мне должны', outgoing: 'Я должен' },
+        manageActions: 'Управление долгом',
+        accountDirectional: {
+          incoming: {
+            label: 'Зачислить на счёт',
+            helper: 'Средства поступят на выбранный счёт ({accountCurrency}).',
+          },
+          outgoing: {
+            label: 'Списать со счёта',
+            helper: 'Деньги будут списаны с выбранного счёта ({accountCurrency}).',
+          },
+        },
+        currencyFlow: {
+          incoming: 'Получаете {debtCurrency} → зачисляем на {accountCurrency}',
+          outgoing: 'Отдаёте {debtCurrency} → списываем {accountCurrency}',
+        },
+        counterpartyPickerTitle: 'Выберите человека',
+        counterpartySearchPlaceholder: 'Поиск имени',
+        counterpartyAddAction: 'Добавить «{query}»',
+        counterpartyEmpty: 'Список пуст — добавьте первого пользователя.',
+        counterpartyActions: {
+          renameTitle: 'Изменить имя',
+          renamePlaceholder: 'Введите новое имя',
+          renameSave: 'Сохранить',
+          renameCancel: 'Отмена',
+          deleteTitle: 'Удалить пользователя?',
+          deleteDescription: 'Этот человек будет удалён безвозвратно.',
+          deleteConfirm: 'Удалить',
+          deleteBlocked: 'Нельзя удалить пользователя, который привязан к долгам.',
+          duplicateName: 'Такое имя уже существует.',
+        },
           buttons: {
             cancel: 'Отмена',
             save: 'Сохранить',
@@ -1871,6 +2558,13 @@ const t = {
           notify: 'Уведомление',
           schedule: 'Управление датами',
         },
+        manualRate: {
+          title: 'Конвертация',
+          description:
+            'Валюта долга {debtCurrency}. Валюта счёта {accountCurrency}. Укажите сумму списания в {accountCurrency}.',
+          toggle: 'Ввести вручную',
+          amountLabel: 'Списать со счёта ({currency})',
+        },
         fullPaymentTitle: 'Полностью погасить долг',
         fullPaymentDescription: 'Вы погасите всю оставшуюся сумму {amount}.',
         fullPaymentSubmit: 'Оплатить полностью',
@@ -1879,6 +2573,51 @@ const t = {
     },
   },
   uz: {
+    auth: {
+      register: {
+        title: 'Ro‘yxatdan o‘ting',
+        description: 'Davom etish uchun akkaunt yarating.',
+        fields: {
+          email: 'Email',
+          fullName: 'To‘liq ism',
+          password: 'Parol',
+          confirmPassword: 'Parolni tasdiqlang',
+        },
+        placeholders: {
+          email: 'ism@example.com',
+          fullName: 'To‘liq ismingizni kiriting',
+          password: 'Parol yarating',
+          confirmPassword: 'Parolni qayta kiriting',
+        },
+        buttons: {
+          submit: 'Ro‘yxatdan o‘tish',
+          socialComingSoon: 'Tez orada',
+        },
+        links: {
+          haveAccount: 'Akkauntingiz bormi?',
+          signIn: 'Kirish',
+        },
+        selectors: {
+          sectionTitle: 'Hudud va valyuta',
+          helper: 'Asosiy valyuta {currency} bo‘ladi',
+          regionLabel: 'Hudud',
+          currencyLabel: 'Valyuta',
+          currencyHint: 'Bosib o‘zgartiring',
+        },
+        sheets: {
+          regionTitle: 'Hududni tanlang',
+          currencyTitle: 'Valyutani tanlang',
+          currencySearch: 'Valyutani qidirish',
+        },
+        alerts: {
+          successTitle: 'Muvaffaqiyatli',
+          successMessage: 'Xush kelibsiz! Akkaunt yaratildi.',
+          failureTitle: 'Xatolik',
+          socialTitle: 'Tez orada',
+          socialMessage: '{provider} orqali ro‘yxatdan o‘tish tez orada ochiladi.',
+        },
+      },
+    },
     addTask: uzAddTask as AppTranslations['addTask'],
     home: {
       header: {
@@ -1891,6 +2630,13 @@ const t = {
         morning: 'Xayrli tong',
         afternoon: 'Xayrli kun',
         evening: 'Xayrli oqshom',
+        night: 'Xayrli tun',
+        defaultName: 'do‘stim',
+      },
+      status: {
+        online: 'Onlayn',
+        offline: 'Oflayn',
+        connecting: 'Tekshirilmoqda…',
       },
       widgets: {
         title: 'Vidjetlar',
@@ -2121,12 +2867,26 @@ const t = {
         },
       },
       habits: {
-        headerTitle: 'Odatlar',
-        badgeSuffix: 'kun',
-        stats: {
-          streak: 'Seriya: {days} kun ketma-ket',
-          record: 'Rekord: {days} kun',
-          completion: 'Bajarilish: {percent}% ({completed}/{target} haftalik)',
+      headerTitle: 'Odatlar',
+      badgeSuffix: 'kun',
+      calendarTitle: 'Oylik nazorat — {month}',
+      calendarLegend: { done: 'Bajarildi', miss: 'O‘tkazib yuborildi', none: 'Maʼlumot yo‘q' },
+      calendarLegendHint: {
+        done: '{count} kun bajarildi ({percent}%)',
+        miss: '{count} kun o‘tkazib yuborildi ({percent}%)',
+        none: '{count} kun belgilanmagan ({percent}%)',
+      },
+      challenge: {
+        title: 'Chaqiriq davomiyligi',
+        subtitle: 'Odatdagi 20/40/90 kunlik siklni tanlang.',
+        options: { short: '20 kun', medium: '40 kun', long: '90 kun' },
+        pinMessage: 'Ketma-ket {days} kunni bajarib, odatni mustahkamlang.',
+      },
+      calendarButton: 'Kalendarni ochish',
+      stats: {
+        streak: 'Seriya: {days} kun ketma-ket',
+        record: 'Rekord: {days} kun',
+        completion: 'Bajarilish: {percent}% ({completed}/{target} haftalik)',
         },
         supportsGoals: 'Qo‘llab-quvvatlaydi: {goals}',
         ai: {
@@ -2158,16 +2918,20 @@ const t = {
             worstTime: 'Eng yomon vaqt: dam olish kunlari (45%)',
             afterWeekends: 'Dam olishdan keyin: −30% ehtimol',
           },
-          badges: {
-            firstWeek: 'Birinchi hafta',
-            monthNoBreak: 'Bir oy tanaffussiz',
-            hundredCompletions: '100 marta bajarildi',
-            marathoner: 'Marafonchi (42 kun ketma-ket)',
-          },
+        badges: {
+          firstWeek: 'Birinchi hafta',
+          monthNoBreak: 'Bir oy tanaffussiz',
+          hundredCompletions: '100 marta bajarildi',
+          marathoner: 'Marafonchi (42 kun ketma-ket)',
         },
-        data: {
-          h1: {
-            title: 'Tonggi mashg‘ulot',
+      },
+      empty: {
+        title: 'Hali odatlar yo‘q',
+        subtitle: 'Progressni kuzatish uchun rejalashtiruvchi menyusidan odat qo‘shing.',
+      },
+      data: {
+        h1: {
+          title: 'Tonggi mashg‘ulot',
             aiNote: 'Mashg‘ulotdan keyin tongda bajarib ko‘ring',
           },
           h2: {
@@ -2185,8 +2949,11 @@ const t = {
           h5: {
             title: 'Ijtimoiy tarmoqsiz',
           },
-        },
       },
+      },
+    },
+    plannerModals: {
+      goal: uzGoalModal as AppTranslations['plannerModals']['goal'],
     },
     widgets: {
       budgetProgress: {
@@ -2348,6 +3115,7 @@ const t = {
         personal: 'Shaxsiy maʼlumotlar',
         stats: 'Foydalanish statistikasi',
         preferences: 'Ochiq profil',
+        finance: 'Moliya sozlamalari',
         actions: 'Amallar',
       },
       fields: {
@@ -2362,6 +3130,34 @@ const t = {
         showLevel: 'Daraja nishonini ko‘rsatish',
         showAchievements: 'Yutuqlarni ko‘rsatish',
         showStatistics: 'Statistikani ko‘rsatish',
+      },
+      finance: {
+        regionLabel: 'Asosiy mintaqa',
+        currencyLabel: 'Ko‘rsatiladigan valyuta',
+        regionSheetTitle: 'Mintaqani tanlang',
+        currencySheetTitle: 'Valyutani tanlang',
+        currencySearchPlaceholder: 'Valyutani qidiring',
+        fxTitle: 'Valyuta kurslari',
+        fxDescription: 'Provayderdan maʼlumotni sinxronlang yoki kursni qo‘lda kiriting.',
+        fxProviderLabel: 'Kurs provayderi',
+        fxProviders: {
+          central_bank_stub: 'Markaziy bank',
+          market_stub: 'Bozor',
+        },
+        fxSyncButton: 'Kurslarni yangilash',
+        fxSyncing: 'Yangilanmoqda...',
+        fxSyncSuccess: 'Kurslar {provider} orqali yangilandi',
+        fxSyncError: 'Kurslarni yangilab bo‘lmadi. Qayta urinib ko‘ring.',
+        fxLastSync: 'Oxirgi yangilanish: {value}',
+        fxManualTitle: 'Qo‘lda kurs',
+        fxManualHint: '{base} ga nisbatan kurs',
+        fxManualCurrencyLabel: 'Valyuta',
+        fxOverridePlaceholder: 'Kursni kiriting',
+        fxOverrideButton: 'Saqlash',
+        fxOverrideSuccess: '{currency} uchun kurs saqlandi',
+        fxOverrideError: 'To‘g‘ri qiymat kiriting',
+        fxOverrideBaseError: 'Bazaga teng bo‘lmagan valyutani tanlang',
+        fxOverrideSheetTitle: 'Qo‘lda kurs uchun valyuta',
       },
       stats: {
         daysWithApp: 'LEORA bilan kunlar',
@@ -2408,7 +3204,52 @@ const t = {
         seeAll: 'Hammasini ko‘rish',
         importantEvents: 'Muhim hodisalar',
         table: { type: 'Turi', amount: 'Summasi', date: 'Sana' },
+        fxQuick: {
+          title: 'Valyuta boshqaruvi',
+          providerLabel: 'Provayder',
+          providers: {
+            central_bank_stub: 'Markaziy bank',
+            market_stub: 'Bozor',
+          },
+          syncButton: 'Kurslarni yangilash',
+          syncDescription: 'Provayderdan oxirgi kurslarni oling',
+          syncing: 'Yangilanmoqda...',
+          syncSuccess: 'Kurslar {provider} orqali yangilandi',
+          syncError: 'Kurslarni yangilab bo‘lmadi. Qayta urinib ko‘ring.',
+          lastSync: 'Oxirgi yangilanish: {value}',
+          overrideButton: 'Qo‘lda kurs',
+          overrideHint: '{base} ga nisbatan kurs',
+          overrideTitle: 'Qo‘lda kurs',
+          overridePlaceholder: 'Qiymat kiriting',
+          overrideConfirm: 'Saqlash',
+          overrideCancel: 'Bekor qilish',
+        overrideSuccess: '{currency} uchun kurs saqlandi',
+        overrideError: 'To‘g‘ri qiymat kiriting',
+        overrideBaseError: 'Bazaga teng bo‘lmagan valyutani tanlang',
       },
+      accountFilterTitle: 'Hisoblarni tanlang',
+      accountFilterAll: 'Barcha hisoblar',
+      accountFilterSelected: '{count} ta tanlandi',
+      accountFilterSelectAll: 'Hammasini tanlash',
+      accountFilterApply: 'Qo‘llash',
+      accountFilterCurrencyLabel: 'Ko‘rsatiladigan valyuta',
+      monitorTitle: 'Balans monitoringi',
+      monitorSearchPlaceholder: 'Tranzaksiyalarni qidiring',
+      monitorAccounts: 'Hisoblar',
+      monitorTypesTitle: 'Tranzaksiya turlari',
+      monitorTypes: {
+        income: 'Daromad',
+        expense: 'Xarajat',
+        transfer: 'Konvertatsiya',
+      },
+      monitorDateFrom: 'Boshlanish',
+      monitorDateTo: 'Tugash',
+      monitorResults: 'Tranzaksiyalar',
+      monitorNoDate: 'Tanlanmagan',
+      monitorEmpty: 'Filtrlarga mos tranzaksiya topilmadi',
+      monitorApply: 'Tugatish',
+      monitorReset: 'Filtrlarni tozalash',
+    },
       accounts: {
         header: 'Hisoblarim',
         income: 'Daromad',
@@ -2422,6 +3263,7 @@ const t = {
         header: 'Tranzaksiyalar tarixi',
         details: {
           title: 'Tranzaksiya tafsilotlari',
+          type: 'Tranzaksiya turi',
           amount: 'Summasi',
           account: 'Hisob',
           category: 'Kategoriya',
@@ -2430,16 +3272,51 @@ const t = {
           relatedDebt: 'Bog‘langan qarz',
           close: 'Yopish',
         },
+        filterSheet: {
+          title: 'Tranzaksiyalarni filtrlash',
+          dateRange: 'Sana oralig‘i',
+          category: 'Kategoriya',
+          accounts: 'Hisoblar',
+          type: 'Tranzaksiya turi',
+          amount: 'Summalar oralig‘i',
+          from: 'Dan',
+          to: 'Gacha',
+          selectDate: 'Sanani tanlang',
+          reset: 'Tozalash',
+          apply: 'Qo‘llash',
+          all: 'Hammasi',
+          typeOptions: {
+            income: 'Daromad',
+            expense: 'Xarajat',
+            transfer: 'Konvertatsiya',
+            debt: 'Qarz',
+          },
+        },
       },
       budgets: {
         today: 'Bugungi byudjet sharhi',
         dateTemplate: '{date} uchun byudjet sharhi',
         mainTitle: 'Asosiy byudjet',
-        categoriesTitle: 'Kategoriyalar',
-        addCategory: 'Kategoriya qo‘shish',
-        setLimit: 'Limit qo‘yish',
-        states: { exceeding: 'Limitdan oshgan', fixed: 'Belgilangan', within: 'Doirada' },
+      categoriesTitle: 'Kategoriyalar',
+      addCategory: 'Kategoriya qo‘shish',
+      setLimit: 'Limit qo‘yish',
+      states: { exceeding: 'Limitdan oshgan', fixed: 'Belgilangan', within: 'Doirada' },
+      form: {
+        periodLabel: 'Byudjet davri',
+        periodOptions: {
+          weekly: 'Haftalik',
+          monthly: 'Oylik',
+          custom_range: 'Moslashuvchan davr',
+        },
+        selectedRangeLabel: 'Tanlangan davr: {range}',
+        customRange: {
+          start: 'Boshlanish sanasi',
+          end: 'Yakun sanasi',
+          helper: 'Moslashuvchan davrni tanlang',
+          error: 'Boshlanish va tugash sanalarini belgilang',
+        },
       },
+    },
       analytics: {
         header: 'Moliyaviy analitika',
         expenseDynamics: 'Xarajatlar dinamikasi',
@@ -2488,11 +3365,44 @@ const t = {
           selectAccount: 'Hisobni tanlang',
           expectedReturn: 'Qaytarish sanasi',
           expectedPlaceholder: 'Qaytarish sanasi belgilanmagan',
-          selectDate: 'Sana tanlang',
-          note: 'Izoh',
-          notePlaceholder: 'Qo‘shimcha izoh yoki tafsilot kiriting…',
-          toggles: { incoming: 'Menga qarzdor', outgoing: 'Men qarzdorman' },
-          manageActions: 'Qarzni boshqarish',
+        selectDate: 'Sana tanlang',
+        note: 'Izoh',
+        notePlaceholder: 'Qo‘shimcha izoh yoki tafsilot kiriting…',
+        personDirectional: {
+          incoming: { label: 'Kimdan oldingiz?', placeholder: 'Qarz bergan shaxs' },
+          outgoing: { label: 'Kimga beryapsiz?', placeholder: 'Qarz oluvchi shaxs' },
+        },
+        toggles: { incoming: 'Menga qarzdor', outgoing: 'Men qarzdorman' },
+        manageActions: 'Qarzni boshqarish',
+        accountDirectional: {
+          incoming: {
+            label: 'Qaysi hisobraqamga tushadi',
+            helper: 'Pul tanlangan hisobga tushadi ({accountCurrency}).',
+          },
+          outgoing: {
+            label: 'Qaysi hisobdan olinadi',
+            helper: 'Pul tanlangan hisobdan olinadi ({accountCurrency}).',
+          },
+        },
+        currencyFlow: {
+          incoming: 'Siz {debtCurrency} olasiz → {accountCurrency} hisobiga tushadi',
+          outgoing: 'Siz {debtCurrency} berasiz → {accountCurrency} hisobidan olinadi',
+        },
+        counterpartyPickerTitle: 'Shaxsni tanlang',
+        counterpartySearchPlaceholder: 'Ism bo‘yicha qidiring',
+        counterpartyAddAction: '“{query}” ni qo‘shish',
+        counterpartyEmpty: 'Hozircha ro‘yxat bo‘sh. Avval odam qo‘shing.',
+        counterpartyActions: {
+          renameTitle: 'Ismni o‘zgartirish',
+          renamePlaceholder: 'Yangi ism kiriting',
+          renameSave: 'Saqlash',
+          renameCancel: 'Bekor qilish',
+          deleteTitle: 'Foydalanuvchini o‘chirilsinmi?',
+          deleteDescription: 'Bu foydalanuvchi butunlay o‘chiriladi.',
+          deleteConfirm: 'O‘chirish',
+          deleteBlocked: 'Qarz bilan bog‘langan foydalanuvchini o‘chirib bo‘lmaydi.',
+          duplicateName: 'Bunday ism allaqachon mavjud.',
+        },
           buttons: {
             cancel: 'Bekor qilish',
             save: 'Saqlash',
@@ -2528,6 +3438,13 @@ const t = {
           notify: 'Bildirishnoma',
           schedule: 'Sanalarni boshqarish',
         },
+        manualRate: {
+          title: 'Konvertatsiya',
+          description:
+            'Qarz valyutasi {debtCurrency}. Hisob valyutasi {accountCurrency}. {accountCurrency} bo‘yicha yechib olinadigan summani kiriting.',
+          toggle: 'Qo‘lda kiritish',
+          amountLabel: '{currency} bo‘yicha yechib olinadigan summa',
+        },
         fullPaymentTitle: 'Qarzini to‘liq to‘lash',
         fullPaymentDescription: 'Qolgan {amount} summa to‘liq yopiladi.',
         fullPaymentSubmit: 'To‘liq to‘lash',
@@ -2536,6 +3453,51 @@ const t = {
     },
   },
   ar: {
+    auth: {
+      register: {
+        title: 'إنشاء حساب',
+        description: 'أنشئ حساباً للمتابعة.',
+        fields: {
+          email: 'البريد الإلكتروني',
+          fullName: 'الاسم الكامل',
+          password: 'كلمة المرور',
+          confirmPassword: 'تأكيد كلمة المرور',
+        },
+        placeholders: {
+          email: 'name@example.com',
+          fullName: 'أدخل اسمك الكامل',
+          password: 'أنشئ كلمة مرور',
+          confirmPassword: 'أعد إدخال كلمة المرور',
+        },
+        buttons: {
+          submit: 'تسجيل',
+          socialComingSoon: 'قريباً',
+        },
+        links: {
+          haveAccount: 'لديك حساب بالفعل؟',
+          signIn: 'تسجيل الدخول',
+        },
+        selectors: {
+          sectionTitle: 'المنطقة والعملة',
+          helper: 'سيتم استخدام {currency} كعملة أساسية',
+          regionLabel: 'المنطقة',
+          currencyLabel: 'العملة',
+          currencyHint: 'اضغط للتغيير',
+        },
+        sheets: {
+          regionTitle: 'اختر المنطقة',
+          currencyTitle: 'اختر العملة',
+          currencySearch: 'ابحث عن العملة',
+        },
+        alerts: {
+          successTitle: 'تم التسجيل بنجاح',
+          successMessage: 'مرحباً بك! تم إنشاء حسابك.',
+          failureTitle: 'فشل التسجيل',
+          socialTitle: 'قريباً',
+          socialMessage: 'سيتم دعم التسجيل عبر {provider} قريباً.',
+        },
+      },
+    },
     addTask: arAddTask as AppTranslations['addTask'],
     home: {
       header: {
@@ -2548,6 +3510,13 @@ const t = {
         morning: 'صباح الخير',
         afternoon: 'نهار سعيد',
         evening: 'مساء الخير',
+        night: 'تصبح على خير',
+        defaultName: 'صديقي',
+      },
+      status: {
+        online: 'متصل',
+        offline: 'غير متصل',
+        connecting: 'جارٍ الفحص…',
       },
       widgets: {
         title: 'الويدجت',
@@ -2780,6 +3749,20 @@ const t = {
       habits: {
         headerTitle: 'العادات',
         badgeSuffix: 'يوم',
+        calendarTitle: 'سجل الشهر — {month}',
+        calendarLegend: { done: 'منجز', miss: 'مفوّت', none: 'لا بيانات' },
+        calendarLegendHint: {
+          done: '{count} يومًا منجزًا ({percent}%)',
+          miss: '{count} يومًا مفوّتًا ({percent}%)',
+          none: '{count} يومًا دون تسجيل ({percent}%)',
+        },
+        challenge: {
+          title: 'مدة التحدي',
+          subtitle: 'اختر دورة 20/40/90 يومًا لبناء العادة.',
+          options: { short: '20 يومًا', medium: '40 يومًا', long: '90 يومًا' },
+          pinMessage: 'أكمل {days} يومًا متتاليًا لتثبيت العادة.',
+        },
+        calendarButton: 'عرض التقويم',
         stats: {
           streak: 'سلسلة: {days} يوم متتالٍ',
           record: 'أفضل رقم: {days} يوم',
@@ -2822,6 +3805,10 @@ const t = {
             marathoner: 'ماراثوني (42 يوماً متتالياً)',
           },
         },
+        empty: {
+          title: 'لا توجد عادات بعد',
+          subtitle: 'أضف عادة من المخطط لبدء متابعة السلاسل والتقدم.',
+        },
         data: {
           h1: {
             title: 'تمارين الصباح',
@@ -2842,8 +3829,11 @@ const t = {
           h5: {
             title: 'من دون شبكات اجتماعية',
           },
-        },
       },
+      },
+    },
+    plannerModals: {
+      goal: arGoalModal as AppTranslations['plannerModals']['goal'],
     },
     widgets: {
       budgetProgress: {
@@ -3005,6 +3995,7 @@ const t = {
         personal: 'المعلومات الشخصية',
         stats: 'إحصائيات الاستخدام',
         preferences: 'الملف العام',
+        finance: 'تفضيلات المالية',
         actions: 'إجراءات الحساب',
       },
       fields: {
@@ -3019,6 +4010,34 @@ const t = {
         showLevel: 'إظهار شارة المستوى',
         showAchievements: 'إظهار الإنجازات',
         showStatistics: 'إظهار الإحصائيات',
+      },
+      finance: {
+        regionLabel: 'المنطقة الأساسية',
+        currencyLabel: 'عملة العرض',
+        regionSheetTitle: 'اختر منطقتك',
+        currencySheetTitle: 'اختر العملة',
+        currencySearchPlaceholder: 'ابحث عن العملة',
+        fxTitle: 'أسعار الصرف',
+        fxDescription: 'قم بمزامنة بيانات المزود أو أدخل سعراً يدوياً لعملة معينة.',
+        fxProviderLabel: 'مزود الأسعار',
+        fxProviders: {
+          central_bank_stub: 'البنك المركزي',
+          market_stub: 'السوق',
+        },
+        fxSyncButton: 'مزامنة الأسعار',
+        fxSyncing: 'جاري المزامنة...',
+        fxSyncSuccess: 'تم تحديث الأسعار عبر {provider}',
+        fxSyncError: 'تعذر تحديث الأسعار. حاول مرة أخرى.',
+        fxLastSync: 'آخر مزامنة: {value}',
+        fxManualTitle: 'تعديل يدوي',
+        fxManualHint: 'سعر مقابل {base}',
+        fxManualCurrencyLabel: 'العملة',
+        fxOverridePlaceholder: 'أدخل السعر',
+        fxOverrideButton: 'حفظ السعر',
+        fxOverrideSuccess: 'تم حفظ السعر لـ {currency}',
+        fxOverrideError: 'أدخل قيمة صحيحة',
+        fxOverrideBaseError: 'اختر عملة مختلفة عن العملة الأساسية',
+        fxOverrideSheetTitle: 'اختر العملة للتعديل اليدوي',
       },
       stats: {
         daysWithApp: 'أيام مع LEORA',
@@ -3065,7 +4084,52 @@ const t = {
         seeAll: 'عرض الكل',
         importantEvents: 'أحداث مهمة',
         table: { type: 'النوع', amount: 'المبلغ', date: 'التاريخ' },
+        fxQuick: {
+          title: 'أسعار الصرف',
+          providerLabel: 'المزود',
+          providers: {
+            central_bank_stub: 'البنك المركزي',
+            market_stub: 'السوق',
+          },
+          syncButton: 'مزامنة الأسعار',
+          syncDescription: 'جلب أحدث الأسعار من المزود',
+          syncing: 'جاري المزامنة...',
+          syncSuccess: 'تم تحديث الأسعار عبر {provider}',
+          syncError: 'تعذر تحديث الأسعار. حاول مرة أخرى.',
+          lastSync: 'آخر مزامنة: {value}',
+          overrideButton: 'تعديل يدوي',
+          overrideHint: 'سعر مقابل {base}',
+          overrideTitle: 'تعديل يدوي',
+          overridePlaceholder: 'أدخل السعر',
+          overrideConfirm: 'حفظ',
+          overrideCancel: 'إلغاء',
+        overrideSuccess: 'تم حفظ السعر لـ {currency}',
+        overrideError: 'أدخل قيمة صحيحة',
+        overrideBaseError: 'اختر عملة مختلفة عن العملة الأساسية',
       },
+      accountFilterTitle: 'اختر الحسابات',
+      accountFilterAll: 'كل الحسابات',
+      accountFilterSelected: '{count} محدد',
+      accountFilterSelectAll: 'تحديد الكل',
+      accountFilterApply: 'تطبيق',
+      accountFilterCurrencyLabel: 'عملة العرض',
+      monitorTitle: 'مراقبة الرصيد',
+      monitorSearchPlaceholder: 'ابحث عن معاملات',
+      monitorAccounts: 'الحسابات',
+      monitorTypesTitle: 'نوع العملية',
+      monitorTypes: {
+        income: 'دخل',
+        expense: 'مصروف',
+        transfer: 'تحويل',
+      },
+      monitorDateFrom: 'من',
+      monitorDateTo: 'إلى',
+      monitorResults: 'المعاملات',
+      monitorNoDate: 'غير محدد',
+      monitorEmpty: 'لا توجد معاملات مطابقة للمرشحات',
+      monitorApply: 'تم',
+      monitorReset: 'إعادة التصفية',
+    },
       accounts: {
         header: 'حساباتي',
         income: 'الدخل',
@@ -3079,6 +4143,7 @@ const t = {
         header: 'سجل المعاملات',
         details: {
           title: 'تفاصيل المعاملة',
+          type: 'نوع العملية',
           amount: 'المبلغ',
           account: 'الحساب',
           category: 'الفئة',
@@ -3087,16 +4152,51 @@ const t = {
           relatedDebt: 'دين مرتبط',
           close: 'إغلاق',
         },
+        filterSheet: {
+          title: 'تصفية المعاملات',
+          dateRange: 'نطاق التاريخ',
+          category: 'الفئة',
+          accounts: 'الحسابات',
+          type: 'نوع العملية',
+          amount: 'نطاق المبلغ',
+          from: 'من',
+          to: 'إلى',
+          selectDate: 'اختر التاريخ',
+          reset: 'إعادة ضبط',
+          apply: 'تطبيق',
+          all: 'الكل',
+          typeOptions: {
+            income: 'دخل',
+            expense: 'مصروف',
+            transfer: 'تحويل',
+            debt: 'دين',
+          },
+        },
       },
       budgets: {
         today: 'نظرة على ميزانية اليوم',
         dateTemplate: 'نظرة على الميزانية لـ {date}',
         mainTitle: 'الميزانية الرئيسية',
-        categoriesTitle: 'الفئات',
-        addCategory: 'إضافة فئة',
-        setLimit: 'تحديد حد',
-        states: { exceeding: 'تجاوز', fixed: 'ثابت', within: 'ضمن الحد' },
+      categoriesTitle: 'الفئات',
+      addCategory: 'إضافة فئة',
+      setLimit: 'تحديد حد',
+      states: { exceeding: 'تجاوز', fixed: 'ثابت', within: 'ضمن الحد' },
+      form: {
+        periodLabel: 'فترة الميزانية',
+        periodOptions: {
+          weekly: 'أسبوعية',
+          monthly: 'شهرية',
+          custom_range: 'مدى مخصص',
+        },
+        selectedRangeLabel: 'النطاق المختار: {range}',
+        customRange: {
+          start: 'تاريخ البداية',
+          end: 'تاريخ النهاية',
+          helper: 'اختر نطاقاً زمنياً مخصصاً',
+          error: 'يرجى تحديد تاريخي البداية والنهاية',
+        },
       },
+    },
       analytics: {
         header: 'التحليلات المالية',
         expenseDynamics: 'ديناميكيات المصاريف',
@@ -3145,11 +4245,44 @@ const t = {
           selectAccount: 'اختر محفظة',
           expectedReturn: 'تاريخ السداد المتوقع',
           expectedPlaceholder: 'لم يتم تحديد تاريخ سداد',
-          selectDate: 'اختر التاريخ',
-          note: 'ملاحظة',
-          notePlaceholder: 'أضف وصفاً أو تفاصيل إضافية…',
-          toggles: { incoming: 'يدينون لي', outgoing: 'أنا مدين' },
-          manageActions: 'إدارة الدين',
+        selectDate: 'اختر التاريخ',
+        note: 'ملاحظة',
+        notePlaceholder: 'أضف وصفاً أو تفاصيل إضافية…',
+        personDirectional: {
+          incoming: { label: 'ممن اقترضت؟', placeholder: 'اكتب اسم الدائن' },
+          outgoing: { label: 'لمن تُقرض؟', placeholder: 'اكتب اسم المستفيد' },
+        },
+        toggles: { incoming: 'يدينون لي', outgoing: 'أنا مدين' },
+        manageActions: 'إدارة الدين',
+        accountDirectional: {
+          incoming: {
+            label: 'الإيداع في المحفظة',
+            helper: 'سيتم إيداع المبلغ في المحفظة المختارة ({accountCurrency}).',
+          },
+          outgoing: {
+            label: 'الخصم من المحفظة',
+            helper: 'سيتم الخصم من المحفظة المختارة ({accountCurrency}).',
+          },
+        },
+        currencyFlow: {
+          incoming: 'استلام {debtCurrency} → إيداع {accountCurrency}',
+          outgoing: 'إرسال {debtCurrency} → خصم {accountCurrency}',
+        },
+        counterpartyPickerTitle: 'اختر الشخص',
+        counterpartySearchPlaceholder: 'ابحث عن الاسم',
+        counterpartyAddAction: 'إضافة "{query}"',
+        counterpartyEmpty: 'لا يوجد أشخاص بعد، أضف أول جهة.',
+        counterpartyActions: {
+          renameTitle: 'إعادة تسمية الشخص',
+          renamePlaceholder: 'أدخل الاسم الجديد',
+          renameSave: 'حفظ الاسم',
+          renameCancel: 'إلغاء',
+          deleteTitle: 'حذف هذا الشخص؟',
+          deleteDescription: 'سيتم حذف هذا الشخص نهائياً.',
+          deleteConfirm: 'حذف',
+          deleteBlocked: 'لا يمكن حذف شخص مرتبط بديون.',
+          duplicateName: 'يوجد شخص بهذا الاسم بالفعل.',
+        },
           buttons: {
             cancel: 'إلغاء',
             save: 'حفظ',
@@ -3185,6 +4318,13 @@ const t = {
           notify: 'الإشعار',
           schedule: 'إدارة التواريخ',
         },
+        manualRate: {
+          title: 'التحويل',
+          description:
+            'عملة الدين {debtCurrency}. عملة المحفظة {accountCurrency}. أدخل قيمة الخصم بعملة {accountCurrency}.',
+          toggle: 'إدخال يدوي',
+          amountLabel: 'المبلغ بالعملة ({currency})',
+        },
         fullPaymentTitle: 'سداد الدين بالكامل',
         fullPaymentDescription: 'سيتم سداد الرصيد المتبقي بالكامل ({amount}).',
         fullPaymentSubmit: 'سدّد بالكامل',
@@ -3193,6 +4333,51 @@ const t = {
     },
   },
   tr: {
+    auth: {
+      register: {
+        title: 'Kayıt ol',
+        description: 'Devam etmek için bir hesap oluştur.',
+        fields: {
+          email: 'E-posta',
+          fullName: 'Ad soyad',
+          password: 'Şifre',
+          confirmPassword: 'Şifreyi doğrula',
+        },
+        placeholders: {
+          email: 'name@example.com',
+          fullName: 'Adınızı girin',
+          password: 'Şifre oluşturun',
+          confirmPassword: 'Şifreyi tekrar girin',
+        },
+        buttons: {
+          submit: 'Hesap oluştur',
+          socialComingSoon: 'Yakında',
+        },
+        links: {
+          haveAccount: 'Zaten hesabın var mı?',
+          signIn: 'Giriş yap',
+        },
+        selectors: {
+          sectionTitle: 'Bölge ve para birimi',
+          helper: 'Ana para birimi {currency} olacak',
+          regionLabel: 'Bölge',
+          currencyLabel: 'Para birimi',
+          currencyHint: 'Değiştirmek için dokun',
+        },
+        sheets: {
+          regionTitle: 'Bölge seç',
+          currencyTitle: 'Para birimi seç',
+          currencySearch: 'Para birimi ara',
+        },
+        alerts: {
+          successTitle: 'Kayıt başarılı',
+          successMessage: 'Aramıza hoş geldin! Hesabın hazır.',
+          failureTitle: 'Kayıt başarısız',
+          socialTitle: 'Yakında',
+          socialMessage: '{provider} ile kayıt özelliği yakında gelecek.',
+        },
+      },
+    },
     addTask: trAddTask as AppTranslations['addTask'],
     home: {
       header: {
@@ -3205,6 +4390,13 @@ const t = {
         morning: 'Günaydın',
         afternoon: 'İyi günler',
         evening: 'İyi akşamlar',
+        night: 'İyi geceler',
+        defaultName: 'dostum',
+      },
+      status: {
+        online: 'Çevrimiçi',
+        offline: 'Çevrimdışı',
+        connecting: 'Kontrol ediliyor…',
       },
       widgets: {
         title: 'Widgetler',
@@ -3437,6 +4629,20 @@ const t = {
       habits: {
         headerTitle: 'Alışkanlıklar',
         badgeSuffix: 'gün',
+        calendarTitle: 'Aylık takip — {month}',
+        calendarLegend: { done: 'Tamamlandı', miss: 'Kaçırıldı', none: 'Kayıt yok' },
+        calendarLegendHint: {
+          done: '{count} gün tamamlandı ({percent}%)',
+          miss: '{count} gün kaçırıldı ({percent}%)',
+          none: '{count} gün beklemede ({percent}%)',
+        },
+        challenge: {
+          title: 'Meydan okuma süresi',
+          subtitle: 'Klasik 20/40/90 günlük döngülerden birini seç.',
+          options: { short: '20 gün', medium: '40 gün', long: '90 gün' },
+          pinMessage: '{days} gün üst üste tamamlayarak alışkanlığı kilitle.',
+        },
+        calendarButton: 'Takvimi aç',
         stats: {
           streak: 'Seri: {days} gün üst üste',
           record: 'Rekor: {days} gün',
@@ -3472,16 +4678,20 @@ const t = {
             worstTime: 'En kötü zaman: Hafta sonu (%45)',
             afterWeekends: 'Hafta sonu sonrası: −%30 olasılık',
           },
-          badges: {
-            firstWeek: 'İlk hafta',
-            monthNoBreak: 'Kesintisiz ay',
-            hundredCompletions: '100 tamamlanma',
-            marathoner: 'Maratoncu (42 gün üst üste)',
-          },
+        badges: {
+          firstWeek: 'İlk hafta',
+          monthNoBreak: 'Kesintisiz ay',
+          hundredCompletions: '100 tamamlanma',
+          marathoner: 'Maratoncu (42 gün üst üste)',
         },
-        data: {
-          h1: {
-            title: 'Sabah antrenmanı',
+      },
+      empty: {
+        title: 'Henüz alışkanlık yok',
+        subtitle: 'Planlayıcıdan bir alışkanlık ekleyerek serileri ve ilerlemeyi takip etmeye başlayın.',
+      },
+      data: {
+        h1: {
+          title: 'Sabah antrenmanı',
             aiNote: 'Antrenmandan hemen sonra sabah dene',
           },
           h2: {
@@ -3499,8 +4709,11 @@ const t = {
           h5: {
             title: 'Sosyal ağsız',
           },
-        },
       },
+      },
+    },
+    plannerModals: {
+      goal: trGoalModal as AppTranslations['plannerModals']['goal'],
     },
     widgets: {
       budgetProgress: {
@@ -3662,6 +4875,7 @@ const t = {
         personal: 'Kişisel bilgiler',
         stats: 'Kullanım istatistikleri',
         preferences: 'Herkese açık profil',
+        finance: 'Finans tercihleri',
         actions: 'Hesap işlemleri',
       },
       fields: {
@@ -3676,6 +4890,34 @@ const t = {
         showLevel: 'Seviye rozetini göster',
         showAchievements: 'Başarıları göster',
         showStatistics: 'İstatistikleri göster',
+      },
+      finance: {
+        regionLabel: 'Ana bölge',
+        currencyLabel: 'Görünen para birimi',
+        regionSheetTitle: 'Bölge seçin',
+        currencySheetTitle: 'Para birimi seçin',
+        currencySearchPlaceholder: 'Para birimi ara',
+        fxTitle: 'Döviz kurları',
+        fxDescription: 'Provayderden kur çekin veya belirli bir para birimi için manuel değer girin.',
+        fxProviderLabel: 'Kur sağlayıcısı',
+        fxProviders: {
+          central_bank_stub: 'Merkez bankası',
+          market_stub: 'Piyasa',
+        },
+        fxSyncButton: 'Kurları senkronize et',
+        fxSyncing: 'Senkronize ediliyor...',
+        fxSyncSuccess: 'Kurlar {provider} ile güncellendi',
+        fxSyncError: 'Kurlar güncellenemedi. Lütfen tekrar deneyin.',
+        fxLastSync: 'Son senkronizasyon: {value}',
+        fxManualTitle: 'Manuel kur',
+        fxManualHint: '{base} baz alınarak',
+        fxManualCurrencyLabel: 'Para birimi',
+        fxOverridePlaceholder: 'Kur girin',
+        fxOverrideButton: 'Kaydet',
+        fxOverrideSuccess: '{currency} için kur kaydedildi',
+        fxOverrideError: 'Geçerli bir değer girin',
+        fxOverrideBaseError: 'Baz para biriminden farklı birini seçin',
+        fxOverrideSheetTitle: 'Manuel kur için para birimi',
       },
       stats: {
         daysWithApp: 'LEORA ile gün',
@@ -3722,7 +4964,52 @@ const t = {
         seeAll: 'Hepsini gör',
         importantEvents: 'Önemli olaylar',
         table: { type: 'Tür', amount: 'Tutar', date: 'Tarih' },
+        fxQuick: {
+          title: 'Döviz işlemleri',
+          providerLabel: 'Sağlayıcı',
+          providers: {
+            central_bank_stub: 'Merkez bankası',
+            market_stub: 'Piyasa',
+          },
+          syncButton: 'Kurları senkronize et',
+          syncDescription: 'Sağlayıcıdan en güncel kurları çek',
+          syncing: 'Senkronize ediliyor...',
+          syncSuccess: 'Kurlar {provider} ile güncellendi',
+          syncError: 'Kurlar güncellenemedi. Tekrar deneyin.',
+          lastSync: 'Son senkronizasyon: {value}',
+          overrideButton: 'Manuel kur',
+          overrideHint: '{base} baz alınarak',
+          overrideTitle: 'Manuel kur',
+          overridePlaceholder: 'Kur girin',
+          overrideConfirm: 'Kaydet',
+          overrideCancel: 'Vazgeç',
+        overrideSuccess: '{currency} için kur kaydedildi',
+        overrideError: 'Geçerli bir değer girin',
+        overrideBaseError: 'Baz para biriminden farklı birini seçin',
       },
+      accountFilterTitle: 'Hesapları seç',
+      accountFilterAll: 'Tüm hesaplar',
+      accountFilterSelected: '{count} hesap',
+      accountFilterSelectAll: 'Hepsini seç',
+      accountFilterApply: 'Uygula',
+      accountFilterCurrencyLabel: 'Gösterim para birimi',
+      monitorTitle: 'Bakiye izlemesi',
+      monitorSearchPlaceholder: 'İşlem ara',
+      monitorAccounts: 'Hesaplar',
+      monitorTypesTitle: 'İşlem türleri',
+      monitorTypes: {
+        income: 'Gelir',
+        expense: 'Gider',
+        transfer: 'Transfer',
+      },
+      monitorDateFrom: 'Başlangıç',
+      monitorDateTo: 'Bitiş',
+      monitorResults: 'İşlemler',
+      monitorNoDate: 'Seçilmedi',
+      monitorEmpty: 'Filtrelere uygun işlem yok',
+      monitorApply: 'Tamam',
+      monitorReset: 'Filtreleri sıfırla',
+    },
       accounts: {
         header: 'Hesaplarım',
         income: 'Gelir',
@@ -3736,6 +5023,7 @@ const t = {
         header: 'İşlem geçmişi',
         details: {
           title: 'İşlem detayları',
+          type: 'İşlem türü',
           amount: 'Tutar',
           account: 'Hesap',
           category: 'Kategori',
@@ -3744,16 +5032,51 @@ const t = {
           relatedDebt: 'Bağlı borç',
           close: 'Kapat',
         },
+        filterSheet: {
+          title: 'İşlemleri filtrele',
+          dateRange: 'Tarih aralığı',
+          category: 'Kategori',
+          accounts: 'Hesaplar',
+          type: 'İşlem türü',
+          amount: 'Tutar aralığı',
+          from: 'Başlangıç',
+          to: 'Bitiş',
+          selectDate: 'Tarih seç',
+          reset: 'Sıfırla',
+          apply: 'Uygula',
+          all: 'Tümü',
+          typeOptions: {
+            income: 'Gelir',
+            expense: 'Gider',
+            transfer: 'Transfer',
+            debt: 'Borç',
+          },
+        },
       },
       budgets: {
         today: 'Bugünkü bütçe özeti',
         dateTemplate: '{date} bütçe özeti',
         mainTitle: 'Ana bütçe',
-        categoriesTitle: 'Kategoriler',
-        addCategory: 'Kategori ekle',
-        setLimit: 'Limit belirle',
-        states: { exceeding: 'Limit aşıldı', fixed: 'Sabit', within: 'Sınır içinde' },
+      categoriesTitle: 'Kategoriler',
+      addCategory: 'Kategori ekle',
+      setLimit: 'Limit belirle',
+      states: { exceeding: 'Limit aşıldı', fixed: 'Sabit', within: 'Sınır içinde' },
+      form: {
+        periodLabel: 'Bütçe dönemi',
+        periodOptions: {
+          weekly: 'Haftalık',
+          monthly: 'Aylık',
+          custom_range: 'Özel aralık',
+        },
+        selectedRangeLabel: 'Seçilen aralık: {range}',
+        customRange: {
+          start: 'Başlangıç tarihi',
+          end: 'Bitiş tarihi',
+          helper: 'Özel bir tarih aralığı seçin',
+          error: 'Başlangıç ve bitiş tarihlerini seçin',
+        },
       },
+    },
       analytics: {
         header: 'Finansal analiz',
         expenseDynamics: 'Gider dinamikleri',
@@ -3802,11 +5125,44 @@ const t = {
           selectAccount: 'Cüzdan seç',
           expectedReturn: 'Beklenen dönüş tarihi',
           expectedPlaceholder: 'Vade belirlenmedi',
-          selectDate: 'Tarih seç',
-          note: 'Not',
-          notePlaceholder: 'İsteğe bağlı açıklama ekleyin…',
-          toggles: { incoming: 'Bana borçlu', outgoing: 'Ben borçluyum' },
-          manageActions: 'Borcu yönet',
+        selectDate: 'Tarih seç',
+        note: 'Not',
+        notePlaceholder: 'İsteğe bağlı açıklama ekleyin…',
+        personDirectional: {
+          incoming: { label: 'Kimden aldınız?', placeholder: 'Borç veren kişi' },
+          outgoing: { label: 'Kime veriyorsunuz?', placeholder: 'Borç alan kişi' },
+        },
+        toggles: { incoming: 'Bana borçlu', outgoing: 'Ben borçluyum' },
+        manageActions: 'Borcu yönet',
+        accountDirectional: {
+          incoming: {
+            label: 'Hangi cüzdana yatacak',
+            helper: 'Para seçilen cüzdana yatacak ({accountCurrency}).',
+          },
+          outgoing: {
+            label: 'Hangi cüzdandan çıkacak',
+            helper: 'Para seçilen cüzdandan düşecek ({accountCurrency}).',
+          },
+        },
+        currencyFlow: {
+          incoming: '{debtCurrency} alıyorsunuz → {accountCurrency} cüzdana yatıyor',
+          outgoing: '{debtCurrency} veriyorsunuz → {accountCurrency} cüzdandan düşüyor',
+        },
+        counterpartyPickerTitle: 'Kişi seçin',
+        counterpartySearchPlaceholder: 'İsim ara',
+        counterpartyAddAction: '"{query}" kişisini ekle',
+        counterpartyEmpty: 'Henüz kişi yok. Önce birini ekleyin.',
+        counterpartyActions: {
+          renameTitle: 'Kişiyi yeniden adlandır',
+          renamePlaceholder: 'Yeni isim girin',
+          renameSave: 'Kaydet',
+          renameCancel: 'İptal',
+          deleteTitle: 'Kişi silinsin mi?',
+          deleteDescription: 'Bu kişi listeden kalıcı olarak silinecek.',
+          deleteConfirm: 'Sil',
+          deleteBlocked: 'Borçla ilişkili kişiyi silemezsiniz.',
+          duplicateName: 'Bu isim zaten mevcut.',
+        },
           buttons: {
             cancel: 'İptal',
             save: 'Kaydet',
@@ -3841,6 +5197,13 @@ const t = {
           partial: 'Kısmi ödeme',
           notify: 'Bildirim',
           schedule: 'Tarihleri yönet',
+        },
+        manualRate: {
+          title: 'Dönüşüm',
+          description:
+            'Borç para birimi {debtCurrency}. Cüzdan para birimi {accountCurrency}. {accountCurrency} olarak düşülecek tutarı girin.',
+          toggle: 'Manuel gir',
+          amountLabel: '{currency} olarak düşülecek tutar',
         },
         fullPaymentTitle: 'Borcu tamamen öde',
         fullPaymentDescription: 'Kalan {amount} tutarın tamamı ödendi olarak işaretlenecek.',

@@ -1,7 +1,6 @@
 /* eslint-disable react/no-unescaped-entities */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  FlatList,
   Modal,
   KeyboardAvoidingView,
   Platform,
@@ -14,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Path, Circle, G, Rect, Line } from 'react-native-svg';
+import Svg, { Path, Circle, G, Rect } from 'react-native-svg';
 import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
@@ -22,10 +21,15 @@ import DateTimePicker, {
 
 import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
+import DateChangeModal from '@/components/modals/DateChangeModal';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useModalStore } from '@/stores/useModalStore';
 import { useShallow } from 'zustand/react/shallow';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import { useSelectedDayStore } from '@/stores/selectedDayStore';
+import type { Habit, HabitType } from '@/domain/planner/types';
 import { useLocalization } from '@/localization/useLocalization';
+import type { CalendarIndicatorsMap } from '@/types/home';
 
 // Custom SVG Icons with more detail
 const RunningIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
@@ -136,10 +140,10 @@ const BriefcaseIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: s
 );
 
 const TEMPLATES = [
-  { id: 'morning-workout', icon: 'running', title: 'Morning workout', time: '07:00' },
-  { id: 'meditation', icon: 'meditation', title: 'Meditation', time: '06:30' },
-  { id: 'drink-water', icon: 'water', title: 'Drink water', time: '08:00' },
-  { id: 'quit-smoking', icon: 'no-smoking', title: 'Quit smoking', time: '00:00' },
+  { id: 'morning-workout', icon: 'running', title: 'Morning workout', time: '07:00', type: 'binary' as const, category: 'health' },
+  { id: 'meditation', icon: 'meditation', title: 'Meditation', time: '06:30', type: 'binary' as const, category: 'health' },
+  { id: 'drink-water', icon: 'water', title: 'Drink water', time: '08:00', type: 'numerical' as const, target: 8, unit: 'glasses', category: 'health' },
+  { id: 'quit-smoking', icon: 'no-smoking', title: 'Quit smoking', time: '00:00', type: 'negative' as const, category: 'health' },
 ];
 
 const HABIT_ICONS = [
@@ -159,13 +163,52 @@ const CATEGORIES = [
   { id: 'food', label: 'Food', custom: true },
 ];
 
-const DIFFICULTY = [
-  { id: 'easy', label: 'Easy', emoji: '🍃' },
-  { id: 'medium', label: 'Medium', emoji: '🔥' },
-  { id: 'hard', label: 'Hard', emoji: '❓' },
+// Типы привычек
+const HABIT_TYPES = [
+  { id: 'binary', label: 'Yes/No', description: 'Simple completion', emoji: '✓' },
+  { id: 'numerical', label: 'Target', description: 'With a goal', emoji: '🎯' },
+  { id: 'negative', label: 'Quit', description: 'Break a habit', emoji: '🚫' },
 ];
 
-const STREAK_GOALS = [7, 21, 30, 66, 100];
+// Частота повторения
+const FREQUENCY_OPTIONS = [
+  { id: 'daily', label: 'Daily' },
+  { id: 'specific', label: 'Specific days' },
+  { id: 'weekly', label: 'X times/week' },
+];
+
+const WEEKDAYS = [
+  { id: 0, short: 'Su', full: 'Sunday' },
+  { id: 1, short: 'Mo', full: 'Monday' },
+  { id: 2, short: 'Tu', full: 'Tuesday' },
+  { id: 3, short: 'We', full: 'Wednesday' },
+  { id: 4, short: 'Th', full: 'Thursday' },
+  { id: 5, short: 'Fr', full: 'Friday' },
+  { id: 6, short: 'Sa', full: 'Saturday' },
+];
+
+const CHALLENGE_DURATIONS = [
+  { id: '21', label: '21 days', description: 'Habit forming' },
+  { id: '30', label: '30 days', description: 'Monthly challenge' },
+  { id: '66', label: '66 days', description: 'Scientific proven' },
+  { id: '90', label: '90 days', description: 'Life changing' },
+  { id: 'forever', label: 'Forever', description: 'No end date' },
+  { id: 'custom', label: 'Custom', description: 'Set your own' },
+];
+
+const HABIT_CATEGORY_MAP: Record<string, HabitType> = {
+  health: 'health',
+  work: 'productivity',
+  food: 'personal',
+};
+
+const HABIT_TYPE_TO_CATEGORY: Partial<Record<HabitType, string>> = {
+  health: 'health',
+  productivity: 'work',
+  education: 'work',
+  finance: 'work',
+  personal: 'food',
+};
 
 const modalProps: Partial<CustomModalProps> = {
   variant: 'form',
@@ -176,30 +219,83 @@ const modalProps: Partial<CustomModalProps> = {
   contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
 };
 
+type Reminder = {
+  id: string;
+  time: string;
+};
+
 export default function PlannerHabitModal() {
   const { plannerHabitModal, closePlannerHabitModal } = useModalStore(
     useShallow((state) => ({
       plannerHabitModal: state.plannerHabitModal,
       closePlannerHabitModal: state.closePlannerHabitModal,
-    }))
+    })),
   );
   const modalRef = useRef<BottomSheetHandle>(null);
   const hasHydratedRef = useRef(false);
+  const { createHabit, updateHabit, habits, goals } = usePlannerDomainStore(
+    useShallow((state) => ({
+      createHabit: state.createHabit,
+      updateHabit: state.updateHabit,
+      habits: state.habits,
+      goals: state.goals,
+    })),
+  );
+  const selectedDay = useSelectedDayStore((state) => state.selectedDate);
   const { strings } = useLocalization();
-  const habitAiStrings = strings.plannerScreens.habits.ai;
+  const addTaskStrings = strings.addTask;
+  const habitStrings = strings.plannerScreens.habits;
 
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedIconId, setSelectedIconId] = useState('trophy');
-  const [countingType, setCountingType] = useState<'create' | 'quit'>('create');
+  const [habitType, setHabitType] = useState<'binary' | 'numerical' | 'negative'>('binary');
   const [category, setCategory] = useState('health');
-  const [difficulty, setDifficulty] = useState('medium');
-  const [reminderEnabled, setReminderEnabled] = useState(false);
-  const [reminderTime, setReminderTime] = useState('07:00');
+  const [frequency, setFrequency] = useState<'daily' | 'specific' | 'weekly'>('daily');
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]); // Default: weekdays
+  const [timesPerWeek, setTimesPerWeek] = useState(3);
+  const [targetValue, setTargetValue] = useState('1');
+  const [targetUnit, setTargetUnit] = useState('times');
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [streakEnabled, setStreakEnabled] = useState(false);
-  const [streakDays, setStreakDays] = useState(21);
+  const [editingReminderId, setEditingReminderId] = useState<string | null>(null);
+  const [linkedGoalId, setLinkedGoalId] = useState<string | undefined>(undefined);
+  const [challengeDuration, setChallengeDuration] = useState<string>('30');
+  const [customDuration, setCustomDuration] = useState('');
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  
+  const referenceDate = useMemo(() => selectedDay ?? new Date(), [selectedDay]);
+  const historyCalendarRef = useRef<BottomSheetHandle>(null);
+  
+  const editingHabit: Habit | undefined = useMemo(() => {
+    if (plannerHabitModal.mode !== 'edit' || !plannerHabitModal.habitId) {
+      return undefined;
+    }
+    return habits.find((habit) => habit.id === plannerHabitModal.habitId);
+  }, [habits, plannerHabitModal.habitId, plannerHabitModal.mode]);
+  
+  const habitCalendarIndicators = useMemo<CalendarIndicatorsMap>(() => {
+    if (!editingHabit?.completionHistory) {
+      return {};
+    }
+    const map: CalendarIndicatorsMap = {};
+    Object.entries(editingHabit.completionHistory).forEach(([key, status]) => {
+      map[key] = [status === 'done' ? 'success' : 'danger'];
+    });
+    return map;
+  }, [editingHabit?.completionHistory]);
+  
+  const isEditing = plannerHabitModal.mode === 'edit' && Boolean(editingHabit);
+
+  const goalOptions = useMemo(
+    () =>
+      goals.map((goal) => ({
+        id: goal.id,
+        title: goal.title,
+      })),
+    [goals],
+  );
 
   useEffect(() => {
     if (!hasHydratedRef.current) {
@@ -217,82 +313,323 @@ export default function PlannerHabitModal() {
     }
   }, [closePlannerHabitModal, plannerHabitModal.isOpen]);
 
+  const resetForm = useCallback(() => {
+    setTitle('');
+    setDescription('');
+    setSelectedIconId('trophy');
+    setHabitType('binary');
+    setCategory('health');
+    setFrequency('daily');
+    setSelectedDays([1, 2, 3, 4, 5]);
+    setTimesPerWeek(3);
+    setTargetValue('1');
+    setTargetUnit('times');
+    setReminders([]);
+    setShowTimePicker(false);
+    setEditingReminderId(null);
+    setLinkedGoalId(undefined);
+    setChallengeDuration('30');
+    setCustomDuration('');
+    setStartDate(new Date());
+  }, []);
+
   useEffect(() => {
     if (!plannerHabitModal.isOpen) {
-      setTitle('');
-      setDescription('');
-      setSelectedIconId('trophy');
-      setCountingType('create');
-      setCategory('health');
-      setDifficulty('medium');
-      setReminderEnabled(false);
-      setReminderTime('07:00');
-      setStreakEnabled(false);
-      setStreakDays(21);
-      setShowTimePicker(false);
+      resetForm();
     }
-  }, [plannerHabitModal.isOpen]);
+  }, [plannerHabitModal.isOpen, resetForm]);
+
+  useEffect(() => {
+    if (!plannerHabitModal.isOpen || plannerHabitModal.mode !== 'edit' || !editingHabit) {
+      return;
+    }
+    setTitle(editingHabit.title);
+    setDescription(editingHabit.description ?? '');
+    setSelectedIconId(editingHabit.iconId ?? 'trophy');
+    
+    // Определяем тип привычки
+    if (!editingHabit.unit) {
+      setHabitType('negative');
+    } else if (editingHabit.completionMode === 'boolean') {
+      setHabitType('binary');
+    } else {
+      setHabitType('numerical');
+      setTargetValue(String(editingHabit.targetPerDay ?? 1));
+      setTargetUnit(editingHabit.unit ?? 'times');
+    }
+    
+    setCategory(HABIT_TYPE_TO_CATEGORY[editingHabit.habitType] ?? 'health');
+    
+    // Определяем частоту
+    if (editingHabit.frequency === 'daily' && editingHabit.daysOfWeek?.length === 7) {
+      setFrequency('daily');
+    } else if (editingHabit.daysOfWeek && editingHabit.daysOfWeek.length > 0) {
+      setFrequency('specific');
+      setSelectedDays(editingHabit.daysOfWeek);
+    } else {
+      setFrequency('weekly');
+      setTimesPerWeek(editingHabit.timesPerWeek ?? 3);
+    }
+    
+    // Напоминания
+    if (editingHabit.timeOfDay) {
+      setReminders([{ id: '1', time: editingHabit.timeOfDay }]);
+    }
+    
+    // Challenge duration
+    if (editingHabit.challengeLengthDays) {
+      const durationStr = String(editingHabit.challengeLengthDays);
+      if (['21', '30', '66', '90'].includes(durationStr)) {
+        setChallengeDuration(durationStr);
+      } else {
+        setChallengeDuration('custom');
+        setCustomDuration(durationStr);
+      }
+    } else {
+      setChallengeDuration('forever');
+    }
+    
+    setLinkedGoalId(editingHabit.goalId ?? editingHabit.linkedGoalIds?.[0]);
+  }, [editingHabit, plannerHabitModal.isOpen, plannerHabitModal.mode]);
+
+  useEffect(() => {
+    if (plannerHabitModal.isOpen) {
+      setLinkedGoalId(plannerHabitModal.goalId ?? undefined);
+    }
+  }, [plannerHabitModal.goalId, plannerHabitModal.isOpen]);
 
   const handleTemplatePress = (template: typeof TEMPLATES[0]) => {
     setTitle(template.title);
-    setReminderTime(template.time);
-    setReminderEnabled(true);
     setSelectedIconId(template.icon);
+    setHabitType(template.type);
+    setCategory(template.category);
+    
+    if (template.type === 'numerical' && 'target' in template) {
+      setTargetValue(String(template.target));
+      setTargetUnit(template.unit || 'times');
+    }
+    
+    if (template.time !== '00:00') {
+      setReminders([{ id: Date.now().toString(), time: template.time }]);
+    }
   };
 
-  const reminderDateValue = useMemo(() => {
-    const [hours, minutes] = reminderTime.split(':');
+  const handleAddReminder = () => {
+    const newReminder: Reminder = {
+      id: Date.now().toString(),
+      time: '08:00',
+    };
+    setReminders([...reminders, newReminder]);
+  };
+
+  const handleRemoveReminder = (id: string) => {
+    setReminders(reminders.filter((r) => r.id !== id));
+  };
+
+  const handleUpdateReminderTime = (id: string, time: string) => {
+    setReminders(reminders.map((r) => (r.id === id ? { ...r, time } : r)));
+  };
+
+  const handleOpenTimePicker = (reminderId: string, currentTime: string) => {
+    setEditingReminderId(reminderId);
+    if (Platform.OS === 'android') {
+      const [hours, minutes] = currentTime.split(':');
+      const date = new Date();
+      date.setHours(parseInt(hours, 10));
+      date.setMinutes(parseInt(minutes, 10));
+      
+      DateTimePickerAndroid.open({
+        value: date,
+        mode: 'time',
+        is24Hour: true,
+        display: 'clock',
+        onChange: (event, selected) => {
+          if (event.type === 'set' && selected) {
+            const hours = selected.getHours().toString().padStart(2, '0');
+            const minutes = selected.getMinutes().toString().padStart(2, '0');
+            handleUpdateReminderTime(reminderId, `${hours}:${minutes}`);
+          }
+          setEditingReminderId(null);
+        },
+      });
+      return;
+    }
+    setShowTimePicker(true);
+  };
+
+  const currentReminderTime = useMemo(() => {
+    if (!editingReminderId) return new Date();
+    const reminder = reminders.find((r) => r.id === editingReminderId);
+    if (!reminder) return new Date();
+    const [hours, minutes] = reminder.time.split(':');
     const date = new Date();
     date.setHours(parseInt(hours, 10));
     date.setMinutes(parseInt(minutes, 10));
     date.setSeconds(0);
     date.setMilliseconds(0);
     return date;
-  }, [reminderTime]);
-
-  const applyReminderTime = useCallback((value: Date) => {
-    const hours = value.getHours().toString().padStart(2, '0');
-    const minutes = value.getMinutes().toString().padStart(2, '0');
-    setReminderTime(`${hours}:${minutes}`);
-  }, []);
-
-  const handleOpenTimePicker = useCallback(() => {
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({
-        value: reminderDateValue,
-        mode: 'time',
-        is24Hour: true,
-        display: 'clock',
-        onChange: (event, selected) => {
-          if (event.type === 'set' && selected) {
-            applyReminderTime(selected);
-          }
-        },
-      });
-      return;
-    }
-    setShowTimePicker(true);
-  }, [applyReminderTime, reminderDateValue]);
+  }, [editingReminderId, reminders]);
 
   const handleIosTimeChange = useCallback(
     (event: DateTimePickerEvent, selected?: Date) => {
       if (event.type === 'dismissed') {
         setShowTimePicker(false);
+        setEditingReminderId(null);
         return;
       }
-      if (selected) {
-        applyReminderTime(selected);
+      if (selected && editingReminderId) {
+        const hours = selected.getHours().toString().padStart(2, '0');
+        const minutes = selected.getMinutes().toString().padStart(2, '0');
+        handleUpdateReminderTime(editingReminderId, `${hours}:${minutes}`);
       }
       setShowTimePicker(false);
+      setEditingReminderId(null);
     },
-    [applyReminderTime],
+    [editingReminderId],
   );
 
-  const handleApplyAiSuggestion = () => {
-    setDifficulty('easy');
-    setStreakDays(7);
-    setCategory('health');
+  const toggleWeekday = (dayId: number) => {
+    if (selectedDays.includes(dayId)) {
+      // Не позволяем убрать все дни
+      if (selectedDays.length > 1) {
+        setSelectedDays(selectedDays.filter((d) => d !== dayId));
+      }
+    } else {
+      setSelectedDays([...selectedDays, dayId].sort());
+    }
   };
+
+  const buildHabitPayload = useCallback(() => {
+    const normalizedTitle = title.trim();
+    const normalizedDescription = description.trim();
+    const habitTypeCategory = HABIT_CATEGORY_MAP[category] ?? 'personal';
+    
+    let daysOfWeek: number[];
+    let timesPerWeekValue: number;
+    let frequencyValue: 'daily' | 'weekly';
+    
+    if (frequency === 'daily') {
+      daysOfWeek = [0, 1, 2, 3, 4, 5, 6];
+      timesPerWeekValue = 7;
+      frequencyValue = 'daily';
+    } else if (frequency === 'specific') {
+      daysOfWeek = selectedDays;
+      timesPerWeekValue = selectedDays.length;
+      frequencyValue = 'daily';
+    } else {
+      daysOfWeek = [];
+      timesPerWeekValue = timesPerWeek;
+      frequencyValue = 'weekly';
+    }
+    
+    let completionMode: 'boolean' | 'numeric';
+    let targetPerDay: number;
+    let unit: string | undefined;
+    
+    if (habitType === 'binary') {
+      completionMode = 'boolean';
+      targetPerDay = 1;
+      unit = 'count';
+    } else if (habitType === 'numerical') {
+      completionMode = 'numeric';
+      targetPerDay = parseInt(targetValue, 10) || 1;
+      unit = targetUnit;
+    } else {
+      // negative
+      completionMode = 'boolean';
+      targetPerDay = 0;
+      unit = undefined;
+    }
+    
+    // Calculate challenge length
+    let challengeLengthDays: number | undefined;
+    if (challengeDuration === 'forever') {
+      challengeLengthDays = undefined;
+    } else if (challengeDuration === 'custom') {
+      challengeLengthDays = parseInt(customDuration, 10) || 30;
+    } else {
+      challengeLengthDays = parseInt(challengeDuration, 10);
+    }
+    
+    // Calculate end date if challenge has duration
+    let endDate: Date | undefined;
+    if (challengeLengthDays) {
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + challengeLengthDays);
+    }
+    
+    return {
+      userId: 'local-user',
+      title: normalizedTitle || 'New habit',
+      description: normalizedDescription || undefined,
+      iconId: selectedIconId,
+      habitType: habitTypeCategory,
+      status: 'active' as const,
+      frequency: frequencyValue,
+      daysOfWeek,
+      timesPerWeek: timesPerWeekValue,
+      timeOfDay: reminders.length > 0 ? reminders[0].time : undefined,
+      completionMode,
+      targetPerDay,
+      unit,
+      streakCurrent: 0,
+      streakBest: 0,
+      challengeLengthDays,
+      startDate: startDate.toISOString(),
+      endDate: endDate?.toISOString(),
+      completionRate30d: 0,
+      goalId: linkedGoalId,
+      linkedGoalIds: linkedGoalId ? [linkedGoalId] : undefined,
+    };
+  }, [
+    category,
+    description,
+    frequency,
+    habitType,
+    linkedGoalId,
+    reminders,
+    selectedDays,
+    selectedIconId,
+    targetUnit,
+    targetValue,
+    timesPerWeek,
+    title,
+    challengeDuration,
+    customDuration,
+    startDate,
+  ]);
+
+  const handleSubmit = useCallback(
+    (options?: { keepOpen?: boolean }) => {
+      if (!title.trim()) {
+        return;
+      }
+      const payload = buildHabitPayload();
+      if (isEditing && editingHabit) {
+        updateHabit(editingHabit.id, {
+          ...payload,
+          completionHistory: editingHabit.completionHistory,
+        });
+      } else {
+        createHabit(payload);
+      }
+      if (options?.keepOpen) {
+        resetForm();
+        return;
+      }
+      closePlannerHabitModal();
+    },
+    [
+      buildHabitPayload,
+      closePlannerHabitModal,
+      createHabit,
+      editingHabit,
+      isEditing,
+      resetForm,
+      title,
+      updateHabit,
+    ],
+  );
 
   const renderHabitIcon = (iconId: string, size: number, color: string) => {
     switch (iconId) {
@@ -336,7 +673,7 @@ export default function PlannerHabitModal() {
           >
             {/* Header */}
             <View style={[styles.header, styles.sectionPadding]}>
-              <Text style={styles.headerTitle}>NEW HABIT</Text>
+              <Text style={styles.headerTitle}>{isEditing ? 'EDIT HABIT' : 'NEW HABIT'}</Text>
             </View>
 
             {/* Popular habits */}
@@ -358,16 +695,18 @@ export default function PlannerHabitModal() {
                         {renderHabitIcon(template.icon, 36, '#FFFFFF')}
                       </View>
                       <Text style={styles.popularHabitLabel}>{template.title}</Text>
-                      <Text style={styles.popularHabitTime}>⏰ {template.time}</Text>
+                      {template.time !== '00:00' && (
+                        <Text style={styles.popularHabitTime}>⏰ {template.time}</Text>
+                      )}
                     </AdaptiveGlassView>
                   </Pressable>
                 ))}
               </ScrollView>
             </View>
 
-            {/* Goal title */}
+            {/* Habit name */}
             <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>Goal title</Text>
+              <Text style={styles.sectionLabel}>Habit name</Text>
               <View style={styles.titleRow}>
                 <Pressable style={({ pressed }) => [styles.iconSelector, pressed && styles.pressed]}>
                   <AdaptiveGlassView style={styles.iconSelectorInner}>
@@ -392,7 +731,7 @@ export default function PlannerHabitModal() {
                 <TextInput
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="Description (not necessary)"
+                  placeholder="Description (optional)"
                   placeholderTextColor="#7E8B9A"
                   multiline
                   style={styles.descriptionInput}
@@ -429,61 +768,72 @@ export default function PlannerHabitModal() {
               </ScrollView>
             </View>
 
-            {/* Counting type */}
+            {/* Habit type */}
             <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>Counting type</Text>
-              <View style={styles.countingTypeRow}>
-                <Pressable
-                  onPress={() => setCountingType('create')}
-                  style={({ pressed }) => [styles.countingButton, pressed && styles.pressed]}
-                >
-                  <AdaptiveGlassView
-                    style={[
-                      styles.countingButtonInner,
-                      { opacity: countingType === 'create' ? 1 : 0.6 },
-                    ]}
-                  >
-                    <Ionicons
-                      name="add"
-                      size={20}
-                      color={countingType === 'create' ? '#FFFFFF' : '#7E8B9A'}
-                    />
-                    <Text
-                      style={[
-                        styles.countingButtonText,
-                        { color: countingType === 'create' ? '#FFFFFF' : '#7E8B9A' },
-                      ]}
+              <Text style={styles.sectionLabel}>Habit type</Text>
+              <View style={styles.habitTypeRow}>
+                {HABIT_TYPES.map((type) => {
+                  const isActive = habitType === type.id;
+                  return (
+                    <Pressable
+                      key={type.id}
+                      onPress={() => setHabitType(type.id as any)}
+                      style={({ pressed }) => [styles.habitTypeButton, pressed && styles.pressed]}
                     >
-                      Create
-                    </Text>
-                  </AdaptiveGlassView>
-                </Pressable>
-                <Pressable
-                  onPress={() => setCountingType('quit')}
-                  style={({ pressed }) => [styles.countingButton, pressed && styles.pressed]}
-                >
-                  <AdaptiveGlassView
-                    style={[
-                      styles.countingButtonInner,
-                      { opacity: countingType === 'quit' ? 1 : 0.6 },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.countingButtonText,
-                        { color: countingType === 'quit' ? '#FFFFFF' : '#7E8B9A' },
-                      ]}
-                    >
-                      —  Quit
-                    </Text>
-                  </AdaptiveGlassView>
-                </Pressable>
+                      <AdaptiveGlassView
+                        style={[
+                          styles.habitTypeButtonInner,
+                          { opacity: isActive ? 1 : 0.6 },
+                        ]}
+                      >
+                        <Text style={styles.habitTypeIcon}>{type.emoji}</Text>
+                        <Text
+                          style={[
+                            styles.habitTypeLabel,
+                            { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                          ]}
+                        >
+                          {type.label}
+                        </Text>
+                        <Text style={styles.habitTypeDescription}>{type.description}</Text>
+                      </AdaptiveGlassView>
+                    </Pressable>
+                  );
+                })}
               </View>
             </View>
 
+            {/* Target (только для numerical) */}
+            {habitType === 'numerical' && (
+              <View style={[styles.section, styles.sectionPadding]}>
+                <Text style={styles.sectionLabel}>Daily goal</Text>
+                <View style={styles.targetRow}>
+                  <AdaptiveGlassView style={styles.targetInput}>
+                    <TextInput
+                      value={targetValue}
+                      onChangeText={setTargetValue}
+                      placeholder="0"
+                      placeholderTextColor="#7E8B9A"
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                    />
+                  </AdaptiveGlassView>
+                  <AdaptiveGlassView style={styles.unitInput}>
+                    <TextInput
+                      value={targetUnit}
+                      onChangeText={setTargetUnit}
+                      placeholder="times"
+                      placeholderTextColor="#7E8B9A"
+                      style={styles.textInput}
+                    />
+                  </AdaptiveGlassView>
+                </View>
+              </View>
+            )}
+
             {/* Categories */}
             <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>Categories</Text>
+              <Text style={styles.sectionLabel}>Category</Text>
               <View style={styles.categoriesRow}>
                 {CATEGORIES.map((cat) => {
                   const isActive = category === cat.id;
@@ -515,32 +865,31 @@ export default function PlannerHabitModal() {
               </View>
             </View>
 
-            {/* Difficulty */}
+            {/* Frequency */}
             <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>Difficulty</Text>
-              <View style={styles.difficultyRow}>
-                {DIFFICULTY.map((level) => {
-                  const isActive = difficulty === level.id;
+              <Text style={styles.sectionLabel}>Frequency</Text>
+              <View style={styles.frequencyRow}>
+                {FREQUENCY_OPTIONS.map((freq) => {
+                  const isActive = frequency === freq.id;
                   return (
                     <Pressable
-                      key={level.id}
-                      onPress={() => setDifficulty(level.id)}
-                      style={({ pressed }) => [styles.difficultyButton, pressed && styles.pressed]}
+                      key={freq.id}
+                      onPress={() => setFrequency(freq.id as any)}
+                      style={({ pressed }) => [styles.frequencyButton, pressed && styles.pressed]}
                     >
                       <AdaptiveGlassView
                         style={[
-                          styles.difficultyButtonInner,
+                          styles.frequencyButtonInner,
                           { opacity: isActive ? 1 : 0.6 },
                         ]}
                       >
-                        <Text style={styles.difficultyIcon}>{level.emoji}</Text>
                         <Text
                           style={[
-                            styles.difficultyButtonText,
+                            styles.frequencyButtonText,
                             { color: isActive ? '#FFFFFF' : '#7E8B9A' },
                           ]}
                         >
-                          {level.label}
+                          {freq.label}
                         </Text>
                       </AdaptiveGlassView>
                     </Pressable>
@@ -549,110 +898,255 @@ export default function PlannerHabitModal() {
               </View>
             </View>
 
-            {/* Reminder */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <View style={styles.reminderHeader}>
-                <Text style={styles.sectionLabel}>Reminder</Text>
-                <Switch
-                  value={reminderEnabled}
-                  onValueChange={setReminderEnabled}
-                  trackColor={{ true: '#FFFFFF', false: '#2C2C2E' }}
-                  thumbColor="#000000"
-                  ios_backgroundColor="#2C2C2E"
-                />
-              </View>
-              {reminderEnabled && (
-                <>
-                  <Pressable
-                    onPress={handleOpenTimePicker}
-                    style={({ pressed }) => [pressed && styles.pressed]}
-                  >
-                    <AdaptiveGlassView style={styles.reminderTimeRow}>
-                      <Ionicons name="alarm-outline" size={18} color="#7E8B9A" />
-                      <Text style={styles.reminderTimeText}>{reminderTime}</Text>
-                      <View style={styles.reminderRight}>
-                        <Switch
-                          value={true}
-                          onValueChange={() => { }}
-                          trackColor={{ true: '#FFFFFF', false: '#2C2C2E' }}
-                          thumbColor="#000000"
-                          ios_backgroundColor="#2C2C2E"
-                        />
-                        <Pressable>
-                          <Ionicons name="trash-outline" size={18} color="#7E8B9A" />
-                        </Pressable>
-                      </View>
-                    </AdaptiveGlassView>
-                  </Pressable>
-                  <Pressable style={({ pressed }) => [pressed && styles.pressed]}>
-                    <AdaptiveGlassView style={styles.addReminderButton}>
-                      <Ionicons name="add" size={18} color="#7E8B9A" />
-                      <Text style={styles.addReminderText}>Add reminder</Text>
-                    </AdaptiveGlassView>
-                  </Pressable>
-                </>
-              )}
-            </View>
-
-            {/* Streak */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <View style={styles.streakHeader}>
-                <Text style={styles.sectionLabel}>Streak</Text>
-                <Switch
-                  value={streakEnabled}
-                  onValueChange={setStreakEnabled}
-                  trackColor={{ true: '#FFFFFF', false: '#2C2C2E' }}
-                  thumbColor="#000000"
-                  ios_backgroundColor="#2C2C2E"
-                />
-              </View>
-              {streakEnabled && (
-                <View style={styles.streakDaysRow}>
-                  {STREAK_GOALS.map((days) => {
-                    const isActive = streakDays === days;
+            {/* Specific days selector */}
+            {frequency === 'specific' && (
+              <View style={[styles.section, styles.sectionPadding]}>
+                <Text style={styles.sectionLabel}>Select days</Text>
+                <View style={styles.weekdaysRow}>
+                  {WEEKDAYS.map((day) => {
+                    const isActive = selectedDays.includes(day.id);
                     return (
                       <Pressable
-                        key={days}
-                        onPress={() => setStreakDays(days)}
-                        style={({ pressed }) => [styles.streakDayButton, pressed && styles.pressed]}
+                        key={day.id}
+                        onPress={() => toggleWeekday(day.id)}
+                        style={({ pressed }) => [styles.weekdayButton, pressed && styles.pressed]}
                       >
                         <AdaptiveGlassView
                           style={[
-                            styles.streakDayButtonInner,
-                            { opacity: isActive ? 1 : 0.6 },
+                            styles.weekdayButtonInner,
+                            { opacity: isActive ? 1 : 0.5 },
                           ]}
                         >
                           <Text
                             style={[
-                              styles.streakDayNumber,
+                              styles.weekdayText,
                               { color: isActive ? '#FFFFFF' : '#7E8B9A' },
                             ]}
                           >
-                            {days}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.streakDayLabel,
-                              { color: isActive ? '#FFFFFF' : '#7E8B9A' },
-                            ]}
-                          >
-                            Days
+                            {day.short}
                           </Text>
                         </AdaptiveGlassView>
                       </Pressable>
                     );
                   })}
                 </View>
+              </View>
+            )}
+
+            {/* Times per week */}
+            {frequency === 'weekly' && (
+              <View style={[styles.section, styles.sectionPadding]}>
+                <Text style={styles.sectionLabel}>Times per week</Text>
+                <View style={styles.timesPerWeekRow}>
+                  {[1, 2, 3, 4, 5, 6, 7].map((num) => {
+                    const isActive = timesPerWeek === num;
+                    return (
+                      <Pressable
+                        key={num}
+                        onPress={() => setTimesPerWeek(num)}
+                        style={({ pressed }) => [styles.timesButton, pressed && styles.pressed]}
+                      >
+                        <AdaptiveGlassView
+                          style={[
+                            styles.timesButtonInner,
+                            { opacity: isActive ? 1 : 0.5 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.timesButtonText,
+                              { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                            ]}
+                          >
+                            {num}
+                          </Text>
+                        </AdaptiveGlassView>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+
+            {/* Challenge Duration */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <Text style={styles.sectionLabel}>Challenge duration</Text>
+              <Text style={styles.sectionDescription}>
+                How long do you want to commit to this habit?
+              </Text>
+              <View style={styles.challengeGrid}>
+                {CHALLENGE_DURATIONS.map((duration) => {
+                  const isActive = challengeDuration === duration.id;
+                  return (
+                    <Pressable
+                      key={duration.id}
+                      onPress={() => setChallengeDuration(duration.id)}
+                      style={({ pressed }) => [
+                        styles.challengeButton,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <AdaptiveGlassView
+                        style={[
+                          styles.challengeButtonInner,
+                          { opacity: isActive ? 1 : 0.6 },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.challengeButtonLabel,
+                            { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                          ]}
+                        >
+                          {duration.label}
+                        </Text>
+                        <Text style={styles.challengeButtonDescription}>
+                          {duration.description}
+                        </Text>
+                      </AdaptiveGlassView>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              
+              {/* Custom duration input */}
+              {challengeDuration === 'custom' && (
+                <View style={styles.customDurationRow}>
+                  <AdaptiveGlassView style={styles.customDurationInput}>
+                    <TextInput
+                      value={customDuration}
+                      onChangeText={setCustomDuration}
+                      placeholder="Enter days"
+                      placeholderTextColor="#7E8B9A"
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                    />
+                  </AdaptiveGlassView>
+                  <Text style={styles.customDurationLabel}>days</Text>
+                </View>
+              )}
+              
+              {/* Duration summary */}
+              {challengeDuration !== 'forever' && (
+                <View style={styles.durationSummary}>
+                  <Ionicons name="calendar-outline" size={14} color="#7E8B9A" />
+                  <Text style={styles.durationSummaryText}>
+                    Starting {startDate.toLocaleDateString()} • Ending{' '}
+                    {(() => {
+                      const days =
+                        challengeDuration === 'custom'
+                          ? parseInt(customDuration, 10) || 0
+                          : parseInt(challengeDuration, 10) || 0;
+                      const endDate = new Date(startDate);
+                      endDate.setDate(endDate.getDate() + days);
+                      return endDate.toLocaleDateString();
+                    })()}
+                  </Text>
+                </View>
               )}
             </View>
 
-            {/* Streak message */}
-            {streakEnabled && (
-              <View style={styles.streakMessage}>
-                <Text style={styles.streakMessageIcon}>🔥</Text>
-                <Text style={styles.streakMessageText}>
-                  Complete habit {streakDays} days straight to pin
-                </Text>
+            {goalOptions.length > 0 && (
+              <View style={[styles.section, styles.sectionPadding]}>
+                <Text style={styles.sectionLabel}>{addTaskStrings.goalLabel}</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.goalScroll}
+                >
+                  <Pressable onPress={() => setLinkedGoalId(undefined)}>
+                    <AdaptiveGlassView
+                      style={[
+                        styles.goalChip,
+                        styles.glassSurface,
+                        { opacity: linkedGoalId ? 0.5 : 1 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.goalChipLabel,
+                          { color: linkedGoalId ? '#9E9E9E' : '#FFFFFF' },
+                        ]}
+                      >
+                        {addTaskStrings.goalUnset}
+                      </Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+                  {goalOptions.map((goal) => {
+                    const active = goal.id === linkedGoalId;
+                    return (
+                      <Pressable key={goal.id} onPress={() => setLinkedGoalId(goal.id)}>
+                        <AdaptiveGlassView
+                          style={[
+                            styles.goalChip,
+                            styles.glassSurface,
+                            { opacity: active ? 1 : 0.6 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.goalChipLabel,
+                              { color: active ? '#FFFFFF' : '#9E9E9E' },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {goal.title}
+                          </Text>
+                        </AdaptiveGlassView>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                <Text style={styles.goalHelper}>{addTaskStrings.goalHelper}</Text>
+              </View>
+            )}
+
+            {/* Reminders */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <View style={styles.reminderHeader}>
+                <Text style={styles.sectionLabel}>Reminders</Text>
+              </View>
+              {reminders.map((reminder) => (
+                <Pressable
+                  key={reminder.id}
+                  onPress={() => handleOpenTimePicker(reminder.id, reminder.time)}
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.reminderTimeRow}>
+                    <Ionicons name="alarm-outline" size={18} color="#7E8B9A" />
+                    <Text style={styles.reminderTimeText}>{reminder.time}</Text>
+                    <Pressable
+                      onPress={() => handleRemoveReminder(reminder.id)}
+                      hitSlop={8}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#7E8B9A" />
+                    </Pressable>
+                  </AdaptiveGlassView>
+                </Pressable>
+              ))}
+              <Pressable
+                onPress={handleAddReminder}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.addReminderButton}>
+                  <Ionicons name="add" size={18} color="#7E8B9A" />
+                  <Text style={styles.addReminderText}>Add reminder</Text>
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+
+            {/* Calendar button */}
+            {isEditing && (
+              <View style={[styles.section, styles.sectionPadding]}>
+                <Pressable
+                  onPress={() => historyCalendarRef.current?.present()}
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView style={styles.calendarOpenButton}>
+                    <Ionicons name="calendar-outline" size={16} color="#7E8B9A" />
+                    <Text style={styles.calendarOpenText}>{habitStrings.calendarButton}</Text>
+                  </AdaptiveGlassView>
+                </Pressable>
               </View>
             )}
 
@@ -663,33 +1157,42 @@ export default function PlannerHabitModal() {
                 <Text style={styles.aiText}>
                   AI:{' '}
                   <Text style={{ color: '#FFFFFF' }}>
-                    "At the current pace, you will reach your goal in March. If you increase
-                    contributions by 100k per month
+                    Start with small goals. For new habits, it's better to aim for consistency rather than intensity.
                   </Text>
                 </Text>
               </View>
             </View>
 
-            <View style={styles.aiSuggestion}>
-              <Text style={styles.aiSuggestionIcon}>💡</Text>
-              <View style={styles.aiTextContainer}>
-                <Text style={styles.aiText}>
-                  AI:{' '}
-                  <Text style={{ color: '#FFFFFF' }}>
-                    "At the current pace, you will reach your goal in March. If you increase
-                    contributions by 100k per month
+            {habitType === 'numerical' && (
+              <View style={styles.aiSuggestion}>
+                <Text style={styles.aiSuggestionIcon}>💡</Text>
+                <View style={styles.aiTextContainer}>
+                  <Text style={styles.aiText}>
+                    AI:{' '}
+                    <Text style={{ color: '#FFFFFF' }}>
+                      Track your progress daily. Studies show that tracking increases success rate by 42%.
+                    </Text>
                   </Text>
-                </Text>
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
+              <Pressable
+                disabled={disablePrimary}
+                onPress={() => handleSubmit({ keepOpen: true })}
+                style={({ pressed }) => [
+                  styles.secondaryButton,
+                  pressed && !disablePrimary && styles.pressed,
+                  disablePrimary && { opacity: 0.4 },
+                ]}
+              >
                 <Text style={styles.secondaryButtonText}>Create and more</Text>
               </Pressable>
               <Pressable
                 disabled={disablePrimary}
+                onPress={() => handleSubmit()}
                 style={({ pressed }) => [
                   styles.primaryButton,
                   pressed && !disablePrimary && styles.pressed,
@@ -707,7 +1210,7 @@ export default function PlannerHabitModal() {
                       { color: disablePrimary ? '#7E8B9A' : '#FFFFFF' },
                     ]}
                   >
-                    Create goal
+                    {isEditing ? 'Save changes' : 'Create habit'}
                   </Text>
                 </AdaptiveGlassView>
               </Pressable>
@@ -716,13 +1219,20 @@ export default function PlannerHabitModal() {
         </KeyboardAvoidingView>
       </CustomModal>
 
-      {Platform.OS === 'ios' && showTimePicker && (
+      <DateChangeModal
+        ref={historyCalendarRef}
+        selectedDate={referenceDate}
+        indicators={habitCalendarIndicators}
+        onSelectDate={() => historyCalendarRef.current?.dismiss()}
+      />
+
+      {Platform.OS === 'ios' && showTimePicker && editingReminderId && (
         <Modal transparent visible animationType="fade" onRequestClose={() => setShowTimePicker(false)}>
           <View style={styles.timePickerModal}>
             <Pressable style={styles.timePickerBackdrop} onPress={() => setShowTimePicker(false)} />
             <AdaptiveGlassView style={styles.timePickerCard}>
               <DateTimePicker
-                value={reminderDateValue}
+                value={currentReminderTime}
                 mode="time"
                 is24Hour
                 display="spinner"
@@ -740,6 +1250,11 @@ export default function PlannerHabitModal() {
 }
 
 const styles = StyleSheet.create({
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
   scrollContent: {
     paddingTop: 12,
     paddingBottom: 32,
@@ -767,6 +1282,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '400',
     color: '#7E8B9A',
+    marginBottom: 12,
+  },
+  sectionDescription: {
+    fontSize: 12,
+    color: '#7E8B9A',
+    marginTop: -6,
     marginBottom: 12,
   },
   popularHabitsScroll: {
@@ -852,25 +1373,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  countingTypeRow: {
+  habitTypeRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  countingButton: {
+  habitTypeButton: {
     flex: 1,
     borderRadius: 16,
   },
-  countingButtonInner: {
-    flexDirection: 'row',
+  habitTypeButtonInner: {
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 4,
     paddingVertical: 14,
     borderRadius: 16,
   },
-  countingButtonText: {
-    fontSize: 14,
+  habitTypeIcon: {
+    fontSize: 24,
+  },
+  habitTypeLabel: {
+    fontSize: 13,
     fontWeight: '500',
+  },
+  habitTypeDescription: {
+    fontSize: 10,
+    color: '#7E8B9A',
+  },
+  targetRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  targetInput: {
+    flex: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  unitInput: {
+    flex: 2,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   categoriesRow: {
     flexDirection: 'row',
@@ -892,28 +1436,137 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
-  difficultyRow: {
+  frequencyRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  difficultyButton: {
+  frequencyButton: {
     flex: 1,
     borderRadius: 16,
   },
-  difficultyButtonInner: {
-    flexDirection: 'column',
+  frequencyButtonInner: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 16,
   },
-  difficultyIcon: {
-    fontSize: 24,
-  },
-  difficultyButtonText: {
+  frequencyButtonText: {
     fontSize: 13,
     fontWeight: '500',
+  },
+  weekdaysRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  weekdayButton: {
+    flex: 1,
+    borderRadius: 12,
+  },
+  weekdayButtonInner: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  weekdayText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  timesPerWeekRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  timesButton: {
+    flex: 1,
+    borderRadius: 12,
+  },
+  timesButtonInner: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  timesButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  challengeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  challengeButton: {
+    width: '48%',
+    borderRadius: 16,
+  },
+  challengeButtonInner: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    gap: 4,
+  },
+  challengeButtonLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  challengeButtonDescription: {
+    fontSize: 11,
+    color: '#7E8B9A',
+    textAlign: 'center',
+  },
+  customDurationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 12,
+  },
+  customDurationInput: {
+    flex: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  customDurationLabel: {
+    fontSize: 14,
+    color: '#7E8B9A',
+    fontWeight: '500',
+  },
+  durationSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 12,
+  },
+  durationSummaryText: {
+    fontSize: 12,
+    color: '#7E8B9A',
+    flex: 1,
+  },
+  goalScroll: {
+    gap: 10,
+    paddingVertical: 6,
+  },
+  goalChip: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginRight: 10,
+    minWidth: 120,
+  },
+  goalChipLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  goalHelper: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#7E8B9A',
   },
   reminderHeader: {
     flexDirection: 'row',
@@ -936,11 +1589,6 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#FFFFFF',
   },
-  reminderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
   addReminderButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -954,55 +1602,25 @@ const styles = StyleSheet.create({
     fontWeight: '400',
     color: '#7E8B9A',
   },
-  streakHeader: {
+  calendarOpenButton: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  streakDaysRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  streakDayButton: {
-    flex: 1,
-    borderRadius: 16,
-  },
-  streakDayButtonInner: {
-    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    gap: 8,
     borderRadius: 16,
+    paddingVertical: 12,
   },
-  streakDayNumber: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  streakDayLabel: {
-    fontSize: 11,
-    fontWeight: '400',
-  },
-  streakMessage: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 20,
-  },
-  streakMessageIcon: {
-    fontSize: 20,
-  },
-  streakMessageText: {
+  calendarOpenText: {
     fontSize: 13,
-    fontWeight: '400',
-    color: '#7E8B9A',
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
   aiSuggestion: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     marginBottom: 16,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
   },
   aiSuggestionIcon: {
     fontSize: 22,
@@ -1020,7 +1638,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
   },
   secondaryButton: {
     flex: 1,

@@ -1,28 +1,33 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   View,
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { AlertCircle, Check } from 'lucide-react-native';
-import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, {
+  DateTimePickerAndroid,
+  DateTimePickerEvent,
+} from '@react-native-community/datetimepicker';
 
-import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
-import { BottomSheetHandle } from '@/components/modals/BottomSheet';
+import CustomBottomSheet, { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { getCategoriesForType } from '@/constants/financeCategories';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
-import { startOfDay } from '@/utils/calendar';
+import { addDays, addMonths, startOfDay, startOfMonth, startOfWeek } from '@/utils/calendar';
 import { useLocalization } from '@/localization/useLocalization';
-import { useFinanceStore } from '@/stores/useFinanceStore';
-import type { Budget } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
+import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
+import { useShallow } from 'zustand/react/shallow';
+import type { Budget as DomainBudget, BudgetPeriodType } from '@/domain/finance/types';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 
 type BudgetState = 'exceeding' | 'within' | 'fixed';
 
@@ -40,14 +45,14 @@ type CategoryBudget = {
 
 const PROGRESS_HEIGHT = 32;
 const PROGRESS_RADIUS = 18;
-
-const modalProps: Partial<CustomModalProps> = {
-  variant: 'form',
-  enableDynamicSizing: false,
-  fallbackSnapPoint: '96%',
-  scrollable: true,
-  scrollProps: { keyboardShouldPersistTaps: 'handled' },
-  contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+const resolveBudgetState = (limit: number, spent: number): BudgetState => {
+  if (limit <= 0) {
+    return 'fixed';
+  }
+  if (spent > limit) {
+    return 'exceeding';
+  }
+  return 'within';
 };
 
 const formatCurrency = (value: number, currency: string) => {
@@ -100,7 +105,7 @@ const AnimatedProgressBar: React.FC<ProgressBarProps> = ({ percentage, appearanc
       style={styles.progressShellWrapper}
       onLayout={(event) => setTrackWidth(event.nativeEvent.layout.width)}
     >
-      <AdaptiveGlassView style={styles.progressShell}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.progressShell]}>
         <Animated.View
           style={[styles.progressFill, fillStyle, { backgroundColor: appearance.fillColor }]}
         />
@@ -177,7 +182,6 @@ const MainBudgetProgress: React.FC<{
 interface CategoryBudgetCardProps {
   category: CategoryBudget;
   index: number;
-  isLast: boolean;
   labels: Record<BudgetState, string>;
   actionLabel: string;
   onManage?: (budgetId: string) => void;
@@ -186,7 +190,6 @@ interface CategoryBudgetCardProps {
 const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
   category,
   index,
-  isLast,
   labels,
   actionLabel,
   onManage,
@@ -223,7 +226,7 @@ const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
 
   return (
     <Animated.View style={[styles.categoryBlock, animatedStyle]}>
-      <AdaptiveGlassView style={styles.categoryCard}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.categoryCard]}>
         <View style={styles.categoryHeaderRow}>
           <Text style={styles.categoryTitle}>{category.name}</Text>
           <Pressable
@@ -263,26 +266,45 @@ const BudgetsScreen: React.FC = () => {
   const budgetsStrings = strings.financeScreens.budgets;
 
   const selectedDate = useSelectedDayStore((state) => state.selectedDate);
-  const budgets = useFinanceStore((state) => state.budgets);
-  const accounts = useFinanceStore((state) => state.accounts);
-  const addBudget = useFinanceStore((state) => state.addBudget);
-  const updateBudget = useFinanceStore((state) => state.updateBudget);
-  const deleteBudget = useFinanceStore((state) => state.deleteBudget);
+  const normalizedSelectedDate = useMemo(
+    () => startOfDay(selectedDate ?? new Date()),
+    [selectedDate],
+  );
+  const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
+  const {
+    budgets: domainBudgets,
+    accounts: domainAccounts,
+    createBudget,
+    updateBudget,
+    archiveBudget,
+  } = useFinanceDomainStore(
+    useShallow((state) => ({
+      budgets: state.budgets,
+      accounts: state.accounts,
+      createBudget: state.createBudget,
+      updateBudget: state.updateBudget,
+      archiveBudget: state.archiveBudget,
+    })),
+  );
 
   const accountMap = useMemo(
-    () => new Map(accounts.map((account) => [account.id, account])),
-    [accounts]
+    () => new Map(domainAccounts.map((account) => [account.id, account])),
+    [domainAccounts],
   );
 
   const budgetModalRef = useRef<BottomSheetHandle>(null);
-  const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
+  const [editingBudget, setEditingBudget] = useState<DomainBudget | null>(null);
   const [formName, setFormName] = useState('');
   const [limitInput, setLimitInput] = useState('');
   const [limitValue, setLimitValue] = useState(0);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(accounts[0]?.id ?? null);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(domainAccounts[0]?.id ?? null);
   const [transactionType, setTransactionType] = useState<'income' | 'outcome'>('outcome');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
+  const [periodType, setPeriodType] = useState<BudgetPeriodType>('monthly');
+  const [customStartDate, setCustomStartDate] = useState<Date | null>(null);
+  const [customEndDate, setCustomEndDate] = useState<Date | null>(null);
+  const [iosRangePicker, setIosRangePicker] = useState<{ target: 'start' | 'end'; value: Date } | null>(null);
   const [isFormVisible, setIsFormVisible] = useState(false);
 
   const availableCategories = useMemo(
@@ -305,25 +327,28 @@ const BudgetsScreen: React.FC = () => {
   }, [availableCategories, isFormVisible]);
 
   useEffect(() => {
-    if (!selectedAccountId && accounts[0]) {
-      setSelectedAccountId(accounts[0].id);
+    if (!selectedAccountId && domainAccounts[0]) {
+      setSelectedAccountId(domainAccounts[0].id);
     }
-  }, [accounts, selectedAccountId]);
+  }, [domainAccounts, selectedAccountId]);
 
   const resetFormState = useCallback(
-    (budget?: Budget | null) => {
+    (budget?: DomainBudget | null) => {
       if (budget) {
         setFormName(budget.name);
-        setLimitInput(String(budget.limit));
-        setLimitValue(budget.limit);
-        setSelectedAccountId(budget.accountId);
-        setTransactionType(budget.transactionType);
-        setSelectedCategories(budget.categories);
-        setNotifyEnabled(budget.notifyOnExceed);
+        setLimitInput(String(budget.limitAmount));
+        setLimitValue(budget.limitAmount);
+        setSelectedAccountId(budget.accountId ?? null);
+        setTransactionType((budget.transactionType ?? 'expense') === 'income' ? 'income' : 'outcome');
+        setSelectedCategories(budget.categoryIds ?? []);
+        setNotifyEnabled(Boolean(budget.notifyOnExceed));
+        setPeriodType(budget.periodType ?? 'monthly');
+        setCustomStartDate(budget.startDate ? new Date(budget.startDate) : null);
+        setCustomEndDate(budget.endDate ? new Date(budget.endDate) : null);
         return;
       }
 
-      const defaultAccountId = accounts[0]?.id ?? null;
+      const defaultAccountId = domainAccounts[0]?.id ?? null;
       setFormName('');
       setLimitInput('');
       setLimitValue(0);
@@ -332,19 +357,27 @@ const BudgetsScreen: React.FC = () => {
       const defaultCategory = getCategoriesForType('outcome')[0]?.name;
       setSelectedCategories(defaultCategory ? [defaultCategory] : []);
       setNotifyEnabled(true);
+      setPeriodType('monthly');
+      setCustomStartDate(null);
+      setCustomEndDate(null);
     },
-    [accounts]
+    [domainAccounts],
   );
 
-  const handleCloseBudgetModal = useCallback(() => {
-    budgetModalRef.current?.dismiss();
+  const handleSheetDismiss = useCallback(() => {
     setIsFormVisible(false);
     setEditingBudget(null);
     resetFormState(null);
+    setIosRangePicker(null);
   }, [resetFormState]);
 
+  const handleCloseBudgetModal = useCallback(() => {
+    budgetModalRef.current?.dismiss();
+    handleSheetDismiss();
+  }, [handleSheetDismiss]);
+
   const handleOpenBudgetModal = useCallback(
-    (budget?: Budget) => {
+    (budget?: DomainBudget) => {
       setEditingBudget(budget ?? null);
       resetFormState(budget ?? null);
       setIsFormVisible(true);
@@ -353,11 +386,57 @@ const BudgetsScreen: React.FC = () => {
     [resetFormState]
   );
 
+  const effectiveAccountId = useMemo(
+    () => selectedAccountId ?? domainAccounts[0]?.id ?? null,
+    [domainAccounts, selectedAccountId],
+  );
+
+  const ensuredCategories = useMemo(() => {
+    if (selectedCategories.length > 0) {
+      return selectedCategories;
+    }
+    if (availableCategories.length > 0) {
+      return [availableCategories[0].name];
+    }
+    return [];
+  }, [availableCategories, selectedCategories]);
+
+  const hasValidCategorySelection = ensuredCategories.length > 0;
+
+  const computedRange = useMemo(() => {
+    if (periodType === 'weekly') {
+      const base = customStartDate ?? startOfWeek(normalizedSelectedDate);
+      return { start: base, end: customEndDate ?? addDays(base, 6) };
+    }
+    if (periodType === 'monthly') {
+      const base = customStartDate ?? startOfMonth(normalizedSelectedDate);
+      const endSeed = addMonths(new Date(base), 1);
+      const end = customEndDate ?? addDays(endSeed, -1);
+      return { start: base, end };
+    }
+    if (periodType === 'custom_range') {
+      return { start: customStartDate, end: customEndDate };
+    }
+    return { start: null, end: null };
+  }, [customEndDate, customStartDate, normalizedSelectedDate, periodType]);
+
+  const isCustomRangeValid =
+    periodType !== 'custom_range' ||
+    (customStartDate != null && customEndDate != null && customEndDate >= customStartDate);
+
+  const formattedRange = useMemo(() => {
+    if (!computedRange.start || !computedRange.end) {
+      return null;
+    }
+    const formatter = new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' });
+    return `${formatter.format(computedRange.start)} — ${formatter.format(computedRange.end)}`;
+  }, [computedRange.end, computedRange.start, locale]);
+
   const isBudgetFormValid =
     Boolean(formName.trim()) &&
     limitValue > 0 &&
-    Boolean(selectedAccountId) &&
-    selectedCategories.length > 0;
+    hasValidCategorySelection &&
+    isCustomRangeValid;
 
   const handleLimitInputChange = useCallback((value: string) => {
     const sanitized = value.replace(/[^0-9.]/g, '').replace(/(\..*?)\./g, '$1');
@@ -366,41 +445,140 @@ const BudgetsScreen: React.FC = () => {
     setLimitValue(Number.isFinite(numeric) ? numeric : 0);
   }, []);
 
+  const openRangePicker = useCallback(
+    (target: 'start' | 'end') => {
+      const fallbackDate = customStartDate ?? normalizedSelectedDate;
+      const currentValue = target === 'start' ? customStartDate ?? fallbackDate : customEndDate ?? fallbackDate;
+      if (Platform.OS === 'android') {
+        DateTimePickerAndroid.open({
+          value: currentValue,
+          mode: 'date',
+          display: 'calendar',
+          onChange: (event, selected) => {
+            if (event.type === 'set' && selected) {
+              if (target === 'start') {
+                setCustomStartDate(selected);
+                if (!customEndDate || customEndDate < selected) {
+                  setCustomEndDate(selected);
+                }
+              } else {
+                setCustomEndDate(selected);
+              }
+            }
+          },
+        });
+        return;
+      }
+      setIosRangePicker({ target, value: currentValue });
+    },
+    [customEndDate, customStartDate, normalizedSelectedDate],
+  );
+
+  const handleIosRangeChange = useCallback(
+    (event: DateTimePickerEvent, selected?: Date) => {
+      if (event.type === 'dismissed') {
+        setIosRangePicker(null);
+        return;
+      }
+      if (selected && iosRangePicker) {
+        if (iosRangePicker.target === 'start') {
+          setCustomStartDate(selected);
+          if (!customEndDate || customEndDate < selected) {
+            setCustomEndDate(selected);
+          }
+        } else {
+          setCustomEndDate(selected);
+        }
+      }
+      setIosRangePicker(null);
+    },
+    [customEndDate, iosRangePicker],
+  );
+
   const toggleCategory = useCallback((name: string) => {
-    setSelectedCategories((prev) =>
-      prev.includes(name) ? prev.filter((item) => item !== name) : [...prev, name]
-    );
+    setSelectedCategories((prev) => {
+      if (prev.includes(name)) {
+        return prev.length === 1 ? prev : prev.filter((item) => item !== name);
+      }
+      return [...prev, name];
+    });
   }, []);
 
+  const handlePeriodChange = useCallback(
+    (next: BudgetPeriodType) => {
+      setPeriodType(next);
+      if (next === 'custom_range') {
+        if (!customStartDate) {
+          setCustomStartDate(normalizedSelectedDate);
+        }
+        if (!customEndDate) {
+          setCustomEndDate(addDays(normalizedSelectedDate, 6));
+        }
+      }
+    },
+    [customEndDate, customStartDate, normalizedSelectedDate],
+  );
+
   const handleSubmitBudget = useCallback(() => {
-    if (!isBudgetFormValid || !selectedAccountId) {
+    if (!isBudgetFormValid || ensuredCategories.length === 0) {
       return;
     }
-    const payload = {
-      id: editingBudget?.id,
-      name: formName.trim(),
-      category: selectedCategories.length === 1 ? selectedCategories[0] : undefined,
-      categories: selectedCategories,
-      limit: limitValue,
-      accountId: selectedAccountId,
-      transactionType,
-      notifyOnExceed: notifyEnabled,
-    };
+    const startDateValue = computedRange.start ?? startOfMonth(normalizedSelectedDate);
+    const endDateValue =
+      computedRange.end ??
+      (periodType === 'weekly'
+        ? addDays(startDateValue, 6)
+        : addDays(addMonths(new Date(startDateValue), 1), -1));
+    const startIso = startDateValue.toISOString();
+    const endIso = endDateValue.toISOString();
     if (editingBudget) {
-      updateBudget(editingBudget.id, payload);
+      updateBudget(editingBudget.id, {
+        name: formName.trim(),
+        limitAmount: limitValue,
+        accountId: effectiveAccountId ?? undefined,
+        transactionType: transactionType === 'income' ? 'income' : 'expense',
+        categoryIds: ensuredCategories,
+        notifyOnExceed: notifyEnabled,
+        periodType,
+        startDate: startIso,
+        endDate: endIso,
+      });
     } else {
-      addBudget(payload);
+      const account = effectiveAccountId ? accountMap.get(effectiveAccountId) : undefined;
+      createBudget({
+        userId: 'local-user',
+        name: formName.trim(),
+        budgetType: 'category',
+        linkedGoalId: undefined,
+        categoryIds: ensuredCategories,
+        accountId: effectiveAccountId ?? undefined,
+        transactionType: transactionType === 'income' ? 'income' : 'expense',
+        currency: account?.currency ?? baseCurrency,
+        limitAmount: limitValue,
+        periodType,
+        startDate: startIso,
+        endDate: endIso,
+        notifyOnExceed: notifyEnabled,
+        rolloverMode: 'none',
+        isArchived: false,
+      });
     }
     handleCloseBudgetModal();
   }, [
-    addBudget,
+    accountMap,
+    baseCurrency,
+    computedRange,
+    createBudget,
     editingBudget,
+    ensuredCategories,
+    effectiveAccountId,
     formName,
     handleCloseBudgetModal,
     isBudgetFormValid,
     limitValue,
+    normalizedSelectedDate,
     notifyEnabled,
-    selectedAccountId,
+    periodType,
     selectedCategories,
     transactionType,
     updateBudget,
@@ -410,18 +588,18 @@ const BudgetsScreen: React.FC = () => {
     if (!editingBudget) {
       return;
     }
-    deleteBudget(editingBudget.id);
+    archiveBudget(editingBudget.id);
     handleCloseBudgetModal();
-  }, [deleteBudget, editingBudget, handleCloseBudgetModal]);
+  }, [archiveBudget, editingBudget, handleCloseBudgetModal]);
 
   const handleManageBudget = useCallback(
     (budgetId: string) => {
-      const target = budgets.find((budget) => budget.id === budgetId);
+      const target = domainBudgets.find((budget) => budget.id === budgetId);
       if (target) {
         handleOpenBudgetModal(target);
       }
     },
-    [budgets, handleOpenBudgetModal]
+    [domainBudgets, handleOpenBudgetModal],
   );
 
   const handleOpenCreateBudget = useCallback(() => {
@@ -429,55 +607,55 @@ const BudgetsScreen: React.FC = () => {
   }, [handleOpenBudgetModal]);
 
   const aggregate = useMemo(() => {
-    const total = budgets.reduce(
+    const total = domainBudgets.reduce(
       (acc, budget) => {
-        acc.current += budget.spent;
-        acc.total += budget.limit;
+        acc.current += budget.spentAmount;
+        acc.total += budget.limitAmount;
         return acc;
       },
-      { current: 0, total: 0 }
+      { current: 0, total: 0 },
     );
-    const categories = budgets.map((budget) => {
-      const account = accountMap.get(budget.accountId);
+    const categories = domainBudgets.map((budget) => {
+      const account = budget.accountId ? accountMap.get(budget.accountId) : undefined;
+      const state = resolveBudgetState(budget.limitAmount, budget.spentAmount);
       return {
         id: budget.id,
         name: budget.name,
-        spent: budget.spent,
-        limit: budget.limit,
-        state: budget.state,
-        currency: account?.currency ?? 'UZS',
+        spent: budget.spentAmount,
+        limit: budget.limitAmount,
+        state,
+        currency: budget.currency ?? account?.currency ?? baseCurrency,
         accountName: account?.name ?? strings.financeScreens.accounts.header,
-        categories: budget.categories,
-        notifyOnExceed: budget.notifyOnExceed,
+        categories: budget.categoryIds ?? [],
+        notifyOnExceed: Boolean(budget.notifyOnExceed),
       };
     });
     return {
       main: {
         current: total.current,
         total: total.total,
-        currency: 'UZS',
+        currency: baseCurrency,
       },
       categories,
     };
-  }, [accountMap, budgets, strings.financeScreens.accounts.header]);
+  }, [accountMap, baseCurrency, domainBudgets, strings.financeScreens.accounts.header]);
 
   const selectedDateLabel = useMemo(() => {
-    const normalized = startOfDay(selectedDate ?? new Date());
     const today = startOfDay(new Date());
-    if (normalized.getTime() === today.getTime()) {
+    if (normalizedSelectedDate.getTime() === today.getTime()) {
       return budgetsStrings.today;
     }
     const formatted = new Intl.DateTimeFormat(locale, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
-    }).format(normalized);
+    }).format(normalizedSelectedDate);
     return budgetsStrings.dateTemplate.replace('{date}', formatted);
-  }, [budgetsStrings, locale, selectedDate]);
+  }, [budgetsStrings, locale, normalizedSelectedDate]);
 
   const manageLabel = strings.financeScreens.accounts.actions.edit;
-  const selectedAccount = selectedAccountId ? accountMap.get(selectedAccountId) : null;
-  const selectedCurrency = selectedAccount?.currency ?? 'UZS';
+  const selectedAccount = effectiveAccountId ? accountMap.get(effectiveAccountId) : null;
+  const selectedCurrency = selectedAccount?.currency ?? baseCurrency;
 
   return (
     <>
@@ -497,7 +675,7 @@ const BudgetsScreen: React.FC = () => {
             style={({ pressed }) => [styles.addCategoryButton, pressed && styles.pressed]}
             onPress={handleOpenCreateBudget}
           >
-            <AdaptiveGlassView style={styles.addCategoryButtonInner}>
+            <AdaptiveGlassView style={[styles.glassSurface, styles.addCategoryButtonInner]}>
               <Text style={styles.addCategoryText}>{budgetsStrings.setLimit}</Text>
             </AdaptiveGlassView>
           </Pressable>
@@ -509,7 +687,6 @@ const BudgetsScreen: React.FC = () => {
               key={category.id}
               category={category}
               index={index}
-              isLast={index === aggregate.categories.length - 1}
               labels={budgetsStrings.states}
               actionLabel={manageLabel}
               onManage={handleManageBudget}
@@ -518,7 +695,17 @@ const BudgetsScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      <CustomModal ref={budgetModalRef} onDismiss={handleCloseBudgetModal} {...modalProps}>
+      <CustomBottomSheet
+        ref={budgetModalRef}
+        snapPoints={['70%', '96%']}
+        enableDynamicSizing={false}
+        enablePanDownToClose
+        scrollable
+        scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        onDismiss={handleSheetDismiss}
+      >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -534,8 +721,8 @@ const BudgetsScreen: React.FC = () => {
             {/* Name */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Budget name</Text>
-              <AdaptiveGlassView style={styles.inputContainer}>
-                <TextInput
+              <AdaptiveGlassView style={[styles.glassSurface, styles.inputContainer]}>
+                <BottomSheetTextInput
                   value={formName}
                   onChangeText={setFormName}
                   placeholder="Budget name"
@@ -550,8 +737,8 @@ const BudgetsScreen: React.FC = () => {
               <Text style={styles.sectionLabel}>
                 {`${strings.financeScreens.transactions.details.amount} (${selectedCurrency})`}
               </Text>
-              <AdaptiveGlassView style={styles.inputContainer}>
-                <TextInput
+              <AdaptiveGlassView style={[styles.glassSurface, styles.inputContainer]}>
+                <BottomSheetTextInput
                   value={limitInput}
                   onChangeText={handleLimitInputChange}
                   keyboardType="numeric"
@@ -570,7 +757,7 @@ const BudgetsScreen: React.FC = () => {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.accountScroll}
               >
-                {accounts.map((account) => {
+                {domainAccounts.map((account) => {
                   const isSelected = account.id === selectedAccountId;
                   return (
                     <Pressable
@@ -579,7 +766,7 @@ const BudgetsScreen: React.FC = () => {
                       style={({ pressed }) => [pressed && styles.pressed]}
                     >
                       <AdaptiveGlassView
-                        style={[styles.accountChip, { opacity: isSelected ? 1 : 0.6 }]}
+                        style={[styles.glassSurface, styles.accountChip, { opacity: isSelected ? 1 : 0.6 }]}
                       >
                         <Text style={[styles.accountChipLabel, { color: isSelected ? '#FFFFFF' : '#9E9E9E' }]}>
                           {account.name}
@@ -592,10 +779,81 @@ const BudgetsScreen: React.FC = () => {
               </ScrollView>
             </View>
 
+            {/* Period */}
+            <View style={styles.section}>
+              <Text style={styles.sectionLabel}>{budgetsStrings.form.periodLabel}</Text>
+              <View style={styles.periodChipsRow}>
+                {(['weekly', 'monthly', 'custom_range'] as BudgetPeriodType[]).map((type) => {
+                  const active = periodType === type;
+                  return (
+                    <Pressable key={type} onPress={() => handlePeriodChange(type)}>
+                      <AdaptiveGlassView
+                        style={[
+                          styles.glassSurface,
+                          styles.periodChip,
+                          active && styles.periodChipActive,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.periodChipLabel,
+                            active && styles.periodChipLabelActive,
+                          ]}
+                        >
+                          {budgetsStrings.form.periodOptions[type]}
+                        </Text>
+                      </AdaptiveGlassView>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <Text style={styles.rangeSummary}>
+                {budgetsStrings.form.selectedRangeLabel.replace(
+                  '{range}',
+                  formattedRange ?? '—',
+                )}
+              </Text>
+            </View>
+
+            {periodType === 'custom_range' && (
+              <View style={styles.section}>
+                <Text style={styles.sectionLabel}>{budgetsStrings.form.customRange.helper}</Text>
+                <View style={styles.customRangeRow}>
+                  <Pressable onPress={() => openRangePicker('start')}>
+                    <AdaptiveGlassView style={[styles.glassSurface, styles.rangeButton]}>
+                      <Text style={styles.rangeButtonLabel}>{budgetsStrings.form.customRange.start}</Text>
+                      <Text style={styles.rangeValue}>
+                        {customStartDate
+                          ? new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(
+                              customStartDate,
+                            )
+                          : '—'}
+                      </Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+                  <Pressable onPress={() => openRangePicker('end')}>
+                    <AdaptiveGlassView style={[styles.glassSurface, styles.rangeButton]}>
+                      <Text style={styles.rangeButtonLabel}>{budgetsStrings.form.customRange.end}</Text>
+                      <Text style={styles.rangeValue}>
+                        {customEndDate
+                          ? new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }).format(
+                              customEndDate,
+                            )
+                          : '—'}
+                      </Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+                </View>
+                {!isCustomRangeValid && (
+                  <Text style={styles.rangeError}>{budgetsStrings.form.customRange.error}</Text>
+                )}
+              </View>
+            )}
+
             {/* Type */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>Type</Text>
-              <AdaptiveGlassView style={styles.typeContainer}>
+              <AdaptiveGlassView style={[styles.glassSurface, styles.typeContainer]}>
                 <Pressable
                   onPress={() => setTransactionType('outcome')}
                   style={({ pressed }) => [
@@ -654,7 +912,7 @@ const BudgetsScreen: React.FC = () => {
                       style={({ pressed }) => [pressed && styles.pressed]}
                     >
                       <AdaptiveGlassView
-                        style={[styles.categoryChipCard, { opacity: isActive ? 1 : 0.6 }]}
+                        style={[styles.glassSurface, styles.categoryChipCard, { opacity: isActive ? 1 : 0.6 }]}
                       >
                         <Icon size={20} color={isActive ? '#FFFFFF' : '#9E9E9E'} />
                         <Text
@@ -674,7 +932,7 @@ const BudgetsScreen: React.FC = () => {
 
             {/* Notifications */}
             <View style={styles.section}>
-              <AdaptiveGlassView style={styles.notificationRow}>
+              <AdaptiveGlassView style={[styles.glassSurface, styles.notificationRow]}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.notificationLabel}>
                     {strings.financeScreens.debts.modal.reminderToggle}
@@ -698,23 +956,24 @@ const BudgetsScreen: React.FC = () => {
                 <Text style={styles.secondaryButtonText}>Cancel</Text>
               </Pressable>
               <Pressable
-                disabled={!isBudgetFormValid || !selectedAccountId}
+                disabled={!isBudgetFormValid}
                 onPress={handleSubmitBudget}
                 style={({ pressed }) => [
                   styles.primaryButton,
-                  pressed && isBudgetFormValid && selectedAccountId && styles.pressed,
+                  pressed && isBudgetFormValid && styles.pressed,
                 ]}
               >
                 <AdaptiveGlassView
                   style={[
+                    styles.glassSurface,
                     styles.primaryButtonInner,
-                    { opacity: !isBudgetFormValid || !selectedAccountId ? 0.4 : 1 },
+                    { opacity: !isBudgetFormValid ? 0.4 : 1 },
                   ]}
                 >
                   <Text
                     style={[
                       styles.primaryButtonText,
-                      { color: !isBudgetFormValid || !selectedAccountId ? '#7E8B9A' : '#FFFFFF' },
+                      { color: !isBudgetFormValid ? '#7E8B9A' : '#FFFFFF' },
                     ]}
                   >
                     {editingBudget
@@ -738,7 +997,26 @@ const BudgetsScreen: React.FC = () => {
             )}
           </ScrollView>
         </KeyboardAvoidingView>
-      </CustomModal>
+      </CustomBottomSheet>
+
+      {Platform.OS === 'ios' && iosRangePicker && (
+        <Modal transparent visible animationType="fade" onRequestClose={() => setIosRangePicker(null)}>
+          <View style={styles.pickerModal}>
+            <Pressable style={styles.pickerBackdrop} onPress={() => setIosRangePicker(null)} />
+            <AdaptiveGlassView style={styles.pickerCard}>
+              <DateTimePicker
+                value={iosRangePicker.value}
+                mode="date"
+                display="inline"
+                onChange={handleIosRangeChange}
+              />
+              <Pressable onPress={() => setIosRangePicker(null)} style={styles.pickerDoneButton}>
+                <Text style={styles.pickerDoneText}>OK</Text>
+              </Pressable>
+            </AdaptiveGlassView>
+          </View>
+        </Modal>
+      )}
     </>
   );
 };
@@ -746,6 +1024,11 @@ const BudgetsScreen: React.FC = () => {
 export default BudgetsScreen;
 
 const styles = StyleSheet.create({
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
   screen: {
     flex: 1,
   },
@@ -950,6 +1233,61 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: '#7E8B9A',
   },
+  periodChipsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingVertical: 4,
+    flexWrap: 'wrap',
+  },
+  periodChip: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginRight: 6,
+    marginBottom: 6,
+  },
+  periodChipActive: {
+    borderColor: 'rgba(124,101,255,0.8)',
+    backgroundColor: 'rgba(124,101,255,0.18)',
+  },
+  periodChipLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#9E9E9E',
+  },
+  periodChipLabelActive: {
+    color: '#FFFFFF',
+  },
+  rangeSummary: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#7E8B9A',
+  },
+  customRangeRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  rangeButton: {
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    minWidth: 140,
+  },
+  rangeButtonLabel: {
+    fontSize: 12,
+    color: '#7E8B9A',
+  },
+  rangeValue: {
+    marginTop: 4,
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  rangeError: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#F87171',
+  },
   typeContainer: {
     borderRadius: 16,
   },
@@ -1046,5 +1384,32 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FF6B6B',
+  },
+  pickerModal: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    padding: 24,
+  },
+  pickerBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  pickerCard: {
+    width: '100%',
+    borderRadius: 24,
+    padding: 16,
+    gap: 12,
+  },
+  pickerDoneButton: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  pickerDoneText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
   },
 });

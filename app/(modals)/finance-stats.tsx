@@ -5,60 +5,59 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { useAppTheme } from '@/constants/theme';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
 import { useLocalization } from '@/localization/useLocalization';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
+import { useShallow } from 'zustand/react/shallow';
 
 const FinanceStatsModal = () => {
   const theme = useAppTheme();
   const router = useRouter();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const { strings } = useLocalization();
-  const accounts = useFinanceStore((state) => state.accounts);
-  const transactions = useFinanceStore((state) => state.transactions);
-  const debts = useFinanceStore((state) => state.debts);
-  const budgets = useFinanceStore((state) => state.budgets);
+  const { accounts, transactions, debts, budgets } = useFinanceDomainStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      transactions: state.transactions,
+      debts: state.debts,
+      budgets: state.budgets,
+    })),
+  );
 
   const { convertAmount, formatCurrency, globalCurrency } = useFinanceCurrency();
 
   const stats = useMemo(() => {
     const totalBalance = accounts.reduce(
-      (sum, account) => sum + convertAmount(account.balance, normalizeFinanceCurrency(account.currency), globalCurrency),
+      (sum, account) =>
+        sum + convertAmount(account.currentBalance, normalizeFinanceCurrency(account.currency), globalCurrency),
       0,
     );
     const incomeTotal = transactions
       .filter((transaction) => transaction.type === 'income')
-      .reduce(
-        (sum, transaction) =>
-          sum +
-          convertAmount(
-            transaction.amount,
-            normalizeFinanceCurrency(transaction.currency ?? accounts.find((a) => a.id === transaction.accountId)?.currency),
-            globalCurrency,
-          ),
-        0,
-      );
+      .reduce((sum, transaction) => {
+        const currency = normalizeFinanceCurrency(
+          (transaction.currency ?? accounts.find((a) => a.id === transaction.accountId)?.currency) ?? globalCurrency,
+        );
+        return sum + convertAmount(transaction.amount, currency, globalCurrency);
+      }, 0);
     const outcomeTotal = transactions
-      .filter((transaction) => transaction.type === 'outcome')
-      .reduce(
-        (sum, transaction) =>
-          sum +
-          convertAmount(
-            transaction.amount,
-            normalizeFinanceCurrency(transaction.currency ?? accounts.find((a) => a.id === transaction.accountId)?.currency),
-            globalCurrency,
-          ),
-        0,
-      );
+      .filter((transaction) => transaction.type === 'expense')
+      .reduce((sum, transaction) => {
+        const currency = normalizeFinanceCurrency(
+          (transaction.currency ?? accounts.find((a) => a.id === transaction.accountId)?.currency) ?? globalCurrency,
+        );
+        return sum + convertAmount(transaction.amount, currency, globalCurrency);
+      }, 0);
     const debtOutstanding = debts.reduce(
-      (sum, debt) => sum + convertAmount(debt.remainingAmount, normalizeFinanceCurrency(debt.currency), globalCurrency),
+      (sum, debt) =>
+        sum + convertAmount(debt.principalAmount, normalizeFinanceCurrency(debt.principalCurrency), globalCurrency),
       0,
     );
     const budgetUsage = budgets.reduce(
       (acc, budget) => {
-        const spent = convertAmount(budget.spent, normalizeFinanceCurrency('UZS'), globalCurrency);
-        const limit = convertAmount(budget.limit, normalizeFinanceCurrency('UZS'), globalCurrency);
+        const spent = convertAmount(budget.spentAmount, normalizeFinanceCurrency(budget.currency), globalCurrency);
+        const limit = convertAmount(budget.limitAmount, normalizeFinanceCurrency(budget.currency), globalCurrency);
         return {
           spent: acc.spent + spent,
           limit: acc.limit + limit,

@@ -51,12 +51,37 @@ const TransactionItemRow: React.FC<TransactionItemRowProps> = ({
     transform: [{ translateY: translateY.value }],
   }));
 
-  const amountColor =
-    item.type === 'income'
-      ? theme.colors.success
-      : item.type === 'outcome'
-        ? theme.colors.danger
-        : theme.colors.primary;
+  const amountColor = (() => {
+    if (item.type === 'income') {
+      return theme.colors.success;
+    }
+    if (item.type === 'outcome') {
+      return theme.colors.danger;
+    }
+    if (item.transferDirection === 'incoming') {
+      return theme.colors.success;
+    }
+    if (item.transferDirection === 'outgoing') {
+      return theme.colors.danger;
+    }
+    return theme.colors.primary;
+  })();
+
+  const amountSign = (() => {
+    if (item.type === 'income') {
+      return '+';
+    }
+    if (item.type === 'outcome') {
+      return '−';
+    }
+    if (item.transferDirection === 'incoming') {
+      return '+';
+    }
+    if (item.transferDirection === 'outgoing') {
+      return '−';
+    }
+    return '';
+  })();
 
   return (
     <Animated.View style={[styles.rowWrapper, animatedStyle]}>
@@ -83,7 +108,7 @@ const TransactionItemRow: React.FC<TransactionItemRowProps> = ({
         <View style={styles.rowRight}>
           <Text style={[styles.time, { color: theme.colors.textMuted }]}>{item.time}</Text>
           <Text style={[styles.amount, { color: amountColor }]}>
-            {item.type === 'income' ? '+' : item.type === 'outcome' ? '−' : ''}
+            {amountSign}
             {formatAmount(item.amount, item.currency)}
           </Text>
         </View>

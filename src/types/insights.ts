@@ -7,13 +7,39 @@ export interface PersonalDevelopmentIndex {
   discipline: number;
 }
 
+export type InsightScope = 'daily' | 'weekly' | 'monthly' | 'custom';
+export type InsightKind = 'finance' | 'planner' | 'habit' | 'focus' | 'combined' | 'wisdom';
+export type InsightLevel = 'info' | 'warning' | 'critical' | 'celebration';
+export type InsightSource = 'chatgpt' | 'local';
+
+export interface InsightActionRecord {
+  type: string;
+  label?: string;
+  action?: InsightActionType;
+  payload?: Record<string, unknown>;
+  confidence?: number;
+  priority?: 'low' | 'normal' | 'high';
+}
+
 export interface Insight {
   id: string;
-  type: 'pattern' | 'opportunity' | 'warning' | 'achievement';
-  icon: string;
+  kind: InsightKind;
+  level: InsightLevel;
+  scope: InsightScope;
   title: string;
-  description: string;
-  date: Date;
+  body: string;
+  payload?: Record<string, unknown>;
+  related?: {
+    goalId?: string;
+    budgetId?: string;
+    debtId?: string;
+    habitId?: string;
+    taskId?: string;
+  };
+  actions?: InsightActionRecord[];
+  createdAt: string;
+  validUntil?: string;
+  source: InsightSource;
 }
 
 export interface FinancialMetric {
@@ -31,6 +57,7 @@ export type InsightActionType =
   | 'quick_add'
   | 'open_debt'
   | 'open_budgets'
+  | 'open_goals'
   | 'open_tasks'
   | 'open_habits'
   | 'open_history'

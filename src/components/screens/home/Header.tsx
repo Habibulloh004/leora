@@ -27,6 +27,7 @@ interface HeaderProps {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
   calendarIndicators: CalendarIndicatorsMap;
+  networkStatusTone?: 'online' | 'offline' | 'muted';
 }
 
 export default function Header({
@@ -36,6 +37,7 @@ export default function Header({
   selectedDate,
   onSelectDate,
   calendarIndicators,
+  networkStatusTone,
 }: HeaderProps) {
   const dateSheetRef = useRef<BottomSheetHandle>(null);
   const router = useRouter();
@@ -122,19 +124,42 @@ export default function Header({
   ) : (
     <Text style={[styles.logo, { color: theme.colors.textPrimary }]}>{initials}</Text>
   );
+  const statusColor = useMemo(() => {
+    if (!networkStatusTone) {
+      return undefined;
+    }
+    switch (networkStatusTone) {
+      case 'online':
+        return theme.colors.success;
+      case 'offline':
+        return theme.colors.danger;
+      default:
+        return theme.colors.textSecondary;
+    }
+  }, [networkStatusTone, theme.colors.danger, theme.colors.success, theme.colors.textSecondary]);
 
   return (
     <Animated.View style={[styles.header, animatedStyle]}>
       <View style={styles.ProfileLogo}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          accessibilityLabel={strings.home.header.openProfile}
-          onPress={() => router.navigate('/profile')}
-          style={[styles.avatar, { backgroundColor: theme.colors.surfaceElevated }]}
-          activeOpacity={0.8}
-        >
-          {avatarNode}
-        </TouchableOpacity>
+        <View style={styles.avatarWrapper}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={strings.home.header.openProfile}
+            onPress={() => router.navigate('/profile')}
+            style={[styles.avatar, { backgroundColor: theme.colors.surfaceElevated }]}
+            activeOpacity={0.8}
+          >
+            {avatarNode}
+          </TouchableOpacity>
+          {statusColor ? (
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: statusColor, borderColor: theme.colors.background },
+              ]}
+            />
+          ) : null}
+        </View>
       </View>
 
       <View style={styles.dateWrapper}>
@@ -198,6 +223,11 @@ export default function Header({
       </View>
 
       <View style={styles.actions}>
+        {onSearchPress ? (
+          <TouchableOpacity style={styles.iconButton} onPress={onSearchPress}>
+            <ListSearchIcon color={theme.colors.textSecondary} size={22} />
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity style={styles.iconButton} onPress={onNotificationPress}>
           <BellFilledIcon color={theme.colors.textSecondary} size={22} />
           {unreadCount > 0 && (
@@ -239,6 +269,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
     flex: 1,
     justifyContent: 'flex-start',
     alignItems: 'flex-start',
+  },
+  avatarWrapper: {
+    position: 'relative',
   },
   avatar: {
     width: 44,
@@ -316,5 +349,14 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) => StyleSheet.creat
   badgeLabel: {
     fontSize: 10,
     fontWeight: '700',
+  },
+  statusDot: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
   },
 });

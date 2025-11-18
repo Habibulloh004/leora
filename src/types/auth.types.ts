@@ -41,6 +41,7 @@ export interface RegisterCredentials {
   password: string;
   confirmPassword: string;
   region: FinanceRegion;
+  currency?: FinanceCurrency;
 }
 
 export interface ForgotPasswordData {

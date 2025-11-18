@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { SlidersHorizontal } from 'lucide-react-native';
 
 import FilterTransactionSheet, {
@@ -7,23 +8,31 @@ import FilterTransactionSheet, {
   FilterTransactionSheetHandle,
 } from '@/components/modals/finance/FilterTransactionSheet';
 import CustomModal from '@/components/modals/CustomModal';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { useAppTheme } from '@/constants/theme';
 import TransactionGroup from '@/components/screens/finance/transactions/TransactionGroup';
+import type { TransactionGroupData } from '@/components/screens/finance/transactions/types';
 import { useLocalization } from '@/localization/useLocalization';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useModalStore } from '@/stores/useModalStore';
-import type { Transaction } from '@/types/store.types';
+import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
+import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
+import type { Transaction as LegacyTransaction, Debt as LegacyDebt } from '@/types/store.types';
+import type { Transaction as DomainTransaction } from '@/domain/finance/types';
+import { mapDomainDebtToLegacy } from '@/utils/finance/debtMappers';
+import { useShallow } from 'zustand/react/shallow';
 
 const BASE_CURRENCY = 'UZS';
 
 const DEFAULT_FILTERS: FilterState = {
-  period: 'today',
   category: 'all',
   account: 'all',
   type: 'all',
   minAmount: '',
   maxAmount: '',
+  dateFrom: '',
+  dateTo: '',
 };
 
 const formatCurrencyDisplay = (value: number, currency?: string) => {
@@ -39,39 +48,75 @@ const formatCurrencyDisplay = (value: number, currency?: string) => {
   }
 };
 
-const periodToDate = (period: string) => {
-  const now = new Date();
-  switch (period) {
-    case 'today':
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    case 'week': {
-      const start = new Date(now);
-      const day = start.getDay();
-      start.setDate(start.getDate() - day);
-      start.setHours(0, 0, 0, 0);
-      return start;
-    }
-    case 'month':
-      return new Date(now.getFullYear(), now.getMonth(), 1);
-    case 'year':
-      return new Date(now.getFullYear(), 0, 1);
-    default:
-      return new Date(0);
+type LegacyTransactionType = 'income' | 'outcome' | 'transfer';
+
+const toLegacyTransactionType = (type: DomainTransaction['type']): LegacyTransactionType =>
+  type === 'expense' ? 'outcome' : type;
+
+const mapDomainTransactionToLegacy = (transaction: DomainTransaction): LegacyTransaction[] => {
+  const legacyType = toLegacyTransactionType(transaction.type);
+  const fallbackAccount = transaction.accountId ?? transaction.fromAccountId ?? 'local-account';
+  const baseRecord: Omit<LegacyTransaction, 'id' | 'amount' | 'accountId' | 'currency'> = {
+    type: legacyType,
+    category: transaction.categoryId,
+    toAccountId: transaction.toAccountId,
+    note: transaction.description,
+    description: transaction.description,
+    date: new Date(transaction.date),
+    currency: transaction.currency,
+    createdAt: new Date(transaction.createdAt),
+    updatedAt: new Date(transaction.updatedAt),
+    relatedDebtId: transaction.debtId,
+    sourceTransactionId: transaction.id,
+  };
+
+  if (legacyType !== 'transfer') {
+    return [
+      {
+        ...baseRecord,
+        id: transaction.id,
+        amount: transaction.amount,
+        accountId: fallbackAccount,
+        currency: transaction.currency,
+      },
+    ];
   }
+
+  const fromAccountId = transaction.accountId ?? transaction.fromAccountId ?? fallbackAccount;
+  const toAccountId = transaction.toAccountId ?? fallbackAccount;
+  const incomingAmount = transaction.toAmount ?? transaction.amount;
+  const incomingCurrency = transaction.toCurrency ?? transaction.currency;
+
+  return [
+    {
+      ...baseRecord,
+      id: `${transaction.id}-from`,
+      amount: transaction.amount,
+      accountId: fromAccountId,
+      currency: transaction.currency,
+      transferDirection: 'outgoing',
+    },
+    {
+      ...baseRecord,
+      id: `${transaction.id}-to`,
+      amount: incomingAmount,
+      accountId: toAccountId,
+      currency: incomingCurrency,
+      transferDirection: 'incoming',
+    },
+  ];
 };
 
-const withinPeriod = (date: Date, period: string) => {
-  const start = periodToDate(period);
-  return date.getTime() >= start.getTime();
-};
-
-const matchesFilters = (transaction: Transaction, filters: FilterState) => {
+const matchesFilters = (transaction: LegacyTransaction, filters: FilterState) => {
   const date = new Date(transaction.date);
-  if (filters.period !== 'all' && !withinPeriod(date, filters.period)) {
-    return false;
-  }
-  if (filters.type !== 'all' && transaction.type !== filters.type) {
-    return false;
+  if (filters.type !== 'all') {
+    if (filters.type === 'debt') {
+      if (!transaction.relatedDebtId) {
+        return false;
+      }
+    } else if (transaction.type !== filters.type) {
+      return false;
+    }
   }
   if (filters.category !== 'all' && transaction.category !== filters.category) {
     return false;
@@ -86,6 +131,18 @@ const matchesFilters = (transaction: Transaction, filters: FilterState) => {
   const max = parseFloat(filters.maxAmount);
   if (!Number.isNaN(max) && transaction.amount > max) {
     return false;
+  }
+  if (filters.dateFrom) {
+    const from = new Date(filters.dateFrom);
+    if (date < from) {
+      return false;
+    }
+  }
+  if (filters.dateTo) {
+    const to = new Date(filters.dateTo);
+    if (date > to) {
+      return false;
+    }
   }
   return true;
 };
@@ -107,15 +164,47 @@ const formatRelativeTime = (date: Date) => {
   }).format(date);
 };
 
+type DetailRowProps = {
+  label: string;
+  value: string;
+};
+
+const DetailRow = ({ label, value }: DetailRowProps) => {
+  const theme = useAppTheme();
+
+  return (
+    <View style={styles.detailField}>
+      <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{label}</Text>
+      <Text
+        style={[styles.detailValue, { color: theme.colors.textPrimary }]}
+        numberOfLines={2}
+        ellipsizeMode="tail"
+      >
+        {value}
+      </Text>
+    </View>
+  );
+};
+
 const TransactionsPage: React.FC = () => {
   const theme = useAppTheme();
   const { strings } = useLocalization();
   const transactionsStrings = strings.financeScreens.transactions;
+  const filterSheetStrings = transactionsStrings.filterSheet;
   const filterSheetRef = useRef<FilterTransactionSheetHandle>(null);
-  const accounts = useFinanceStore((state) => state.accounts);
-  const transactions = useFinanceStore((state) => state.transactions);
-  const debts = useFinanceStore((state) => state.debts);
-  const categories = useFinanceStore((state) => state.categories);
+  const { accounts, transactions: domainTransactions, debts: domainDebts, categories } = useFinanceDomainStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      transactions: state.transactions,
+      debts: state.debts,
+      categories: state.categories,
+    })),
+  );
+  const transactions = useMemo<LegacyTransaction[]>(
+    () => domainTransactions.flatMap(mapDomainTransactionToLegacy),
+    [domainTransactions],
+  );
+  const debts = useMemo<LegacyDebt[]>(() => domainDebts.map(mapDomainDebtToLegacy), [domainDebts]);
   const openIncomeOutcome = useModalStore((state) => state.openIncomeOutcome);
   const openTransferModal = useModalStore((state) => state.openTransferModal);
   const detailModalRef = useRef<BottomSheetHandle>(null);
@@ -127,13 +216,13 @@ const TransactionsPage: React.FC = () => {
   }, []);
 
   const accountOptions = useMemo(
-    () => [{ id: 'all', label: 'All' }, ...accounts.map((account) => ({ id: account.id, label: account.name }))],
-    [accounts],
+    () => [{ id: 'all', label: filterSheetStrings.all }, ...accounts.map((account) => ({ id: account.id, label: account.name }))],
+    [accounts, filterSheetStrings],
   );
 
   const categoryOptions = useMemo(
-    () => [{ id: 'all', label: 'All' }, ...categories.map((category) => ({ id: category, label: category }))],
-    [categories],
+    () => [{ id: 'all', label: filterSheetStrings.all }, ...categories.map((category) => ({ id: category, label: category }))],
+    [categories, filterSheetStrings],
   );
 
   const groupedTransactions = useMemo(() => {
@@ -173,6 +262,7 @@ const TransactionsPage: React.FC = () => {
           amount: transaction.amount,
           currency: transaction.currency ?? BASE_CURRENCY,
           type: transaction.type,
+          transferDirection: transaction.transferDirection,
         });
       });
 
@@ -186,12 +276,38 @@ const TransactionsPage: React.FC = () => {
     [selectedTransactionId, transactions],
   );
 
+  const selectedDomainTransaction = useMemo(() => {
+    if (!selectedTransaction) {
+      return null;
+    }
+    return domainTransactions.find((txn) => txn.id === (selectedTransaction.sourceTransactionId ?? selectedTransaction.id)) ?? null;
+  }, [domainTransactions, selectedTransaction]);
+
   const relatedDebt = useMemo(() => {
     if (!selectedTransaction?.relatedDebtId) {
       return null;
     }
     return debts.find((debt) => debt.id === selectedTransaction.relatedDebtId) ?? null;
   }, [debts, selectedTransaction]);
+
+  const selectedTransactionTypeLabel = useMemo(() => {
+    if (!selectedTransaction) {
+      return null;
+    }
+    if (selectedTransaction.relatedDebtId) {
+      return filterSheetStrings.typeOptions.debt ?? 'Debt';
+    }
+    if (selectedTransaction.type === 'income') {
+      return filterSheetStrings.typeOptions.income;
+    }
+    if (selectedTransaction.type === 'outcome') {
+      return filterSheetStrings.typeOptions.expense;
+    }
+    if (selectedTransaction.type === 'transfer') {
+      return filterSheetStrings.typeOptions.transfer;
+    }
+    return null;
+  }, [filterSheetStrings.typeOptions, selectedTransaction]);
 
   const handleApplyFilters = useCallback((filters: FilterState) => {
     setActiveFilters(filters);
@@ -201,33 +317,36 @@ const TransactionsPage: React.FC = () => {
     setActiveFilters(DEFAULT_FILTERS);
   }, []);
 
+  const closeDetails = useCallback(() => {
+    detailModalRef.current?.dismiss();
+    setSelectedTransactionId(null);
+  }, []);
+
   const handleEditTransaction = useCallback(() => {
     if (!selectedTransaction) {
       return;
     }
-    const transaction = selectedTransaction;
     closeDetails();
 
-    if (transaction.type === 'transfer') {
-      openTransferModal({ mode: 'edit', transaction });
+    if (selectedTransaction.type === 'transfer') {
+      const original = selectedDomainTransaction;
+      if (!original) {
+        return;
+      }
+      openTransferModal({ mode: 'edit', transaction: original });
       return;
     }
 
     openIncomeOutcome({
       mode: 'edit',
-      tab: (transaction.type ?? 'income') as 'income' | 'outcome',
-      transaction,
+      tab: (selectedTransaction.type ?? 'income') as 'income' | 'outcome',
+      transaction: selectedTransaction,
     });
-  }, [closeDetails, openIncomeOutcome, openTransferModal, selectedTransaction]);
+  }, [closeDetails, openIncomeOutcome, openTransferModal, selectedDomainTransaction, selectedTransaction]);
 
   const handleTransactionPress = useCallback((transactionId: string) => {
     setSelectedTransactionId(transactionId);
     detailModalRef.current?.present();
-  }, []);
-
-  const closeDetails = useCallback(() => {
-    detailModalRef.current?.dismiss();
-    setSelectedTransactionId(null);
   }, []);
 
   return (
@@ -277,103 +396,106 @@ const TransactionsPage: React.FC = () => {
       />
       <CustomModal
         ref={detailModalRef}
-        variant="picker"
-        fallbackSnapPoint="50%"
+        variant="form"
+        fallbackSnapPoint="80%"
+        scrollable={false}
         onDismiss={closeDetails}
       >
-        {selectedTransaction ? (
-          <View style={styles.detailContainer}>
-            <Text style={[styles.detailTitle, { color: theme.colors.textPrimary }]}>
-              {transactionsStrings.details.title}
-            </Text>
-
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
-                {transactionsStrings.details.amount}
-              </Text>
-              <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>
-                {selectedTransaction.type === 'income'
-                  ? '+'
-                  : selectedTransaction.type === 'outcome'
-                    ? '−'
-                    : ''}
-                {formatCurrencyDisplay(selectedTransaction.amount, selectedTransaction.currency)}
-              </Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
-                {transactionsStrings.details.account}
-              </Text>
-              <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>
-                {accounts.find((account) => account.id === selectedTransaction.accountId)?.name ??
-                  transactionsStrings.details.account}
-              </Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
-                {transactionsStrings.details.category}
-              </Text>
-              <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>
-                {selectedTransaction.category ?? '—'}
-              </Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
-                {transactionsStrings.details.date}
-              </Text>
-              <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>
-                {new Date(selectedTransaction.date).toLocaleString()}
-              </Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
-                {transactionsStrings.details.note}
-              </Text>
-              <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]} numberOfLines={2}>
-                {selectedTransaction.note ?? selectedTransaction.description ?? '—'}
-              </Text>
-            </View>
-
-            {relatedDebt && (
-              <View style={styles.detailRow}>
-                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
-                  {transactionsStrings.details.relatedDebt}
-                </Text>
-                <Text style={[styles.detailValue, { color: theme.colors.textPrimary }]}>
-                  {relatedDebt.person}
-                </Text>
-              </View>
-            )}
-
-            <Pressable
-              style={[
-                styles.detailActionButton,
-                { backgroundColor: theme.colors.primary },
-              ]}
-              onPress={handleEditTransaction}
+        <SafeAreaView edges={['bottom']} style={styles.detailSafeArea}>
+          {selectedTransaction ? (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.detailScroll}
             >
-              <Text style={[styles.detailActionText, { color: theme.colors.onPrimary }]}>
-                {strings.financeScreens.accounts.actions.edit}
+              <Text style={[styles.detailTitle, { color: theme.colors.textPrimary }]}>
+                {transactionsStrings.details.title}
               </Text>
-            </Pressable>
 
-            <Pressable style={styles.detailCloseButton} onPress={closeDetails}>
-              <Text style={[styles.detailCloseText, { color: theme.colors.primary }]}>
+              <AdaptiveGlassView style={[styles.glassSurface, styles.detailCard]}>
+                {selectedTransactionTypeLabel ? (
+                  <DetailRow
+                    label={transactionsStrings.details.type}
+                    value={selectedTransactionTypeLabel}
+                  />
+                ) : null}
+                <DetailRow
+                  label={transactionsStrings.details.amount}
+                  value={`${selectedTransaction.type === 'income'
+                    ? '+'
+                    : selectedTransaction.type === 'outcome'
+                      ? '−'
+                      : selectedTransaction.transferDirection === 'incoming'
+                        ? '+'
+                        : selectedTransaction.transferDirection === 'outgoing'
+                          ? '−'
+                          : ''}${formatCurrencyDisplay(selectedTransaction.amount, selectedTransaction.currency)}`}
+                />
+                <DetailRow
+                  label={transactionsStrings.details.account}
+                  value={
+                    accounts.find((account) => account.id === selectedTransaction.accountId)?.name ??
+                    transactionsStrings.details.account
+                  }
+                />
+                <DetailRow
+                  label={transactionsStrings.details.category}
+                  value={selectedTransaction.category ?? '—'}
+                />
+                <DetailRow
+                  label={transactionsStrings.details.date}
+                  value={new Date(selectedTransaction.date).toLocaleString()}
+                />
+              </AdaptiveGlassView>
+
+              <AdaptiveGlassView style={[styles.glassSurface, styles.detailCard]}>
+                <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
+                  {transactionsStrings.details.note}
+                </Text>
+                <Text style={[styles.detailNote, { color: theme.colors.textPrimary }]}>
+                  {selectedTransaction.note ?? selectedTransaction.description ?? '—'}
+                </Text>
+              </AdaptiveGlassView>
+
+              {relatedDebt && (
+                <AdaptiveGlassView style={[styles.glassSurface, styles.detailCard]}>
+                  <DetailRow
+                    label={transactionsStrings.details.relatedDebt}
+                    value={relatedDebt.person}
+                  />
+                </AdaptiveGlassView>
+              )}
+
+              <View style={styles.detailButtons}>
+                <Pressable
+                  style={({ pressed }) => [
+                    styles.detailPrimaryButton,
+                    { backgroundColor: theme.colors.primary },
+                    pressed && styles.pressedOpacity,
+                  ]}
+                  onPress={handleEditTransaction}
+                >
+                  <Text style={[styles.detailPrimaryText, { color: theme.colors.onPrimary }]}>
+                    {strings.financeScreens.accounts.actions.edit}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.detailSecondaryButton, pressed && styles.pressedOpacity]}
+                  onPress={closeDetails}
+                >
+                  <Text style={[styles.detailSecondaryText, { color: theme.colors.textPrimary }]}>
+                    {transactionsStrings.details.close}
+                  </Text>
+                </Pressable>
+              </View>
+            </ScrollView>
+          ) : (
+            <View style={styles.detailEmpty}>
+              <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
                 {transactionsStrings.details.close}
               </Text>
-            </Pressable>
-          </View>
-        ) : (
-          <View style={styles.detailContainer}>
-            <Text style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>
-              {transactionsStrings.details.close}
-            </Text>
-          </View>
-        )}
+            </View>
+          )}
+        </SafeAreaView>
       </CustomModal>
     </>
   );
@@ -412,50 +534,79 @@ const styles = StyleSheet.create({
   pressedOpacity: {
     opacity: 0.85,
   },
-  detailContainer: {
-    gap: 14,
+  detailSafeArea: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  detailScroll: {
+    paddingTop: 18,
+    paddingBottom: 32,
+    gap: 16,
+  },
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(16,16,22,0.82)',
+  },
+  detailCard: {
+    borderRadius: 24,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    gap: 12,
   },
   detailTitle: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    letterSpacing: -0.3,
   },
   detailLabel: {
     fontSize: 13,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
   },
   detailValue: {
     fontSize: 15,
     fontWeight: '600',
     textAlign: 'right',
   },
-  detailActionButton: {
-    marginTop: 8,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  detailField: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
   },
-  detailActionText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  detailCloseButton: {
-    marginTop: 8,
-    alignSelf: 'flex-end',
-  },
-  detailCloseText: {
+  detailNote: {
     fontSize: 14,
+    lineHeight: 20,
+    marginTop: 6,
+  },
+  detailButtons: {
+    marginTop: 8,
+    gap: 12,
+  },
+  detailPrimaryButton: {
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  detailPrimaryText: {
+    fontSize: 16,
     fontWeight: '600',
+  },
+  detailSecondaryButton: {
+    borderRadius: 18,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+  },
+  detailSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  detailEmpty: {
+    paddingVertical: 32,
+    alignItems: 'center',
   },
   bottomSpacer: {
     height: 40,

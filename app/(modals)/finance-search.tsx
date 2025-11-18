@@ -5,9 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
 import { useAppTheme } from '@/constants/theme';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
+import { useShallow } from 'zustand/react/shallow';
 
 type ResultType = 'account' | 'transaction' | 'budget' | 'debt';
 
@@ -26,10 +27,14 @@ const FinanceSearchModal = () => {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [query, setQuery] = useState('');
 
-  const accounts = useFinanceStore((state) => state.accounts);
-  const transactions = useFinanceStore((state) => state.transactions);
-  const budgets = useFinanceStore((state) => state.budgets);
-  const debts = useFinanceStore((state) => state.debts);
+  const { accounts, transactions, budgets, debts } = useFinanceDomainStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      transactions: state.transactions,
+      budgets: state.budgets,
+      debts: state.debts,
+    })),
+  );
 
   const { formatCurrency, globalCurrency } = useFinanceCurrency();
 
@@ -46,8 +51,8 @@ const FinanceSearchModal = () => {
           id: `account-${account.id}`,
           type: 'account',
           title: account.name,
-          subtitle: account.subtitle ?? 'Account',
-          amount: formatCurrency(account.balance, {
+          subtitle: account.accountType ?? 'Account',
+          amount: formatCurrency(account.currentBalance, {
             fromCurrency: normalizeFinanceCurrency(account.currency),
             toCurrency: globalCurrency,
             convert: true,
@@ -58,18 +63,24 @@ const FinanceSearchModal = () => {
     });
 
     transactions.forEach((transaction) => {
-      const matchTarget = `${transaction.category ?? ''} ${transaction.note ?? ''}`.toLowerCase();
+      const matchTarget = `${transaction.categoryId ?? ''} ${transaction.description ?? ''}`.toLowerCase();
       if (!matchTarget.includes(needle)) {
         return;
       }
+      const transactionDate = new Date(transaction.date);
+      const accountCurrency = transaction.accountId
+        ? accounts.find((a) => a.id === transaction.accountId)?.currency
+        : undefined;
       matches.push({
         id: `transaction-${transaction.id}`,
         type: 'transaction',
-        title: transaction.category ?? 'Transaction',
-        subtitle: new Date(transaction.date).toLocaleDateString(),
+        title: transaction.categoryId ?? 'Transaction',
+        subtitle: Number.isNaN(transactionDate.getTime())
+          ? transaction.date
+          : transactionDate.toLocaleDateString(),
         amount: formatCurrency(transaction.amount, {
           fromCurrency: normalizeFinanceCurrency(
-            transaction.currency ?? accounts.find((a) => a.id === transaction.accountId)?.currency,
+            transaction.currency ?? accountCurrency,
           ),
           toCurrency: globalCurrency,
           convert: true,
@@ -80,8 +91,8 @@ const FinanceSearchModal = () => {
 
     budgets.forEach((budget) => {
       if (budget.name.toLowerCase().includes(needle)) {
-        const spent = formatCurrency(budget.spent, {
-          fromCurrency: 'UZS',
+        const spent = formatCurrency(budget.spentAmount, {
+          fromCurrency: normalizeFinanceCurrency(budget.currency),
           toCurrency: globalCurrency,
           convert: true,
         });
@@ -89,7 +100,7 @@ const FinanceSearchModal = () => {
           id: `budget-${budget.id}`,
           type: 'budget',
           title: budget.name,
-          subtitle: budget.category,
+          subtitle: budget.budgetType,
           amount: spent,
           route: '/(tabs)/(finance)/(tabs)/budgets',
         });
@@ -97,14 +108,17 @@ const FinanceSearchModal = () => {
     });
 
     debts.forEach((debt) => {
-      if (debt.person.toLowerCase().includes(needle) || (debt.note ?? '').toLowerCase().includes(needle)) {
+      if (
+        debt.counterpartyName.toLowerCase().includes(needle) ||
+        (debt.description ?? '').toLowerCase().includes(needle)
+      ) {
         matches.push({
           id: `debt-${debt.id}`,
           type: 'debt',
-          title: debt.person,
-          subtitle: debt.type === 'lent' ? 'Incoming debt' : 'My debt',
-          amount: formatCurrency(debt.remainingAmount, {
-            fromCurrency: normalizeFinanceCurrency(debt.currency),
+          title: debt.counterpartyName,
+          subtitle: debt.direction === 'they_owe_me' ? 'Incoming debt' : 'My debt',
+          amount: formatCurrency(debt.principalAmount, {
+            fromCurrency: normalizeFinanceCurrency(debt.principalCurrency),
             toCurrency: globalCurrency,
             convert: true,
           }),

@@ -13,6 +13,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -55,6 +56,7 @@ import type {
   TaskEnergyLevel,
   TaskPriorityLevel,
 } from '@/types/planner';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 const CATEGORY_PRESETS: { id: PlannerTaskCategoryId; context: string }[] = [
   { id: 'work', context: '@work' },
@@ -64,7 +66,6 @@ const CATEGORY_PRESETS: { id: PlannerTaskCategoryId; context: string }[] = [
   { id: 'errands', context: '@city' },
 ] as const;
 
-const REMIND_STEPS = [5, 10, 15, 30];
 const DATE_OPTIONS: AddTaskDateMode[] = ['today', 'tomorrow', 'pick'];
 
 export interface AddTaskSheetHandle {
@@ -83,7 +84,7 @@ const AddTaskSheetComponent = (
   ref: React.Ref<AddTaskSheetHandle>,
 ) => {
   const theme = useAppTheme();
-  const { strings, locale } = useLocalization();
+  const { strings } = useLocalization();
   const addTaskStrings = strings.addTask;
 
   const sheetRef = useRef<BottomSheetHandle>(null);
@@ -110,7 +111,7 @@ const AddTaskSheetComponent = (
         ...preset,
         label: addTaskStrings.categories[preset.id as keyof typeof addTaskStrings.categories],
       })),
-    [addTaskStrings.categories],
+    [addTaskStrings],
   );
   const defaultCategoryId = categoryOptions[0]?.id ?? CATEGORY_PRESETS[0].id;
 
@@ -126,6 +127,7 @@ const AddTaskSheetComponent = (
   const [energy, setEnergy] = useState<TaskEnergyLevel>('medium');
   const [priority, setPriority] = useState<TaskPriorityLevel>('medium');
   const [selectedCategoryId, setSelectedCategoryId] = useState<PlannerTaskCategoryId>(defaultCategoryId);
+  const [selectedGoalId, setSelectedGoalId] = useState<string | undefined>(undefined);
 
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [remindBeforeMin, setRemindBeforeMin] = useState<number>(15);
@@ -136,15 +138,16 @@ const AddTaskSheetComponent = (
   const [subtasksOpen, setSubtasksOpen] = useState(false);
   const [subtasks, setSubtasks] = useState<string[]>([]);
 
-  const aiPreset = useMemo(
-    () => ({
-      time: '14:00',
-      duration: '45 min',
-      context: '@home',
-      energy: 'high' as TaskEnergyLevel,
-    }),
-    [],
+  const domainGoals = usePlannerDomainStore((state) => state.goals);
+  const goalOptions = useMemo(
+    () =>
+      domainGoals.map((goal) => ({
+        id: goal.id,
+        title: goal.title,
+      })),
+    [domainGoals],
   );
+
 
   useEffect(() => {
     if (!categoryOptions.some((option) => option.id === selectedCategoryId)) {
@@ -178,6 +181,7 @@ const AddTaskSheetComponent = (
       setProject(initial.project);
       setContext(initial.context ?? CATEGORY_PRESETS[0].context);
       selectCategoryByContext(initial.context ?? CATEGORY_PRESETS[0].context);
+      setSelectedGoalId(initial.goalId ?? undefined);
       setEnergy(initial.energy ?? 'medium');
       setPriority(initial.priority ?? 'medium');
       setReminderEnabled(initial.reminderEnabled ?? true);
@@ -193,12 +197,6 @@ const AddTaskSheetComponent = (
 
   useImperativeHandle(ref, () => ({ open, close, edit }), [open, close, edit]);
 
-  const cycleReminder = useCallback(() => {
-    const idx = REMIND_STEPS.indexOf(remindBeforeMin);
-    const next = REMIND_STEPS[(idx + 1) % REMIND_STEPS.length];
-    setRemindBeforeMin(next);
-  }, [remindBeforeMin]);
-
   const addSubtask = useCallback(() => {
     setSubtasks((prev) => [...prev, '']);
   }, []);
@@ -207,12 +205,6 @@ const AddTaskSheetComponent = (
     setSubtasks((prev) => prev.map((item, idx) => (idx === index ? value : item)));
   }, []);
 
-  const handleApplyAiSuggestion = useCallback(() => {
-    setTime(aiPreset.time);
-    setContext(aiPreset.context);
-    selectCategoryByContext(aiPreset.context);
-    setEnergy(aiPreset.energy);
-  }, [aiPreset.context, aiPreset.energy, aiPreset.time, selectCategoryByContext]);
 
   const buildPayload = useCallback(
     (): AddTaskPayload => ({
@@ -226,6 +218,7 @@ const AddTaskSheetComponent = (
       energy,
       priority,
       categoryId: selectedCategoryId,
+      goalId: selectedGoalId,
       reminderEnabled,
       remindBeforeMin,
       repeatEnabled,
@@ -247,6 +240,7 @@ const AddTaskSheetComponent = (
       repeatEnabled,
       repeatRule,
       selectedCategoryId,
+      selectedGoalId,
       subtasks,
       time,
       title,
@@ -262,6 +256,7 @@ const AddTaskSheetComponent = (
     setProject(undefined);
     setContext(CATEGORY_PRESETS[0].context);
     setSelectedCategoryId(defaultCategoryId);
+    setSelectedGoalId(undefined);
     setEnergy('medium');
     setPriority('medium');
     setSubtasks([]);
@@ -382,32 +377,6 @@ const AddTaskSheetComponent = (
     setShowTimePicker(true);
   }, [applyTimeSelection, timePickerValue]);
 
-  const handleCategoryPress = useCallback(
-    (id: (typeof CATEGORY_PRESETS)[number]['id']) => {
-      setSelectedCategoryId(id);
-      const match = categoryOptions.find((option) => option.id === id);
-      if (match) {
-        setContext(match.context);
-      }
-    },
-    [categoryOptions],
-  );
-
-  const formattedDate = useMemo(() => {
-    if (dateMode === 'pick' && date) {
-      try {
-        return new Intl.DateTimeFormat(locale, {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-        }).format(new Date(date));
-      } catch {
-        return addTaskStrings.whenOptions.pick;
-      }
-    }
-    return addTaskStrings.whenOptions[dateMode];
-  }, [addTaskStrings.whenOptions, date, dateMode, locale]);
-
   const timeLabel = time ?? addTaskStrings.timePlaceholder;
   const disablePrimary = !title.trim();
   const handleSheetDismiss = useCallback(() => {
@@ -470,6 +439,61 @@ const AddTaskSheetComponent = (
             />
           </AdaptiveGlassView>
         </View>
+
+        {goalOptions.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>{addTaskStrings.goalLabel}</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.goalScroll}
+            >
+              <Pressable onPress={() => setSelectedGoalId(undefined)}>
+                <AdaptiveGlassView
+                  style={[
+                    styles.glassSurface,
+                    styles.goalChip,
+                    { opacity: selectedGoalId ? 0.5 : 1 },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.goalChipLabel,
+                      { color: selectedGoalId ? '#9E9E9E' : '#FFFFFF' },
+                    ]}
+                  >
+                    {addTaskStrings.goalUnset}
+                  </Text>
+                </AdaptiveGlassView>
+              </Pressable>
+              {goalOptions.map((goal) => {
+                const active = goal.id === selectedGoalId;
+                return (
+                  <Pressable key={goal.id} onPress={() => setSelectedGoalId(goal.id)}>
+                    <AdaptiveGlassView
+                      style={[
+                        styles.glassSurface,
+                        styles.goalChip,
+                        { opacity: active ? 1 : 0.6 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.goalChipLabel,
+                          { color: active ? '#FFFFFF' : '#9E9E9E' },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {goal.title}
+                      </Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+            <Text style={styles.goalHelper}>{addTaskStrings.goalHelper}</Text>
+          </View>
+        )}
 
         {/* When */}
         <View style={styles.fieldSection}>
@@ -1055,6 +1079,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+  },
+  goalScroll: {
+    gap: 10,
+    paddingVertical: 6,
+  },
+  goalChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    minWidth: 120,
+    marginRight: 10,
+  },
+  goalChipLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  goalHelper: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#7E8B9A',
   },
   aiSuggestion: {
     flexDirection: 'row',

@@ -1,11 +1,12 @@
 import { addDays, startOfDay } from '@/utils/calendar';
-import { PlannerTaskSection, usePlannerTasksStore } from '@/features/planner/useTasksStore';
 import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
 import {
   PlannerVoiceGoal,
   PlannerVoiceHabit,
   usePlannerVoiceActionStore,
 } from '@/features/planner/useVoiceActionLog';
+import { plannerService } from '@/features/planner/services/plannerService';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 type PlannerVoiceResult = {
   success: boolean;
@@ -74,13 +75,6 @@ const parseTimeFromCommand = (lower: string, date: Date) => {
   }
 };
 
-const determineSection = (date: Date): PlannerTaskSection => {
-  const hour = date.getHours();
-  if (hour < 12) return 'morning';
-  if (hour < 18) return 'afternoon';
-  return 'evening';
-};
-
 const parseCommand = (command: string): ParsedCommand | null => {
   const lower = command.toLowerCase();
   if (lower.includes('add task') || lower.includes('create task') || lower.includes('schedule task')) {
@@ -117,15 +111,11 @@ export const executePlannerVoiceIntent = (command: string): PlannerVoiceResult =
   }
 
   if (parsed.kind === 'task') {
-    const section = determineSection(parsed.date);
-    usePlannerTasksStore.getState().addTask({
+    plannerService.createTaskFromVoice({
       title: parsed.title,
-      start: new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(parsed.date),
-      duration: '45 min',
+      date: parsed.date,
+      durationLabel: '45 min',
       context: '@voice',
-      energy: 2,
-      section,
-      dueAt: parsed.date.getTime(),
     });
     return { success: true, message: `Task "${parsed.title}" scheduled` };
   }
@@ -136,6 +126,7 @@ export const executePlannerVoiceIntent = (command: string): PlannerVoiceResult =
       title: parsed.title,
       schedule: parsed.schedule,
     };
+    plannerService.createHabitFromVoice(parsed.title, parsed.schedule);
     usePlannerVoiceActionStore.getState().logHabit(entry);
     return { success: true, message: `Habit "${parsed.title}" logged` };
   }
@@ -146,13 +137,14 @@ export const executePlannerVoiceIntent = (command: string): PlannerVoiceResult =
       title: parsed.title,
       deadlineLabel: parsed.deadlineLabel,
     };
+    plannerService.createGoalFromVoice(parsed.title, parsed.deadlineLabel);
     usePlannerVoiceActionStore.getState().logGoal(entry);
     return { success: true, message: `Goal "${parsed.title}" captured` };
   }
 
   if (parsed.kind === 'focus') {
-    const store = usePlannerTasksStore.getState();
-    const target = store.tasks.find((task) =>
+    const domainTasks = usePlannerDomainStore.getState().tasks;
+    const target = domainTasks.find((task) =>
       task.title.toLowerCase().includes(parsed.title.toLowerCase()),
     );
     if (target) {
@@ -162,20 +154,13 @@ export const executePlannerVoiceIntent = (command: string): PlannerVoiceResult =
     // Create quick task if no match
     const quickTaskDate = addDays(startOfDay(new Date()), 0);
     parseTimeFromCommand(parsed.title.toLowerCase(), quickTaskDate);
-    store.addTask({
+    const created = plannerService.createTaskFromVoice({
       title: parsed.title || 'Focus task',
-      start: new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' }).format(quickTaskDate),
-      duration: parsed.duration ? `${parsed.duration} min` : '25 min',
+      date: quickTaskDate,
+      durationLabel: parsed.duration ? `${parsed.duration} min` : '25 min',
       context: '@voice',
-      energy: 3,
-      section: determineSection(quickTaskDate),
-      dueAt: quickTaskDate.getTime(),
     });
-    const latestTask = usePlannerTasksStore.getState().tasks[0];
-    if (latestTask) {
-      usePlannerFocusBridge.getState().startFocusForTask(latestTask.id);
-      return { success: true, message: `Focus session prepared for "${parsed.title}"` };
-    }
+    usePlannerFocusBridge.getState().startFocusForTask(created.id);
     return { success: true, message: `Focus session prepared for "${parsed.title}"` };
   }
 

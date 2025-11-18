@@ -34,15 +34,17 @@ import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import AddAccountSheet, {
   AddAccountSheetHandle,
 } from '@/components/modals/finance/AddAccountSheet';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import type {
+  AccountIconId,
   AccountItem,
+  AccountKind,
   AccountTransaction,
   AddAccountPayload,
-  AccountIconId,
 } from '@/types/accounts';
-import type { Transaction } from '@/types/store.types';
+import type { Account as DomainAccount, AccountType, Transaction as DomainTransaction } from '@/domain/finance/types';
 import { useLocalization } from '@/localization/useLocalization';
+import { useShallow } from 'zustand/react/shallow';
 
 type AccountsStrings = ReturnType<typeof useLocalization>['strings']['financeScreens']['accounts'];
 
@@ -59,6 +61,16 @@ const formatCurrency = (amount: number, currency: string = 'UZS'): string => {
     currency,
     minimumFractionDigits: 0,
   }).format(amount);
+};
+
+const ACCOUNT_COLOR_MAP: Record<AccountKind, string> = {
+  cash: '#F97316',
+  card: '#2563EB',
+  savings: '#0EA5E9',
+  usd: '#4F46E5',
+  crypto: '#F59E0B',
+  other: '#94A3B8',
+  custom: '#A855F7',
 };
 
 const CUSTOM_ICON_MAP: Record<AccountIconId, LucideIcon> = {
@@ -122,35 +134,108 @@ const formatTransactionTime = (date: Date) => {
   }).format(date);
 };
 
-const getTransactionTimestamp = (transaction: Transaction): number => {
+const getTransactionTimestamp = (transaction: DomainTransaction): number => {
   if (!transaction?.date) {
     return 0;
   }
-  const date = transaction.date instanceof Date ? transaction.date : new Date(transaction.date);
+  const date = new Date(transaction.date);
   return Number.isNaN(date.getTime()) ? 0 : date.getTime();
 };
 
-const buildAccountHistory = (accountId: string, list: Transaction[]): AccountTransaction[] => {
+const buildAccountHistory = (account: DomainAccount, list: DomainTransaction[]): AccountTransaction[] => {
+  const accountId = account.id;
+  const accountCurrency = account.currency;
   return list
     .filter((txn) => txn.accountId === accountId || txn.toAccountId === accountId)
     .sort((a, b) => getTransactionTimestamp(b) - getTransactionTimestamp(a))
     .slice(0, 4)
     .map((txn) => {
       let type: AccountTransaction['type'] = 'income';
+      let amount = txn.amount;
+      let currency = txn.currency ?? accountCurrency;
+
       if (txn.type === 'transfer') {
-        type = txn.accountId === accountId ? 'outcome' : 'income';
+        const isSourceSide = (txn.accountId ?? txn.fromAccountId) === accountId;
+        if (isSourceSide) {
+          type = 'outcome';
+          amount = txn.amount;
+          currency = txn.currency ?? accountCurrency;
+        } else {
+          type = 'income';
+          amount = txn.toAmount ?? txn.amount;
+          currency = txn.toCurrency ?? accountCurrency;
+        }
       } else {
         type = txn.type === 'income' ? 'income' : 'outcome';
+        amount = txn.amount;
+        currency = txn.currency ?? accountCurrency;
       }
 
       return {
         id: txn.id,
         type,
-        amount: txn.amount,
+        amount,
+        currency,
         time: formatTransactionTime(new Date(txn.date)),
         description: txn.description,
       };
     });
+};
+
+const mapDomainAccountTypeToKind = (type: AccountType): AccountKind => {
+  switch (type) {
+    case 'cash':
+      return 'cash';
+    case 'card':
+      return 'card';
+    case 'savings':
+      return 'savings';
+    case 'credit':
+    case 'debt':
+      return 'usd';
+    case 'investment':
+      return 'crypto';
+    default:
+      return 'other';
+  }
+};
+
+const mapAccountKindToDomainType = (kind: AccountKind): AccountType => {
+  switch (kind) {
+    case 'cash':
+      return 'cash';
+    case 'card':
+      return 'card';
+    case 'savings':
+      return 'savings';
+    case 'crypto':
+      return 'investment';
+    case 'usd':
+      return 'cash';
+    default:
+      return 'other';
+  }
+};
+
+const mapDomainAccountToItem = (account: DomainAccount, transactions: DomainTransaction[]): AccountItem => {
+  const kind = mapDomainAccountTypeToKind(account.accountType);
+  return {
+    id: account.id,
+    name: account.name,
+    type: kind,
+    balance: account.currentBalance,
+    currency: account.currency,
+    subtitle: account.accountType.toUpperCase(),
+    iconColor: ACCOUNT_COLOR_MAP[kind] ?? '#94A3B8',
+    customTypeId: undefined,
+    customTypeLabel: undefined,
+    customIcon: undefined,
+    progress: undefined,
+    goal: undefined,
+    usdRate: undefined,
+    transactions: buildAccountHistory(account, transactions),
+    isArchived: account.isArchived,
+  };
 };
 
 // ===========================
@@ -220,7 +305,7 @@ const TransactionRow: React.FC<TransactionRowProps> = ({
         {transaction.type === 'income' ? labels.income : labels.outcome}
       </Text>
       <Text style={[styles.transactionAmount, { color: textColor }]}>
-        {sign} {formatCurrency(transaction.amount)}
+        {sign} {formatCurrency(transaction.amount, transaction.currency)}
       </Text>
       <Text style={[styles.transactionTime, { color: theme.colors.textMuted }]}>
         {transaction.time}
@@ -384,7 +469,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
         },
       ]}
     >
-      <AdaptiveGlassView style={[styles.glassAccountCard,
+      <AdaptiveGlassView style={[styles.glassSurface, styles.glassAccountCard,
       {
         backgroundColor: theme.colors.card
       }
@@ -603,26 +688,33 @@ export default function AccountsTab() {
   const theme = useAppTheme();
   const { strings } = useLocalization();
   const accountStrings = strings.financeScreens.accounts;
-  const accounts = useFinanceStore((state) => state.accounts);
-  const transactions = useFinanceStore((state) => state.transactions);
-  const addAccount = useFinanceStore((state) => state.addAccount);
-  const editAccount = useFinanceStore((state) => state.editAccount);
-  const deleteAccount = useFinanceStore((state) => state.deleteAccount);
-  const archiveAccount = useFinanceStore((state) => state.archiveAccount);
+  const {
+    accounts: domainAccounts,
+    transactions: domainTransactions,
+    createAccount,
+    updateAccount,
+    deleteAccount,
+    archiveAccount,
+  } = useFinanceDomainStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      transactions: state.transactions,
+      createAccount: state.createAccount,
+      updateAccount: state.updateAccount,
+      deleteAccount: state.deleteAccount,
+      archiveAccount: state.archiveAccount,
+    })),
+  );
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionModeId, setActionModeId] = useState<string | null>(null);
   const addAccountSheetRef = useRef<AddAccountSheetHandle>(null);
-  const visibleAccounts = useMemo(
-    () => accounts.filter((account) => !account.isArchived),
-    [accounts],
+  const accountItems = useMemo(
+    () => domainAccounts.map((account) => mapDomainAccountToItem(account, domainTransactions)),
+    [domainAccounts, domainTransactions],
   );
   const preparedAccounts = useMemo(
-    () =>
-      visibleAccounts.map((account) => ({
-        ...account,
-        transactions: buildAccountHistory(account.id, transactions),
-      })),
-    [transactions, visibleAccounts],
+    () => accountItems.filter((account) => !account.isArchived),
+    [accountItems],
   );
 
   const handleCardPress = (id: string) => {
@@ -646,7 +738,7 @@ export default function AccountsTab() {
 
   const handleEdit = useCallback(
     (id: string) => {
-      const account = accounts.find((item) => item.id === id && !item.isArchived);
+      const account = accountItems.find((item) => item.id === id && !item.isArchived);
       if (!account) {
         return;
       }
@@ -654,7 +746,7 @@ export default function AccountsTab() {
       setActionModeId(null);
       addAccountSheetRef.current?.edit(account);
     },
-    [accounts],
+    [accountItems],
   );
 
   const handleArchive = useCallback(
@@ -681,16 +773,29 @@ export default function AccountsTab() {
 
   const handleAddAccountSubmit = useCallback(
     (payload: AddAccountPayload) => {
-      addAccount(payload);
+      createAccount({
+        userId: 'local-user',
+        name: payload.name,
+        accountType: mapAccountKindToDomainType(payload.type),
+        currency: payload.currency,
+        initialBalance: payload.amount,
+        linkedGoalId: undefined,
+        isArchived: false,
+      });
     },
-    [addAccount],
+    [createAccount],
   );
 
   const handleEditAccountSubmit = useCallback(
     (id: string, payload: AddAccountPayload) => {
-      editAccount(id, payload);
+      updateAccount(id, {
+        name: payload.name,
+        accountType: mapAccountKindToDomainType(payload.type),
+        currency: payload.currency,
+        currentBalance: payload.amount,
+      });
     },
-    [editAccount],
+    [updateAccount],
   );
 
   const handleAddNew = useCallback(() => {
@@ -729,7 +834,7 @@ export default function AccountsTab() {
           ))}
 
           {/* Add New Button */}
-          <AdaptiveGlassView style={styles.glass1}>
+          <AdaptiveGlassView style={[styles.glassSurface, styles.glass1]}>
             <TouchableOpacity
               style={[
                 styles.addNewButton,
@@ -762,6 +867,11 @@ export default function AccountsTab() {
 // ===========================
 
 const styles = StyleSheet.create({
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
   glass1: {
     borderRadius: 24,
     borderWidth: 0,

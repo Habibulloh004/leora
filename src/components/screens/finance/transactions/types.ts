@@ -9,6 +9,7 @@ export type TransactionItemData = {
   amount: number;
   currency: string;
   type: TransactionType;
+  transferDirection?: 'incoming' | 'outgoing';
 };
 
 export type TransactionGroupData = {

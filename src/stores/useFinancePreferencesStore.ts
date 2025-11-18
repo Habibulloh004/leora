@@ -3,6 +3,7 @@ import type { StateCreator } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
 import { mmkvStorageAdapter } from '@/utils/storage';
+import { FxService, type FxProviderId } from '@/services/fx';
 
 export type FinanceCurrency =
   | 'UZS'
@@ -12,7 +13,8 @@ export type FinanceCurrency =
   | 'TRY'
   | 'SAR'
   | 'AED'
-  | 'USDT';
+  | 'USDT'
+  | 'RUB';
 
 type ExchangeRateMap = Record<FinanceCurrency, number>;
 
@@ -25,6 +27,7 @@ export const AVAILABLE_FINANCE_CURRENCIES: FinanceCurrency[] = [
   'SAR',
   'AED',
   'USDT',
+  'RUB',
 ];
 
 export interface FinanceRegionPreset {
@@ -77,6 +80,12 @@ export const FINANCE_REGION_PRESETS = [
     description: 'UAE Dirham · UAE',
     currency: 'AED',
   },
+  {
+    id: 'russia',
+    label: 'Russia',
+    description: 'Ruble · Russia',
+    currency: 'RUB',
+  },
 ] as const satisfies readonly FinanceRegionPreset[];
 
 export type FinanceRegion = (typeof FINANCE_REGION_PRESETS)[number]['id'];
@@ -118,9 +127,12 @@ interface FinancePreferencesStore {
       convert?: boolean;
     },
   ) => string;
+  hydrateFxRates: () => void;
+  syncExchangeRates: (providerId: FxProviderId) => Promise<void>;
+  overrideExchangeRate: (currency: FinanceCurrency, rate: number) => void;
 }
 
-const DEFAULT_RATES: ExchangeRateMap = {
+export const DEFAULT_EXCHANGE_RATES: ExchangeRateMap = {
   UZS: 1,
   USD: 12_450,
   EUR: 13_600,
@@ -129,6 +141,7 @@ const DEFAULT_RATES: ExchangeRateMap = {
   SAR: 3_300,
   AED: 3_380,
   USDT: 12_450,
+  RUB: 140,
 };
 
 const localeByCurrency: Record<FinanceCurrency, string> = {
@@ -140,13 +153,14 @@ const localeByCurrency: Record<FinanceCurrency, string> = {
   SAR: 'ar-SA',
   AED: 'ar-AE',
   USDT: 'en-US',
+  RUB: 'ru-RU',
 };
 
 const clampRate = (rate: number) => (rate > 0 ? rate : 1);
 
 const getRateOrDefault = (rates: Partial<Record<FinanceCurrency, number>>, currency: FinanceCurrency) => {
   const value = rates[currency];
-  return Number.isFinite(value) && value && value > 0 ? (value as number) : DEFAULT_RATES[currency] ?? 1;
+  return Number.isFinite(value) && value && value > 0 ? (value as number) : DEFAULT_EXCHANGE_RATES[currency] ?? 1;
 };
 
 const rebaseExchangeRates = (
@@ -180,10 +194,10 @@ const createFinancePreferencesStore: StateCreator<FinancePreferencesStore> = (se
   region: DEFAULT_REGION.id,
   baseCurrency: DEFAULT_REGION.currency,
   globalCurrency: 'USD',
-  exchangeRates: { ...DEFAULT_RATES },
+  exchangeRates: { ...DEFAULT_EXCHANGE_RATES },
   defaultDebtAccounts: { borrowed: undefined, lent: undefined },
 
-  setRegion: (region, options) =>
+  setRegion: (region, options) => {
     set((state) => {
       const preset = REGION_PRESET_MAP[region];
       if (!preset) {
@@ -197,19 +211,27 @@ const createFinancePreferencesStore: StateCreator<FinancePreferencesStore> = (se
         globalCurrency: syncDisplayCurrency ? preset.currency : state.globalCurrency,
         exchangeRates: rebaseExchangeRates(state.exchangeRates, preset.currency),
       };
-    }),
+    });
+    get().hydrateFxRates();
+  },
 
   setGlobalCurrency: (currency) => {
     set({ globalCurrency: currency });
   },
 
-  setExchangeRate: (currency, rate) =>
+  setExchangeRate: (currency, rate) => {
+    FxService.getInstance().overrideRate({
+      fromCurrency: currency,
+      toCurrency: get().baseCurrency,
+      rate,
+    });
     set((state) => ({
       exchangeRates: {
         ...state.exchangeRates,
         [currency]: currency === state.baseCurrency ? 1 : clampRate(rate),
       },
-    })),
+    }));
+  },
 
   setDefaultDebtAccount: (type, accountId) =>
     set((state) => ({
@@ -264,6 +286,26 @@ const createFinancePreferencesStore: StateCreator<FinancePreferencesStore> = (se
     });
 
     return formatter.format(value);
+  },
+  hydrateFxRates: () => {
+    try {
+      const snapshot = FxService.getInstance().getSnapshot(get().baseCurrency);
+      set({ exchangeRates: snapshot });
+    } catch {
+      // keep existing values
+    }
+  },
+  syncExchangeRates: async (providerId: FxProviderId) => {
+    await FxService.getInstance().syncProvider(providerId);
+    get().hydrateFxRates();
+  },
+  overrideExchangeRate: (currency, rate) => {
+    FxService.getInstance().overrideRate({
+      fromCurrency: currency,
+      toCurrency: get().baseCurrency,
+      rate,
+    });
+    get().hydrateFxRates();
   },
 });
 

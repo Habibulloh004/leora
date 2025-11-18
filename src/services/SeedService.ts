@@ -1,19 +1,19 @@
-import { Account } from '@/utils/models';
-import { Rate } from '@/utils/models/Rate';
 import Realm from 'realm';
-import { AccountService } from './AccountService';
+import { AccountDAO, FxRateDAO } from '@/database/dao/FinanceDAO';
 
 export class SeedService {
   private realm: Realm;
-  private accountService: AccountService;
+  private accountDAO: AccountDAO;
+  private fxRateDAO: FxRateDAO;
 
   constructor(realm: Realm) {
     this.realm = realm;
-    this.accountService = new AccountService(realm);
+    this.accountDAO = new AccountDAO(realm);
+    this.fxRateDAO = new FxRateDAO(realm);
   }
 
   hasData(): boolean {
-    return this.realm.objects<Account>('Account').length > 0;
+    return this.accountDAO.list().length > 0;
   }
 
   seedDemoAccounts(): void {
@@ -48,8 +48,14 @@ export class SeedService {
       },
     ];
 
-    demoAccounts.forEach(account => {
-      this.accountService.createAccount(account);
+    demoAccounts.forEach((account) => {
+      this.accountDAO.create({
+        name: account.name,
+        accountType: account.type,
+        currency: account.currency,
+        initialBalance: account.balance,
+        isArchived: false,
+      });
     });
 
     this.seedRates();
@@ -63,12 +69,15 @@ export class SeedService {
       { currency: 'EUR', rateToUSD: 1.08, source: 'manual' as const },
     ];
 
-    this.realm.write(() => {
-      rates.forEach(rate => {
-        this.realm.create<Rate>('Rate', {
-          ...rate,
-          effectiveFrom: new Date(),
-        });
+    const date = new Date().toISOString();
+    rates.forEach((rate) => {
+      this.fxRateDAO.upsert({
+        fromCurrency: rate.currency,
+        toCurrency: 'USD',
+        rate: rate.rateToUSD,
+        source: rate.source,
+        isOverridden: true,
+        date,
       });
     });
   }

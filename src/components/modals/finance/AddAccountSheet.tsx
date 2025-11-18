@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -20,6 +21,8 @@ import {
   Bitcoin,
   Briefcase,
   Building,
+  Check,
+  ChevronRight,
   Coins,
   CreditCard,
   DollarSign,
@@ -39,6 +42,12 @@ import { useAppTheme } from '@/constants/theme';
 import type { AddAccountPayload, AccountIconId, AccountKind } from '@/types/accounts';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useCustomAccountTypesStore } from '@/stores/useCustomAccountTypesStore';
+import {
+  AVAILABLE_FINANCE_CURRENCIES,
+  type FinanceCurrency,
+  useFinancePreferencesStore,
+} from '@/stores/useFinancePreferencesStore';
+import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 
 export type { AddAccountPayload } from '@/types/accounts';
 
@@ -96,6 +105,22 @@ const CUSTOM_ICON_OPTIONS: CustomIconOption[] = [
   { id: 'trending-up', label: 'Growth', Icon: ACCOUNT_ICON_COMPONENTS['trending-up'] },
 ];
 
+const CURRENCY_LABELS: Record<FinanceCurrency, string> = {
+  UZS: 'Uzbekistani Som',
+  USD: 'US Dollar',
+  EUR: 'Euro',
+  GBP: 'British Pound',
+  TRY: 'Turkish Lira',
+  SAR: 'Saudi Riyal',
+  AED: 'UAE Dirham',
+  USDT: 'Tether (USDT)',
+};
+
+type CurrencyOption = {
+  code: FinanceCurrency;
+  label: string;
+};
+
 const ITEM_SPACING = 12;
 const ICON_SIZE = 18;
 
@@ -106,6 +131,7 @@ export interface AccountSheetAccountPreview {
   name: string;
   subtitle?: string;
   balance: number;
+  currency: string;
   type: AccountKind;
   customTypeId?: string | null;
   customTypeLabel?: string;
@@ -182,20 +208,43 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
     const theme = useAppTheme();
     const sheetRef = useRef<BottomSheetHandle>(null);
     const customTypeSheetRef = useRef<BottomSheetHandle>(null);
-
+    const currencySheetRef = useRef<BottomSheetHandle>(null);
+    const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [amount, setAmount] = useState('');
+    const [selectedCurrency, setSelectedCurrency] = useState<FinanceCurrency>(baseCurrency);
     const [selectedType, setSelectedType] = useState<AccountKind>('cash');
     const [selectedCustomTypeId, setSelectedCustomTypeId] = useState<string | null>(null);
     const [formMode, setFormMode] = useState<'create' | 'edit'>('create');
     const [customTypeName, setCustomTypeName] = useState('');
     const [customIconChoice, setCustomIconChoice] = useState<AccountIconId>('wallet');
+    const [currencyQuery, setCurrencyQuery] = useState('');
     const editingAccountId = useRef<string | null>(null);
 
     const customTypes = useCustomAccountTypesStore((state) => state.customTypes);
     const addCustomType = useCustomAccountTypesStore((state) => state.addCustomType);
     const upsertCustomType = useCustomAccountTypesStore((state) => state.upsertCustomType);
+
+    const currencyOptions = useMemo<CurrencyOption[]>(() => {
+      return AVAILABLE_FINANCE_CURRENCIES.map((code) => ({
+        code,
+        label: CURRENCY_LABELS[code] ?? code,
+      }));
+    }, []);
+
+    const filteredCurrencies = useMemo(() => {
+      if (!currencyQuery.trim()) {
+        return currencyOptions;
+      }
+      const query = currencyQuery.trim().toLowerCase();
+      return currencyOptions.filter((option) => {
+        return (
+          option.code.toLowerCase().includes(query) ||
+          option.label.toLowerCase().includes(query)
+        );
+      });
+    }, [currencyOptions, currencyQuery]);
 
     const snapPoints = useMemo<(string | number)[]>(() => ['55%', '80%'], []);
     const animationConfigs = useMemo(
@@ -210,12 +259,14 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
       setName('');
       setDescription('');
       setAmount('');
+      setSelectedCurrency(baseCurrency);
       setSelectedType('cash');
       setFormMode('create');
       setSelectedCustomTypeId(null);
       editingAccountId.current = null;
       customTypeSheetRef.current?.dismiss();
-    }, []);
+      currencySheetRef.current?.dismiss();
+    }, [baseCurrency]);
 
     const handleOpenCustomTypeModal = useCallback(() => {
       setCustomTypeName('');
@@ -233,6 +284,23 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
       customTypeSheetRef.current?.dismiss();
     }, [addCustomType, customIconChoice, customTypeName]);
 
+    const handleOpenCurrencyPicker = useCallback(() => {
+      setCurrencyQuery('');
+      currencySheetRef.current?.present();
+    }, []);
+
+    const handleCloseCurrencyPicker = useCallback(() => {
+      currencySheetRef.current?.dismiss();
+    }, []);
+
+    const handleSelectCurrency = useCallback(
+      (code: FinanceCurrency) => {
+        setSelectedCurrency(code);
+        handleCloseCurrencyPicker();
+      },
+      [handleCloseCurrencyPicker],
+    );
+
     const customTypeOptions = useMemo<TypeOption[]>(
       () =>
         customTypes.map((type) => ({
@@ -249,6 +317,9 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
       () => [...TYPE_OPTIONS, ...customTypeOptions],
       [customTypeOptions],
     );
+
+    const selectedCurrencyLabel =
+      currencyOptions.find((option) => option.code === selectedCurrency)?.label ?? selectedCurrency;
 
     const handleTypeSelect = useCallback((option: TypeOption) => {
       setSelectedType(option.id);
@@ -272,6 +343,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
           setName(account.name);
           setDescription(account.subtitle ?? '');
           setAmount(String(account.balance));
+          setSelectedCurrency(normalizeFinanceCurrency(account.currency, baseCurrency));
           setSelectedType(account.type);
           if (account.type === 'custom') {
             setSelectedCustomTypeId(account.customTypeId ?? null);
@@ -293,7 +365,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
         },
         close: () => sheetRef.current?.dismiss(),
       }),
-      [handleResetForm, upsertCustomType],
+      [baseCurrency, handleResetForm, upsertCustomType],
     );
 
     const handleCancel = useCallback(() => {
@@ -320,6 +392,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
         name: name.trim(),
         description: description.trim(),
         amount: Number.isFinite(parsedAmount) ? parsedAmount : 0,
+        currency: selectedCurrency,
         type: selectedType,
         customTypeId: activeCustomType?.id,
         customTypeLabel: activeCustomType?.label,
@@ -343,6 +416,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
       name,
       onEditSubmit,
       onSubmit,
+      selectedCurrency,
       selectedCustomTypeId,
       selectedType,
     ]);
@@ -464,6 +538,34 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
             </View>
 
             <View style={styles.formGroup}>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Currency</Text>
+              <Pressable
+                onPress={handleOpenCurrencyPicker}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView
+                  style={[
+                    styles.currencySelector,
+                    { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
+                  ]}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.currencySelectorCode, { color: theme.colors.textPrimary }]}>
+                      {selectedCurrency}
+                    </Text>
+                    <Text
+                      style={[styles.currencySelectorLabel, { color: theme.colors.textSecondary }]}
+                      numberOfLines={1}
+                    >
+                      {selectedCurrencyLabel}
+                    </Text>
+                  </View>
+                  <ChevronRight size={16} color={theme.colors.textSecondary} />
+                </AdaptiveGlassView>
+              </Pressable>
+            </View>
+
+            <View style={styles.formGroup}>
               <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Amount</Text>
               <AdaptiveGlassView
                 style={[
@@ -474,7 +576,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
                 <BottomSheetTextInput
                   value={amount}
                   onChangeText={setAmount}
-                  placeholder="Amount (UZS)"
+                  placeholder={`Amount (${selectedCurrency})`}
                   placeholderTextColor={theme.colors.textMuted}
                   style={[
                     styles.input,
@@ -516,6 +618,81 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
               </AnimatedPressable>
             </View>
           </KeyboardAvoidingView>
+        </CustomBottomSheet>
+        <CustomBottomSheet
+          ref={currencySheetRef}
+          snapPoints={['55%']}
+          enableDynamicSizing
+          enablePanDownToClose
+          backgroundStyle={[
+            styles.sheetBackground,
+            {
+              backgroundColor:
+                theme.mode === 'dark'
+                  ? 'rgba(22,22,28,0.92)'
+                  : 'rgba(255,255,255,0.9)',
+              borderColor: theme.colors.borderMuted,
+            },
+          ]}
+          handleIndicatorStyle={[
+            styles.handleIndicator,
+            { backgroundColor: theme.colors.textMuted },
+          ]}
+          contentContainerStyle={styles.currencySheetContainer}
+          onDismiss={() => setCurrencyQuery('')}
+        >
+          <Text style={[styles.currencySheetTitle, { color: theme.colors.textSecondary }]}>
+            Select currency
+          </Text>
+          <AdaptiveGlassView
+            style={[
+              styles.inputGlass,
+              { borderColor: theme.colors.border, marginBottom: 16 },
+            ]}
+          >
+            <BottomSheetTextInput
+              value={currencyQuery}
+              onChangeText={setCurrencyQuery}
+              placeholder="Search currency"
+              placeholderTextColor={theme.colors.textMuted}
+              style={[styles.input, { color: theme.colors.textPrimary }]}
+            />
+          </AdaptiveGlassView>
+          <ScrollView contentContainerStyle={styles.currencyList}>
+            {filteredCurrencies.map((option) => {
+              const isActive = option.code === selectedCurrency;
+              return (
+                <Pressable
+                  key={option.code}
+                  onPress={() => handleSelectCurrency(option.code)}
+                  style={({ pressed }) => [styles.currencyRowPressable, pressed && styles.pressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.currencyRowCard,
+                      {
+                        borderColor: isActive ? theme.colors.primary : theme.colors.border,
+                        backgroundColor: theme.colors.surface,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.currencySelectorCode, { color: theme.colors.textPrimary }]}>
+                        {option.code}
+                      </Text>
+                      <Text
+                        style={[styles.currencySelectorLabel, { color: theme.colors.textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        {option.label}
+                      </Text>
+                    </View>
+                    {isActive && <Check size={18} color={theme.colors.primary} />}
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
         </CustomBottomSheet>
         <CustomBottomSheet
           ref={customTypeSheetRef}
@@ -703,6 +880,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  currencySelector: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  currencySelectorCode: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  currencySelectorLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
   buttonRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -758,6 +952,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 32,
+  },
+  currencySheetContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
+  currencySheetTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  currencyList: {
+    paddingBottom: 16,
+  },
+  currencyRowPressable: {
+    marginBottom: 12,
+  },
+  currencyRowCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
   customSheetTitle: {
     fontSize: 16,

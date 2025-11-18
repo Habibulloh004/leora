@@ -117,7 +117,7 @@ export const useAuthStore = create<AuthStore>()(
           // Simulate API delay
           await new Promise((resolve) => setTimeout(resolve, 1000));
 
-          const { emailOrPhone, fullName, password, confirmPassword, region } = credentials;
+          const { emailOrPhone, fullName, password, confirmPassword, region, currency } = credentials;
 
           // Validate input
           if (!emailOrPhone || !fullName || !password || !confirmPassword) {
@@ -161,6 +161,7 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           const regionPreset = getFinanceRegionPreset(region);
+          const resolvedCurrency = currency ?? regionPreset.currency;
 
           // Create new user
           const newUser: User = {
@@ -172,7 +173,7 @@ export const useAuthStore = create<AuthStore>()(
             createdAt: new Date(),
             updatedAt: new Date(),
             region,
-            primaryCurrency: regionPreset.currency,
+            primaryCurrency: resolvedCurrency,
           };
 
           // Save user to storage
@@ -191,6 +192,7 @@ export const useAuthStore = create<AuthStore>()(
           });
 
           useFinancePreferencesStore.getState().setRegion(region);
+          useFinancePreferencesStore.getState().setGlobalCurrency(resolvedCurrency);
 
           useLockStore.getState().setLoggedIn(true);
           useLockStore.getState().setLocked(false);

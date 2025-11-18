@@ -36,7 +36,8 @@ import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { TECHNIQUES, TOGGLE_OPTIONS, TechniqueConfig } from '@/features/focus/types';
 import { formatTimer } from '@/features/focus/utils';
 import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
-import { usePlannerTasksStore } from '@/features/planner/useTasksStore';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import { mapDomainTaskToPlannerTask } from '@/features/planner/taskAdapters';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useModalStore } from '@/stores/useModalStore';
 
@@ -104,9 +105,9 @@ const FocusToggle = ({
       onPressOut={() => (press.value = withSpring(0))}
       style={containerStyle}
     >
-      <AdaptiveGlassView style={styles.toggleCard}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.toggleCard]}>
         <View style={styles.toggleLeft}>
-          <AdaptiveGlassView style={styles.iconTile}>
+          <AdaptiveGlassView style={[styles.glassSurface, styles.iconTile]}>
             <MaterialCommunityIcons name={icon} size={18} color={colors.textSecondary} />
           </AdaptiveGlassView>
           <Text style={[styles.toggleLabel, { color: colors.textPrimary }]}>{label}</Text>
@@ -178,13 +179,22 @@ export default function FocusModeScreen() {
   const params = useLocalSearchParams<{ taskId?: string }>();
   const { strings } = useLocalization();
   const focusStrings = strings.plannerScreens.tasks.focus;
-  const goalTitles = strings.plannerScreens.goals.data;
   const focusedTaskId = usePlannerFocusBridge((state) => state.focusedTaskId);
   const startFocusForTask = usePlannerFocusBridge((state) => state.startFocusForTask);
   const completeFocusedTask = usePlannerFocusBridge((state) => state.completeFocusedTask);
-  const focusTask = usePlannerTasksStore((state) =>
-    state.tasks.find((task) => task.id === focusedTaskId),
-  );
+  const domainTasks = usePlannerDomainStore((state) => state.tasks);
+  const domainGoals = usePlannerDomainStore((state) => state.goals);
+  const goalTitleMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    domainGoals.forEach((goal) => {
+      map[goal.id] = goal.title;
+    });
+    return map;
+  }, [domainGoals]);
+  const focusTask = useMemo(() => {
+    const target = domainTasks.find((task) => task.id === focusedTaskId);
+    return target ? mapDomainTaskToPlannerTask(target, {}) : undefined;
+  }, [domainTasks, focusedTaskId]);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
 
   const { timerState, elapsedSeconds, totalSeconds, start, pause, resume, reset, syncElapsed, startedAt } = useFocusTimerStore((state) => state);
@@ -377,11 +387,11 @@ export default function FocusModeScreen() {
                   accessibilityRole="button"
                   accessibilityLabel="Back"
                 >
-                  <AdaptiveGlassView style={[styles.headerIcon, styles.headerBack]}>
+                  <AdaptiveGlassView style={[styles.glassSurface, styles.headerIcon, styles.headerBack]}>
                     <Feather name="chevron-left" size={18} color={colors.textSecondary} />
                   </AdaptiveGlassView>
                 </Pressable>
-                <AdaptiveGlassView style={styles.headerIcon}>
+                <AdaptiveGlassView style={[styles.glassSurface, styles.headerIcon]}>
                   {toggles.appBlock || toggles.notifications ? (
                     <MaterialCommunityIcons name="lock" size={18} color={colors.textSecondary} />
                   ) : (
@@ -391,7 +401,7 @@ export default function FocusModeScreen() {
               </View>
               <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>FOCUS MODE</Text>
               <Pressable onPress={openSettings} style={({ pressed }) => [pressed && { opacity: 0.7 }]}>
-                <AdaptiveGlassView style={styles.headerIcon}>
+                <AdaptiveGlassView style={[styles.glassSurface, styles.headerIcon]}>
                   <Feather name="settings" size={18} color={colors.textSecondary} />
                 </AdaptiveGlassView>
               </Pressable>
@@ -399,7 +409,7 @@ export default function FocusModeScreen() {
 
           <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
             {focusTask && (
-              <AdaptiveGlassView style={styles.focusedTaskCard}>
+              <AdaptiveGlassView style={[styles.glassSurface, styles.focusedTaskCard]}>
                 <Text style={[styles.focusedTaskLabel, { color: colors.textSecondary }]}>{focusStrings.cardLabel}</Text>
                 <Text style={[styles.focusedTaskTitle, { color: colors.textPrimary }]} numberOfLines={1}>
                   {focusTask.title}
@@ -408,7 +418,7 @@ export default function FocusModeScreen() {
                   <Text style={[styles.focusedTaskMeta, { color: colors.textTertiary }]}>
                     {focusStrings.goalTag.replace(
                       '{goal}',
-                      goalTitles[focusTask.goalId as keyof typeof goalTitles]?.title ?? focusTask.goalId,
+                      goalTitleMap[focusTask.goalId] ?? focusTask.goalId,
                     )}
                   </Text>
                 )}
@@ -512,7 +522,7 @@ export default function FocusModeScreen() {
               ))}
             </View>
 
-            <AdaptiveGlassView style={styles.statisticsCard}>
+            <AdaptiveGlassView style={[styles.glassSurface, styles.statisticsCard]}>
               <Text style={[styles.statisticsTitle, { color: colors.textSecondary }]}>Today's statistics</Text>
               <View style={styles.statisticsRow}>
                 <Text style={[styles.statisticsLabel, { color: colors.textSecondary }]}>Focus time:</Text>
@@ -539,10 +549,11 @@ export default function FocusModeScreen() {
                 pressed && !isResetDisabled && styles.pressed,
               ]}
             >
-              <AdaptiveGlassView 
+              <AdaptiveGlassView
                 style={[
+                  styles.glassSurface,
                   styles.bottomButtonInner,
-                  { opacity: isResetDisabled ? 0.4 : 1 }
+                  { opacity: isResetDisabled ? 0.4 : 1 },
                 ]}
               >
                 <Text style={[styles.bottomButtonText, { color: resetLabelColor }]}>Reset</Text>
@@ -557,10 +568,11 @@ export default function FocusModeScreen() {
                 pressed && !isFinishDisabled && styles.pressed,
               ]}
             >
-              <AdaptiveGlassView 
+              <AdaptiveGlassView
                 style={[
+                  styles.glassSurface,
                   styles.bottomButtonInner,
-                  { opacity: isFinishDisabled ? 0.4 : 1 }
+                  { opacity: isFinishDisabled ? 0.4 : 1 },
                 ]}
               >
                 <Text style={[styles.bottomButtonText, { color: finishLabelColor }]}>Finish</Text>
@@ -582,6 +594,11 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 8 },
   headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
   headerIcon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   headerBack: { width: 40 },
   headerTitle: { fontSize: 13, letterSpacing: 2, fontWeight: '600' },

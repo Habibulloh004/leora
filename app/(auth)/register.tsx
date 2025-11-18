@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Pressable, ScrollView, TextInput, Animated } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Mail, Lock, User } from 'lucide-react-native';
+import { Feather } from '@expo/vector-icons';
 import {
   Input,
   Button,
@@ -16,12 +17,53 @@ import {
   FINANCE_REGION_PRESETS,
   type FinanceRegion,
   getFinanceRegionPreset,
+  useFinancePreferencesStore,
+  type FinanceCurrency,
+  AVAILABLE_FINANCE_CURRENCIES,
 } from '@/stores/useFinancePreferencesStore';
+import { useSettingsStore, type SupportedLanguage } from '@/stores/useSettingsStore';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
+import CustomBottomSheet, { BottomSheetHandle } from '@/components/modals/BottomSheet';
+import { useLocalization } from '@/localization/useLocalization';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const CURRENCY_LABELS: Record<FinanceCurrency, string> = {
+  UZS: 'Uzbekistani Som',
+  USD: 'US Dollar',
+  EUR: 'Euro',
+  GBP: 'British Pound',
+  TRY: 'Turkish Lira',
+  SAR: 'Saudi Riyal',
+  AED: 'UAE Dirham',
+  USDT: 'Tether (USDT)',
+  RUB: 'Russian Ruble',
+};
+
+const REGION_LANGUAGE_MAP: Partial<Record<FinanceRegion, SupportedLanguage>> = {
+  uzbekistan: 'uz',
+  'united-states': 'en',
+  eurozone: 'en',
+  'united-kingdom': 'en',
+  turkey: 'tr',
+  'saudi-arabia': 'ar',
+  'united-arab-emirates': 'ar',
+  russia: 'ru',
+};
+
+const getLanguageForRegion = (region: FinanceRegion): SupportedLanguage =>
+  REGION_LANGUAGE_MAP[region] ?? 'en';
 
 const DEFAULT_FINANCE_REGION = FINANCE_REGION_PRESETS[0].id as FinanceRegion;
 
 const RegisterScreen = () => {
+  const { strings } = useLocalization();
+  const registerStrings = strings.auth.register;
   const { register, isLoading, error, clearError } = useAuthStore();
+  const theme = useAppTheme();
+  const setFinanceRegion = useFinancePreferencesStore((state) => state.setRegion);
+  const setGlobalCurrency = useFinancePreferencesStore((state) => state.setGlobalCurrency);
+  const setLanguagePreference = useSettingsStore((state) => state.setLanguage);
   const setLoggedIn = useLockStore((state) => state.setLoggedIn);
   const setLocked = useLockStore((state) => state.setLocked);
   const updateLastActive = useLockStore((state) => state.updateLastActive);
@@ -31,17 +73,59 @@ const RegisterScreen = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<FinanceRegion>(DEFAULT_FINANCE_REGION);
+  const [selectedCurrency, setSelectedCurrency] = useState<FinanceCurrency>(
+    getFinanceRegionPreset(DEFAULT_FINANCE_REGION).currency,
+  );
 
   const [emailError, setEmailError] = useState<string | undefined>();
   const [nameError, setNameError] = useState<string | undefined>();
   const [passwordError, setPasswordError] = useState<string | undefined>();
   const [confirmPasswordError, setConfirmPasswordError] = useState<string | undefined>();
   const hasFocusedRef = useRef(false);
+  const regionSheetRef = useRef<BottomSheetHandle>(null);
+  const currencySheetRef = useRef<BottomSheetHandle>(null);
+  const [currencyQuery, setCurrencyQuery] = useState('');
 
   const selectedRegionPreset = useMemo(
     () => getFinanceRegionPreset(selectedRegion),
     [selectedRegion],
   );
+  const currencyOptions = useMemo(
+    () =>
+      AVAILABLE_FINANCE_CURRENCIES.map((code) => ({
+        code,
+        label: CURRENCY_LABELS[code],
+      })),
+    [],
+  );
+  const regionHelperText = useMemo(
+    () => registerStrings.selectors.helper.replace('{currency}', selectedRegionPreset.currency),
+    [registerStrings.selectors.helper, selectedRegionPreset.currency],
+  );
+  const filteredCurrencies = useMemo(() => {
+    if (!currencyQuery.trim()) {
+      return currencyOptions;
+    }
+    const search = currencyQuery.trim().toLowerCase();
+    return currencyOptions.filter(
+      (option) =>
+        option.code.toLowerCase().includes(search) || option.label.toLowerCase().includes(search),
+    );
+  }, [currencyOptions, currencyQuery]);
+
+  useEffect(() => {
+    setFinanceRegion(selectedRegion);
+    setSelectedCurrency(getFinanceRegionPreset(selectedRegion).currency);
+    setCurrencyQuery('');
+  }, [selectedRegion, setFinanceRegion]);
+
+  useEffect(() => {
+    setGlobalCurrency(selectedCurrency);
+  }, [selectedCurrency, setGlobalCurrency]);
+
+  useEffect(() => {
+    setLanguagePreference(getLanguageForRegion(selectedRegion));
+  }, [selectedRegion, setLanguagePreference]);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,6 +135,7 @@ const RegisterScreen = () => {
         setPassword('');
         setConfirmPassword('');
         setSelectedRegion(DEFAULT_FINANCE_REGION);
+        setSelectedCurrency(getFinanceRegionPreset(DEFAULT_FINANCE_REGION).currency);
       }
 
       setEmailError(undefined);
@@ -87,6 +172,7 @@ const RegisterScreen = () => {
       password,
       confirmPassword,
       region: selectedRegion,
+      currency: selectedCurrency,
     });
 
     if (success) {
@@ -94,17 +180,22 @@ const RegisterScreen = () => {
       setLocked(false);
       updateLastActive();
       Alert.alert(
-        'Registration Successful',
-        'Welcome to Leora! Your account has been created.',
+        registerStrings.alerts.successTitle,
+        registerStrings.alerts.successMessage,
         [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
       );
     } else if (error) {
-      Alert.alert('Registration Failed', error);
+      Alert.alert(registerStrings.alerts.failureTitle, error);
+    } else {
+      Alert.alert(registerStrings.alerts.failureTitle, registerStrings.alerts.failureTitle);
     }
   };
 
   const handleSocialRegister = (provider: string) => {
-    Alert.alert('Coming Soon', `${provider} registration will be available soon!`);
+    Alert.alert(
+      registerStrings.alerts.socialTitle,
+      registerStrings.alerts.socialMessage.replace('{provider}', provider),
+    );
   };
 
   const handleGoToLogin = () => {
@@ -116,21 +207,45 @@ const RegisterScreen = () => {
     router.replace('/(auth)/login');
   };
 
+  const openRegionSheet = useCallback(() => {
+    regionSheetRef.current?.present();
+  }, []);
+
+  const openCurrencySheet = useCallback(() => {
+    currencySheetRef.current?.present();
+  }, []);
+
+  const handleSelectRegion = useCallback(
+    (regionId: FinanceRegion) => {
+      setSelectedRegion(regionId);
+      regionSheetRef.current?.dismiss();
+      if (error) {
+        clearError();
+      }
+    },
+    [clearError, error],
+  );
+
+  const handleSelectCurrency = useCallback((currency: FinanceCurrency) => {
+    setSelectedCurrency(currency);
+    currencySheetRef.current?.dismiss();
+  }, []);
+
   return (
     <AuthScreenContainer>
       <GlassCard>
         <View style={styles.container}>
           <View style={styles.header}>
-            <Text style={styles.title}>Register</Text>
+            <Text style={styles.title}>{registerStrings.title}</Text>
             <Text style={styles.description}>
-              Create an account to continue!
+              {registerStrings.description}
             </Text>
           </View>
 
           <View style={styles.form}>
             <Input
-              label="Email"
-              placeholder="name@example.com"
+              label={registerStrings.fields.email}
+              placeholder={registerStrings.placeholders.email}
               value={emailOrPhone}
               onChangeText={(text: string) => {
                 setEmailOrPhone(text);
@@ -147,8 +262,8 @@ const RegisterScreen = () => {
             />
 
             <Input
-              label="Full Name"
-              placeholder="Enter your full name"
+              label={registerStrings.fields.fullName}
+              placeholder={registerStrings.placeholders.fullName}
               value={fullName}
               onChangeText={(text: string) => {
                 setFullName(text);
@@ -163,8 +278,8 @@ const RegisterScreen = () => {
             />
 
             <Input
-              label="Password"
-              placeholder="Create a password"
+              label={registerStrings.fields.password}
+              placeholder={registerStrings.placeholders.password}
               value={password}
               onChangeText={(text: string) => {
                 setPassword(text);
@@ -180,8 +295,8 @@ const RegisterScreen = () => {
             />
 
             <Input
-              label="Confirm Password"
-              placeholder="Re-enter your password"
+              label={registerStrings.fields.confirmPassword}
+              placeholder={registerStrings.placeholders.confirmPassword}
               value={confirmPassword}
               onChangeText={(text: string) => {
                 setConfirmPassword(text);
@@ -198,38 +313,60 @@ const RegisterScreen = () => {
 
             <View style={styles.regionSection}>
               <View style={styles.regionHeader}>
-                <Text style={styles.regionTitle}>Region & currency</Text>
+                <Text style={styles.regionTitle}>{registerStrings.selectors.sectionTitle}</Text>
                 <Text style={styles.regionHelper}>
-                  Main currency will be set to {selectedRegionPreset.currency}
+                  {regionHelperText}
                 </Text>
               </View>
-              <View style={styles.regionList}>
-                {FINANCE_REGION_PRESETS.map((region) => {
-                  const isActive = region.id === selectedRegion;
-                  return (
-                    <TouchableOpacity
-                      key={region.id}
-                      style={[
-                        styles.regionOption,
-                        isActive && styles.regionOptionActive,
-                      ]}
-                      onPress={() => {
-                        setSelectedRegion(region.id as FinanceRegion);
-                        if (error) {
-                          clearError();
-                        }
-                      }}
+              <View style={styles.regionSelectors}>
+                <Pressable
+                  onPress={openRegionSheet}
+                  style={({ pressed }) => [styles.selectorPressable, pressed && styles.selectorPressed]}
+                >
+                  <Animated.View style={styles.selectorCard}>
+                    <LinearGradient
+                      colors={['rgba(49,49,58,0.26)', 'rgba(10,10,14,0.2)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={styles.selectorGradient}
                     >
-                      <View style={styles.regionOptionText}>
-                        <Text style={styles.regionOptionLabel}>{region.label}</Text>
-                        <Text style={styles.regionOptionDescription}>{region.description}</Text>
+                      <View style={styles.selectorIcon}>
+                        <Feather name="globe" size={18} color="#D3DAFF" />
                       </View>
-                      <View style={styles.regionCurrencyBadge}>
-                        <Text style={styles.regionCurrencyText}>{region.currency}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.selectorLabel}>{registerStrings.selectors.regionLabel}</Text>
+                        <Text style={styles.selectorValue}>{selectedRegionPreset.label}</Text>
+                        <Text style={styles.selectorSubValue}>{selectedRegionPreset.description}</Text>
                       </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                      <Feather name="chevron-down" size={18} color="#A6A6B9" />
+                    </LinearGradient>
+                  </Animated.View>
+                </Pressable>
+                <Pressable
+                  onPress={openCurrencySheet}
+                  style={({ pressed }) => [styles.selectorPressable, pressed && styles.selectorPressed]}
+                >
+                  <Animated.View style={styles.selectorCard}>
+                    <LinearGradient
+                      colors={['rgba(49,49,58,0.26)', 'rgba(10,10,14,0.2)']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 0, y: 1 }}
+                      style={styles.selectorGradient}
+                    >
+                      <View style={styles.selectorIcon}>
+                        <Feather name="dollar-sign" size={18} color="#D3DAFF" />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.selectorLabel}>{registerStrings.selectors.currencyLabel}</Text>
+                        <Text style={styles.selectorValue}>
+                          {selectedCurrency} · {CURRENCY_LABELS[selectedCurrency]}
+                        </Text>
+                        <Text style={styles.selectorSubValue}>{registerStrings.selectors.currencyHint}</Text>
+                      </View>
+                      <Feather name="chevron-down" size={18} color="#A6A6B9" />
+                    </LinearGradient>
+                  </Animated.View>
+                </Pressable>
               </View>
             </View>
 
@@ -241,7 +378,7 @@ const RegisterScreen = () => {
             )}
 
             <Button
-              title={isLoading ? 'Creating Account...' : 'Sign Up'}
+              title={isLoading ? `${registerStrings.buttons.submit}…` : registerStrings.buttons.submit}
               onPress={handleRegister}
               disabled={isLoading}
             />
@@ -253,14 +390,102 @@ const RegisterScreen = () => {
             />
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
+              <Text style={styles.footerText}>{registerStrings.links.haveAccount} </Text>
               <TouchableOpacity onPress={handleGoToLogin}>
-                <Text style={styles.signInLink}>Sign In</Text>
+                <Text style={styles.signInLink}>{registerStrings.links.signIn}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </GlassCard>
+      <CustomBottomSheet
+        ref={regionSheetRef}
+        snapPoints={['65%']}
+        enableDynamicSizing
+        scrollable
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>{registerStrings.sheets.regionTitle}</Text>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {FINANCE_REGION_PRESETS.map((region) => {
+              const isActive = region.id === selectedRegion;
+              return (
+                <Pressable
+                  key={region.id}
+                  onPress={() => handleSelectRegion(region.id as FinanceRegion)}
+                  style={({ pressed }) => [styles.sheetOptionPressable, pressed && styles.selectorPressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.sheetOptionCard,
+                      { borderColor: isActive ? theme.colors.primary : 'rgba(255,255,255,0.1)' },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sheetOptionTitle}>{region.label}</Text>
+                      <Text style={styles.sheetOptionSubtitle}>{region.description}</Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.sheetCurrencyBadge,
+                        isActive && { borderColor: theme.colors.primary, backgroundColor: 'rgba(124,131,255,0.12)' },
+                      ]}
+                    >
+                      <Text style={styles.sheetCurrencyText}>{region.currency}</Text>
+                    </View>
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </CustomBottomSheet>
+      <CustomBottomSheet
+        ref={currencySheetRef}
+        snapPoints={['65%']}
+        enableDynamicSizing
+        scrollable
+        onDismiss={() => setCurrencyQuery('')}
+      >
+        <View style={styles.sheetContent}>
+          <Text style={styles.sheetTitle}>{registerStrings.sheets.currencyTitle}</Text>
+          <AdaptiveGlassView style={styles.currencySearch}>
+            <Feather name="search" size={16} color="#7E8B9A" />
+            <TextInput
+              value={currencyQuery}
+              onChangeText={setCurrencyQuery}
+              placeholder={registerStrings.sheets.currencySearch}
+              placeholderTextColor="#7E8B9A"
+              style={styles.currencySearchInput}
+            />
+          </AdaptiveGlassView>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {filteredCurrencies.map((option) => {
+              const isActive = option.code === selectedCurrency;
+              return (
+                <Pressable
+                  key={option.code}
+                  onPress={() => handleSelectCurrency(option.code)}
+                  style={({ pressed }) => [styles.sheetOptionPressable, pressed && styles.selectorPressed]}
+                >
+                  <AdaptiveGlassView
+                    style={[
+                      styles.sheetOptionCard,
+                      { borderColor: isActive ? theme.colors.primary : 'rgba(255,255,255,0.1)' },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.sheetOptionTitle}>{option.code}</Text>
+                      <Text style={styles.sheetOptionSubtitle}>{option.label}</Text>
+                    </View>
+                    {isActive && <Feather name="check" size={16} color="#fff" />}
+                  </AdaptiveGlassView>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </CustomBottomSheet>
     </AuthScreenContainer>
   );
 };
@@ -308,54 +533,109 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#A6A6B9',
   },
-  regionList: {
-    gap: 10,
+  regionSelectors: {
+    gap: 12,
   },
-  regionOption: {
-    borderRadius: 16,
+  selectorPressable: {
+    borderRadius: 18,
+  },
+  selectorPressed: {
+    opacity: 0.94,
+  },
+  selectorCard: {
+    borderRadius: 18,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    overflow: 'hidden',
+  },
+  selectorGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(12,12,20,0.45)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
   },
-  regionOptionActive: {
-    borderColor: '#7C83FF',
-    backgroundColor: 'rgba(124,131,255,0.12)',
+  selectorIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
-  regionOptionText: {
-    flex: 1,
-    marginRight: 12,
+  selectorLabel: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    color: '#7E8B9A',
+    letterSpacing: 0.5,
   },
-  regionOptionLabel: {
+  selectorValue: {
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
   },
-  regionOptionDescription: {
-    fontSize: 13,
+  selectorSubValue: {
+    fontSize: 12,
     color: '#A6A6B9',
-    marginTop: 2,
   },
-  regionCurrencyBadge: {
-    minWidth: 60,
+  sheetContent: {
+    gap: 16,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  sheetOptionPressable: {
+    borderRadius: 16,
+  },
+  sheetOptionCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sheetOptionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  sheetOptionSubtitle: {
+    fontSize: 12,
+    color: '#A6A6B9',
+  },
+  sheetCurrencyBadge: {
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  regionCurrencyText: {
+  sheetCurrencyText: {
     color: '#fff',
     fontSize: 13,
     fontWeight: '700',
-    letterSpacing: 0.5,
+  },
+  currencySearch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(12,12,20,0.45)',
+  },
+  currencySearchInput: {
+    flex: 1,
+    color: '#fff',
   },
   footer: {
     flexDirection: 'row',

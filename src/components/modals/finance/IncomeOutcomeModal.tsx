@@ -31,10 +31,12 @@ import {
   FinanceCategory,
   getCategoriesForType,
 } from '@/constants/financeCategories';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
+import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
 import { useModalStore } from '@/stores/useModalStore';
 import { useTranslation } from '../../../utils/localization';
-import type { Transaction } from '@/types/store.types';
+import type { Transaction as LegacyTransaction } from '@/types/store.types';
+import { useShallow } from 'zustand/react/shallow';
 
 type IncomeOutcomeTab = 'income' | 'outcome';
 
@@ -61,13 +63,25 @@ export default function IncomeOutcomeModal() {
 
   const incomeOutcome = useModalStore((state) => state.incomeOutcome);
   const closeIncomeOutcome = useModalStore((state) => state.closeIncomeOutcome);
+  const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
 
-  const accounts = useFinanceStore((state) => state.accounts);
-  const categories = useFinanceStore((state) => state.categories);
-  const addTransaction = useFinanceStore((state) => state.addTransaction);
-  const updateTransaction = useFinanceStore((state) => state.updateTransaction);
-  const addCategory = useFinanceStore((state) => state.addCategory);
-  const renameCategory = useFinanceStore((state) => state.renameCategory);
+  const {
+    accounts,
+    categories,
+    createTransaction,
+    updateTransaction,
+    addCategory,
+    renameCategory,
+  } = useFinanceDomainStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      categories: state.categories,
+      createTransaction: state.createTransaction,
+      updateTransaction: state.updateTransaction,
+      addCategory: state.addCategory,
+      renameCategory: state.renameCategory,
+    })),
+  );
 
   const [activeTab, setActiveTab] = useState<IncomeOutcomeTab>('income');
   const [amount, setAmount] = useState('');
@@ -83,7 +97,7 @@ export default function IncomeOutcomeModal() {
   const isEditing = Boolean(
     incomeOutcome.mode === 'edit' && incomeOutcome.transaction?.type !== 'transfer'
   );
-  const editingTransaction = incomeOutcome.transaction;
+  const editingTransaction = incomeOutcome.transaction as LegacyTransaction | undefined;
 
   const isDebtCategory = useMemo(() => {
     if (!selectedCategory) return false;
@@ -360,32 +374,31 @@ export default function IncomeOutcomeModal() {
         : debtInfo;
     }
 
-    const payload: Transaction = {
-      id: editingTransaction?.id ?? '',
-      type: activeTab,
-      amount: amountNumber,
-      category: selectedCategory,
+    const domainType: 'income' | 'expense' = activeTab === 'income' ? 'income' : 'expense';
+    const basePayload: Parameters<typeof createTransaction>[0] = {
+      userId: 'local-user',
+      type: domainType,
       accountId: selectedAccountData.id,
-      date: transactionDate,
-      toAccountId: undefined,
-      note: finalNote.length ? finalNote : undefined,
+      amount: amountNumber,
       currency: selectedAccountData.currency,
-      createdAt: editingTransaction?.createdAt ?? new Date(),
+      categoryId: selectedCategory,
+      description: finalNote.length ? finalNote : undefined,
+      date: transactionDate.toISOString(),
+      baseCurrency,
     };
 
     if (isEditing && editingTransaction) {
-      updateTransaction(editingTransaction.id, payload);
+      updateTransaction(editingTransaction.id, basePayload);
     } else {
-      const { id, createdAt, ...rest } = payload;
-      addTransaction(rest);
+      createTransaction(basePayload);
     }
 
     closeIncomeOutcome();
   }, [
     activeTab,
-    addTransaction,
     amountNumber,
     closeIncomeOutcome,
+    createTransaction,
     debtPerson,
     editingTransaction,
     isDebtCategory,
@@ -396,6 +409,7 @@ export default function IncomeOutcomeModal() {
     selectedCategory,
     transactionDate,
     updateTransaction,
+    baseCurrency,
   ]);
 
   const renderCategoryIcon = (category: FinanceCategory, size: number, color: string) => {
@@ -425,7 +439,7 @@ export default function IncomeOutcomeModal() {
 
             {/* Tab Switcher */}
             <View style={styles.section}>
-              <AdaptiveGlassView style={styles.tabContainer}>
+              <AdaptiveGlassView style={[styles.glassSurface, styles.tabContainer]}>
                 <Pressable
                   onPress={() => setActiveTab('income')}
                   style={({ pressed }) => [
@@ -467,7 +481,7 @@ export default function IncomeOutcomeModal() {
             {/* Amount */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>{t('finance.amount')}</Text>
-              <AdaptiveGlassView style={styles.inputContainer}>
+              <AdaptiveGlassView style={[styles.glassSurface, styles.inputContainer]}>
                 <TextInput
                   value={amount}
                   onChangeText={handleAmountChange}
@@ -509,6 +523,7 @@ export default function IncomeOutcomeModal() {
                     >
                       <AdaptiveGlassView
                         style={[
+                          styles.glassSurface,
                           styles.categoryCardInner,
                           { opacity: isActive ? 1 : 0.6 },
                         ]}
@@ -538,7 +553,7 @@ export default function IncomeOutcomeModal() {
                   onPress={() => openDateTimePicker('date')}
                   style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
                 >
-                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                  <AdaptiveGlassView style={[styles.glassSurface, styles.dateTimeChip]}>
                     <Ionicons name="calendar-outline" size={18} color="#7E8B9A" />
                     <Text style={styles.dateTimeText}>{dateLabel}</Text>
                   </AdaptiveGlassView>
@@ -547,7 +562,7 @@ export default function IncomeOutcomeModal() {
                   onPress={() => openDateTimePicker('time')}
                   style={({ pressed }) => [styles.dateTimeButton, pressed && styles.pressed]}
                 >
-                  <AdaptiveGlassView style={styles.dateTimeChip}>
+                  <AdaptiveGlassView style={[styles.glassSurface, styles.dateTimeChip]}>
                     <Ionicons name="time-outline" size={18} color="#7E8B9A" />
                     <Text style={styles.dateTimeText}>{timeLabel}</Text>
                   </AdaptiveGlassView>
@@ -562,13 +577,13 @@ export default function IncomeOutcomeModal() {
                 onPress={() => accountModalRef.current?.present()}
                 style={({ pressed }) => [pressed && styles.pressed]}
               >
-                <AdaptiveGlassView style={styles.inputContainer}>
+                <AdaptiveGlassView style={[styles.glassSurface, styles.inputContainer]}>
                   <View style={styles.accountRow}>
                     <View>
                       <Text style={styles.textInput}>{selectedAccountData?.name}</Text>
                       <Text style={styles.accountBalance}>
                         {selectedAccountData
-                          ? formatCurrency(selectedAccountData.balance, selectedAccountData.currency)
+                          ? formatCurrency(selectedAccountData.currentBalance, selectedAccountData.currency)
                           : ''}
                       </Text>
                     </View>
@@ -586,7 +601,7 @@ export default function IncomeOutcomeModal() {
                     ? 'Who owes you?' 
                     : 'Who do you owe?'}
                 </Text>
-                <AdaptiveGlassView style={styles.inputContainer}>
+                <AdaptiveGlassView style={[styles.glassSurface, styles.inputContainer]}>
                   <TextInput
                     value={debtPerson}
                     onChangeText={setDebtPerson}
@@ -603,7 +618,7 @@ export default function IncomeOutcomeModal() {
             {/* Note */}
             <View style={styles.section}>
               <Text style={styles.sectionLabel}>{t('finance.note')}</Text>
-              <AdaptiveGlassView style={styles.noteContainer}>
+              <AdaptiveGlassView style={[styles.glassSurface, styles.noteContainer]}>
                 <TextInput
                   value={note}
                   onChangeText={setNote}
@@ -633,6 +648,7 @@ export default function IncomeOutcomeModal() {
               >
                 <AdaptiveGlassView
                   style={[
+                    styles.glassSurface,
                     styles.primaryButtonInner,
                     { opacity: isSaveDisabled ? 0.4 : 1 },
                   ]}
@@ -657,7 +673,7 @@ export default function IncomeOutcomeModal() {
         <Modal transparent visible onRequestClose={closePicker} animationType="fade">
           <View style={styles.pickerModal}>
             <Pressable style={styles.pickerBackdrop} onPress={closePicker} />
-            <AdaptiveGlassView style={styles.pickerCard}>
+            <AdaptiveGlassView style={[styles.glassSurface, styles.pickerCard]}>
               <DateTimePicker
                 value={pickerValue}
                 mode={pickerMode}
@@ -692,7 +708,7 @@ export default function IncomeOutcomeModal() {
             </Pressable>
           </View>
 
-          <AdaptiveGlassView style={styles.inputContainer}>
+          <AdaptiveGlassView style={[styles.glassSurface, styles.inputContainer]}>
             <TextInput
               value={categoryDraft}
               onChangeText={setCategoryDraft}
@@ -712,6 +728,7 @@ export default function IncomeOutcomeModal() {
           >
             <AdaptiveGlassView
               style={[
+                styles.glassSurface,
                 styles.primaryButtonInner,
                 { opacity: !categoryDraft.trim() ? 0.4 : 1 },
               ]}
@@ -754,6 +771,7 @@ export default function IncomeOutcomeModal() {
                 >
                   <AdaptiveGlassView
                     style={[
+                      styles.glassSurface,
                       styles.accountItem,
                       { opacity: selected ? 1 : 0.7 },
                     ]}
@@ -763,7 +781,7 @@ export default function IncomeOutcomeModal() {
                         {account.name}
                       </Text>
                       <Text style={styles.accountBalance}>
-                        {formatCurrency(account.balance, account.currency)}
+                        {formatCurrency(account.currentBalance, account.currency)}
                       </Text>
                     </View>
                     {selected && (
@@ -803,6 +821,11 @@ const styles = StyleSheet.create({
   },
   tabContainer: {
     borderRadius: 16,
+  },
+  glassSurface: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   tabOption: {
     borderBottomColor: 'rgba(255,255,255,0.1)',

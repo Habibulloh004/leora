@@ -38,5 +38,8 @@
     "low": "Past",
     "medium": "O'rta",
     "high": "Yuqori"
-  }
+  },
+  "goalLabel": "Maqsad bilan bog'lash",
+  "goalUnset": "Maqsad yo'q",
+  "goalHelper": "AI va tahlillar progressni ko'rishi uchun maqsadni bog'lang."
 }

@@ -26,6 +26,10 @@ import { useLocalization } from '@/localization/useLocalization';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
 import FocusSettingsModal from '@/components/modals/FocusSettingsModal';
 import { useModalStore } from '@/stores/useModalStore';
+import { RealmProvider } from '@/utils/RealmContext';
+import { useRealmDiagnostics } from '@/hooks/useRealmDiagnostics';
+import { useFinanceRealmSync } from '@/hooks/useFinanceRealmSync';
+import { usePlannerRealmSync } from '@/hooks/usePlannerRealmSync';
 
 enableScreens(true);
 
@@ -84,19 +88,21 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <BottomSheetModalProvider>
-          <ThemeProvider>
-            <RootNavigator
-              hasBooted={hasBooted}
-              assetsReady={assetsReady}
-              onSplashComplete={handleSplashComplete}
-            />
-          </ThemeProvider>
-        </BottomSheetModalProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <RealmProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+          <BottomSheetModalProvider>
+            <ThemeProvider>
+              <RootNavigator
+                hasBooted={hasBooted}
+                assetsReady={assetsReady}
+                onSplashComplete={handleSplashComplete}
+              />
+            </ThemeProvider>
+          </BottomSheetModalProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </RealmProvider>
   );
 }
 
@@ -112,6 +118,9 @@ function RootNavigator({
   onSplashComplete,
 }: RootNavigatorProps): ReactElement {
   const { theme } = useTheme();
+  useRealmDiagnostics();
+  useFinanceRealmSync();
+  usePlannerRealmSync();
   const { isAuthenticated } = useAuthStore();
   const setLoggedIn = useLockStore((state) => state.setLoggedIn);
   const setLocked = useLockStore((state) => state.setLocked);
@@ -296,7 +305,7 @@ function RootNavigator({
       },
     };
   }, [palette, theme]);
-  const { strings, locale } = useLocalization();
+  const { strings } = useLocalization();
 
   const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
   const profileStrings = strings.profile;

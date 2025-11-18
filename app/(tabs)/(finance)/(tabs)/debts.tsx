@@ -22,15 +22,16 @@ import type { Theme } from '@/constants/theme';
 import { useAppTheme } from '@/constants/theme';
 import { useLocalization } from '@/localization/useLocalization';
 import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useModalStore } from '@/stores/useModalStore';
 import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
-import type { Debt } from '@/types/store.types';
+import type { Debt as LegacyDebt } from '@/types/store.types';
+import { mapDomainDebtToLegacy } from '@/utils/finance/debtMappers';
 
 type DebtSectionData = {
   title: string;
-  debts: Debt[];
+  debts: LegacyDebt[];
   isIncoming: boolean;
 };
 
@@ -44,7 +45,7 @@ type DebtAction = {
 };
 
 const formatDueIn = (
-  debt: Debt,
+  debt: LegacyDebt,
   timelineStrings: DebtsStrings['timeline'],
   fallback: string,
 ) => {
@@ -61,11 +62,31 @@ const formatDueIn = (
   return timelineStrings.overdue.replace('{count}', `${Math.abs(diff)}`);
 };
 
+const formatCalendarDate = (value?: Date) => {
+  if (!value) {
+    return null;
+  }
+  try {
+    return new Intl.DateTimeFormat(undefined, {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(value);
+  } catch {
+    return value.toDateString();
+  }
+};
+
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     root: {
       flex: 1,
       backgroundColor: theme.colors.background,
+    },
+    glassSurface: {
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.08)',
+      backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
     },
     content: {
       paddingHorizontal: theme.spacing.lg,
@@ -193,6 +214,24 @@ const createStyles = (theme: Theme) =>
       fontWeight: '600',
       color: theme.colors.textPrimary,
     },
+    timelineMeta: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: theme.spacing.lg,
+    },
+    timelineColumn: {
+      flex: 1,
+      gap: 2,
+    },
+    timelineColumnLabel: {
+      fontSize: 11,
+      color: theme.colors.textSecondary,
+    },
+    timelineColumnValue: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.colors.textPrimary,
+    },
     actionsRow: {
       flexDirection: 'row',
       gap: theme.spacing.sm,
@@ -227,11 +266,11 @@ const DebtCard = ({
   formatAmount,
   onActionPress,
 }: {
-  debt: Debt;
+  debt: LegacyDebt;
   strings: DebtsStrings;
   onPress?: () => void;
   formatAmount: (value: number, currency: FinanceCurrency) => string;
-  onActionPress?: (debt: Debt, action: DebtCardActionKind) => void;
+  onActionPress?: (debt: LegacyDebt, action: DebtCardActionKind) => void;
 }) => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -262,7 +301,7 @@ const DebtCard = ({
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => (pressed ? { opacity: 0.95 } : undefined)}>
-      <AdaptiveGlassView style={styles.card}>
+      <AdaptiveGlassView style={[styles.glassSurface, styles.card]}>
         <View style={styles.cardHeader}>
           <View style={styles.personBlock}>
             <View style={styles.avatar}>
@@ -303,6 +342,20 @@ const DebtCard = ({
             </Text>
           </View>
         </View>
+        <View style={styles.timelineMeta}>
+          <View style={styles.timelineColumn}>
+            <Text style={styles.timelineColumnLabel}>{strings.modal.dateLabel}</Text>
+            <Text style={styles.timelineColumnValue}>
+              {formatCalendarDate(debt.date) ?? strings.modal.selectDate}
+            </Text>
+          </View>
+          <View style={styles.timelineColumn}>
+            <Text style={styles.timelineColumnLabel}>{strings.modal.expectedReturn}</Text>
+            <Text style={styles.timelineColumnValue}>
+              {formatCalendarDate(debt.expectedReturnDate) ?? strings.modal.expectedPlaceholder}
+            </Text>
+          </View>
+        </View>
 
         <View style={styles.actionsRow}>
           {actions.map(({ label, Icon, action, tint }) => (
@@ -336,9 +389,9 @@ const DebtSection = ({
 }: {
   section: DebtSectionData;
   strings: DebtsStrings;
-  onCardPress?: (debt: Debt) => void;
+  onCardPress?: (debt: LegacyDebt) => void;
   formatAmount: (value: number, currency: FinanceCurrency) => string;
-  onActionPress?: (debt: Debt, action: DebtCardActionKind) => void;
+  onActionPress?: (debt: LegacyDebt, action: DebtCardActionKind) => void;
 }) => {
   const theme = useAppTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -370,7 +423,8 @@ const DebtsScreen: React.FC = () => {
   const debtsStrings = strings.financeScreens.debts;
   const styles = useMemo(() => createStyles(theme), [theme]);
 
-  const debts = useFinanceStore((state) => state.debts);
+  const domainDebts = useFinanceDomainStore((state) => state.debts);
+  const debts = useMemo<LegacyDebt[]>(() => domainDebts.map(mapDomainDebtToLegacy), [domainDebts]);
   const {
     formatCurrency,
     convertAmount,
@@ -408,7 +462,7 @@ const DebtsScreen: React.FC = () => {
   }, [convertAmount, debtsStrings.summary, formatCurrency, globalCurrency, incoming, outgoing]);
 
   const handleDebtAction = React.useCallback(
-    (debt: Debt, action: DebtCardActionKind) => {
+    (debt: LegacyDebt, action: DebtCardActionKind) => {
       switch (action) {
         case 'full':
           openDebtModal({ mode: 'edit', debt, focus: 'full', showPrimarySheet: false });
@@ -446,6 +500,7 @@ const DebtsScreen: React.FC = () => {
         <View style={styles.summarySection}>
           <AdaptiveGlassView
             style={[
+              styles.glassSurface,
               styles.balanceCard,
               { backgroundColor: theme.colors.card },
             ]}
@@ -460,6 +515,7 @@ const DebtsScreen: React.FC = () => {
           <View style={styles.summaryRow}>
             <AdaptiveGlassView
               style={[
+                styles.glassSurface,
                 styles.summaryMiniCard,
                 { backgroundColor: theme.colors.card },
               ]}
@@ -479,6 +535,7 @@ const DebtsScreen: React.FC = () => {
             </AdaptiveGlassView>
             <AdaptiveGlassView
               style={[
+                styles.glassSurface,
                 styles.summaryMiniCard,
                 { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
               ]}

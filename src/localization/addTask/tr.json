@@ -38,5 +38,8 @@
     "low": "Düşük",
     "medium": "Orta",
     "high": "Yüksek"
-  }
+  },
+  "goalLabel": "Hedef bağlantısı",
+  "goalUnset": "Hedef yok",
+  "goalHelper": "İlerlemenin takip edilmesi için bir hedef seçin."
 }

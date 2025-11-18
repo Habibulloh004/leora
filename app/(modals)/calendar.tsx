@@ -13,11 +13,9 @@ import {
   toISODateKey,
   useCalendarWeeks,
 } from '@/utils/calendar';
-import {
-  usePlannerTasksStore,
-  type PlannerTask,
-  type PlannerTaskSection,
-} from '@/features/planner/useTasksStore';
+import type { PlannerTask, PlannerTaskSection } from '@/types/planner';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import { mapDomainTaskToPlannerTask } from '@/features/planner/taskAdapters';
 import { getHabitTemplates } from '@/features/planner/habits/data';
 
 const deriveSection = (date: Date): PlannerTaskSection => {
@@ -34,9 +32,15 @@ export default function PlannerCalendarModal() {
   const router = useRouter();
   const { strings, locale } = useLocalization();
   const calendarStrings = strings.plannerScreens.tasks.calendar;
-  const tasks = usePlannerTasksStore((state) => state.tasks);
-  const addTask = usePlannerTasksStore((state) => state.addTask);
-  const rescheduleTask = usePlannerTasksStore((state) => state.rescheduleTask);
+  const { tasks: domainTasks, createTask, scheduleTask } = usePlannerDomainStore((state) => ({
+    tasks: state.tasks,
+    createTask: state.createTask,
+    scheduleTask: state.scheduleTask,
+  }));
+  const tasks = useMemo(
+    () => domainTasks.map((task) => mapDomainTaskToPlannerTask(task, {})),
+    [domainTasks],
+  );
   const habitTemplates = useMemo(() => getHabitTemplates(), []);
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()));
   const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(selectedDate));
@@ -106,16 +110,20 @@ export default function PlannerCalendarModal() {
   const handleQuickAdd = useCallback(() => {
     const due = new Date(selectedDate);
     due.setHours(9, 0, 0, 0);
-    addTask({
+    const iso = due.toISOString();
+    createTask({
+      userId: 'local-user',
       title: calendarStrings.quickTaskTitle,
-      start: formatTime(locale, due),
-      duration: '30 min',
+      status: 'planned',
+      priority: 'medium',
+      dueDate: iso,
+      startDate: iso,
+      timeOfDay: formatTime(locale, due),
+      estimatedMinutes: 30,
       context: '@home',
-      energy: 2,
-      section: deriveSection(due),
-      dueAt: due.getTime(),
+      energyLevel: 2,
     });
-  }, [addTask, calendarStrings.quickTaskTitle, locale, selectedDate]);
+  }, [calendarStrings.quickTaskTitle, createTask, locale, selectedDate]);
 
   const handleMoveHere = useCallback(
     (task: PlannerTask) => {
@@ -126,9 +134,9 @@ export default function PlannerCalendarModal() {
       } else {
         next.setHours(9, 0, 0, 0);
       }
-      rescheduleTask(task.id, next);
+      scheduleTask(task.id, { dueDate: next.toISOString(), timeOfDay: formatTime(locale, next) });
     },
-    [rescheduleTask, selectedDate],
+    [locale, scheduleTask, selectedDate],
   );
   const handleMoveToTomorrow = useCallback(
     (task: PlannerTask) => {
@@ -140,9 +148,9 @@ export default function PlannerCalendarModal() {
       } else {
         next.setHours(9, 0, 0, 0);
       }
-      rescheduleTask(task.id, next);
+      scheduleTask(task.id, { dueDate: next.toISOString(), timeOfDay: formatTime(locale, next) });
     },
-    [rescheduleTask, selectedDate],
+    [locale, scheduleTask, selectedDate],
   );
 
   return (

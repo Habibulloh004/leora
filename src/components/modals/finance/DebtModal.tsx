@@ -16,10 +16,12 @@ import {
   Switch,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Wallet } from 'lucide-react-native';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
@@ -29,14 +31,21 @@ import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useLocalization } from '@/localization/useLocalization';
-import { useFinanceStore } from '@/stores/useFinanceStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useModalStore } from '@/stores/useModalStore';
 import {
   AVAILABLE_FINANCE_CURRENCIES,
   type FinanceCurrency,
   useFinancePreferencesStore,
 } from '@/stores/useFinancePreferencesStore';
-import type { AccountItem } from '@/types/accounts';
+import type { Account, Counterparty, Debt } from '@/domain/finance/types';
+import { useShallow } from 'zustand/react/shallow';
+
+const applyTemplate = (template: string, replacements: Record<string, string>) =>
+  Object.entries(replacements).reduce<string>(
+    (result, [key, value]) => result.split(`{${key}}`).join(value),
+    template,
+  );
 
 type DebtType = 'borrowed' | 'lent';
 type PickerMode = 'date' | 'time' | null;
@@ -106,7 +115,7 @@ const ensureCurrency = (value?: string): FinanceCurrency => {
     : 'USD';
 };
 
-const getAccountCurrency = (account?: AccountItem | null) =>
+const getAccountCurrency = (account?: Account | null) =>
   ensureCurrency(account?.currency);
 
 const formatCurrencyValue = (value: number, currency: FinanceCurrency) => {
@@ -122,14 +131,52 @@ const formatCurrencyValue = (value: number, currency: FinanceCurrency) => {
   }
 };
 
+type DebtModalSnapshot = {
+  id: string;
+  type: DebtType;
+  person: string;
+  amount: number;
+  remainingAmount: number;
+  currency: FinanceCurrency;
+  date: Date;
+  expectedReturnDate?: Date;
+  reminderEnabled?: boolean;
+  reminderTime?: string;
+  accountId?: string | null;
+  note?: string;
+};
+
+const mapDirectionToDebtType = (direction: Debt['direction']): DebtType =>
+  direction === 'they_owe_me' ? 'lent' : 'borrowed';
+
+const mapDebtTypeToDirection = (type: DebtType): Debt['direction'] =>
+  type === 'lent' ? 'they_owe_me' : 'i_owe';
+
+const adaptDebtForModal = (debt: Debt): DebtModalSnapshot => ({
+  id: debt.id,
+  type: mapDirectionToDebtType(debt.direction),
+  person: debt.counterpartyName,
+  amount: debt.principalOriginalAmount ?? debt.principalAmount,
+  remainingAmount: debt.principalAmount,
+  currency: ensureCurrency(debt.principalCurrency),
+  date: new Date(debt.startDate),
+  expectedReturnDate: debt.dueDate ? new Date(debt.dueDate) : undefined,
+  reminderEnabled: debt.reminderEnabled,
+  reminderTime: debt.reminderTime,
+  accountId: debt.fundingAccountId ?? null,
+  note: debt.description,
+});
+
 export default function DebtModal() {
   const modalRef = useRef<BottomSheetHandle>(null);
   const accountModalRef = useRef<BottomSheetHandle>(null);
   const currencyModalRef = useRef<BottomSheetHandle>(null);
+  const counterpartyModalRef = useRef<BottomSheetHandle>(null);
   const fullPaymentModalRef = useRef<BottomSheetHandle>(null);
   const paymentModalRef = useRef<BottomSheetHandle>(null);
   const scheduleModalRef = useRef<BottomSheetHandle>(null);
   const reminderModalRef = useRef<BottomSheetHandle>(null);
+  const ensuredEditingCounterpartyId = useRef<string | null>(null);
 
   const { strings } = useLocalization();
   const debtsStrings = strings.financeScreens.debts;
@@ -141,17 +188,54 @@ export default function DebtModal() {
     notify: 'Notification',
     schedule: 'Manage dates',
   };
+  const manualRateStrings = modalStrings.manualRate ?? {
+    title: 'Conversion',
+    description:
+      'Debt currency {debtCurrency}. Wallet currency {accountCurrency}. Enter the debit amount in {accountCurrency}.',
+    toggle: 'Enter manually',
+    amountLabel: 'Debit amount ({currency})',
+  };
+  const counterpartyActionsStrings = modalStrings.counterpartyActions ?? {
+    renameTitle: 'Rename person',
+    renamePlaceholder: 'Enter new name',
+    renameSave: 'Save name',
+    renameCancel: 'Cancel',
+    deleteTitle: 'Remove person?',
+    deleteDescription: 'This will permanently remove the selected person.',
+    deleteConfirm: 'Remove',
+    deleteBlocked: 'You cannot delete a person linked to debts.',
+    duplicateName: 'A person with this name already exists.',
+  };
 
   const debtModal = useModalStore((state) => state.debtModal);
   const closeDebtModal = useModalStore((state) => state.closeDebtModal);
   const consumeDebtModalFocus = useModalStore((state) => state.consumeDebtModalFocus);
 
-  const accounts = useFinanceStore((state) => state.accounts);
-  const debts = useFinanceStore((state) => state.debts);
-  const addDebt = useFinanceStore((state) => state.addDebt);
-  const updateDebt = useFinanceStore((state) => state.updateDebt);
-  const deleteDebt = useFinanceStore((state) => state.deleteDebt);
-  const payDebt = useFinanceStore((state) => state.payDebt);
+  const {
+    accounts,
+    debts,
+    createDebt,
+    updateDebt,
+    deleteDebt,
+    addDebtPayment,
+    counterparties,
+    createCounterparty,
+    renameCounterparty,
+    deleteCounterparty,
+  } = useFinanceDomainStore(
+    useShallow((state) => ({
+      accounts: state.accounts,
+      debts: state.debts,
+      createDebt: state.createDebt,
+      updateDebt: state.updateDebt,
+      deleteDebt: state.deleteDebt,
+      addDebtPayment: state.addDebtPayment,
+      counterparties: state.counterparties,
+      createCounterparty: state.createCounterparty,
+      renameCounterparty: state.renameCounterparty,
+      deleteCounterparty: state.deleteCounterparty,
+    })),
+  );
 
   const defaultDebtAccounts = useFinancePreferencesStore(
     (state) => state.defaultDebtAccounts,
@@ -161,17 +245,19 @@ export default function DebtModal() {
   );
   const convertAmount = useFinancePreferencesStore((state) => state.convertAmount);
 
-  const resolvedDebt = useMemo(() => {
-    if (!debtModal.debt) {
-      return null;
+  const editingDebtDomain = useMemo(() => {
+    if (!debtModal.debt?.id) {
+      return undefined;
     }
-    return debts.find((debt) => debt.id === debtModal.debt?.id) ?? debtModal.debt;
-  }, [debtModal.debt, debts]);
+    return debts.find((debt) => debt.id === debtModal.debt?.id);
+  }, [debtModal.debt?.id, debts]);
 
-  const editingDebt = resolvedDebt;
-  const isEditing = Boolean(debtModal.mode === 'edit' && editingDebt);
+  const editingDebt = useMemo(() => (editingDebtDomain ? adaptDebtForModal(editingDebtDomain) : undefined), [editingDebtDomain]);
+
+  const isEditing = Boolean(debtModal.mode === 'edit' && editingDebtDomain);
 
   const [person, setPerson] = useState('');
+  const [selectedCounterpartyId, setSelectedCounterpartyId] = useState<string | null>(null);
   const [amountInput, setAmountInput] = useState('');
   const [amountValue, setAmountValue] = useState(0);
   const [activeType, setActiveType] = useState<DebtType>('borrowed');
@@ -192,6 +278,35 @@ export default function DebtModal() {
   const [scheduleDate, setScheduleDate] = useState<Date>(new Date());
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [reminderTime, setReminderTime] = useState('09:00');
+  const [manualFundingEnabled, setManualFundingEnabled] = useState(false);
+  const [fundingOverrideInput, setFundingOverrideInput] = useState('');
+  const [fundingOverrideValue, setFundingOverrideValue] = useState(0);
+  const [counterpartyQuery, setCounterpartyQuery] = useState('');
+  const [editingCounterpartyId, setEditingCounterpartyId] = useState<string | null>(null);
+  const [editingCounterpartyName, setEditingCounterpartyName] = useState('');
+
+  const selectedCounterparty = useMemo(
+    () => counterparties.find((party) => party.id === selectedCounterpartyId) ?? null,
+    [counterparties, selectedCounterpartyId],
+  );
+
+  const filteredCounterparties = useMemo(() => {
+    const query = counterpartyQuery.trim().toLowerCase();
+    if (!query) {
+      return counterparties;
+    }
+    return counterparties.filter((party) =>
+      party.displayName.toLowerCase().includes(query),
+    );
+  }, [counterparties, counterpartyQuery]);
+
+  useEffect(() => {
+    if (selectedCounterparty) {
+      setPerson(selectedCounterparty.displayName);
+    } else if (!selectedCounterpartyId) {
+      setPerson('');
+    }
+  }, [selectedCounterparty, selectedCounterpartyId]);
 
   useEffect(() => {
     if (debtModal.isOpen && debtModal.showPrimarySheet) {
@@ -209,6 +324,10 @@ export default function DebtModal() {
   const resetForm = useCallback(
     (type: DebtType = 'borrowed') => {
       setPerson('');
+      setSelectedCounterpartyId(null);
+      setCounterpartyQuery('');
+      setEditingCounterpartyId(null);
+      setEditingCounterpartyName('');
       setAmountInput('');
       setAmountValue(0);
       setActiveType(type);
@@ -231,6 +350,9 @@ export default function DebtModal() {
       setScheduleDate(new Date());
       setReminderEnabled(false);
       setReminderTime('09:00');
+      setManualFundingEnabled(false);
+      setFundingOverrideInput('');
+      setFundingOverrideValue(0);
     },
     [accounts, getDefaultAccountId],
   );
@@ -238,36 +360,71 @@ export default function DebtModal() {
   useEffect(() => {
     if (!debtModal.isOpen) {
       resetForm('borrowed');
+      ensuredEditingCounterpartyId.current = null;
       return;
     }
 
-    if (editingDebt) {
-      setActiveType(editingDebt.type);
-      setPerson(editingDebt.person);
-      setAmountInput(formatPresetAmount(editingDebt.amount));
-      setAmountValue(editingDebt.amount);
-      setNote(editingDebt.note ?? '');
-      setStartDate(new Date(editingDebt.date));
-      const expected = editingDebt.expectedReturnDate
-        ? new Date(editingDebt.expectedReturnDate)
-        : undefined;
-      setExpectedDate(expected);
-      setScheduleDate(expected ?? new Date());
-      setReminderEnabled(editingDebt.reminderEnabled ?? false);
-      setReminderTime(editingDebt.reminderTime ?? '09:00');
-      const fallbackAccount = editingDebt.accountId ?? getDefaultAccountId(editingDebt.type);
-      setSelectedAccountId(fallbackAccount);
-      setSelectedCurrency(editingDebt.currency);
-      setPaymentAccountId(fallbackAccount);
-      setPaymentCurrency(editingDebt.currency);
-      setPaymentAmountInput('');
-      setPaymentAmountValue(0);
-      setPaymentNote('');
+    if (debtModal.mode === 'create') {
+      resetForm('borrowed');
+      ensuredEditingCounterpartyId.current = null;
+    }
+  }, [debtModal.isOpen, debtModal.mode, resetForm]);
+
+  useEffect(() => {
+    if (!debtModal.isOpen || !isEditing || !editingDebt) {
       return;
     }
 
-    resetForm('borrowed');
-  }, [debtModal.isOpen, editingDebt, getDefaultAccountId, resetForm]);
+    setActiveType(editingDebt.type);
+    setAmountInput(formatPresetAmount(editingDebt.amount));
+    setAmountValue(editingDebt.amount);
+    setNote(editingDebt.note ?? '');
+    setStartDate(new Date(editingDebt.date));
+    const expected = editingDebt.expectedReturnDate
+      ? new Date(editingDebt.expectedReturnDate)
+      : undefined;
+    setExpectedDate(expected);
+    setScheduleDate(expected ?? new Date());
+    setReminderEnabled(editingDebt.reminderEnabled ?? false);
+    setReminderTime(editingDebt.reminderTime ?? '09:00');
+    const fallbackAccount = editingDebt.accountId ?? getDefaultAccountId(editingDebt.type);
+    setSelectedAccountId(fallbackAccount);
+    setSelectedCurrency(editingDebt.currency);
+    setPaymentAccountId(fallbackAccount);
+    setPaymentCurrency(editingDebt.currency);
+    setPaymentAmountInput('');
+    setPaymentAmountValue(0);
+    setPaymentNote('');
+    setManualFundingEnabled(false);
+    setFundingOverrideInput('');
+    setFundingOverrideValue(0);
+    setEditingCounterpartyId(null);
+    setEditingCounterpartyName('');
+
+    if (editingDebtDomain?.counterpartyId) {
+      ensuredEditingCounterpartyId.current = editingDebtDomain.counterpartyId;
+      setSelectedCounterpartyId(editingDebtDomain.counterpartyId);
+    } else if (editingDebt.person) {
+      if (!ensuredEditingCounterpartyId.current) {
+        const ensured = createCounterparty(editingDebt.person);
+        ensuredEditingCounterpartyId.current = ensured.id;
+        setSelectedCounterpartyId(ensured.id);
+        setPerson(ensured.displayName);
+      } else {
+        setSelectedCounterpartyId(ensuredEditingCounterpartyId.current);
+      }
+    } else {
+      ensuredEditingCounterpartyId.current = null;
+      setSelectedCounterpartyId(null);
+    }
+  }, [
+    createCounterparty,
+    debtModal.isOpen,
+    editingDebt,
+    editingDebtDomain?.counterpartyId,
+    getDefaultAccountId,
+    isEditing,
+  ]);
 
   useEffect(() => {
     if (!debtModal.isOpen || isEditing) {
@@ -293,8 +450,109 @@ export default function DebtModal() {
     [accounts, paymentAccountId],
   );
 
+  const accountCurrency = selectedAccount ? getAccountCurrency(selectedAccount) : selectedCurrency;
+  const hasCurrencyMismatch = Boolean(selectedAccount && accountCurrency !== selectedCurrency);
+
+  const autoFundingAmount = useMemo(() => {
+    if (!hasCurrencyMismatch) {
+      return amountValue;
+    }
+    try {
+      return convertAmount(amountValue, selectedCurrency, accountCurrency);
+    } catch {
+      return amountValue;
+    }
+  }, [amountValue, convertAmount, hasCurrencyMismatch, selectedCurrency, accountCurrency]);
+
+  useEffect(() => {
+    if (!hasCurrencyMismatch) {
+      setManualFundingEnabled(false);
+      setFundingOverrideInput('');
+      setFundingOverrideValue(0);
+      return;
+    }
+    if (!manualFundingEnabled) {
+      const numericSource = Number.isFinite(autoFundingAmount) ? `${autoFundingAmount}` : '';
+      const { formatted, numeric } = formatAmountInputValue(numericSource);
+      setFundingOverrideInput(formatted);
+      setFundingOverrideValue(numeric);
+    }
+  }, [autoFundingAmount, hasCurrencyMismatch, manualFundingEnabled]);
+
+  useEffect(() => {
+    if (selectedCounterparty) {
+      setPerson(selectedCounterparty.displayName);
+    }
+  }, [selectedCounterparty]);
+
+  const manualFundingInvalid =
+    manualFundingEnabled && hasCurrencyMismatch && fundingOverrideValue <= 0;
+
+  const personDirectional = modalStrings.personDirectional;
+  const selectedCounterpartyName = selectedCounterparty?.displayName ?? person;
+  const personLabel =
+    activeType === 'borrowed'
+      ? personDirectional?.incoming?.label ?? modalStrings.person
+      : personDirectional?.outgoing?.label ?? modalStrings.person;
+  const personPlaceholder =
+    activeType === 'borrowed'
+      ? personDirectional?.incoming?.placeholder ?? modalStrings.personPlaceholder
+      : personDirectional?.outgoing?.placeholder ?? modalStrings.personPlaceholder;
+
+  const accountDirectional = modalStrings.accountDirectional;
+  const accountLabel =
+    activeType === 'borrowed'
+      ? accountDirectional?.incoming?.label ?? modalStrings.accountLabel
+      : accountDirectional?.outgoing?.label ?? modalStrings.accountLabel;
+  const accountHelperTemplate =
+    activeType === 'borrowed'
+      ? accountDirectional?.incoming?.helper ?? modalStrings.accountHelper
+      : accountDirectional?.outgoing?.helper ?? modalStrings.accountHelper;
+  const accountHelperText = accountHelperTemplate
+    ? applyTemplate(accountHelperTemplate, { accountCurrency })
+    : null;
+
+  const currencyFlowTemplate =
+    activeType === 'borrowed'
+      ? modalStrings.currencyFlow?.incoming
+      : modalStrings.currencyFlow?.outgoing;
+  const currencyFlowText = currencyFlowTemplate
+    ? applyTemplate(currencyFlowTemplate, {
+        debtCurrency: selectedCurrency,
+        accountCurrency,
+      })
+    : null;
+
+  const manualDescription = manualRateStrings.description
+    ? applyTemplate(manualRateStrings.description, {
+        debtCurrency: selectedCurrency,
+        accountCurrency,
+      })
+    : null;
+  const manualAmountLabel = manualRateStrings.amountLabel
+    ? applyTemplate(manualRateStrings.amountLabel, { currency: accountCurrency })
+    : manualRateStrings.amountLabel;
+
+  const counterpartyPickerTitle = modalStrings.counterpartyPickerTitle ?? personLabel;
+  const counterpartySearchPlaceholder =
+    modalStrings.counterpartySearchPlaceholder ?? personPlaceholder;
+  const counterpartyAddTemplate = modalStrings.counterpartyAddAction ?? 'Add "{query}"';
+  const counterpartyAddLabel = counterpartyQuery.trim()
+    ? counterpartyAddTemplate.replace('{query}', counterpartyQuery.trim())
+    : null;
+  const counterpartyEmptyLabel = modalStrings.counterpartyEmpty ?? personPlaceholder;
+  const renameCancelLabel =
+    counterpartyActionsStrings.renameCancel ?? modalStrings.buttons.cancel ?? 'Cancel';
+  const renameSaveLabel = counterpartyActionsStrings.renameSave ?? modalStrings.buttons.save ?? 'Save';
+  const deleteConfirmLabel =
+    counterpartyActionsStrings.deleteConfirm ?? modalStrings.buttons.delete ?? 'Delete';
+
   const isSaveDisabled =
-    !person.trim() || amountValue <= 0 || !startDate || !selectedAccountId;
+    !selectedCounterpartyId ||
+    amountValue <= 0 ||
+    !startDate ||
+    !selectedAccountId ||
+    manualFundingInvalid;
 
   const outstandingInPaymentCurrency = useMemo(() => {
     if (editingDebt) {
@@ -445,44 +703,63 @@ export default function DebtModal() {
   }, [activeType, closeDebtModal, resetForm]);
 
   const handleSubmit = useCallback(() => {
-    if (isSaveDisabled || !selectedAccountId) {
+    if (isSaveDisabled || !selectedAccountId || !selectedCounterpartyId) {
       return;
     }
 
-    const payload = {
-      person: person.trim(),
-      amount: amountValue,
-      type: activeType,
-      currency: selectedCurrency,
-      date: startDate,
-      expectedReturnDate: expectedDate,
-      note: note.trim() || undefined,
-      accountId: selectedAccountId,
-    };
+    const direction = mapDebtTypeToDirection(activeType);
+    const description = note.trim() || undefined;
+    const counterpartyName = (selectedCounterpartyName.trim() || '—') as string;
+    const basePayload = {
+      userId: 'local-user',
+      direction,
+      counterpartyId: selectedCounterpartyId,
+      counterpartyName,
+      description,
+      principalAmount: amountValue,
+      principalOriginalAmount: amountValue,
+      principalCurrency: selectedCurrency,
+      principalOriginalCurrency: selectedCurrency,
+      startDate: startDate.toISOString(),
+      dueDate: expectedDate?.toISOString(),
+      fundingAccountId: selectedAccountId,
+      reminderEnabled,
+      reminderTime: reminderEnabled ? reminderTime : undefined,
+    } as const;
 
-    if (isEditing && editingDebt) {
-      updateDebt(editingDebt.id, payload);
+    const fundingOverrideAmount =
+      manualFundingEnabled && hasCurrencyMismatch ? fundingOverrideValue : undefined;
+
+    if (isEditing && editingDebtDomain) {
+      updateDebt(editingDebtDomain.id, basePayload);
     } else {
-      addDebt(payload);
+      createDebt({ ...basePayload, fundingOverrideAmount });
       setDefaultDebtAccount(activeType, selectedAccountId);
     }
 
     closeDebtModal();
   }, [
     activeType,
-    addDebt,
     amountValue,
     closeDebtModal,
-    editingDebt,
+    createDebt,
+    editingDebtDomain,
     expectedDate,
     isEditing,
     isSaveDisabled,
+    hasCurrencyMismatch,
+    manualFundingEnabled,
     note,
     person,
+    reminderEnabled,
+    reminderTime,
     selectedAccountId,
+    selectedCounterparty?.displayName,
+    selectedCounterpartyId,
     selectedCurrency,
     setDefaultDebtAccount,
     startDate,
+    fundingOverrideValue,
     updateDebt,
   ]);
 
@@ -491,7 +768,7 @@ export default function DebtModal() {
   }, []);
 
   const handleDelete = useCallback(() => {
-    if (!isEditing || !editingDebt) {
+    if (!isEditing || !editingDebtDomain) {
       return;
     }
     Alert.alert(modalStrings.deleteTitle, modalStrings.deleteDescription, [
@@ -503,18 +780,19 @@ export default function DebtModal() {
         text: modalStrings.buttons.delete,
         style: 'destructive',
         onPress: () => {
-          deleteDebt(editingDebt.id);
+          deleteDebt(editingDebtDomain.id);
           closeDebtModal();
         },
       },
     ]);
-  }, [closeDebtModal, deleteDebt, editingDebt, isEditing, modalStrings]);
+  }, [closeDebtModal, deleteDebt, editingDebtDomain, isEditing, modalStrings]);
 
   const handleSelectAccount = useCallback(
     (accountId: string) => {
       const account = accounts.find((acc) => acc.id === accountId);
       if (accountSelectorContext === 'payment') {
         setPaymentAccountId(accountId);
+        setPaymentCurrency(getAccountCurrency(account));
       } else {
         setSelectedAccountId(accountId);
         const accountCurrency = getAccountCurrency(account);
@@ -527,6 +805,145 @@ export default function DebtModal() {
       accountModalRef.current?.dismiss();
     },
     [accountSelectorContext, accounts, activeType, isEditing, setDefaultDebtAccount],
+  );
+
+  const handleCancelCounterpartyEdit = useCallback(() => {
+    setEditingCounterpartyId(null);
+    setEditingCounterpartyName('');
+  }, []);
+
+  const openCounterpartyPicker = useCallback(() => {
+    setCounterpartyQuery('');
+    handleCancelCounterpartyEdit();
+    counterpartyModalRef.current?.present();
+  }, [handleCancelCounterpartyEdit]);
+
+  const closeCounterpartyModal = useCallback(() => {
+    handleCancelCounterpartyEdit();
+    counterpartyModalRef.current?.dismiss();
+  }, [handleCancelCounterpartyEdit]);
+
+  const handleSelectCounterparty = useCallback(
+    (party: Counterparty) => {
+      setSelectedCounterpartyId(party.id);
+      setPerson(party.displayName);
+      setCounterpartyQuery('');
+      closeCounterpartyModal();
+    },
+    [closeCounterpartyModal],
+  );
+
+  const handleAddCounterpartyFromQuery = useCallback(() => {
+    const name = counterpartyQuery.trim();
+    if (!name) {
+      return;
+    }
+    try {
+      const created = createCounterparty(name, { reuseIfExists: false });
+      setSelectedCounterpartyId(created.id);
+      setPerson(created.displayName);
+      setCounterpartyQuery('');
+      handleCancelCounterpartyEdit();
+      closeCounterpartyModal();
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'COUNTERPARTY_DUPLICATE'
+          ? counterpartyActionsStrings.duplicateName
+          : counterpartyActionsStrings.renamePlaceholder;
+      Alert.alert(counterpartyActionsStrings.renameTitle, message);
+    }
+  }, [
+    counterpartyActionsStrings.duplicateName,
+    counterpartyActionsStrings.renamePlaceholder,
+    counterpartyActionsStrings.renameTitle,
+    counterpartyQuery,
+    createCounterparty,
+    closeCounterpartyModal,
+  ]);
+
+  const handleStartEditCounterparty = useCallback((party: Counterparty) => {
+    setEditingCounterpartyId(party.id);
+    setEditingCounterpartyName(party.displayName);
+  }, []);
+
+  const handleSubmitCounterpartyEdit = useCallback(() => {
+    if (!editingCounterpartyId) {
+      return;
+    }
+    try {
+      renameCounterparty(editingCounterpartyId, editingCounterpartyName);
+      handleCancelCounterpartyEdit();
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'COUNTERPARTY_DUPLICATE'
+          ? counterpartyActionsStrings.duplicateName
+          : counterpartyActionsStrings.renamePlaceholder;
+      Alert.alert(counterpartyActionsStrings.renameTitle, message);
+    }
+  }, [
+    counterpartyActionsStrings.duplicateName,
+    counterpartyActionsStrings.renamePlaceholder,
+    counterpartyActionsStrings.renameTitle,
+    editingCounterpartyId,
+    editingCounterpartyName,
+    handleCancelCounterpartyEdit,
+    renameCounterparty,
+  ]);
+
+  const handleDeleteCounterpartyInternal = useCallback(
+    (counterpartyId: string) => {
+      try {
+        deleteCounterparty(counterpartyId);
+        if (selectedCounterpartyId === counterpartyId) {
+          setSelectedCounterpartyId(null);
+          setPerson('');
+        }
+        if (editingCounterpartyId === counterpartyId) {
+          handleCancelCounterpartyEdit();
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error && error.name === 'COUNTERPARTY_IN_USE'
+            ? counterpartyActionsStrings.deleteBlocked
+            : counterpartyActionsStrings.deleteBlocked;
+        Alert.alert(counterpartyActionsStrings.deleteTitle, message);
+      }
+    },
+    [
+      counterpartyActionsStrings.deleteBlocked,
+      counterpartyActionsStrings.deleteTitle,
+      deleteCounterparty,
+      editingCounterpartyId,
+      handleCancelCounterpartyEdit,
+      selectedCounterpartyId,
+    ],
+  );
+
+  const handleConfirmDeleteCounterparty = useCallback(
+    (party: Counterparty) => {
+      Alert.alert(
+        counterpartyActionsStrings.deleteTitle,
+        counterpartyActionsStrings.deleteDescription,
+        [
+          {
+            text: renameCancelLabel,
+            style: 'cancel',
+          },
+          {
+            text: deleteConfirmLabel,
+            style: 'destructive',
+            onPress: () => handleDeleteCounterpartyInternal(party.id),
+          },
+        ],
+      );
+    },
+    [
+      counterpartyActionsStrings.deleteDescription,
+      counterpartyActionsStrings.deleteTitle,
+      deleteConfirmLabel,
+      handleDeleteCounterpartyInternal,
+      renameCancelLabel,
+    ],
   );
 
   const handleSelectCurrency = useCallback(
@@ -546,6 +963,25 @@ export default function DebtModal() {
     setPaymentAmountInput(formatted);
     setPaymentAmountValue(numeric);
   }, []);
+
+  const handleFundingOverrideChange = useCallback((value: string) => {
+    const { formatted, numeric } = formatAmountInputValue(value);
+    setFundingOverrideInput(formatted);
+    setFundingOverrideValue(numeric);
+  }, []);
+
+  const handleManualFundingToggle = useCallback(
+    (value: boolean) => {
+      setManualFundingEnabled(value);
+      if (!value) {
+        const source = Number.isFinite(autoFundingAmount) ? `${autoFundingAmount}` : '';
+        const { formatted, numeric } = formatAmountInputValue(source);
+        setFundingOverrideInput(formatted);
+        setFundingOverrideValue(numeric);
+      }
+    },
+    [autoFundingAmount],
+  );
 
   const handleOpenFullPaymentModal = useCallback(() => {
     if (!isEditing || !editingDebt) {
@@ -604,7 +1040,7 @@ export default function DebtModal() {
   }, [closeShortcutContext]);
 
   const handleRecordPayment = useCallback(() => {
-    if (!isEditing || !editingDebt || !paymentAccountId || paymentAmountValue <= 0) {
+    if (!isEditing || !editingDebtDomain || !paymentAccountId || paymentAmountValue <= 0) {
       return;
     }
 
@@ -616,11 +1052,12 @@ export default function DebtModal() {
       return;
     }
 
-    payDebt({
-      debtId: editingDebt.id,
+    addDebtPayment({
+      debtId: editingDebtDomain.id,
       amount: paymentAmountValue,
       currency: paymentCurrency,
       accountId: paymentAccountId,
+      paymentDate: new Date().toISOString(),
       note: paymentNote.trim() || undefined,
     });
 
@@ -629,11 +1066,11 @@ export default function DebtModal() {
     setPaymentNote('');
     handleClosePaymentModal();
   }, [
-    editingDebt,
+    addDebtPayment,
+    editingDebtDomain,
     handleClosePaymentModal,
     isEditing,
     outstandingInPaymentCurrency,
-    payDebt,
     paymentAccountId,
     paymentAmountValue,
     paymentCurrency,
@@ -655,7 +1092,7 @@ export default function DebtModal() {
     !editingDebt || editingDebt.remainingAmount <= 0 || !(paymentAccountId ?? selectedAccountId);
 
   const handleFullPayment = useCallback(() => {
-    if (!isEditing || !editingDebt) {
+    if (!isEditing || !editingDebt || !editingDebtDomain) {
       return;
     }
     const targetAccountId = paymentAccountId ?? selectedAccountId ?? accounts[0]?.id ?? null;
@@ -668,24 +1105,26 @@ export default function DebtModal() {
       return;
     }
 
-    payDebt({
-      debtId: editingDebt.id,
+    addDebtPayment({
+      debtId: editingDebtDomain.id,
       amount: editingDebt.remainingAmount,
       currency: editingDebt.currency,
       accountId: targetAccountId,
+      paymentDate: new Date().toISOString(),
       note: fullPaymentDescriptionText,
     });
 
     handleCloseFullPaymentModal();
   }, [
     accounts,
+    addDebtPayment,
     editingDebt,
+    editingDebtDomain,
     fullPaymentDescriptionText,
     handleCloseFullPaymentModal,
     isEditing,
     modalStrings.accountHelper,
     modalStrings.accountLabel,
-    payDebt,
     paymentAccountId,
     selectedAccountId,
   ]);
@@ -700,25 +1139,25 @@ export default function DebtModal() {
   }, []);
 
   const handleSaveSchedule = useCallback(() => {
-    if (!isEditing || !editingDebt) {
+    if (!isEditing || !editingDebtDomain) {
       return;
     }
-    updateDebt(editingDebt.id, { expectedReturnDate: scheduleDate });
+    updateDebt(editingDebtDomain.id, { dueDate: scheduleDate.toISOString() });
     setExpectedDate(scheduleDate);
     handleCloseScheduleModal();
-  }, [editingDebt, handleCloseScheduleModal, isEditing, scheduleDate, updateDebt]);
+  }, [editingDebtDomain, handleCloseScheduleModal, isEditing, scheduleDate, updateDebt]);
 
   const handleSaveReminder = useCallback(() => {
-    if (!isEditing || !editingDebt) {
+    if (!isEditing || !editingDebtDomain) {
       return;
     }
-    updateDebt(editingDebt.id, {
+    updateDebt(editingDebtDomain.id, {
       reminderEnabled,
       reminderTime: reminderEnabled ? reminderTime : undefined,
     });
     handleCloseReminderModal();
   }, [
-    editingDebt,
+    editingDebtDomain,
     handleCloseReminderModal,
     isEditing,
     reminderEnabled,
@@ -817,16 +1256,28 @@ export default function DebtModal() {
 
             {/* Person */}
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>{modalStrings.person}</Text>
-              <AdaptiveGlassView style={styles.inputContainer}>
-                <TextInput
-                  value={person}
-                  onChangeText={setPerson}
-                  placeholder={modalStrings.personPlaceholder}
-                  placeholderTextColor="#7E8B9A"
-                  style={styles.textInput}
-                />
-              </AdaptiveGlassView>
+              <Text style={styles.sectionLabel}>{personLabel}</Text>
+              <Pressable
+                onPress={openCounterpartyPicker}
+                style={({ pressed }) => [pressed && styles.pressed]}
+              >
+                <AdaptiveGlassView style={styles.inputContainer}>
+                  <View style={styles.accountRow}>
+                      <Text
+                        style={[
+                          styles.textInput,
+                          !selectedCounterpartyName && styles.placeholderText,
+                        ]}
+                      >
+                        {selectedCounterpartyName || personPlaceholder}
+                      </Text>
+                    <Ionicons name="chevron-forward" size={18} color="#7E8B9A" />
+                  </View>
+                </AdaptiveGlassView>
+              </Pressable>
+              {!selectedCounterpartyId ? (
+                <Text style={styles.helperText}>{personPlaceholder}</Text>
+              ) : null}
             </View>
 
             {/* Amount */}
@@ -846,7 +1297,7 @@ export default function DebtModal() {
 
             {/* Account */}
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>{modalStrings.accountLabel}</Text>
+                <Text style={styles.sectionLabel}>{accountLabel}</Text>
               <Pressable
                 onPress={() => {
                   setAccountSelectorContext('debt');
@@ -863,6 +1314,9 @@ export default function DebtModal() {
                   </View>
                 </AdaptiveGlassView>
               </Pressable>
+              {accountHelperText ? (
+                <Text style={styles.helperText}>{accountHelperText}</Text>
+              ) : null}
             </View>
 
             {/* Currency */}
@@ -882,7 +1336,49 @@ export default function DebtModal() {
                   </View>
                 </AdaptiveGlassView>
               </Pressable>
+              {currencyFlowText ? (
+                <Text style={styles.helperText}>{currencyFlowText}</Text>
+              ) : null}
             </View>
+
+            {hasCurrencyMismatch && (
+              <View style={styles.section}>
+                <View style={styles.manualRateHeader}>
+                  <Text style={styles.sectionLabel}>{manualRateStrings.title}</Text>
+                  <View style={styles.manualRateToggleRow}>
+                    <Text style={styles.manualRateToggleLabel}>{manualRateStrings.toggle}</Text>
+                    <Switch
+                      value={manualFundingEnabled}
+                      onValueChange={handleManualFundingToggle}
+                    />
+                  </View>
+                </View>
+                {manualDescription ? (
+                  <Text style={styles.manualRateDescription}>{manualDescription}</Text>
+                ) : null}
+                <Text style={styles.sectionLabel}>{manualAmountLabel}</Text>
+                {manualFundingEnabled ? (
+                  <AdaptiveGlassView style={styles.inputContainer}>
+                    <BottomSheetTextInput
+                      value={fundingOverrideInput}
+                      onChangeText={handleFundingOverrideChange}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      placeholderTextColor="#7E8B9A"
+                      style={styles.textInput}
+                    />
+                  </AdaptiveGlassView>
+                ) : (
+                  <AdaptiveGlassView
+                    style={[styles.inputContainer, styles.manualRateReadonlySurface]}
+                  >
+                    <Text style={styles.manualRateReadonlyValue}>
+                      {formatCurrencyValue(autoFundingAmount, accountCurrency)}
+                    </Text>
+                  </AdaptiveGlassView>
+                )}
+              </View>
+            )}
 
             {/* Date & Time */}
             <View style={styles.section}>
@@ -1309,6 +1805,119 @@ export default function DebtModal() {
         </View>
       </CustomModal>
 
+      {/* Counterparty Picker */}
+      <CustomModal ref={counterpartyModalRef} variant="form" fallbackSnapPoint="65%">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>{counterpartyPickerTitle}</Text>
+            <Pressable onPress={closeCounterpartyModal} hitSlop={10}>
+              <Ionicons name="close" size={22} color="#7E8B9A" />
+            </Pressable>
+          </View>
+
+          <AdaptiveGlassView style={styles.searchContainer}>
+            <Ionicons name="search" size={16} color="#7E8B9A" />
+            <TextInput
+              value={counterpartyQuery}
+              onChangeText={setCounterpartyQuery}
+              placeholder={counterpartySearchPlaceholder}
+              placeholderTextColor="#7E8B9A"
+              style={styles.searchInput}
+            />
+          </AdaptiveGlassView>
+
+          {counterpartyAddLabel ? (
+            <Pressable
+              style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}
+              onPress={handleAddCounterpartyFromQuery}
+            >
+              <Text style={styles.addButtonText}>{counterpartyAddLabel}</Text>
+            </Pressable>
+          ) : null}
+
+          {filteredCounterparties.length > 0 ? (
+            <View style={styles.accountList}>
+              {filteredCounterparties.map((party) => {
+                const selected = party.id === selectedCounterpartyId;
+                return (
+                  <AdaptiveGlassView
+                    key={party.id}
+                    style={[
+                      styles.accountItem,
+                      { opacity: selected ? 1 : 0.7 },
+                    ]}
+                  >
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => handleSelectCounterparty(party)}
+                      style={styles.counterpartyPressArea}
+                    >
+                      <View style={styles.counterpartyInfo}>
+                        <Text style={styles.textInput}>{party.displayName}</Text>
+                        {selected && (
+                          <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
+                        )}
+                      </View>
+                      <View style={styles.counterpartyActionsRow}>
+                        <Pressable
+                          hitSlop={12}
+                          style={styles.counterpartyActionButton}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            handleStartEditCounterparty(party);
+                          }}
+                        >
+                          <Ionicons name="create-outline" size={18} color="#FFFFFF" />
+                        </Pressable>
+                        <Pressable
+                          hitSlop={12}
+                          style={styles.counterpartyActionButton}
+                          onPress={(event) => {
+                            event.stopPropagation();
+                            handleConfirmDeleteCounterparty(party);
+                          }}
+                        >
+                          <Ionicons name="trash-outline" size={18} color="#FF6B6B" />
+                        </Pressable>
+                      </View>
+                    </TouchableOpacity>
+                  </AdaptiveGlassView>
+                );
+              })}
+            </View>
+          ) : (
+            <Text style={styles.emptyState}>{counterpartyEmptyLabel}</Text>
+          )}
+
+          {editingCounterpartyId && (
+            <AdaptiveGlassView style={styles.counterpartyEditContainer}>
+              <Text style={styles.sectionLabel}>{counterpartyActionsStrings.renameTitle}</Text>
+              <TextInput
+                value={editingCounterpartyName}
+                onChangeText={setEditingCounterpartyName}
+                placeholder={counterpartyActionsStrings.renamePlaceholder}
+                placeholderTextColor="#7E8B9A"
+                style={styles.textInput}
+              />
+              <View style={styles.editButtonsRow}>
+                <Pressable
+                  style={({ pressed }) => [styles.editButtonSecondary, pressed && styles.pressed]}
+                  onPress={handleCancelCounterpartyEdit}
+                >
+                  <Text style={styles.editButtonTextSecondary}>{renameCancelLabel}</Text>
+                </Pressable>
+                <Pressable
+                  style={({ pressed }) => [styles.editButtonPrimary, pressed && styles.pressed]}
+                  onPress={handleSubmitCounterpartyEdit}
+                >
+                  <Text style={styles.editButtonTextPrimary}>{renameSaveLabel}</Text>
+                </Pressable>
+              </View>
+            </AdaptiveGlassView>
+          )}
+        </View>
+      </CustomModal>
+
       {/* Account Picker Modal */}
       <CustomModal ref={accountModalRef} variant="form" fallbackSnapPoint="50%">
         <View style={styles.modalContainer}>
@@ -1339,7 +1948,7 @@ export default function DebtModal() {
                         {account.name}
                       </Text>
                       <Text style={styles.accountBalance}>
-                        {getAccountCurrency(account)} • {account.subtitle ?? 'Account'}
+                        {getAccountCurrency(account)} • {account.accountType ?? 'account'}
                       </Text>
                     </View>
                     {selected && (
@@ -1414,6 +2023,11 @@ const styles = StyleSheet.create({
     color: '#7E8B9A',
     marginBottom: 12,
   },
+  helperText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
   typeContainer: {
     borderRadius: 16,
   },
@@ -1439,6 +2053,37 @@ const styles = StyleSheet.create({
   textInput: {
     fontSize: 15,
     fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  placeholderText: {
+    color: '#7E8B9A',
+  },
+  manualRateHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  manualRateToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  manualRateToggleLabel: {
+    fontSize: 12,
+    color: '#7E8B9A',
+  },
+  manualRateDescription: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 8,
+  },
+  manualRateReadonlySurface: {
+    justifyContent: 'center',
+  },
+  manualRateReadonlyValue: {
+    fontSize: 15,
+    fontWeight: '500',
     color: '#FFFFFF',
   },
   accountRow: {
@@ -1587,6 +2232,37 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     gap: 16,
   },
+  searchContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#FFFFFF',
+  },
+  addButton: {
+    borderRadius: 16,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  addButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  emptyState: {
+    textAlign: 'center',
+    fontSize: 13,
+    color: '#7E8B9A',
+    marginTop: 12,
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1612,6 +2288,27 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
+  counterpartyPressArea: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  counterpartyInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginRight: 8,
+  },
+  counterpartyActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  counterpartyActionButton: {
+    padding: 6,
+  },
   accountBalance: {
     fontSize: 13,
     fontWeight: '400',
@@ -1628,6 +2325,40 @@ const styles = StyleSheet.create({
   reminderLabel: {
     fontSize: 15,
     fontWeight: '400',
+    color: '#FFFFFF',
+  },
+  counterpartyEditContainer: {
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    gap: 10,
+  },
+  editButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  editButtonSecondary: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  editButtonPrimary: {
+    flex: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  editButtonTextSecondary: {
+    fontSize: 14,
+    color: '#7E8B9A',
+  },
+  editButtonTextPrimary: {
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

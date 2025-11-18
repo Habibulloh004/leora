@@ -21,6 +21,7 @@ export interface AddTaskPayload {
   energy: TaskEnergyLevel;
   priority: TaskPriorityLevel;
   categoryId?: PlannerTaskCategoryId;
+  goalId?: string;
   reminderEnabled: boolean;
   remindBeforeMin?: number;
   repeatEnabled: boolean;

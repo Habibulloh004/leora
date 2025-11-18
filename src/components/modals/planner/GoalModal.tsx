@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unescaped-entities */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -11,119 +10,26 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import Slider from '@react-native-community/slider';
-import Svg, { Path, Circle, Rect, G, Line } from 'react-native-svg';
 import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
+import { useShallow } from 'zustand/react/shallow';
 
 import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { useModalStore } from '@/stores/useModalStore';
-import { useShallow } from 'zustand/react/shallow';
 import { useLocalization } from '@/localization/useLocalization';
-
-// SVG Icons
-const WalletIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M21 18v1c0 1.1-.9 2-2 2H5c-1.11 0-2-.9-2-2V5c0-1.1.89-2 2-2h14c1.1 0 2 .9 2 2v1h-9c-1.11 0-2 .9-2 2v8c0 1.1.89 2 2 2h9zm-9-2h10V8H12v8zm4-2.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const ChartIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const TrophyIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94.63 1.5 1.98 2.63 3.61 2.96V19H8v2h8v-2h-3v-3.1c1.63-.33 2.98-1.46 3.61-2.96C19.08 12.63 21 10.55 21 8V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const PersonIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const BriefcaseIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M20 6h-4V4c0-1.1-.9-2-2-2h-4c-1.1 0-2 .9-2 2v2H4c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zM10 4h4v2h-4V4zm10 15H4V8h16v11z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const HeartPulseIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const DollarIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const GraduationCapIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.91V17h2V9L12 3z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const StarIcon = ({ size = 24, color = '#fff' }: { size?: number; color?: string }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"
-      fill={color}
-    />
-  </Svg>
-);
-
-const GOAL_TYPES = [
-  { id: 'financial', label: 'Financial', subtitle: '(savings, investments)', icon: 'wallet' },
-  { id: 'quantitative', label: 'Quantitative', subtitle: '(numerical indicators)', icon: 'chart' },
-  { id: 'quality', label: 'Quality', subtitle: '(Skills, achievements)', icon: 'trophy' },
-];
-
-const GOAL_CATEGORIES = [
-  { id: 'personal', label: 'Personal', icon: 'person' },
-  { id: 'career', label: 'Career', icon: 'briefcase' },
-  { id: 'health', label: 'Health', icon: 'health' },
-  { id: 'financial', label: 'Financial', icon: 'dollar' },
-  { id: 'educational', label: 'Educational', icon: 'graduation' },
-  { id: 'other', label: 'Other', icon: 'star' },
-];
-
-const COUNTING_TYPES = ['Sum', 'Kg', 'Km', 'Hours'];
+import type { GoalModalScenarioKey } from '@/localization/strings';
+import type { FinanceMode, Goal, GoalType, MetricKind } from '@/domain/planner/types';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import {
+  AVAILABLE_FINANCE_CURRENCIES,
+  type FinanceCurrency,
+  useFinancePreferencesStore,
+} from '@/stores/useFinancePreferencesStore';
 
 const modalProps: Partial<CustomModalProps> = {
   variant: 'form',
@@ -134,29 +40,380 @@ const modalProps: Partial<CustomModalProps> = {
   contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
 };
 
+type GoalTemplate = {
+  id: string;
+  title: string;
+  emoji: string;
+  goalType: GoalType;
+  metricKind: MetricKind;
+  financeMode?: FinanceMode;
+  defaultUnit?: string;
+  recommendedPercents?: number[];
+  targetValue?: number;
+  description?: string;
+};
+
+type MilestoneFormValue = {
+  id: string;
+  title: string;
+  percent: number;
+  dueDate?: Date;
+};
+
+type DatePickerTarget = { type: 'start' } | { type: 'due' } | { type: 'milestone'; id: string };
+
+type UnitDefinition = {
+  id: string;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  category: 'time' | 'distance' | 'weight' | 'volume' | 'count' | 'other';
+  metricTypes: MetricKind[];
+  goalTypes?: GoalType[];
+};
+
+// Professional Unit System (based on Strides, Way of Life, Notion)
+const UNIT_DEFINITIONS: UnitDefinition[] = [
+  // Time units
+  { id: 'minutes', label: 'Minutes', icon: 'time-outline', category: 'time', metricTypes: ['duration'] },
+  { id: 'hours', label: 'Hours', icon: 'hourglass-outline', category: 'time', metricTypes: ['duration'] },
+  { id: 'days', label: 'Days', icon: 'calendar-outline', category: 'time', metricTypes: ['duration'] },
+  { id: 'weeks', label: 'Weeks', icon: 'calendar-number-outline', category: 'time', metricTypes: ['duration'] },
+  { id: 'months', label: 'Months', icon: 'calendar-clear-outline', category: 'time', metricTypes: ['duration'] },
+  
+  // Distance units
+  { id: 'km', label: 'Kilometers', icon: 'map-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'miles', label: 'Miles', icon: 'navigate-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'meters', label: 'Meters', icon: 'trending-up-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'steps', label: 'Steps', icon: 'footsteps-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
+  
+  // Weight units
+  { id: 'kg', label: 'Kilograms', icon: 'barbell-outline', category: 'weight', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'lbs', label: 'Pounds', icon: 'scale-outline', category: 'weight', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'grams', label: 'Grams', icon: 'nutrition-outline', category: 'weight', metricTypes: ['count'] },
+  
+  // Volume units
+  { id: 'liters', label: 'Liters', icon: 'water-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'ml', label: 'Milliliters', icon: 'flask-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'cups', label: 'Cups', icon: 'cafe-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'glasses', label: 'Glasses', icon: 'beaker-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
+  
+  // Count units (universal)
+  { id: 'times', label: 'Times', icon: 'repeat-outline', category: 'count', metricTypes: ['count'] },
+  { id: 'reps', label: 'Reps', icon: 'fitness-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'sets', label: 'Sets', icon: 'list-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'sessions', label: 'Sessions', icon: 'timer-outline', category: 'count', metricTypes: ['count', 'duration'] },
+  { id: 'workouts', label: 'Workouts', icon: 'barbell-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
+  { id: 'calories', label: 'Calories', icon: 'flame-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
+  
+  // Education/Work units
+  { id: 'pages', label: 'Pages', icon: 'document-text-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
+  { id: 'books', label: 'Books', icon: 'book-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
+  { id: 'chapters', label: 'Chapters', icon: 'reader-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
+  { id: 'lessons', label: 'Lessons', icon: 'school-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
+  { id: 'courses', label: 'Courses', icon: 'library-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
+  { id: 'tasks', label: 'Tasks', icon: 'checkmark-done-outline', category: 'count', metricTypes: ['count'], goalTypes: ['productivity'] },
+  { id: 'projects', label: 'Projects', icon: 'briefcase-outline', category: 'count', metricTypes: ['count'], goalTypes: ['productivity'] },
+  
+  // Other/Abstract
+  { id: 'points', label: 'Points', icon: 'star-outline', category: 'other', metricTypes: ['count', 'custom'] },
+  { id: 'score', label: 'Score', icon: 'trophy-outline', category: 'other', metricTypes: ['count', 'custom'] },
+  { id: 'level', label: 'Level', icon: 'stats-chart-outline', category: 'other', metricTypes: ['count', 'custom'] },
+  { id: 'percent', label: 'Percent', icon: 'pie-chart-outline', category: 'other', metricTypes: ['count', 'custom'] },
+];
+
+// Universal Goal Templates
+const GOAL_TEMPLATES: GoalTemplate[] = [
+  {
+    id: 'emergency-fund',
+    title: 'Emergency Fund',
+    emoji: '🛡️',
+    goalType: 'financial',
+    metricKind: 'amount',
+    financeMode: 'save',
+    targetValue: 10000,
+    description: '6 months of expenses',
+    recommendedPercents: [25, 50, 75],
+  },
+  {
+    id: 'debt-free',
+    title: 'Debt Free',
+    emoji: '💳',
+    goalType: 'financial',
+    metricKind: 'amount',
+    financeMode: 'debt_close',
+    recommendedPercents: [25, 50, 75, 90],
+  },
+  {
+    id: 'save-vacation',
+    title: 'Save for Vacation',
+    emoji: '✈️',
+    goalType: 'financial',
+    metricKind: 'amount',
+    financeMode: 'save',
+    targetValue: 3000,
+    recommendedPercents: [50, 100],
+  },
+  {
+    id: 'spend-guardrails',
+    title: 'Spending guardrails',
+    emoji: '🧾',
+    goalType: 'financial',
+    metricKind: 'amount',
+    financeMode: 'spend',
+    targetValue: 1200,
+    description: 'Control discretionary categories',
+    recommendedPercents: [50, 75, 100],
+  },
+  {
+    id: 'fitness-target',
+    title: 'Fitness Goal',
+    emoji: '💪',
+    goalType: 'health',
+    metricKind: 'count',
+    defaultUnit: 'workouts',
+    targetValue: 100,
+    recommendedPercents: [25, 50, 75],
+  },
+  {
+    id: 'weight-loss',
+    title: 'Weight Loss',
+    emoji: '⚖️',
+    goalType: 'health',
+    metricKind: 'count',
+    defaultUnit: 'kg',
+    targetValue: 10,
+    recommendedPercents: [30, 60, 90],
+  },
+  {
+    id: 'learn-skill',
+    title: 'Learn New Skill',
+    emoji: '📚',
+    goalType: 'education',
+    metricKind: 'duration',
+    defaultUnit: 'hours',
+    targetValue: 100,
+    description: 'Master a new skill',
+    recommendedPercents: [25, 50, 100],
+  },
+  {
+    id: 'read-books',
+    title: 'Read Books',
+    emoji: '📖',
+    goalType: 'education',
+    metricKind: 'count',
+    defaultUnit: 'books',
+    targetValue: 24,
+    recommendedPercents: [25, 50, 75],
+  },
+  {
+    id: 'career-promotion',
+    title: 'Career Goal',
+    emoji: '🎯',
+    goalType: 'productivity',
+    metricKind: 'custom',
+    description: 'Achieve next level',
+  },
+  {
+    id: 'side-project',
+    title: 'Side Project',
+    emoji: '🚀',
+    goalType: 'productivity',
+    metricKind: 'count',
+    defaultUnit: 'tasks',
+    targetValue: 50,
+    recommendedPercents: [25, 50, 75, 100],
+  },
+  {
+    id: 'meditation-practice',
+    title: 'Meditation Practice',
+    emoji: '🧘',
+    goalType: 'personal',
+    metricKind: 'duration',
+    defaultUnit: 'hours',
+    targetValue: 50,
+    recommendedPercents: [30, 60, 90],
+  },
+];
+
+const SCENARIO_TEMPLATE_MAP: Record<GoalModalScenarioKey, string | null> = {
+  financialSave: 'emergency-fund',
+  financialSpend: 'spend-guardrails',
+  habitSupport: 'fitness-target',
+  skillGrowth: 'learn-skill',
+  custom: null,
+};
+
+const TEMPLATE_SCENARIO_MAP = Object.entries(SCENARIO_TEMPLATE_MAP).reduce<Record<string, GoalModalScenarioKey>>(
+  (acc, [scenario, templateId]) => {
+    if (templateId) {
+      acc[templateId] = scenario as GoalModalScenarioKey;
+    }
+    return acc;
+  },
+  {},
+);
+
+const SCENARIO_ICONS: Record<GoalModalScenarioKey, string> = {
+  financialSave: '💰',
+  financialSpend: '🧾',
+  habitSupport: '💪',
+  skillGrowth: '📚',
+  custom: '✨',
+};
+
+const SCENARIO_ORDER: GoalModalScenarioKey[] = ['financialSave', 'financialSpend', 'habitSupport', 'skillGrowth', 'custom'];
+
+const METRIC_OPTIONS: { id: MetricKind; label: string; icon: string; description: string }[] = [
+  { id: 'amount', label: 'Money', icon: '💰', description: 'Financial goals' },
+  { id: 'count', label: 'Number', icon: '🔢', description: 'Count-based' },
+  { id: 'duration', label: 'Time', icon: '⏱️', description: 'Time-based' },
+  { id: 'custom', label: 'Custom', icon: '⚙️', description: 'Your metric' },
+];
+
+const FINANCE_MODES: { id: FinanceMode; label: string; icon: string }[] = [
+  { id: 'save', label: 'Save', icon: '💵' },
+  { id: 'spend', label: 'Budget', icon: '🛍️' },
+  { id: 'debt_close', label: 'Pay Off', icon: '💳' },
+];
+
+const GOAL_TYPES: { id: GoalType; label: string; icon: string }[] = [
+  { id: 'financial', label: 'Financial', icon: '💰' },
+  { id: 'health', label: 'Health', icon: '❤️' },
+  { id: 'education', label: 'Learning', icon: '📚' },
+  { id: 'productivity', label: 'Career', icon: '💼' },
+  { id: 'personal', label: 'Personal', icon: '🎯' },
+];
+
+const UNIT_CATEGORIES = [
+  { id: 'time', label: 'Time', icon: 'time-outline' as keyof typeof Ionicons.glyphMap },
+  { id: 'distance', label: 'Distance', icon: 'map-outline' as keyof typeof Ionicons.glyphMap },
+  { id: 'weight', label: 'Weight', icon: 'barbell-outline' as keyof typeof Ionicons.glyphMap },
+  { id: 'volume', label: 'Volume', icon: 'water-outline' as keyof typeof Ionicons.glyphMap },
+  { id: 'count', label: 'General', icon: 'apps-outline' as keyof typeof Ionicons.glyphMap },
+  { id: 'other', label: 'Other', icon: 'ellipsis-horizontal-outline' as keyof typeof Ionicons.glyphMap },
+];
+
+const clampPercent = (value: number) => Math.min(Math.max(value, 0), 1);
+
+const parseNumericInput = (value: string) => {
+  if (!value.trim()) return undefined;
+  const normalized = value.replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const generateMilestoneId = () => `goal-ms-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+
+const formatMilestonePercent = (value: number) => Math.max(1, Math.min(100, Math.round(value)));
+
 export default function PlannerGoalModal() {
   const { plannerGoalModal, closePlannerGoalModal } = useModalStore(
     useShallow((state) => ({
       plannerGoalModal: state.plannerGoalModal,
       closePlannerGoalModal: state.closePlannerGoalModal,
-    }))
+    })),
   );
   const modalRef = useRef<BottomSheetHandle>(null);
   const hasHydratedRef = useRef(false);
   const { strings, locale } = useLocalization();
-  const goalAiStrings = strings.plannerScreens.goals.ai;
+  const modalStrings = strings.plannerModals.goal;
+  const sectionTimelineStrings = modalStrings.timelineSection;
+  const measurementStrings = modalStrings.measurementSection;
+  const scenarioStrings = modalStrings.scenarios;
+  const dateFormatter = useMemo(
+    () => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric' }),
+    [locale],
+  );
+  const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
+  const { goals, createGoal, updateGoal } = usePlannerDomainStore(
+    useShallow((state) => ({
+      goals: state.goals,
+      createGoal: state.createGoal,
+      updateGoal: state.updateGoal,
+    })),
+  );
 
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [goalType, setGoalType] = useState('financial');
-  const [category, setCategory] = useState('personal');
-  const [amount, setAmount] = useState('');
-  const [countingType, setCountingType] = useState('Sum');
-  const [progress, setProgress] = useState(0);
-  const [deadline, setDeadline] = useState<Date | undefined>(undefined);
-  const [pickerMode, setPickerMode] = useState<'date' | 'time' | null>(null);
-  const [milestones, setMilestones] = useState<string[]>([]);
+  const [goalType, setGoalType] = useState<GoalType>('financial');
+  const [metricKind, setMetricKind] = useState<MetricKind>('amount');
+  const [currentValueText, setCurrentValueText] = useState('');
+  const [targetValueText, setTargetValueText] = useState('');
+  const [unit, setUnit] = useState('');
+  const [customUnit, setCustomUnit] = useState('');
+  const [showCustomUnit, setShowCustomUnit] = useState(false);
+  const [currency, setCurrency] = useState<FinanceCurrency>(baseCurrency);
+  const [financeMode, setFinanceMode] = useState<FinanceMode>('save');
+  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
+  const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
+  const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
+  const [pickerState, setPickerState] = useState<{ target: DatePickerTarget; value: Date } | null>(null);
+  const [errorKey, setErrorKey] = useState<keyof typeof modalStrings.alerts | null>(null);
+  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
+  const [selectedScenario, setSelectedScenario] = useState<GoalModalScenarioKey>('custom');
+
+  const currencyOptions = useMemo(() => {
+    const ordered = new Set<FinanceCurrency>([baseCurrency, ...AVAILABLE_FINANCE_CURRENCIES]);
+    return Array.from(ordered);
+  }, [baseCurrency]);
+
+  const scenarioEntries = useMemo(
+    () => SCENARIO_ORDER.map((key) => ({ key, ...scenarioStrings[key] })),
+    [scenarioStrings],
+  );
+
+  const isEditing = plannerGoalModal.mode === 'edit' && !!editingGoalId;
+
+  // Smart unit filtering based on context
+  const availableUnits = useMemo(() => {
+    return UNIT_DEFINITIONS.filter(unitDef => {
+      // Filter by metric type
+      if (!unitDef.metricTypes.includes(metricKind)) {
+        return false;
+      }
+      
+      // If unit has specific goal types, check if current goal type matches
+      if (unitDef.goalTypes && unitDef.goalTypes.length > 0) {
+        return unitDef.goalTypes.includes(goalType);
+      }
+      
+      return true;
+    });
+  }, [metricKind, goalType]);
+
+  // Group units by category for better UX
+  const unitsByCategory = useMemo(() => {
+    const grouped = new Map<string, UnitDefinition[]>();
+    
+    availableUnits.forEach(unit => {
+      const category = unit.category;
+      if (!grouped.has(category)) {
+        grouped.set(category, []);
+      }
+      grouped.get(category)!.push(unit);
+    });
+    
+    return grouped;
+  }, [availableUnits]);
+
+  // Get smart default unit based on context
+  const getSmartDefaultUnit = useCallback((metric: MetricKind, goal: GoalType): string => {
+    if (metric === 'duration') return 'hours';
+    if (metric === 'amount') return '';
+    
+    // Context-aware defaults
+    if (goal === 'health') {
+      if (metric === 'count') return 'workouts';
+    } else if (goal === 'education') {
+      if (metric === 'count') return 'books';
+      if (metric === 'duration') return 'hours';
+    } else if (goal === 'productivity') {
+      return 'tasks';
+    }
+    
+    return 'times';
+  }, []);
 
   useEffect(() => {
     if (!hasHydratedRef.current) {
@@ -174,233 +431,468 @@ export default function PlannerGoalModal() {
     }
   }, [closePlannerGoalModal, plannerGoalModal.isOpen]);
 
+  const resetForm = useCallback(() => {
+    setTitle('');
+    setDescription('');
+    setGoalType('financial');
+    setMetricKind('amount');
+    setCurrentValueText('');
+    setTargetValueText('');
+    setUnit('');
+    setCustomUnit('');
+    setShowCustomUnit(false);
+    setCurrency(baseCurrency);
+    setFinanceMode('save');
+    setStartDate(undefined);
+    setTargetDate(undefined);
+    setMilestones([]);
+    setPickerState(null);
+    setErrorKey(null);
+    setEditingGoalId(null);
+    setSelectedScenario('custom');
+  }, [baseCurrency]);
+
   useEffect(() => {
     if (!plannerGoalModal.isOpen) {
-      setTitle('');
-      setDescription('');
-      setGoalType('financial');
-      setCategory('personal');
-      setAmount('');
-      setCountingType('Sum');
-      setProgress(0);
-      setDeadline(undefined);
-      setMilestones([]);
-      setPickerMode(null);
+      resetForm();
     }
-  }, [plannerGoalModal.isOpen]);
+  }, [plannerGoalModal.isOpen, resetForm]);
 
-  const applyDeadlinePart = useCallback((mode: 'date' | 'time', value: Date) => {
-    setDeadline((prev) => {
-      const next = prev ? new Date(prev) : new Date();
-      if (mode === 'date') {
-        next.setFullYear(value.getFullYear(), value.getMonth(), value.getDate());
-      } else {
-        next.setHours(value.getHours(), value.getMinutes(), 0, 0);
-      }
-      return next;
-    });
+  const resolveScenarioIdFromGoal = useCallback((goal: Goal): GoalModalScenarioKey => {
+    const scenarios = [
+      { id: 'financialSave', goalType: 'financial', metricKind: 'amount', financeMode: 'save' },
+      { id: 'financialSpend', goalType: 'financial', metricKind: 'amount', financeMode: 'spend' },
+      { id: 'habitSupport', goalType: 'health', metricKind: 'count' },
+      { id: 'skillGrowth', goalType: 'education', metricKind: 'duration' },
+      { id: 'custom', goalType: 'personal', metricKind: 'custom' },
+    ] as const;
+
+    const match = scenarios.find(
+      (scenario) =>
+        scenario.goalType === goal.goalType &&
+        scenario.metricKind === goal.metricType &&
+        (scenario.financeMode === undefined || scenario.financeMode === goal.financeMode)
+    );
+    return (match?.id ?? 'custom') as GoalModalScenarioKey;
   }, []);
 
-  const openDeadlinePicker = useCallback(
-    (mode: 'date' | 'time') => {
-      const baseValue = deadline ? new Date(deadline) : new Date();
+  useEffect(() => {
+    if (!plannerGoalModal.isOpen || plannerGoalModal.mode !== 'edit' || !plannerGoalModal.goalId) {
+      return;
+    }
+    const existing = goals.find((goal) => goal.id === plannerGoalModal.goalId);
+    if (!existing) return;
+
+    setEditingGoalId(existing.id);
+    setTitle(existing.title);
+    setDescription(existing.description ?? '');
+    setGoalType(existing.goalType);
+    setMetricKind(existing.metricType);
+    setFinanceMode(existing.financeMode ?? 'save');
+    setCurrency((existing.currency as FinanceCurrency) ?? baseCurrency);
+    
+    // Handle unit - check if it's a predefined unit or custom
+    const existingUnit = existing.unit ?? '';
+    const predefinedUnit = UNIT_DEFINITIONS.find(u => u.id === existingUnit);
+    
+    if (predefinedUnit) {
+      setUnit(existingUnit);
+      setShowCustomUnit(false);
+      setCustomUnit('');
+    } else if (existingUnit) {
+      setUnit('custom');
+      setCustomUnit(existingUnit);
+      setShowCustomUnit(true);
+    } else {
+      setUnit('');
+      setShowCustomUnit(false);
+      setCustomUnit('');
+    }
+    
+    setCurrentValueText(
+      existing.initialValue != null && Number.isFinite(existing.initialValue)
+        ? String(existing.initialValue)
+        : '',
+    );
+    setTargetValueText(
+      existing.targetValue != null && Number.isFinite(existing.targetValue)
+        ? String(existing.targetValue)
+        : '',
+    );
+    setStartDate(existing.startDate ? new Date(existing.startDate) : undefined);
+    setTargetDate(existing.targetDate ? new Date(existing.targetDate) : undefined);
+    setMilestones(
+      (existing.milestones ?? []).map((milestone) => ({
+        id: milestone.id,
+        title: milestone.title,
+        percent: formatMilestonePercent((milestone.targetPercent ?? 0) * 100),
+        dueDate: milestone.dueDate ? new Date(milestone.dueDate) : undefined,
+      })),
+    );
+    setErrorKey(null);
+    setSelectedScenario(resolveScenarioIdFromGoal(existing));
+  }, [baseCurrency, goals, plannerGoalModal.goalId, plannerGoalModal.isOpen, plannerGoalModal.mode, resolveScenarioIdFromGoal]);
+
+  const applyTemplate = useCallback((template: GoalTemplate, scenarioOverride?: GoalModalScenarioKey) => {
+    setSelectedScenario(scenarioOverride ?? TEMPLATE_SCENARIO_MAP[template.id] ?? 'custom');
+    setTitle(template.title);
+    setDescription(template.description ?? '');
+    setGoalType(template.goalType);
+    setMetricKind(template.metricKind);
+
+    if (template.financeMode) {
+      setFinanceMode(template.financeMode);
+    }
+
+    if (template.defaultUnit) {
+      setUnit(template.defaultUnit);
+      setShowCustomUnit(false);
+      setCustomUnit('');
+    }
+
+    if (template.targetValue) {
+      setTargetValueText(String(template.targetValue));
+    }
+
+    if (template.recommendedPercents && template.recommendedPercents.length > 0) {
+      setMilestones(
+        template.recommendedPercents.map((percent) => ({
+          id: generateMilestoneId(),
+          title: `${percent}% Complete`,
+          percent,
+        })),
+      );
+    }
+  }, []);
+
+  const handleMetricChange = useCallback((kind: MetricKind) => {
+    setMetricKind(kind);
+    if (kind !== 'amount') {
+      setFinanceMode('save');
+      // Smart default unit
+      const smartUnit = getSmartDefaultUnit(kind, goalType);
+      setUnit(smartUnit);
+      setShowCustomUnit(false);
+      setCustomUnit('');
+    } else {
+      setCurrency((prev) => prev || baseCurrency);
+      setUnit('');
+    }
+  }, [baseCurrency, getSmartDefaultUnit, goalType]);
+
+  const handleGoalTypeChange = useCallback((type: GoalType) => {
+    setGoalType(type);
+    // Update unit if metric kind is not amount
+    if (metricKind !== 'amount') {
+      const smartUnit = getSmartDefaultUnit(metricKind, type);
+      setUnit(smartUnit);
+      setShowCustomUnit(false);
+      setCustomUnit('');
+    }
+  }, [getSmartDefaultUnit, metricKind]);
+
+  const handleScenarioSelect = useCallback(
+    (scenario: GoalModalScenarioKey) => {
+      setSelectedScenario(scenario);
+      const templateId = SCENARIO_TEMPLATE_MAP[scenario];
+      if (templateId) {
+        const template = GOAL_TEMPLATES.find((item) => item.id === templateId);
+        if (template) {
+          applyTemplate(template, scenario);
+        }
+      }
+    },
+    [applyTemplate],
+  );
+
+  const handleAddMilestone = useCallback(() => {
+    const lastPercent = milestones[milestones.length - 1]?.percent ?? 0;
+    const nextPercent = formatMilestonePercent(lastPercent + 25);
+    setMilestones((prev) => [
+      ...prev, 
+      { 
+        id: generateMilestoneId(), 
+        title: `${nextPercent}% Complete`, 
+        percent: nextPercent 
+      }
+    ]);
+  }, [milestones]);
+
+  const handleUpdateMilestone = useCallback((id: string, updates: Partial<MilestoneFormValue>) => {
+    setMilestones((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
+        const nextPercent = updates.percent ?? item.percent;
+        return {
+          ...item,
+          ...updates,
+          percent: formatMilestonePercent(nextPercent),
+        };
+      }),
+    );
+  }, []);
+
+  const handleRemoveMilestone = useCallback((id: string) => {
+    setMilestones((prev) => prev.filter((item) => item.id !== id));
+  }, []);
+
+  const applyDateValue = useCallback(
+    (target: DatePickerTarget, value: Date) => {
+      if (target.type === 'start') {
+        setStartDate(value);
+      } else if (target.type === 'due') {
+        setTargetDate(value);
+      } else {
+        setMilestones((prev) =>
+          prev.map((item) => (item.id === target.id ? { ...item, dueDate: value } : item)),
+        );
+      }
+      setPickerState(null);
+    },
+    [],
+  );
+
+  const openDatePicker = useCallback(
+    (target: DatePickerTarget) => {
+      let currentValue: Date | undefined;
+      if (target.type === 'start') {
+        currentValue = startDate;
+      } else if (target.type === 'due') {
+        currentValue = targetDate;
+      } else {
+        currentValue = milestones.find((item) => item.id === target.id)?.dueDate;
+      }
+      const baseValue = currentValue ?? new Date();
       if (Platform.OS === 'android') {
         DateTimePickerAndroid.open({
           value: baseValue,
-          mode,
-          is24Hour: true,
-          display: mode === 'date' ? 'calendar' : 'clock',
+          mode: 'date',
           onChange: (event, selected) => {
             if (event.type === 'set' && selected) {
-              applyDeadlinePart(mode, selected);
+              applyDateValue(target, selected);
             }
           },
         });
         return;
       }
-      setPickerMode(mode);
+      setPickerState({ target, value: baseValue });
     },
-    [applyDeadlinePart, deadline],
+    [applyDateValue, milestones, startDate, targetDate],
   );
 
   const handleIosPickerChange = useCallback(
     (event: DateTimePickerEvent, selected?: Date) => {
       if (event.type === 'dismissed') {
-        setPickerMode(null);
+        setPickerState(null);
         return;
       }
-      if (selected && pickerMode) {
-        applyDeadlinePart(pickerMode, selected);
+      if (selected && pickerState) {
+        applyDateValue(pickerState.target, selected);
       }
     },
-    [applyDeadlinePart, pickerMode],
+    [applyDateValue, pickerState],
   );
 
-  const closePicker = useCallback(() => setPickerMode(null), []);
+  const formatDateLabel = useCallback(
+    (date?: Date) => (date ? dateFormatter.format(date) : sectionTimelineStrings.noDate),
+    [dateFormatter, sectionTimelineStrings.noDate],
+  );
 
-  const pickerValue = useMemo(() => (deadline ? new Date(deadline) : new Date()), [deadline]);
-  const deadlineDateLabel = useMemo(() => {
-    if (!deadline) return 'Pick a date';
-    try {
-      return new Intl.DateTimeFormat(locale, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }).format(deadline);
-    } catch {
-      return deadline.toLocaleDateString();
-    }
-  }, [deadline, locale]);
-  const deadlineTimeLabel = useMemo(() => {
-    if (!deadline) return 'Pick a time';
-    try {
-      return new Intl.DateTimeFormat(locale, {
-        hour: '2-digit',
-        minute: '2-digit',
-      }).format(deadline);
-    } catch {
-      return deadline.toLocaleTimeString();
-    }
-  }, [deadline, locale]);
+  const targetValue = parseNumericInput(targetValueText);
+  const disablePrimary = !title.trim() || !targetValue || targetValue <= 0;
 
-  const handleApplyAiSuggestion = () => {
-    setGoalType('quantitative');
-    setCategory('career');
-  };
+  const buildMilestonePayload = useCallback(
+    () =>
+      milestones
+        .map((item) => ({
+          id: item.id,
+          title: item.title.trim() || `${formatMilestonePercent(item.percent)}%`,
+          targetPercent: clampPercent(item.percent / 100),
+          dueDate: item.dueDate?.toISOString(),
+        }))
+        .filter((item) => item.targetPercent > 0),
+    [milestones],
+  );
 
-  const renderGoalTypeIcon = (iconId: string, size: number, color: string) => {
-    switch (iconId) {
-      case 'wallet':
-        return <WalletIcon size={size} color={color} />;
-      case 'chart':
-        return <ChartIcon size={size} color={color} />;
-      case 'trophy':
-        return <TrophyIcon size={size} color={color} />;
-      default:
-        return <WalletIcon size={size} color={color} />;
-    }
-  };
+  const handleSubmit = useCallback(
+    (options?: { keepOpen?: boolean }) => {
+      const trimmedTitle = title.trim();
+      if (!trimmedTitle) {
+        setErrorKey('missingTitle');
+        return;
+      }
+      const parsedTarget = parseNumericInput(targetValueText);
+      if (!parsedTarget || parsedTarget <= 0) {
+        setErrorKey('invalidTarget');
+        return;
+      }
+      const parsedCurrent = parseNumericInput(currentValueText) ?? 0;
+      const progressPercent = clampPercent(parsedCurrent / parsedTarget);
+      const stats: Goal['stats'] = {};
+      if (metricKind === 'amount') {
+        stats.financialProgressPercent = progressPercent;
+      } else if (metricKind === 'count') {
+        stats.tasksProgressPercent = progressPercent;
+      } else {
+        stats.habitsProgressPercent = progressPercent;
+      }
+      
+      // Determine final unit value
+      let finalUnit: string | undefined;
+      if (metricKind === 'amount') {
+        finalUnit = undefined;
+      } else if (showCustomUnit) {
+        finalUnit = customUnit.trim() || undefined;
+      } else if (unit && unit !== 'custom') {
+        finalUnit = unit;
+      } else {
+        finalUnit = undefined;
+      }
+      
+      const payload = {
+        userId: 'local-user',
+        title: trimmedTitle,
+        description: description.trim() || undefined,
+        goalType,
+        status: 'active' as const,
+        metricType: metricKind,
+        unit: finalUnit,
+        initialValue: parsedCurrent,
+        targetValue: parsedTarget,
+        financeMode: metricKind === 'amount' ? financeMode : undefined,
+        currency: metricKind === 'amount' ? currency : undefined,
+        startDate: (startDate ?? new Date()).toISOString(),
+        targetDate: targetDate?.toISOString(),
+        milestones: buildMilestonePayload(),
+        progressPercent,
+        stats,
+      } satisfies Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>;
 
-  const renderCategoryIcon = (iconId: string, size: number, color: string) => {
-    switch (iconId) {
-      case 'person':
-        return <PersonIcon size={size} color={color} />;
-      case 'briefcase':
-        return <BriefcaseIcon size={size} color={color} />;
-      case 'health':
-        return <HeartPulseIcon size={size} color={color} />;
-      case 'dollar':
-        return <DollarIcon size={size} color={color} />;
-      case 'graduation':
-        return <GraduationCapIcon size={size} color={color} />;
-      case 'star':
-        return <StarIcon size={size} color={color} />;
-      default:
-        return <PersonIcon size={size} color={color} />;
-    }
-  };
+      if (isEditing && editingGoalId) {
+        updateGoal(editingGoalId, payload);
+      } else {
+        createGoal(payload);
+      }
 
-  const disablePrimary = !title.trim();
+      if (options?.keepOpen && !isEditing) {
+        setTitle('');
+        setDescription('');
+        setCurrentValueText('');
+        setTargetValueText('');
+        setMilestones([]);
+        setErrorKey(null);
+        setSelectedTemplate(null);
+        return;
+      }
+      closePlannerGoalModal();
+    },
+    [
+      buildMilestonePayload,
+      closePlannerGoalModal,
+      createGoal,
+      currency,
+      currentValueText,
+      customUnit,
+      description,
+      editingGoalId,
+      financeMode,
+      goalType,
+      isEditing,
+      metricKind,
+      showCustomUnit,
+      startDate,
+      targetDate,
+      targetValueText,
+      title,
+      unit,
+      updateGoal,
+    ],
+  );
+
+  const renderMilestone = (milestone: MilestoneFormValue) => (
+    <AdaptiveGlassView key={milestone.id} style={styles.milestoneCard}>
+      <View style={styles.milestoneHeader}>
+        <TextInput
+          value={milestone.title}
+          onChangeText={(text) => handleUpdateMilestone(milestone.id, { title: text })}
+          placeholder={modalStrings.milestoneSection.title}
+          placeholderTextColor="#7E8B9A"
+          style={[styles.textInput, { flex: 1 }]}
+        />
+        <Pressable onPress={() => handleRemoveMilestone(milestone.id)} hitSlop={8}>
+          <Ionicons name="trash-outline" size={18} color="#7E8B9A" />
+        </Pressable>
+      </View>
+      <View style={styles.milestoneRow}>
+        <View style={styles.milestoneColumn}>
+          <Text style={styles.label}>{modalStrings.milestoneSection.percentLabel}</Text>
+          <AdaptiveGlassView style={styles.milestoneInput}>
+            <TextInput
+              value={String(milestone.percent)}
+              onChangeText={(text) => {
+                const parsed = parseNumericInput(text) ?? 0;
+                handleUpdateMilestone(milestone.id, { percent: formatMilestonePercent(parsed) });
+              }}
+              keyboardType="numeric"
+              placeholder="%"
+              placeholderTextColor="#7E8B9A"
+              style={styles.textInput}
+            />
+          </AdaptiveGlassView>
+        </View>
+        <View style={styles.milestoneColumn}>
+          <Text style={styles.label}>{modalStrings.milestoneSection.dueLabel}</Text>
+          <Pressable onPress={() => openDatePicker({ type: 'milestone', id: milestone.id })}>
+            <AdaptiveGlassView style={styles.milestoneInput}>
+              <Text style={styles.dateText}>{formatDateLabel(milestone.dueDate)}</Text>
+            </AdaptiveGlassView>
+          </Pressable>
+        </View>
+      </View>
+    </AdaptiveGlassView>
+  );
 
   return (
     <>
       <CustomModal ref={modalRef} onDismiss={closePlannerGoalModal} {...modalProps}>
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.scrollContent}
+          >
             {/* Header */}
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>NEW GOAL</Text>
+            <View style={[styles.header, styles.sectionPadding]}>
+              <Text style={styles.headerTitle}>
+                {isEditing ? modalStrings.actions.update.toUpperCase() : modalStrings.title.toUpperCase()}
+              </Text>
             </View>
 
-            {/* Goal title */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Goal title</Text>
-              <AdaptiveGlassView style={styles.titleInput}>
-                <TextInput
-                  value={title}
-                  onChangeText={setTitle}
-                  placeholder="Title"
-                  placeholderTextColor="#7E8B9A"
-                  style={styles.textInput}
-                />
-              </AdaptiveGlassView>
-            </View>
-
-            {/* Description */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Description</Text>
-              <AdaptiveGlassView style={styles.descriptionContainer}>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder="Description (not necessary)"
-                  placeholderTextColor="#7E8B9A"
-                  multiline
-                  style={styles.descriptionInput}
-                />
-              </AdaptiveGlassView>
-            </View>
-
-            {/* Type */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Type</Text>
-              <AdaptiveGlassView style={styles.typeContainer}>
-                {GOAL_TYPES.map((type, idx) => {
-                  const isActive = goalType === type.id;
-                  return (
-                    <Pressable
-                      key={type.id}
-                      onPress={() => setGoalType(type.id)}
-                      style={({ pressed }) => [
-                        styles.typeOption,
-                        pressed && styles.pressed,
-                        idx !== 2 && { borderBottomWidth: 1 }
-                      ]}
-                    >
-                      <View style={styles.typeOptionContent}>
-                        {renderGoalTypeIcon(type.icon, 24, isActive ? '#FFFFFF' : '#7E8B9A')}
-                        <View style={styles.typeTextContainer}>
-                          <Text style={[styles.typeLabel, { color: isActive ? '#FFFFFF' : '#B0B0B0' }]}>
-                            {type.label} {type.subtitle}
-                          </Text>
-                        </View>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </AdaptiveGlassView>
-            </View>
-
-            <View style={[styles.section, { paddingHorizontal: 0 }]}>
-              <Text style={[styles.sectionLabel, { paddingHorizontal: 20 }]}>Categories</Text>
+            {/* Scenario selector */}
+            <View style={[styles.section, styles.sectionNoPadding]}>
+              <View style={styles.sectionPadding}>
+                <Text style={styles.sectionLabel}>{modalStrings.scenarioSection.title}</Text>
+                <Text style={styles.sectionDescription}>{modalStrings.scenarioSection.subtitle}</Text>
+              </View>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoriesScroll}
+                contentContainerStyle={styles.templatesScroll}
               >
-                {GOAL_CATEGORIES.map((cat) => {
-                  const isActive = category === cat.id;
+                {scenarioEntries.map(({ key, title: scenarioTitle, subtitle }) => {
+                  const isActive = selectedScenario === key;
                   return (
                     <Pressable
-                      key={cat.id}
-                      onPress={() => setCategory(cat.id)}
-                      style={({ pressed }) => [styles.categoryCard, pressed && styles.pressed]}
+                      key={key}
+                      onPress={() => handleScenarioSelect(key)}
+                      style={({ pressed }) => [styles.templateCard, pressed && styles.pressed]}
                     >
-                      <AdaptiveGlassView
-                        style={[
-                          styles.categoryCardInner,
-                          { opacity: isActive ? 1 : 0.6 },
-                        ]}
-                      >
-                        {renderCategoryIcon(cat.icon, 28, isActive ? '#FFFFFF' : '#9E9E9E')}
-                        <Text
-                          style={[
-                            styles.categoryCardText,
-                            { color: isActive ? '#FFFFFF' : '#9E9E9E' },
-                          ]}
-                        >
-                          {cat.label}
+                      <AdaptiveGlassView style={[styles.templateInner, { opacity: isActive ? 1 : 0.6 }]}>
+                        <Text style={styles.templateEmoji}>{SCENARIO_ICONS[key]}</Text>
+                        <Text style={[styles.templateLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
+                          {scenarioTitle}
                         </Text>
+                        <Text style={styles.templateSubtitle}>{subtitle}</Text>
                       </AdaptiveGlassView>
                     </Pressable>
                   );
@@ -408,46 +900,54 @@ export default function PlannerGoalModal() {
               </ScrollView>
             </View>
 
-            {/* Amount */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Amount</Text>
-              <AdaptiveGlassView style={styles.amountInput}>
+            {/* Details */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <Text style={styles.sectionLabel}>{modalStrings.detailsSection.titleLabel}</Text>
+              <AdaptiveGlassView style={styles.inputContainer}>
                 <TextInput
-                  value={amount}
-                  onChangeText={setAmount}
-                  placeholder="Amount"
+                  value={title}
+                  onChangeText={(text) => {
+                    setTitle(text);
+                    setErrorKey(null);
+                  }}
+                  placeholder={modalStrings.detailsSection.titlePlaceholder}
                   placeholderTextColor="#7E8B9A"
-                  keyboardType="numeric"
                   style={styles.textInput}
                 />
               </AdaptiveGlassView>
             </View>
 
-            {/* Counting type */}
-            <View style={styles.section}>
-              <Text style={styles.sectionLabel}>Counting type</Text>
-              <View style={styles.countingTypeRow}>
-                {COUNTING_TYPES.map((type) => {
-                  const isActive = countingType === type;
+            {/* Description */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <Text style={styles.sectionLabel}>{modalStrings.detailsSection.descriptionLabel}</Text>
+              <AdaptiveGlassView style={styles.descriptionContainer}>
+                <TextInput
+                  value={description}
+                  onChangeText={setDescription}
+                  placeholder={modalStrings.detailsSection.descriptionPlaceholder}
+                  placeholderTextColor="#7E8B9A"
+                  multiline
+                  style={styles.descriptionInput}
+                />
+              </AdaptiveGlassView>
+            </View>
+
+            {/* Goal type */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <Text style={styles.sectionLabel}>Category</Text>
+              <View style={styles.typeRow}>
+                {GOAL_TYPES.map((type) => {
+                  const isActive = goalType === type.id;
                   return (
                     <Pressable
-                      key={type}
-                      onPress={() => setCountingType(type)}
-                      style={({ pressed }) => [styles.countingButton, pressed && styles.pressed]}
+                      key={type.id}
+                      onPress={() => handleGoalTypeChange(type.id)}
+                      style={({ pressed }) => [styles.typeButton, pressed && styles.pressed]}
                     >
-                      <AdaptiveGlassView
-                        style={[
-                          styles.countingButtonInner,
-                          { opacity: isActive ? 1 : 0.5 },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.countingButtonText,
-                            { color: isActive ? '#FFFFFF' : '#7E8B9A' },
-                          ]}
-                        >
-                          {type}
+                      <AdaptiveGlassView style={[styles.typeButtonInner, { opacity: isActive ? 1 : 0.6 }]}>
+                        <Text style={styles.typeEmoji}>{type.icon}</Text>
+                        <Text style={[styles.typeLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
+                          {type.label}
                         </Text>
                       </AdaptiveGlassView>
                     </Pressable>
@@ -456,93 +956,264 @@ export default function PlannerGoalModal() {
               </View>
             </View>
 
-            {/* Progress */}
-            <View style={styles.section}>
-              <View style={styles.progressHeader}>
-                <Text style={styles.sectionLabel}>Progress</Text>
-                <Text style={styles.progressValue}>{Math.round(progress * 100)}%</Text>
+            {/* Measurement type */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <Text style={styles.sectionLabel}>{measurementStrings.title}</Text>
+              <Text style={styles.label}>{measurementStrings.metricLabel}</Text>
+              <View style={styles.measurementGrid}>
+                {METRIC_OPTIONS.map((metric) => {
+                  const isActive = metricKind === metric.id;
+                  return (
+                    <Pressable
+                      key={metric.id}
+                      onPress={() => handleMetricChange(metric.id)}
+                      style={({ pressed }) => [styles.measurementButton, pressed && styles.pressed]}
+                    >
+                      <AdaptiveGlassView style={[styles.measurementButtonInner, { opacity: isActive ? 1 : 0.6 }]}>
+                        <Text style={styles.measurementEmoji}>{metric.icon}</Text>
+                        <Text style={[styles.measurementLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
+                          {measurementStrings.metricOptions[metric.id] ?? metric.label}
+                        </Text>
+                        <Text style={styles.measurementDescription}>{metric.description}</Text>
+                      </AdaptiveGlassView>
+                    </Pressable>
+                  );
+                })}
               </View>
-              <AdaptiveGlassView style={styles.progressContainer}>
-                <Slider
-                  value={progress}
-                  onValueChange={setProgress}
-                  minimumValue={0}
-                  maximumValue={1}
-                  minimumTrackTintColor="#FFFFFF"
-                  maximumTrackTintColor="#4A4A4A"
-                  thumbTintColor="#FFFFFF"
-                  style={styles.slider}
-                />
-              </AdaptiveGlassView>
             </View>
 
-            {/* Deadline */}
-            <View style={styles.section}>
-              <View style={styles.deadlineHeader}>
-                <Text style={styles.sectionLabel}>Deadline</Text>
-                <Pressable onPress={() => setDeadline(undefined)} disabled={!deadline}>
-                  <Text
-                    style={[
-                      styles.removeText,
-                      !deadline && styles.removeTextDisabled,
-                    ]}
-                  >
-                    Remove
-                  </Text>
-                </Pressable>
+            {/* Target values */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <Text style={styles.sectionLabel}>{measurementStrings.title}</Text>
+              <View style={styles.valueRow}>
+                <View style={styles.valueColumn}>
+                  <Text style={styles.label}>{measurementStrings.currentLabel}</Text>
+                  <AdaptiveGlassView style={styles.inputContainer}>
+                    <TextInput
+                      value={currentValueText}
+                      onChangeText={(text) => {
+                        setCurrentValueText(text);
+                        setErrorKey(null);
+                      }}
+                      placeholder={measurementStrings.placeholders.current}
+                      placeholderTextColor="#7E8B9A"
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                    />
+                  </AdaptiveGlassView>
+                </View>
+                <View style={styles.valueColumn}>
+                  <Text style={styles.label}>{measurementStrings.targetLabel}</Text>
+                  <AdaptiveGlassView style={styles.inputContainer}>
+                    <TextInput
+                      value={targetValueText}
+                      onChangeText={(text) => {
+                        setTargetValueText(text);
+                        setErrorKey(null);
+                      }}
+                      placeholder={measurementStrings.placeholders.target}
+                      placeholderTextColor="#7E8B9A"
+                      keyboardType="numeric"
+                      style={styles.textInput}
+                    />
+                  </AdaptiveGlassView>
+                </View>
               </View>
-              <View style={styles.deadlineRow}>
-                <Pressable
-                  onPress={() => openDeadlinePicker('date')}
-                  style={({ pressed }) => [styles.deadlineButton, pressed && styles.pressed]}
-                >
-                  <AdaptiveGlassView style={styles.deadlineChip}>
-                    <Ionicons name="calendar-outline" size={18} color="#7E8B9A" />
-                    <Text
-                      style={[
-                        styles.deadlineText,
-                        { color: deadline ? '#FFFFFF' : '#7E8B9A' },
-                      ]}
-                    >
-                      {deadlineDateLabel}
-                    </Text>
+
+              {/* Currency / Unit */}
+              {metricKind === 'amount' ? (
+                <>
+                  <Text style={styles.label}>{measurementStrings.currencyLabel}</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.currencyScroll}>
+                    {currencyOptions.map((curr) => {
+                      const isActive = currency === curr;
+                      return (
+                        <Pressable
+                          key={curr}
+                          onPress={() => setCurrency(curr)}
+                          style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+                        >
+                          <AdaptiveGlassView style={[styles.chipInner, { opacity: isActive ? 1 : 0.6 }]}>
+                            <Text style={[styles.chipText, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
+                              {curr}
+                            </Text>
+                          </AdaptiveGlassView>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+
+                  <Text style={styles.label}>{measurementStrings.financeModeLabel}</Text>
+                  <View style={styles.modeRow}>
+                    {FINANCE_MODES.map((mode) => {
+                      const isActive = financeMode === mode.id;
+                      return (
+                        <Pressable
+                          key={mode.id}
+                          onPress={() => setFinanceMode(mode.id)}
+                          style={({ pressed }) => [styles.modeButton, pressed && styles.pressed]}
+                        >
+                          <AdaptiveGlassView style={[styles.modeButtonInner, { opacity: isActive ? 1 : 0.6 }]}>
+                            <Text style={styles.modeEmoji}>{mode.icon}</Text>
+                            <Text style={[styles.modeLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
+                              {measurementStrings.financeModes[mode.id] ?? mode.label}
+                            </Text>
+                          </AdaptiveGlassView>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : metricKind !== 'custom' ? (
+                <>
+                  <Text style={styles.label}>{measurementStrings.unitLabel}</Text>
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.unitsScroll}
+                  >
+                    {Array.from(unitsByCategory.entries()).map(([categoryId, units]) => {
+                      const categoryInfo = UNIT_CATEGORIES.find(c => c.id === categoryId);
+                      if (!categoryInfo || units.length === 0) return null;
+                      
+                      return (
+                        <View key={categoryId} style={styles.unitCategoryGroup}>
+                          <View style={styles.unitCategoryHeader}>
+                            <Ionicons name={categoryInfo.icon} size={14} color="#7E8B9A" />
+                            <Text style={styles.unitCategoryLabel}>{categoryInfo.label}</Text>
+                          </View>
+                          <View style={styles.unitCategoryItems}>
+                            {units.map((unitDef) => {
+                              const isActive = unit === unitDef.id;
+                              return (
+                                <Pressable
+                                  key={unitDef.id}
+                                  onPress={() => {
+                                    setUnit(unitDef.id);
+                                    setShowCustomUnit(false);
+                                    setCustomUnit('');
+                                  }}
+                                  style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
+                                >
+                                  <AdaptiveGlassView style={[styles.unitChipInner, { opacity: isActive ? 1 : 0.6 }]}>
+                                    <Ionicons 
+                                      name={unitDef.icon} 
+                                      size={16} 
+                                      color={isActive ? '#FFFFFF' : '#7E8B9A'} 
+                                    />
+                                    <Text style={[styles.unitChipText, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
+                                      {unitDef.label}
+                                    </Text>
+                                  </AdaptiveGlassView>
+                                </Pressable>
+                              );
+                            })}
+                          </View>
+                        </View>
+                      );
+                    })}
+                    
+                    {/* Custom option */}
+                    <View style={styles.unitCategoryGroup}>
+                      <View style={styles.unitCategoryHeader}>
+                        <Ionicons name="create-outline" size={14} color="#7E8B9A" />
+                        <Text style={styles.unitCategoryLabel}>{measurementStrings.unitLabel}</Text>
+                      </View>
+                      <Pressable
+                        onPress={() => {
+                          setUnit('custom');
+                          setShowCustomUnit(true);
+                        }}
+                        style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
+                      >
+                        <AdaptiveGlassView style={[styles.unitChipInner, { opacity: showCustomUnit ? 1 : 0.6 }]}>
+                          <Ionicons 
+                            name="add-circle-outline" 
+                            size={16} 
+                            color={showCustomUnit ? '#FFFFFF' : '#7E8B9A'} 
+                          />
+                          <Text style={[styles.unitChipText, { color: showCustomUnit ? '#FFFFFF' : '#7E8B9A' }]}>
+                            {measurementStrings.unitLabel}
+                          </Text>
+                        </AdaptiveGlassView>
+                      </Pressable>
+                    </View>
+                  </ScrollView>
+                  
+                  {/* Custom unit input */}
+                  {showCustomUnit && (
+                    <AdaptiveGlassView style={[styles.inputContainer, { marginTop: 12 }]}>
+                      <TextInput
+                        value={customUnit}
+                        onChangeText={setCustomUnit}
+                        placeholder={measurementStrings.placeholders.unit}
+                        placeholderTextColor="#7E8B9A"
+                        style={styles.textInput}
+                        autoFocus
+                      />
+                    </AdaptiveGlassView>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={styles.label}>{measurementStrings.unitLabel}</Text>
+                  <AdaptiveGlassView style={styles.inputContainer}>
+                    <TextInput
+                      value={unit}
+                      onChangeText={setUnit}
+                      placeholder={measurementStrings.placeholders.unit}
+                      placeholderTextColor="#7E8B9A"
+                      style={styles.textInput}
+                    />
+                  </AdaptiveGlassView>
+                </>
+              )}
+              {errorKey && <Text style={styles.errorText}>{modalStrings.alerts[errorKey]}</Text>}
+            </View>
+
+            {/* Timeline */}
+            <View style={[styles.section, styles.sectionPadding]}>
+              <Text style={styles.sectionLabel}>{sectionTimelineStrings.title}</Text>
+              <View style={styles.timelineRow}>
+                <Pressable style={styles.dateButton} onPress={() => openDatePicker({ type: 'start' })}>
+                  <AdaptiveGlassView style={styles.dateButtonInner}>
+                    <Ionicons name="calendar-outline" size={16} color="#7E8B9A" />
+                    <View style={styles.dateTextContainer}>
+                      <Text style={styles.dateLabel}>{sectionTimelineStrings.startLabel}</Text>
+                      <Text style={styles.dateText}>{formatDateLabel(startDate)}</Text>
+                    </View>
                   </AdaptiveGlassView>
                 </Pressable>
-                <Pressable
-                  onPress={() => openDeadlinePicker('time')}
-                  style={({ pressed }) => [styles.deadlineButton, pressed && styles.pressed]}
-                >
-                  <AdaptiveGlassView style={styles.deadlineChip}>
-                    <Ionicons name="time-outline" size={18} color="#7E8B9A" />
-                    <Text
-                      style={[
-                        styles.deadlineText,
-                        { color: deadline ? '#FFFFFF' : '#7E8B9A' },
-                      ]}
-                    >
-                      {deadlineTimeLabel}
-                    </Text>
+                <Pressable style={styles.dateButton} onPress={() => openDatePicker({ type: 'due' })}>
+                  <AdaptiveGlassView style={styles.dateButtonInner}>
+                    <Ionicons name="flag-outline" size={16} color="#7E8B9A" />
+                    <View style={styles.dateTextContainer}>
+                      <Text style={styles.dateLabel}>{sectionTimelineStrings.dueLabel}</Text>
+                      <Text style={styles.dateText}>{formatDateLabel(targetDate)}</Text>
+                    </View>
                   </AdaptiveGlassView>
                 </Pressable>
               </View>
             </View>
 
             {/* Milestones */}
-            <View style={styles.section}>
-              <View style={styles.milestonesHeader}>
-                <Text style={styles.sectionLabel}>Milestones</Text>
-                <Pressable>
-                  <Text style={styles.addText}>Add</Text>
+            <View style={[styles.section, styles.sectionPadding]}>
+              <View style={styles.milestoneHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionLabel}>{modalStrings.milestoneSection.title}</Text>
+                  <Text style={styles.sectionDescription}>{modalStrings.milestoneSection.description}</Text>
+                </View>
+                <Pressable onPress={handleAddMilestone} style={styles.addButton} accessibilityLabel={modalStrings.milestoneSection.add}>
+                  <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
                 </Pressable>
               </View>
-              <Pressable style={({ pressed }) => [pressed && styles.pressed]}>
-                <AdaptiveGlassView style={styles.milestonesContainer}>
-                  <Ionicons name="add" size={24} color="#7E8B9A" />
-                  <Text style={styles.milestonesText}>
-                    Add milestone goal for monitor your progress
-                  </Text>
+              {milestones.length === 0 ? (
+                <AdaptiveGlassView style={styles.emptyCard}>
+                  <Text style={styles.emptyText}>{modalStrings.milestoneSection.empty}</Text>
                 </AdaptiveGlassView>
-              </Pressable>
+              ) : (
+                <View style={styles.milestoneList}>{milestones.map(renderMilestone)}</View>
+              )}
             </View>
 
             {/* AI Suggestions */}
@@ -552,51 +1223,53 @@ export default function PlannerGoalModal() {
                 <Text style={styles.aiText}>
                   AI:{' '}
                   <Text style={{ color: '#FFFFFF' }}>
-                    "At the current pace, you will reach your goal in March. If you increase
-                    contributions by 100k per month
+                    Goals with specific deadlines are 42% more likely to be achieved. Set a realistic target date!
                   </Text>
                 </Text>
               </View>
             </View>
 
-            <View style={styles.aiSuggestion}>
-              <Text style={styles.aiSuggestionIcon}>💡</Text>
-              <View style={styles.aiTextContainer}>
-                <Text style={styles.aiText}>
-                  AI:{' '}
-                  <Text style={{ color: '#FFFFFF' }}>
-                    "At the current pace, you will reach your goal in March. If you increase
-                    contributions by 100k per month
+            {milestones.length > 0 && (
+              <View style={styles.aiSuggestion}>
+                <Text style={styles.aiSuggestionIcon}>🎯</Text>
+                <View style={styles.aiTextContainer}>
+                  <Text style={styles.aiText}>
+                    AI:{' '}
+                    <Text style={{ color: '#FFFFFF' }}>
+                      Great! Breaking goals into milestones increases success rate by 60%.
+                    </Text>
                   </Text>
-                </Text>
+                </View>
               </View>
-            </View>
+            )}
 
             {/* Action Buttons */}
             <View style={styles.actionButtons}>
-              <Pressable style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}>
-                <Text style={styles.secondaryButtonText}>Create and more</Text>
-              </Pressable>
+              {!isEditing && (
+                <Pressable
+                  disabled={disablePrimary}
+                  onPress={() => handleSubmit({ keepOpen: true })}
+                  style={({ pressed }) => [
+                    styles.secondaryButton,
+                    pressed && !disablePrimary && styles.pressed,
+                    disablePrimary && { opacity: 0.4 },
+                  ]}
+                >
+                  <Text style={styles.secondaryButtonText}>{modalStrings.actions.createMore}</Text>
+                </Pressable>
+              )}
               <Pressable
                 disabled={disablePrimary}
+                onPress={() => handleSubmit()}
                 style={({ pressed }) => [
                   styles.primaryButton,
                   pressed && !disablePrimary && styles.pressed,
+                  !isEditing && { flex: 1 },
                 ]}
               >
-                <AdaptiveGlassView
-                  style={[
-                    styles.primaryButtonInner,
-                    { opacity: disablePrimary ? 0.4 : 1 },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.primaryButtonText,
-                      { color: disablePrimary ? '#7E8B9A' : '#FFFFFF' },
-                    ]}
-                  >
-                    Create goal
+                <AdaptiveGlassView style={[styles.primaryButtonInner, { opacity: disablePrimary ? 0.4 : 1 }]}>
+                  <Text style={[styles.primaryButtonText, { color: disablePrimary ? '#7E8B9A' : '#FFFFFF' }]}>
+                    {isEditing ? modalStrings.actions.update : modalStrings.actions.create}
                   </Text>
                 </AdaptiveGlassView>
               </Pressable>
@@ -605,19 +1278,13 @@ export default function PlannerGoalModal() {
         </KeyboardAvoidingView>
       </CustomModal>
 
-      {Platform.OS === 'ios' && pickerMode && (
-        <Modal transparent visible onRequestClose={closePicker} animationType="fade">
+      {Platform.OS === 'ios' && pickerState && (
+        <Modal transparent visible onRequestClose={() => setPickerState(null)} animationType="fade">
           <View style={styles.pickerModal}>
-            <Pressable style={styles.pickerBackdrop} onPress={closePicker} />
+            <Pressable style={styles.pickerBackdrop} onPress={() => setPickerState(null)} />
             <AdaptiveGlassView style={styles.pickerCard}>
-              <DateTimePicker
-                value={pickerValue}
-                mode={pickerMode}
-                display={pickerMode === 'date' ? 'inline' : 'spinner'}
-                onChange={handleIosPickerChange}
-                is24Hour
-              />
-              <Pressable onPress={closePicker} style={styles.pickerDoneButton}>
+              <DateTimePicker value={pickerState.value} mode="date" display="spinner" onChange={handleIosPickerChange} />
+              <Pressable onPress={() => setPickerState(null)} style={styles.pickerDoneButton}>
                 <Text style={styles.pickerDoneText}>Done</Text>
               </Pressable>
             </AdaptiveGlassView>
@@ -629,6 +1296,10 @@ export default function PlannerGoalModal() {
 }
 
 const styles = StyleSheet.create({
+  scrollContent: {
+    paddingTop: 12,
+    paddingBottom: 32,
+  },
   header: {
     alignItems: 'center',
     marginBottom: 24,
@@ -640,8 +1311,13 @@ const styles = StyleSheet.create({
     color: '#7E8B9A',
   },
   section: {
-    marginBottom: 8,
-    paddingHorizontal: 20
+    marginBottom: 20,
+  },
+  sectionPadding: {
+    paddingHorizontal: 20,
+  },
+  sectionNoPadding: {
+    paddingHorizontal: 0,
   },
   sectionLabel: {
     fontSize: 14,
@@ -649,10 +1325,52 @@ const styles = StyleSheet.create({
     color: '#7E8B9A',
     marginBottom: 12,
   },
-  titleInput: {
+  sectionDescription: {
+    fontSize: 12,
+    color: '#7E8B9A',
+    marginTop: -6,
+    marginBottom: 12,
+  },
+  label: {
+    fontSize: 12,
+    color: '#7E8B9A',
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  templatesScroll: {
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  templateCard: {
+    borderRadius: 16,
+  },
+  templateInner: {
+    width: 110,
+    height: 100,
+    borderRadius: 16,
+    padding: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  templateEmoji: {
+    fontSize: 32,
+  },
+  templateLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  templateSubtitle: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#7E8B9A',
+  },
+  inputContainer: {
     borderRadius: 16,
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 14,
   },
   textInput: {
     fontSize: 15,
@@ -671,155 +1389,230 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
     color: '#FFFFFF',
   },
-  typeContainer: {
-    borderRadius: 16,
-  },
-  typeOption: {
-    borderBottomColor: 'rgba(255,255,255,0.1)',
-  },
-  typeOptionContent: {
+  typeRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 10,
   },
-  typeTextContainer: {
-    flex: 1,
-  },
-  typeLabel: {
-    fontSize: 14,
-    fontWeight: '400',
-  },
-  categoriesScroll: {
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10
-  },
-  categoryCard: {
+  typeButton: {
     borderRadius: 16,
   },
-  categoryCardInner: {
-    width: 90,
-    height: 90,
-    borderRadius: 16,
+  typeButtonInner: {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-  },
-  categoryCardText: {
-    fontSize: 12,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  amountInput: {
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    minWidth: 70,
   },
-  countingTypeRow: {
+  typeEmoji: {
+    fontSize: 20,
+  },
+  typeLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  measurementGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
   },
-  countingButton: {
+  measurementButton: {
+    width: '48%',
+    borderRadius: 16,
+  },
+  measurementButtonInner: {
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    gap: 6,
+    alignItems: 'center',
+  },
+  measurementEmoji: {
+    fontSize: 24,
+  },
+  measurementLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  measurementDescription: {
+    fontSize: 10,
+    color: '#7E8B9A',
+  },
+  valueRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  valueColumn: {
+    flex: 1,
+  },
+  currencyScroll: {
+    gap: 10,
+    paddingVertical: 4,
+  },
+  chip: {
+    borderRadius: 12,
+  },
+  chipInner: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modeRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modeButton: {
     flex: 1,
     borderRadius: 16,
   },
-  countingButtonInner: {
-    paddingVertical: 14,
+  modeButtonInner: {
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
     borderRadius: 16,
   },
-  countingButtonText: {
-    fontSize: 14,
+  modeEmoji: {
+    fontSize: 20,
+  },
+  modeLabel: {
+    fontSize: 11,
     fontWeight: '500',
   },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  progressValue: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#7E8B9A',
-  },
-  progressContainer: {
-    borderRadius: 16,
-    paddingHorizontal: 16,
+  unitsScroll: {
+    gap: 16,
     paddingVertical: 8,
   },
-  slider: {
-    width: '100%',
-    height: 40,
+  unitCategoryGroup: {
+    gap: 8,
   },
-  deadlineHeader: {
+  unitCategoryHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    gap: 6,
+    paddingHorizontal: 4,
   },
-  removeText: {
-    fontSize: 14,
-    fontWeight: '400',
+  unitCategoryLabel: {
+    fontSize: 11,
+    fontWeight: '600',
     color: '#7E8B9A',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  deadlineRow: {
+  unitCategoryItems: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  unitChip: {
+    borderRadius: 12,
+  },
+  unitChipInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  unitChipText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  timelineRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  deadlineButton: {
+  dateButton: {
     flex: 1,
-    borderRadius: 16,
   },
-  deadlineChip: {
+  dateButtonInner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
     borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
   },
-  deadlineText: {
-    fontSize: 15,
-    fontWeight: '400',
+  dateTextContainer: {
+    flex: 1,
+    gap: 2,
   },
-  removeTextDisabled: {
-    opacity: 0.4,
-  },
-  milestonesHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  addText: {
-    fontSize: 14,
-    fontWeight: '400',
+  dateLabel: {
+    fontSize: 10,
     color: '#7E8B9A',
   },
-  milestonesContainer: {
+  dateText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#FFFFFF',
+  },
+  milestoneHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  addButton: {
+    padding: 4,
+  },
+  emptyCard: {
+    borderRadius: 16,
+    padding: 16,
+    gap: 6,
+  },
+  emptyText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyDescription: {
+    color: '#7E8B9A',
+    fontSize: 13,
+  },
+  milestoneList: {
+    gap: 12,
+  },
+  milestoneCard: {
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
+  },
+  milestoneHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderRadius: 16,
   },
-  milestonesText: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#7E8B9A',
+  milestoneRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  milestoneColumn: {
+    flex: 1,
+  },
+  milestoneInput: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  errorText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#FCA5A5',
   },
   aiSuggestion: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
     marginBottom: 16,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
   },
   aiSuggestionIcon: {
     fontSize: 22,
@@ -837,7 +1630,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginTop: 8,
-    paddingHorizontal: 20
+    paddingHorizontal: 20,
   },
   secondaryButton: {
     flex: 1,
@@ -851,7 +1644,7 @@ const styles = StyleSheet.create({
     color: '#7E8B9A',
   },
   primaryButton: {
-    flex: 1,
+    flex: 2,
     borderRadius: 16,
   },
   primaryButtonInner: {

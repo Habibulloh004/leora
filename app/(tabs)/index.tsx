@@ -12,17 +12,22 @@ import Header from '@/components/screens/home/Header';
 import ProgressIndicators from '@/components/screens/home/ProgressIndicators';
 import UniversalFAB from '@/components/UniversalFAB';
 import { useHomeDashboard } from '@/hooks/useHomeDashboard';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useWidgetStore } from '@/stores/widgetStore';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '@/constants/theme';
 import { startOfDay } from '@/utils/calendar';
 import { EditSquareIcon, DiagramIcon } from '@assets/icons';
 import { useLocalization } from '@/localization/useLocalization';
+import { useAuthStore } from '@/stores/useAuthStore';
 
 export default function HomeScreen() {
   const scrollY = useSharedValue(0);
   const router = useRouter();
   const theme = useAppTheme();
+  const user = useAuthStore((state) => state.user);
+  const { status: networkStatus } = useNetworkStatus();
+  const { strings, locale } = useLocalization();
   const {
     selectedDate,
     selectDate,
@@ -36,7 +41,6 @@ export default function HomeScreen() {
 
   // Subscribe to Zustand store - will automatically re-render when activeWidgets changes
   const activeWidgets = useWidgetStore((state) => state.activeWidgets);
-  const { strings, locale } = useLocalization();
 
   const onRefresh = useCallback(() => {
     refresh();
@@ -58,6 +62,11 @@ export default function HomeScreen() {
   const handleOpenWidgetEditor = useCallback(() => {
     router.navigate('/(modals)/menage-widget');
   }, [router]);
+
+  const statusTone: 'online' | 'offline' | 'muted' =
+    networkStatus === 'checking' ? 'muted' : networkStatus;
+
+  const userName = user?.fullName ?? user?.username ?? undefined;
 
   const styles = useMemo(() => createStyles(theme), [theme]);
   const refreshColors = useMemo(() => {
@@ -88,6 +97,7 @@ export default function HomeScreen() {
           selectedDate={selectedDate}
           onSelectDate={handleDateChange}
           calendarIndicators={calendarIndicators}
+          networkStatusTone={statusTone}
         />
         <Animated.ScrollView
           onScroll={onScroll}
@@ -114,7 +124,7 @@ export default function HomeScreen() {
             isLoading={loading}
             selectedDate={selectedDate}
           />
-          <GreetingCard date={selectedDate} />
+          <GreetingCard userName={userName} date={selectedDate} />
 
           <View style={styles.widgetsSection}>
             <View style={styles.widgetsHeader}>
