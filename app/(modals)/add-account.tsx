@@ -507,7 +507,7 @@ export default function AddAccountModal() {
                           style={[
                             styles.currencyCard,
                             {
-                              borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+                              borderColor: !isSelected ? theme.colors.primary : theme.colors.border,
                               backgroundColor: theme.colors.card,
                             },
                           ]}
@@ -515,7 +515,7 @@ export default function AddAccountModal() {
                           <Text
                             style={[
                               styles.currencyCode,
-                              { color: isSelected ? theme.colors.primary : theme.colors.textSecondary },
+                              { color: !isSelected ? theme.colors.primary : theme.colors.textSecondary },
                             ]}
                           >
                             {option.code}
@@ -523,7 +523,7 @@ export default function AddAccountModal() {
                           <Text
                             style={[
                               styles.currencyLabel,
-                              { color: isSelected ? theme.colors.primary : theme.colors.textSecondary },
+                              { color: !isSelected ? theme.colors.primary : theme.colors.textSecondary },
                             ]}
                             numberOfLines={2}
                           >
@@ -664,29 +664,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  dropdown: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  dropdownContainer: {
-    borderWidth: 1,
-    borderRadius: 16,
-  },
-  dropdownItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-  },
-  dropdownItemLabel: {
-    flex: 1,
-    fontSize: 15,
-    fontWeight: '500',
-  },
   typeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -761,17 +738,34 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  value: {
-    fontSize: 15,
-    fontWeight: '600',
+  currencyScroll: {
+    gap: 8,
+    paddingVertical: 4,
   },
-  placeholder: {
-    fontSize: 15,
-    fontWeight: '500',
+  currencyItem: {
+    width: 140,
+    paddingHorizontal: 4,
+    marginRight: 8,
   },
-  code: {
+  currencyPressable: {
+    borderRadius: 14,
+    width: '100%',
+  },
+  currencyCard: {
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: 'flex-start',
+    width: '100%',
+    gap: 6,
+  },
+  currencyCode: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '800',
+  },
+  currencyLabel: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   buttonDisabled: {
     opacity: 0.5,

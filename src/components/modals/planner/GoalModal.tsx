@@ -347,6 +347,10 @@ export default function PlannerGoalModal() {
   const [showCustomUnit, setShowCustomUnit] = useState(false);
   const [currency, setCurrency] = useState<FinanceCurrency>(baseCurrency);
   const [financeMode, setFinanceMode] = useState<FinanceMode>('save');
+
+  // Auto-plan state (PL-10: Create and more)
+  const [showAutoPlan, setShowAutoPlan] = useState(false);
+  const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
   const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
@@ -731,7 +735,7 @@ export default function PlannerGoalModal() {
   );
 
   const handleSubmit = useCallback(
-    (options?: { keepOpen?: boolean }) => {
+    (options?: { keepOpen?: boolean; showAutoPlan?: boolean }) => {
       const trimmedTitle = title.trim();
       if (!trimmedTitle) {
         setErrorKey('missingTitle');
@@ -752,7 +756,7 @@ export default function PlannerGoalModal() {
       } else {
         stats.habitsProgressPercent = progressPercent;
       }
-      
+
       // Determine final unit value
       let finalUnit: string | undefined;
       if (metricKind === 'amount') {
@@ -764,7 +768,7 @@ export default function PlannerGoalModal() {
       } else {
         finalUnit = undefined;
       }
-      
+
       const payload = {
         userId: 'local-user',
         title: trimmedTitle,
@@ -784,10 +788,26 @@ export default function PlannerGoalModal() {
         stats,
       } satisfies Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>;
 
+      let newGoalId: string;
       if (isEditing && editingGoalId) {
         updateGoal(editingGoalId, payload);
+        newGoalId = editingGoalId;
       } else {
-        createGoal(payload);
+        const newGoal = createGoal(payload);
+        newGoalId = newGoal.id;
+      }
+
+      // PL-10: Show auto-plan after creating goal
+      if (options?.showAutoPlan && !isEditing) {
+        setCreatedGoalId(newGoalId);
+        setShowAutoPlan(true);
+        setTitle('');
+        setDescription('');
+        setCurrentValueText('');
+        setTargetValueText('');
+        setMilestones([]);
+        setErrorKey(null);
+        return;
       }
 
       if (options?.keepOpen && !isEditing) {
@@ -1263,14 +1283,14 @@ export default function PlannerGoalModal() {
               {!isEditing && (
                 <Pressable
                   disabled={disablePrimary}
-                  onPress={() => handleSubmit({ keepOpen: true })}
+                  onPress={() => handleSubmit({ showAutoPlan: true })}
                   style={({ pressed }) => [
                     styles.secondaryButton,
                     pressed && !disablePrimary && styles.pressed,
                     disablePrimary && { opacity: 0.4 },
                   ]}
                 >
-                  <Text style={styles.secondaryButtonText}>{modalStrings.actions.createMore}</Text>
+                  <Text style={styles.secondaryButtonText}>{modalStrings.actions.createAndMore || 'Create and more'}</Text>
                 </Pressable>
               )}
               <Pressable
