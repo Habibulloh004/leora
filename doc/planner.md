@@ -177,7 +177,7 @@
 
 ### 8.2. Модалы
 
-* [ ] **PL‑10** Add Goal: `Create goal` и `Create and more` с автопланом (habits/tasks + finance‑линковка).
+* [x] **PL‑10** Add Goal: `Create goal` и `Create and more` с автопланом (habits/tasks + finance‑линковка).
 * [ ] **PL‑11** Edit Goal: безопасные правки + диалог при смене метрики/валюты (ребейз / новая цель).
 * [ ] **PL‑12** Add/Edit Habit: частоты, completion, goalLink, financeRule, автооценка дня.
 * [ ] **PL‑13** Add/Edit Task: Inbox→Planned, goal/habit/milestone, financeLink, Focus.
