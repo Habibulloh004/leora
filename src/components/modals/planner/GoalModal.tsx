@@ -308,6 +308,79 @@ const generateMilestoneId = () => `goal-ms-${Date.now()}-${Math.random().toStrin
 
 const formatMilestonePercent = (value: number) => Math.max(1, Math.min(100, Math.round(value)));
 
+// PL-10: Auto-plan suggestions
+type HabitSuggestion = {
+  id: string;
+  title: string;
+  description: string;
+  frequency: 'daily' | 'weekly';
+  icon: string;
+};
+
+type TaskSuggestion = {
+  id: string;
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+  icon: string;
+};
+
+const HABIT_SUGGESTIONS: Record<GoalType, HabitSuggestion[]> = {
+  financial: [
+    { id: 'h1', title: 'Daily Budget Check', description: 'Review spending every morning', frequency: 'daily', icon: '💰' },
+    { id: 'h2', title: 'No Impulse Buying', description: '24h rule before purchases', frequency: 'daily', icon: '🛡️' },
+    { id: 'h3', title: 'Save Receipt', description: 'Track all transactions', frequency: 'daily', icon: '🧾' },
+  ],
+  health: [
+    { id: 'h4', title: 'Morning Exercise', description: '30 min workout', frequency: 'daily', icon: '💪' },
+    { id: 'h5', title: 'Water Intake', description: 'Drink 8 glasses', frequency: 'daily', icon: '💧' },
+    { id: 'h6', title: 'Meal Prep', description: 'Prepare healthy meals', frequency: 'weekly', icon: '🥗' },
+  ],
+  education: [
+    { id: 'h7', title: 'Daily Reading', description: 'Read 30 minutes', frequency: 'daily', icon: '📚' },
+    { id: 'h8', title: 'Practice Skills', description: 'Apply what you learned', frequency: 'daily', icon: '🎯' },
+    { id: 'h9', title: 'Take Notes', description: 'Document key insights', frequency: 'daily', icon: '📝' },
+  ],
+  productivity: [
+    { id: 'h10', title: 'Deep Work Block', description: '2h focused work', frequency: 'daily', icon: '🧠' },
+    { id: 'h11', title: 'Weekly Review', description: 'Plan next week', frequency: 'weekly', icon: '📊' },
+    { id: 'h12', title: 'Daily Planning', description: 'Set 3 key tasks', frequency: 'daily', icon: '✅' },
+  ],
+  personal: [
+    { id: 'h13', title: 'Meditation', description: '10 min mindfulness', frequency: 'daily', icon: '🧘' },
+    { id: 'h14', title: 'Journaling', description: 'Reflect on your day', frequency: 'daily', icon: '📔' },
+    { id: 'h15', title: 'Gratitude Practice', description: 'List 3 things', frequency: 'daily', icon: '🙏' },
+  ],
+};
+
+const TASK_SUGGESTIONS: Record<GoalType, TaskSuggestion[]> = {
+  financial: [
+    { id: 't1', title: 'Set up budget', description: 'Create monthly budget plan', priority: 'high', icon: '📊' },
+    { id: 't2', title: 'Review expenses', description: 'Analyze last month spending', priority: 'medium', icon: '🔍' },
+    { id: 't3', title: 'Automate savings', description: 'Set up auto-transfer', priority: 'high', icon: '🤖' },
+  ],
+  health: [
+    { id: 't4', title: 'Create workout plan', description: 'Design weekly routine', priority: 'high', icon: '📝' },
+    { id: 't5', title: 'Schedule check-up', description: 'Book health appointment', priority: 'medium', icon: '🏥' },
+    { id: 't6', title: 'Buy equipment', description: 'Get necessary gear', priority: 'low', icon: '🛒' },
+  ],
+  education: [
+    { id: 't7', title: 'Enroll in course', description: 'Sign up for learning', priority: 'high', icon: '🎓' },
+    { id: 't8', title: 'Get materials', description: 'Buy books/resources', priority: 'medium', icon: '📚' },
+    { id: 't9', title: 'Set study schedule', description: 'Plan learning time', priority: 'high', icon: '📅' },
+  ],
+  productivity: [
+    { id: 't10', title: 'Break down project', description: 'Create task list', priority: 'high', icon: '📋' },
+    { id: 't11', title: 'Setup workspace', description: 'Organize environment', priority: 'medium', icon: '🖥️' },
+    { id: 't12', title: 'Define milestones', description: 'Set checkpoints', priority: 'high', icon: '🎯' },
+  ],
+  personal: [
+    { id: 't13', title: 'Define vision', description: 'Clarify your goal', priority: 'high', icon: '🌟' },
+    { id: 't14', title: 'Find accountability', description: 'Get support buddy', priority: 'medium', icon: '🤝' },
+    { id: 't15', title: 'Track progress', description: 'Set up measurement', priority: 'medium', icon: '📈' },
+  ],
+};
+
 export default function PlannerGoalModal() {
   const { plannerGoalModal, closePlannerGoalModal } = useModalStore(
     useShallow((state) => ({
@@ -351,6 +424,8 @@ export default function PlannerGoalModal() {
   // Auto-plan state (PL-10: Create and more)
   const [showAutoPlan, setShowAutoPlan] = useState(false);
   const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
+  const [selectedHabits, setSelectedHabits] = useState<Set<string>>(new Set());
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [startDate, setStartDate] = useState<Date | undefined>(undefined);
   const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
   const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
@@ -844,6 +919,101 @@ export default function PlannerGoalModal() {
     ],
   );
 
+  // PL-10: Auto-plan handlers
+  const { createHabit, createTask } = usePlannerDomainStore(
+    useShallow((state) => ({
+      createHabit: state.createHabit,
+      createTask: state.createTask,
+    })),
+  );
+
+  const habitSuggestions = useMemo(() => HABIT_SUGGESTIONS[goalType].slice(0, 3), [goalType]);
+  const taskSuggestions = useMemo(() => TASK_SUGGESTIONS[goalType].slice(0, 3), [goalType]);
+
+  const handleToggleHabit = useCallback((habitId: string) => {
+    setSelectedHabits((prev) => {
+      const next = new Set(prev);
+      if (next.has(habitId)) {
+        next.delete(habitId);
+      } else {
+        next.add(habitId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleToggleTask = useCallback((taskId: string) => {
+    setSelectedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleCreateSelected = useCallback(() => {
+    if (!createdGoalId) return;
+
+    // Create selected habits
+    habitSuggestions
+      .filter((h) => selectedHabits.has(h.id))
+      .forEach((habit) => {
+        createHabit({
+          userId: 'local-user',
+          title: habit.title,
+          description: habit.description,
+          goalId: createdGoalId,
+          frequency: habit.frequency,
+          completionMode: 'boolean',
+          status: 'active',
+          habitType: goalType === 'health' ? 'health' : 'productivity',
+          completionHistory: [],
+        });
+      });
+
+    // Create selected tasks
+    taskSuggestions
+      .filter((t) => selectedTasks.has(t.id))
+      .forEach((task) => {
+        createTask({
+          userId: 'local-user',
+          title: task.title,
+          description: task.description,
+          goalId: createdGoalId,
+          priority: task.priority,
+          context: 'personal',
+        });
+      });
+
+    // Close modal
+    setShowAutoPlan(false);
+    setCreatedGoalId(null);
+    setSelectedHabits(new Set());
+    setSelectedTasks(new Set());
+    closePlannerGoalModal();
+  }, [
+    closePlannerGoalModal,
+    createdGoalId,
+    createHabit,
+    createTask,
+    goalType,
+    habitSuggestions,
+    selectedHabits,
+    selectedTasks,
+    taskSuggestions,
+  ]);
+
+  const handleSkipAutoPlan = useCallback(() => {
+    setShowAutoPlan(false);
+    setCreatedGoalId(null);
+    setSelectedHabits(new Set());
+    setSelectedTasks(new Set());
+    closePlannerGoalModal();
+  }, [closePlannerGoalModal]);
+
   const renderMilestone = (milestone: MilestoneFormValue) => (
     <AdaptiveGlassView key={milestone.id} style={styles.milestoneCard}>
       <View style={styles.milestoneHeader}>
@@ -896,12 +1066,114 @@ export default function PlannerGoalModal() {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.scrollContent}
           >
-            {/* Header */}
-            <View style={[styles.header, styles.sectionPadding]}>
-              <Text style={styles.headerTitle}>
-                {isEditing ? modalStrings.actions.update.toUpperCase() : modalStrings.title.toUpperCase()}
-              </Text>
-            </View>
+            {showAutoPlan ? (
+              /* PL-10: Auto-plan UI */
+              <>
+                {/* Success Header */}
+                <View style={[styles.header, styles.sectionPadding]}>
+                  <Text style={styles.autoPlanEmoji}>🎉</Text>
+                  <Text style={styles.autoPlanTitle}>Goal Created!</Text>
+                  <Text style={styles.autoPlanSubtitle}>
+                    Let's set up some habits and tasks to help you achieve it
+                  </Text>
+                </View>
+
+                {/* Habit Suggestions */}
+                <View style={[styles.section, styles.sectionPadding]}>
+                  <Text style={styles.sectionLabel}>Recommended Habits</Text>
+                  <View style={styles.suggestionsList}>
+                    {habitSuggestions.map((habit) => {
+                      const isSelected = selectedHabits.has(habit.id);
+                      return (
+                        <Pressable
+                          key={habit.id}
+                          onPress={() => handleToggleHabit(habit.id)}
+                          style={({ pressed }) => [styles.suggestionItem, pressed && styles.pressed]}
+                        >
+                          <AdaptiveGlassView style={[styles.suggestionInner, isSelected && styles.suggestionSelected]}>
+                            <View style={styles.suggestionCheckbox}>
+                              {isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+                            </View>
+                            <Text style={styles.suggestionEmoji}>{habit.icon}</Text>
+                            <View style={styles.suggestionContent}>
+                              <Text style={styles.suggestionTitle}>{habit.title}</Text>
+                              <Text style={styles.suggestionDescription}>{habit.description}</Text>
+                              <Text style={styles.suggestionMeta}>{habit.frequency}</Text>
+                            </View>
+                          </AdaptiveGlassView>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Task Suggestions */}
+                <View style={[styles.section, styles.sectionPadding]}>
+                  <Text style={styles.sectionLabel}>Recommended Tasks</Text>
+                  <View style={styles.suggestionsList}>
+                    {taskSuggestions.map((task) => {
+                      const isSelected = selectedTasks.has(task.id);
+                      return (
+                        <Pressable
+                          key={task.id}
+                          onPress={() => handleToggleTask(task.id)}
+                          style={({ pressed }) => [styles.suggestionItem, pressed && styles.pressed]}
+                        >
+                          <AdaptiveGlassView style={[styles.suggestionInner, isSelected && styles.suggestionSelected]}>
+                            <View style={styles.suggestionCheckbox}>
+                              {isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+                            </View>
+                            <Text style={styles.suggestionEmoji}>{task.icon}</Text>
+                            <View style={styles.suggestionContent}>
+                              <Text style={styles.suggestionTitle}>{task.title}</Text>
+                              <Text style={styles.suggestionDescription}>{task.description}</Text>
+                              <View style={styles.taskMetaRow}>
+                                <Text style={[styles.suggestionMeta, styles.priorityBadge]}>
+                                  {task.priority}
+                                </Text>
+                              </View>
+                            </View>
+                          </AdaptiveGlassView>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+
+                {/* Auto-plan Actions */}
+                <View style={styles.actionButtons}>
+                  <Pressable
+                    onPress={handleSkipAutoPlan}
+                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
+                  >
+                    <Text style={styles.secondaryButtonText}>Skip</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={handleCreateSelected}
+                    disabled={selectedHabits.size === 0 && selectedTasks.size === 0}
+                    style={({ pressed }) => [
+                      styles.primaryButton,
+                      pressed && styles.pressed,
+                      (selectedHabits.size === 0 && selectedTasks.size === 0) && { opacity: 0.4 },
+                    ]}
+                  >
+                    <AdaptiveGlassView style={styles.primaryButtonInner}>
+                      <Text style={styles.primaryButtonText}>
+                        Create Selected ({selectedHabits.size + selectedTasks.size})
+                      </Text>
+                    </AdaptiveGlassView>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              /* Regular Goal Form */
+              <>
+                {/* Header */}
+                <View style={[styles.header, styles.sectionPadding]}>
+                  <Text style={styles.headerTitle}>
+                    {isEditing ? modalStrings.actions.update.toUpperCase() : modalStrings.title.toUpperCase()}
+                  </Text>
+                </View>
 
             {/* Scenario selector */}
             <View style={[styles.section, styles.sectionNoPadding]}>
@@ -1309,6 +1581,8 @@ export default function PlannerGoalModal() {
                 </AdaptiveGlassView>
               </Pressable>
             </View>
+              </>
+            )}
           </ScrollView>
         </KeyboardAvoidingView>
       </CustomModal>
@@ -1720,5 +1994,86 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  // PL-10: Auto-plan styles
+  autoPlanEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  autoPlanTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+  },
+  autoPlanSubtitle: {
+    fontSize: 14,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  suggestionsList: {
+    gap: 12,
+  },
+  suggestionItem: {
+    borderRadius: 16,
+  },
+  suggestionInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  suggestionSelected: {
+    borderColor: '#FFFFFF',
+  },
+  suggestionCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: '#7E8B9A',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+  },
+  suggestionEmoji: {
+    fontSize: 24,
+  },
+  suggestionContent: {
+    flex: 1,
+    gap: 4,
+  },
+  suggestionTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  suggestionDescription: {
+    fontSize: 13,
+    fontWeight: '400',
+    color: '#7E8B9A',
+    lineHeight: 18,
+  },
+  suggestionMeta: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#7E8B9A',
+    textTransform: 'capitalize',
+  },
+  taskMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  priorityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
 });
