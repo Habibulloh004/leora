@@ -4,7 +4,10 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { mmkvStorageAdapter, storage } from '@/utils/storage';
 import { User, LoginCredentials, RegisterCredentials, ForgotPasswordData } from '@/types/auth.types';
 import { getFinanceRegionPreset, useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
+import { useFinanceDomainStore } from './useFinanceDomainStore';
+import { usePlannerDomainStore } from './usePlannerDomainStore';
 import { useLockStore } from './useLockStore';
+import { evaluatePasswordRequirements, MIN_PASSWORD_LENGTH } from '@/utils/validation';
 
 interface AuthStore {
   // State
@@ -226,6 +229,8 @@ export const useAuthStore = create<AuthStore>()(
 
           useLockStore.getState().setLoggedIn(false);
           useLockStore.getState().setLocked(false);
+          useFinanceDomainStore.getState().reset();
+          usePlannerDomainStore.getState().reset();
         } catch (error) {
           console.error('Logout error:', error);
         }
@@ -451,10 +456,24 @@ export const useAuthStore = create<AuthStore>()(
 
       // Password validation helper
       validatePassword: (password: string) => {
-        if (password.length < 6) {
-          return { valid: false, message: 'Password must be at least 6 characters long' };
+        const requirements = evaluatePasswordRequirements(password);
+
+        if (!requirements.minLength) {
+          return { valid: false, message: `Password must be at least ${MIN_PASSWORD_LENGTH} characters long` };
         }
-        // Add more validation rules as needed
+        if (!requirements.uppercase) {
+          return { valid: false, message: 'Password must contain at least one uppercase letter' };
+        }
+        if (!requirements.lowercase) {
+          return { valid: false, message: 'Password must contain at least one lowercase letter' };
+        }
+        if (!requirements.number) {
+          return { valid: false, message: 'Password must contain at least one number' };
+        }
+        if (!requirements.special) {
+          return { valid: false, message: 'Password must contain at least one special character' };
+        }
+
         return { valid: true };
       },
     }),

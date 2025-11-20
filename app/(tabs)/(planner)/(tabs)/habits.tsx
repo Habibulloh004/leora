@@ -300,7 +300,7 @@ function HabitCard({
             <GlassButton label={strings.ctas.delete} compact variant="danger" onPress={() => onDeleteHabit(data.id)} />
           </View>
         </View>
-
+        {/* 
         {data.expanded && (
           <View style={styles.expandArea}>
             <View style={styles.calendarBlock}>
@@ -388,7 +388,7 @@ function HabitCard({
               />
             </View>
           </View>
-        )}
+        )} */}
       </Pressable>
     </AdaptiveGlassView>
   );

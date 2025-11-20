@@ -28,23 +28,21 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 import { useAppTheme } from '@/constants/theme';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
-import AddAccountSheet, {
-  AddAccountSheetHandle,
-} from '@/components/modals/finance/AddAccountSheet';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import type {
   AccountIconId,
   AccountItem,
   AccountKind,
   AccountTransaction,
-  AddAccountPayload,
 } from '@/types/accounts';
 import type { Account as DomainAccount, AccountType, Transaction as DomainTransaction } from '@/domain/finance/types';
 import { useLocalization } from '@/localization/useLocalization';
 import { useShallow } from 'zustand/react/shallow';
+import { useCustomAccountTypesStore } from '@/stores/useCustomAccountTypesStore';
 
 type AccountsStrings = ReturnType<typeof useLocalization>['strings']['financeScreens']['accounts'];
 
@@ -200,36 +198,59 @@ const mapDomainAccountTypeToKind = (type: AccountType): AccountKind => {
   }
 };
 
-const mapAccountKindToDomainType = (kind: AccountKind): AccountType => {
+const getAccountTypeLabel = (kind: AccountKind): string => {
   switch (kind) {
     case 'cash':
-      return 'cash';
+      return 'Cash';
     case 'card':
-      return 'card';
+      return 'Card';
     case 'savings':
-      return 'savings';
-    case 'crypto':
-      return 'investment';
+      return 'Savings';
     case 'usd':
-      return 'cash';
+      return 'USD';
+    case 'crypto':
+      return 'Crypto';
+    case 'other':
+      return 'Other';
+    case 'custom':
+      return 'Custom';
     default:
-      return 'other';
+      return 'Account';
   }
 };
 
-const mapDomainAccountToItem = (account: DomainAccount, transactions: DomainTransaction[]): AccountItem => {
-  const kind = mapDomainAccountTypeToKind(account.accountType);
+const mapDomainAccountToItem = (
+  account: DomainAccount,
+  transactions: DomainTransaction[],
+  customTypes: Array<{ id: string; label: string; icon: AccountIconId }>,
+): AccountItem => {
+  let kind = mapDomainAccountTypeToKind(account.accountType);
+  let customTypeId: string | undefined;
+  let customTypeLabel: string | undefined;
+  let customIcon: AccountIconId | undefined;
+
+  // Check if this is a custom type account
+  if (account.customTypeId && account.accountType === 'other') {
+    const customType = customTypes.find((ct) => ct.id === account.customTypeId);
+    if (customType) {
+      kind = 'custom';
+      customTypeId = customType.id;
+      customTypeLabel = customType.label;
+      customIcon = customType.icon;
+    }
+  }
+
   return {
     id: account.id,
     name: account.name,
     type: kind,
     balance: account.currentBalance,
     currency: account.currency,
-    subtitle: account.accountType.toUpperCase(),
+    subtitle: customTypeLabel ?? getAccountTypeLabel(kind),
     iconColor: ACCOUNT_COLOR_MAP[kind] ?? '#94A3B8',
-    customTypeId: undefined,
-    customTypeLabel: undefined,
-    customIcon: undefined,
+    customTypeId,
+    customTypeLabel,
+    customIcon,
     progress: undefined,
     goal: undefined,
     usdRate: undefined,
@@ -686,31 +707,28 @@ const AccountCard: React.FC<AccountCardProps> = ({
 
 export default function AccountsTab() {
   const theme = useAppTheme();
+  const router = useRouter();
   const { strings } = useLocalization();
   const accountStrings = strings.financeScreens.accounts;
   const {
     accounts: domainAccounts,
     transactions: domainTransactions,
-    createAccount,
-    updateAccount,
     deleteAccount,
     archiveAccount,
   } = useFinanceDomainStore(
     useShallow((state) => ({
       accounts: state.accounts,
       transactions: state.transactions,
-      createAccount: state.createAccount,
-      updateAccount: state.updateAccount,
       deleteAccount: state.deleteAccount,
       archiveAccount: state.archiveAccount,
     })),
   );
+  const customTypes = useCustomAccountTypesStore((state) => state.customTypes);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionModeId, setActionModeId] = useState<string | null>(null);
-  const addAccountSheetRef = useRef<AddAccountSheetHandle>(null);
   const accountItems = useMemo(
-    () => domainAccounts.map((account) => mapDomainAccountToItem(account, domainTransactions)),
-    [domainAccounts, domainTransactions],
+    () => domainAccounts.map((account) => mapDomainAccountToItem(account, domainTransactions, customTypes)),
+    [domainAccounts, domainTransactions, customTypes],
   );
   const preparedAccounts = useMemo(
     () => accountItems.filter((account) => !account.isArchived),
@@ -744,9 +762,9 @@ export default function AccountsTab() {
       }
       setExpandedId(null);
       setActionModeId(null);
-      addAccountSheetRef.current?.edit(account);
+      router.push({ pathname: '/(modals)/add-account', params: { id: account.id } });
     },
-    [accountItems],
+    [accountItems, router],
   );
 
   const handleArchive = useCallback(
@@ -771,36 +789,9 @@ export default function AccountsTab() {
     [deleteAccount, expandedId],
   );
 
-  const handleAddAccountSubmit = useCallback(
-    (payload: AddAccountPayload) => {
-      createAccount({
-        userId: 'local-user',
-        name: payload.name,
-        accountType: mapAccountKindToDomainType(payload.type),
-        currency: payload.currency,
-        initialBalance: payload.amount,
-        linkedGoalId: undefined,
-        isArchived: false,
-      });
-    },
-    [createAccount],
-  );
-
-  const handleEditAccountSubmit = useCallback(
-    (id: string, payload: AddAccountPayload) => {
-      updateAccount(id, {
-        name: payload.name,
-        accountType: mapAccountKindToDomainType(payload.type),
-        currency: payload.currency,
-        currentBalance: payload.amount,
-      });
-    },
-    [updateAccount],
-  );
-
   const handleAddNew = useCallback(() => {
-    addAccountSheetRef.current?.expand();
-  }, []);
+    router.push('/(modals)/add-account');
+  }, [router]);
 
   return (
     <>
@@ -853,11 +844,6 @@ export default function AccountsTab() {
           <View style={styles.bottomSpacer} />
         </View>
       </ScrollView>
-      <AddAccountSheet
-        ref={addAccountSheetRef}
-        onSubmit={handleAddAccountSubmit}
-        onEditSubmit={handleEditAccountSubmit}
-      />
     </>
   );
 }

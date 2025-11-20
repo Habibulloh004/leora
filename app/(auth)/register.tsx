@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Pressable, ScrollView, TextInput, Animated } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  Pressable,
+  ScrollView,
+  TextInput,
+  Animated,
+} from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Mail, Lock, User } from 'lucide-react-native';
 import { Feather } from '@expo/vector-icons';
@@ -9,9 +19,10 @@ import {
   SocialLoginButtons,
   AuthScreenContainer,
 } from '@/components/screens/auth';
+import { PasswordStrengthMeter } from '@/components/screens/auth/PasswordStrengthMeter';
 import GlassCard from '@/components/shared/GlassCard';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { validateEmail, validateName, validatePassword, validateConfirmPassword } from '@/utils/validation';
+import { PasswordRequirementKey, getFirstUnmetPasswordRequirement } from '@/utils/validation';
 import { useLockStore } from '@/stores/useLockStore';
 import {
   FINANCE_REGION_PRESETS,
@@ -27,6 +38,7 @@ import { useAppTheme } from '@/constants/theme';
 import CustomBottomSheet, { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { useLocalization } from '@/localization/useLocalization';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LanguageSelectorControl } from '@/components/screens/auth/LanguageSelectorControl';
 
 const CURRENCY_LABELS: Record<FinanceCurrency, string> = {
   UZS: 'Uzbekistani Som',
@@ -40,29 +52,18 @@ const CURRENCY_LABELS: Record<FinanceCurrency, string> = {
   RUB: 'Russian Ruble',
 };
 
-const REGION_LANGUAGE_MAP: Partial<Record<FinanceRegion, SupportedLanguage>> = {
-  uzbekistan: 'uz',
-  'united-states': 'en',
-  eurozone: 'en',
-  'united-kingdom': 'en',
-  turkey: 'tr',
-  'saudi-arabia': 'ar',
-  'united-arab-emirates': 'ar',
-  russia: 'ru',
-};
-
-const getLanguageForRegion = (region: FinanceRegion): SupportedLanguage =>
-  REGION_LANGUAGE_MAP[region] ?? 'en';
-
 const DEFAULT_FINANCE_REGION = FINANCE_REGION_PRESETS[0].id as FinanceRegion;
 
 const RegisterScreen = () => {
   const { strings } = useLocalization();
   const registerStrings = strings.auth.register;
+  const validationStrings = strings.auth.validation;
+  const commonStrings = strings.auth.common;
   const { register, isLoading, error, clearError } = useAuthStore();
   const theme = useAppTheme();
   const setFinanceRegion = useFinancePreferencesStore((state) => state.setRegion);
   const setGlobalCurrency = useFinancePreferencesStore((state) => state.setGlobalCurrency);
+  const selectedLanguage = useSettingsStore((state) => state.language as SupportedLanguage);
   const setLanguagePreference = useSettingsStore((state) => state.setLanguage);
   const setLoggedIn = useLockStore((state) => state.setLoggedIn);
   const setLocked = useLockStore((state) => state.setLocked);
@@ -85,6 +86,18 @@ const RegisterScreen = () => {
   const regionSheetRef = useRef<BottomSheetHandle>(null);
   const currencySheetRef = useRef<BottomSheetHandle>(null);
   const [currencyQuery, setCurrencyQuery] = useState('');
+  const [isPasswordFocused, setIsPasswordFocused] = useState(false);
+
+  const passwordRequirementMessages = useMemo<Record<PasswordRequirementKey, string>>(
+    () => ({
+      minLength: validationStrings.passwordMinLength,
+      uppercase: validationStrings.passwordUppercase,
+      lowercase: validationStrings.passwordLowercase,
+      number: validationStrings.passwordNumber,
+      special: validationStrings.passwordSpecial,
+    }),
+    [validationStrings],
+  );
 
   const selectedRegionPreset = useMemo(
     () => getFinanceRegionPreset(selectedRegion),
@@ -113,6 +126,40 @@ const RegisterScreen = () => {
     );
   }, [currencyOptions, currencyQuery]);
 
+  const registerErrorMap = useMemo(
+    () => ({
+      'Please fill in all fields': registerStrings.errors.missingFields,
+      'Please select your region': registerStrings.errors.selectRegion,
+      'Passwords do not match': registerStrings.errors.passwordMismatch,
+      'Please enter a valid email address': registerStrings.errors.emailInvalid,
+      'An account with this email already exists': registerStrings.errors.emailExists,
+      'An error occurred during registration. Please try again.': registerStrings.errors.generic,
+      'Password must be at least 6 characters long': validationStrings.passwordMinLength,
+      'Password must be at least 8 characters long': validationStrings.passwordMinLength,
+      'Password must contain at least one uppercase letter': validationStrings.passwordUppercase,
+      'Password must contain at least one lowercase letter': validationStrings.passwordLowercase,
+      'Password must contain at least one number': validationStrings.passwordNumber,
+      'Password must contain at least one special character': validationStrings.passwordSpecial,
+    }),
+    [registerStrings.errors, validationStrings],
+  );
+
+  const localizedRegisterError = useMemo(() => {
+    if (!error) return undefined;
+    return registerErrorMap[error] ?? error;
+  }, [error, registerErrorMap]);
+
+  const isFormValid = Boolean(
+    emailOrPhone.trim() &&
+    fullName.trim() &&
+    password &&
+    confirmPassword &&
+    !emailError &&
+    !nameError &&
+    !passwordError &&
+    !confirmPasswordError,
+  );
+
   useEffect(() => {
     setFinanceRegion(selectedRegion);
     setSelectedCurrency(getFinanceRegionPreset(selectedRegion).currency);
@@ -123,20 +170,17 @@ const RegisterScreen = () => {
     setGlobalCurrency(selectedCurrency);
   }, [selectedCurrency, setGlobalCurrency]);
 
-  useEffect(() => {
-    setLanguagePreference(getLanguageForRegion(selectedRegion));
-  }, [selectedRegion, setLanguagePreference]);
-
   useFocusEffect(
     useCallback(() => {
       if (hasFocusedRef.current) {
         setEmailOrPhone('');
-        setFullName('');
-        setPassword('');
-        setConfirmPassword('');
-        setSelectedRegion(DEFAULT_FINANCE_REGION);
-        setSelectedCurrency(getFinanceRegionPreset(DEFAULT_FINANCE_REGION).currency);
-      }
+      setFullName('');
+      setPassword('');
+      setConfirmPassword('');
+      setSelectedRegion(DEFAULT_FINANCE_REGION);
+      setSelectedCurrency(getFinanceRegionPreset(DEFAULT_FINANCE_REGION).currency);
+      setIsPasswordFocused(false);
+    }
 
       setEmailError(undefined);
       setNameError(undefined);
@@ -150,25 +194,45 @@ const RegisterScreen = () => {
   const handleRegister = async () => {
     clearError();
 
-    // Validate all inputs
-    const emailValidationError = validateEmail(emailOrPhone);
-    const nameValidationError = validateName(fullName);
-    const passwordValidationError = validatePassword(password);
-    const confirmPasswordValidationError = validateConfirmPassword(password, confirmPassword);
+    const trimmedEmail = emailOrPhone.trim();
+    const trimmedName = fullName.trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    const emailValidationError = trimmedEmail
+      ? emailRegex.test(trimmedEmail)
+        ? undefined
+        : validationStrings.emailInvalid
+      : validationStrings.emailRequired;
+    const nameValidationError = trimmedName ? undefined : validationStrings.nameRequired;
+    const unmetRequirement = password ? getFirstUnmetPasswordRequirement(password) : undefined;
+    const passwordValidationError = password
+      ? unmetRequirement
+        ? passwordRequirementMessages[unmetRequirement]
+        : undefined
+      : validationStrings.passwordRequired;
+    const confirmPasswordValidationError = confirmPassword
+      ? confirmPassword !== password
+        ? validationStrings.passwordMismatch
+        : undefined
+      : validationStrings.passwordConfirmRequired;
 
     setEmailError(emailValidationError);
     setNameError(nameValidationError);
     setPasswordError(passwordValidationError);
     setConfirmPasswordError(confirmPasswordValidationError);
 
-    // If any validation fails, don't proceed
-    if (emailValidationError || nameValidationError || passwordValidationError || confirmPasswordValidationError) {
+    if (
+      emailValidationError ||
+      nameValidationError ||
+      passwordValidationError ||
+      confirmPasswordValidationError
+    ) {
       return;
     }
 
     const success = await register({
-      emailOrPhone,
-      fullName,
+      emailOrPhone: trimmedEmail,
+      fullName: trimmedName,
       password,
       confirmPassword,
       region: selectedRegion,
@@ -182,13 +246,16 @@ const RegisterScreen = () => {
       Alert.alert(
         registerStrings.alerts.successTitle,
         registerStrings.alerts.successMessage,
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)') }]
+        [{ text: 'OK', onPress: () => router.replace('/(tabs)') }],
       );
-    } else if (error) {
-      Alert.alert(registerStrings.alerts.failureTitle, error);
-    } else {
-      Alert.alert(registerStrings.alerts.failureTitle, registerStrings.alerts.failureTitle);
+      return;
     }
+
+    const latestError = useAuthStore.getState().error;
+    const message =
+      (latestError ? registerErrorMap[latestError] ?? latestError : undefined) ??
+      registerStrings.errors.generic;
+    Alert.alert(registerStrings.alerts.failureTitle, message);
   };
 
   const handleSocialRegister = (provider: string) => {
@@ -231,10 +298,26 @@ const RegisterScreen = () => {
     currencySheetRef.current?.dismiss();
   }, []);
 
+  const handleSelectLanguage = useCallback(
+    (language: SupportedLanguage) => {
+      setLanguagePreference(language);
+      if (error) {
+        clearError();
+      }
+    },
+    [clearError, error, setLanguagePreference],
+  );
+
   return (
     <AuthScreenContainer>
       <GlassCard>
         <View style={styles.container}>
+          <LanguageSelectorControl
+            label={registerStrings.languageSelector.label}
+            helper={registerStrings.languageSelector.helper}
+            value={selectedLanguage}
+            onChange={handleSelectLanguage}
+          />
           <View style={styles.header}>
             <Text style={styles.title}>{registerStrings.title}</Text>
             <Text style={styles.description}>
@@ -255,6 +338,10 @@ const RegisterScreen = () => {
               }}
               autoCapitalize="none"
               keyboardType="email-address"
+              inputMode="email"
+              autoComplete="email"
+              textContentType="emailAddress"
+              autoCorrect={false}
               icon={Mail}
               iconSize={22}
               error={emailError}
@@ -287,11 +374,24 @@ const RegisterScreen = () => {
                   clearError();
                 }
               }}
+              onFocus={() => setIsPasswordFocused(true)}
+              onBlur={() => setIsPasswordFocused(false)}
               isPassword
+              autoComplete="off"
+              textContentType="none"
+              importantForAutofill="no"
+              autoCorrect={false}
+              spellCheck={false}
               icon={Lock}
               iconSize={22}
               error={passwordError}
               onClearError={() => setPasswordError(undefined)}
+            />
+
+            <PasswordStrengthMeter
+              password={password}
+              visible={isPasswordFocused}
+              guideStrings={registerStrings.passwordGuide}
             />
 
             <Input
@@ -305,6 +405,11 @@ const RegisterScreen = () => {
                 }
               }}
               isPassword
+              autoComplete="off"
+              textContentType="none"
+              importantForAutofill="no"
+              autoCorrect={false}
+              spellCheck={false}
               icon={Lock}
               iconSize={22}
               error={confirmPasswordError}
@@ -371,19 +476,21 @@ const RegisterScreen = () => {
             </View>
 
             {/* Error message */}
-            {error && (
+            {localizedRegisterError && (
               <View style={styles.errorContainer}>
-                <Text style={styles.errorText}>{error}</Text>
+                <Text style={styles.errorText}>{localizedRegisterError}</Text>
               </View>
             )}
 
             <Button
-              title={isLoading ? `${registerStrings.buttons.submit}…` : registerStrings.buttons.submit}
+              title={registerStrings.buttons.submit}
               onPress={handleRegister}
-              disabled={isLoading}
+              disabled={!isFormValid || isLoading}
+              loading={isLoading}
             />
 
             <SocialLoginButtons
+              dividerLabel={commonStrings.socialDivider}
               onGooglePress={() => handleSocialRegister('Google')}
               onFacebookPress={() => handleSocialRegister('Facebook')}
               onApplePress={() => handleSocialRegister('Apple')}

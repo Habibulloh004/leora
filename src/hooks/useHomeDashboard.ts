@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'r
 
 import type { WidgetType } from '@/config/widgetConfig';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import { usePlannerAggregatesStore } from '@/stores/usePlannerAggregatesStore';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useLocalization } from '@/localization/useLocalization';
 import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
@@ -77,6 +78,10 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
       budgets: state.budgets,
     })),
   ) as FinanceSnapshot;
+
+  // Используем Aggregates Store для KPI
+  const homeSnapshot = usePlannerAggregatesStore((state) => state.homeSnapshot);
+
   const { locale } = useLocalization();
   const { convertAmount, globalCurrency } = useFinanceCurrency();
 
@@ -85,9 +90,24 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
     [financeState.budgets],
   );
 
+  // Используем данные из HomeSnapshot для прогресса на сегодняшний день
+  const isToday = useMemo(
+    () => startOfDay(selectedDate).getTime() === startOfDay(new Date()).getTime(),
+    [selectedDate],
+  );
+
   const progress = useMemo(() => {
+    if (isToday) {
+      // Для сегодняшнего дня используем данные из Aggregates Store
+      return {
+        tasks: Math.round(homeSnapshot.rings.goals * 100),
+        budget: Math.round(budgetScore),
+        focus: Math.round(homeSnapshot.rings.productivity * 100),
+      };
+    }
+    // Для других дат вычисляем вручную
     return computeProgressData(selectedDate, plannerState.tasks, plannerState.focusSessions, budgetScore);
-  }, [budgetScore, plannerState.focusSessions, plannerState.tasks, selectedDate]);
+  }, [budgetScore, homeSnapshot, isToday, plannerState.focusSessions, plannerState.tasks, selectedDate]);
 
   const widgetData = useMemo(() => {
     return buildWidgetPayloads({

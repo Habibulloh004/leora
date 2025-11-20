@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,14 +10,22 @@ import {
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Mail } from 'lucide-react-native';
-import { Input, Button, AuthScreenContainer } from '@/components/screens/auth';
+import { Input, Button, AuthScreenContainer, LanguageSelectorControl } from '@/components/screens/auth';
 import GlassCard from '@/components/shared/GlassCard';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/stores/useAuthStore';
-import { validateEmailOrUsername } from '@/utils/validation';
+import { useLocalization } from '@/localization/useLocalization';
+import { SupportedLanguage, useSettingsStore } from '@/stores/useSettingsStore';
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const ForgotPasswordScreen = () => {
+  const { strings } = useLocalization();
+  const forgotStrings = strings.auth.forgot;
+  const validationStrings = strings.auth.validation;
   const { sendPasswordResetCode, verifyPasswordResetOtp, isLoading, error, clearError } = useAuthStore();
+  const selectedLanguage = useSettingsStore((state) => state.language as SupportedLanguage);
+  const setLanguagePreference = useSettingsStore((state) => state.setLanguage);
 
   const [step, setStep] = useState<'email' | 'otp'>('email');
   const [email, setEmail] = useState('');
@@ -26,6 +34,22 @@ const ForgotPasswordScreen = () => {
   const [timer, setTimer] = useState(85);
   const [canResend, setCanResend] = useState(false);
   const hasFocusedRef = useRef(false);
+
+  const forgotErrorMap = useMemo(
+    () => ({
+      'Please enter a valid email address': validationStrings.emailInvalid,
+      'An error occurred. Please try again.': forgotStrings.errors.generic,
+      'OTP expired or invalid': forgotStrings.errors.otpExpired,
+      'OTP has expired. Please request a new one.': forgotStrings.errors.otpExpired,
+      'Invalid OTP code': forgotStrings.errors.otpInvalid,
+    }),
+    [forgotStrings.errors, validationStrings.emailInvalid],
+  );
+
+  const localizedError = useMemo(() => {
+    if (!error) return undefined;
+    return forgotErrorMap[error] ?? error;
+  }, [error, forgotErrorMap]);
 
   const otpRefs = [
     useRef<TextInput>(null),
@@ -65,31 +89,46 @@ const ForgotPasswordScreen = () => {
     }
   }, [step, timer]);
 
+  const handleSelectLanguage = useCallback(
+    (language: SupportedLanguage) => {
+      setLanguagePreference(language);
+      if (error) {
+        clearError();
+      }
+    },
+    [clearError, error, setLanguagePreference],
+  );
+
   const handleSendCode = async () => {
     clearError();
 
-    const validationError = validateEmailOrUsername(email.trim());
-    setEmailError(validationError);
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setEmailError(validationStrings.emailOrUsernameRequired);
+      return;
+    }
 
-    if (validationError) {
+    if (!emailRegex.test(trimmedEmail)) {
+      setEmailError(validationStrings.emailInvalid);
       return;
     }
 
     setEmailError(undefined);
+    setEmail(trimmedEmail);
 
-    const success = await sendPasswordResetCode(email);
+    const success = await sendPasswordResetCode(trimmedEmail);
 
     if (success) {
       setStep('otp');
       setTimer(85);
       setCanResend(false);
       Alert.alert(
-        'Code Sent',
-        'A verification code has been sent to your email. Please check your console for testing.',
-        [{ text: 'OK' }]
+        forgotStrings.alerts.codeSentTitle,
+        forgotStrings.alerts.codeSentMessage,
+        [{ text: 'OK' }],
       );
     } else if (error) {
-      Alert.alert('Error', error);
+      Alert.alert(forgotStrings.alerts.genericErrorTitle, localizedError ?? forgotStrings.alerts.genericErrorMessage);
     }
   };
 
@@ -112,7 +151,7 @@ const ForgotPasswordScreen = () => {
 
     const otpCode = otp.join('');
     if (otpCode.length !== 4) {
-      Alert.alert('Error', 'Please enter the complete OTP code');
+      Alert.alert(forgotStrings.alerts.genericErrorTitle, forgotStrings.errors.otpIncomplete);
       return;
     }
 
@@ -120,12 +159,12 @@ const ForgotPasswordScreen = () => {
 
     if (success) {
       Alert.alert(
-        'OTP Verified',
-        'Your password has been reset successfully. You can now log in.',
-        [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]
+        forgotStrings.alerts.otpVerifiedTitle,
+        forgotStrings.alerts.otpVerifiedMessage,
+        [{ text: forgotStrings.alerts.okButton, onPress: () => router.replace('/(auth)/login') }],
       );
     } else if (error) {
-      Alert.alert('Error', error);
+      Alert.alert(forgotStrings.alerts.genericErrorTitle, localizedError ?? forgotStrings.alerts.genericErrorMessage);
     }
   };
 
@@ -134,14 +173,14 @@ const ForgotPasswordScreen = () => {
       clearError();
       setOtp(['', '', '', '']);
 
-      const success = await sendPasswordResetCode(email);
+      const success = await sendPasswordResetCode(email.trim());
 
       if (success) {
         setTimer(85);
         setCanResend(false);
-        Alert.alert('Code Resent', 'A new verification code has been sent to your email.');
+        Alert.alert(forgotStrings.alerts.codeResentTitle, forgotStrings.alerts.codeResentMessage);
       } else if (error) {
-        Alert.alert('Error', error);
+        Alert.alert(forgotStrings.alerts.genericErrorTitle, localizedError ?? forgotStrings.alerts.genericErrorMessage);
       }
     }
   };
@@ -169,19 +208,26 @@ const ForgotPasswordScreen = () => {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <LanguageSelectorControl
+            label={forgotStrings.languageSelector.label}
+            helper={forgotStrings.languageSelector.helper}
+            value={selectedLanguage}
+            onChange={handleSelectLanguage}
+            containerStyle={{ marginBottom: 16 }}
+          />
           {step === 'email' ? (
             <>
               <View style={styles.header}>
-                <Text style={styles.title}>Forgot your password</Text>
+                <Text style={styles.title}>{forgotStrings.emailStep.title}</Text>
                 <Text style={styles.description}>
-                  Enter your mail or phone number to reset
+                  {forgotStrings.emailStep.description}
                 </Text>
               </View>
 
               <View style={styles.form}>
                 <Input
-                  label="Email or Phone"
-                  placeholder="Enter your email or phone number"
+                  label={forgotStrings.emailStep.fieldLabel}
+                  placeholder={forgotStrings.emailStep.placeholder}
                   value={email}
                   onChangeText={(text) => {
                     setEmail(text);
@@ -198,14 +244,16 @@ const ForgotPasswordScreen = () => {
                 />
 
                 {/* Error message */}
-                {error && (
+                {localizedError && (
                   <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error}</Text>
+                    <Text style={styles.errorText}>{localizedError}</Text>
                   </View>
                 )}
 
                 <Button
-                  title={isLoading ? 'Sending...' : 'Send'}
+                  title={
+                    isLoading ? forgotStrings.emailStep.button.loading : forgotStrings.emailStep.button.submit
+                  }
                   onPress={handleSendCode}
                   disabled={isLoading || !email}
                 />
@@ -214,9 +262,9 @@ const ForgotPasswordScreen = () => {
           ) : (
             <>
               <View style={styles.header}>
-                <Text style={styles.title}>Enter code from message</Text>
+                <Text style={styles.title}>{forgotStrings.otpStep.title}</Text>
                 <Text style={styles.description}>
-                  We sent a verification code to {email}
+                  {forgotStrings.otpStep.description.replace('{email}', email)}
                 </Text>
               </View>
 
@@ -251,24 +299,26 @@ const ForgotPasswordScreen = () => {
 
                 <View style={styles.timerContainer}>
                   <Text style={styles.timerText}>
-                    {formatTime(timer)} seconds to send new
+                    {forgotStrings.otpStep.timerHint.replace('{time}', formatTime(timer))}
                   </Text>
                   {canResend && (
                     <TouchableOpacity onPress={handleResend} disabled={isLoading}>
-                      <Text style={styles.resendText}>Resend Code</Text>
+                      <Text style={styles.resendText}>{forgotStrings.otpStep.resend}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
 
                 {/* Error message */}
-                {error && (
+                {localizedError && (
                   <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error}</Text>
+                    <Text style={styles.errorText}>{localizedError}</Text>
                   </View>
                 )}
 
                 <Button
-                  title={isLoading ? 'Verifying...' : 'Restore'}
+                  title={
+                    isLoading ? forgotStrings.otpStep.button.loading : forgotStrings.otpStep.button.submit
+                  }
                   onPress={handleRestore}
                   variant="secondary"
                   disabled={isLoading || otp.join('').length !== 4}
@@ -278,16 +328,16 @@ const ForgotPasswordScreen = () => {
                   style={styles.backButton}
                   onPress={() => setStep('email')}
                 >
-                  <Text style={styles.backText}>Back to email</Text>
+                  <Text style={styles.backText}>{forgotStrings.otpStep.back}</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Remember your password? </Text>
+            <Text style={styles.footerText}>{forgotStrings.footer.remember} </Text>
             <TouchableOpacity onPress={handleGoToLogin}>
-              <Text style={styles.signInLink}>Sign In</Text>
+              <Text style={styles.signInLink}>{forgotStrings.footer.signIn}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

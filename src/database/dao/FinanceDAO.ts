@@ -20,6 +20,8 @@ import { fromObjectId, toISODate, toObjectId } from './helpers';
 
 const defaultUserId = 'local-user';
 
+const hasRealmInstance = (realm: Realm | null): realm is Realm => Boolean(realm && !realm.isClosed);
+
 const mapAccount = (record: any): Account => ({
   id: fromObjectId(record._id)!,
   userId: record.userId ?? defaultUserId,
@@ -29,6 +31,7 @@ const mapAccount = (record: any): Account => ({
   initialBalance: record.initialBalance ?? 0,
   currentBalance: record.currentBalance ?? 0,
   linkedGoalId: fromObjectId(record.linkedGoalId),
+  customTypeId: record.customTypeId ?? undefined,
   isArchived: Boolean(record.isArchived),
   createdAt: toISODate(record.createdAt)!,
   updatedAt: toISODate(record.updatedAt)!,
@@ -183,6 +186,7 @@ export type AccountCreateInput = {
   currency: string;
   initialBalance: number;
   linkedGoalId?: string;
+  customTypeId?: string;
   isArchived?: boolean;
   idempotencyKey?: string;
 };
@@ -191,6 +195,9 @@ export class AccountDAO {
   constructor(private realm: Realm) {}
 
   list(): Account[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Account').map(mapAccount);
   }
 
@@ -206,6 +213,7 @@ export class AccountDAO {
         initialBalance: input.initialBalance,
         currentBalance: input.initialBalance,
         linkedGoalId: toObjectId(input.linkedGoalId),
+        customTypeId: input.customTypeId ?? null,
         isArchived: input.isArchived ?? false,
         idempotencyKey: input.idempotencyKey ?? null,
         createdAt: new Date(),
@@ -224,6 +232,8 @@ export class AccountDAO {
         if (key === 'id' || key === 'createdAt' || key === 'updatedAt') return;
         if (key === 'linkedGoalId') {
           (account as any)[key] = toObjectId(value as string | undefined) ?? null;
+        } else if (key === 'customTypeId') {
+          (account as any)[key] = value ?? null;
         } else {
           (account as any)[key] = value;
         }
@@ -257,6 +267,9 @@ export class TransactionDAO {
   constructor(private realm: Realm) {}
 
   list(): Transaction[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Transaction').sorted('date', true).map(mapTransaction);
   }
 
@@ -344,6 +357,9 @@ export class BudgetDAO {
   constructor(private realm: Realm) {}
 
   list(): Budget[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Budget').map(mapBudget);
   }
 
@@ -431,6 +447,9 @@ export class BudgetDAO {
     if (!txnObjectId) {
       return;
     }
+    if (!hasRealmInstance(this.realm)) {
+      return;
+    }
     this.realm.write(() => {
       const entries = this.realm.objects('BudgetEntry').filtered('transactionId == $0', txnObjectId);
       this.realm.delete(entries);
@@ -465,6 +484,9 @@ export class DebtDAO {
   constructor(private realm: Realm) {}
 
   list(): Debt[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Debt').map(mapDebt);
   }
 
@@ -613,10 +635,16 @@ export class FxRateDAO {
   constructor(private realm: Realm) {}
 
   list(): FxRate[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('FxRate').map(mapFxRate);
   }
 
-  upsert(input: FxRateInput): FxRate {
+  upsert(input: FxRateInput): FxRate | null {
+    if (!hasRealmInstance(this.realm)) {
+      return null;
+    }
     let record: any;
     const now = new Date();
     this.realm.write(() => {
@@ -659,6 +687,9 @@ export class CounterpartyDAO {
   constructor(private realm: Realm) {}
 
   list(): Counterparty[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Counterparty').map(mapCounterparty);
   }
 

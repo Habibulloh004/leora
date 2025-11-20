@@ -346,7 +346,6 @@ export default function TransactionModal() {
     }
 
     const normalizedFromCurrency = normalizeFinanceCurrency(fromAccount.currency);
-    const normalizedToCurrency = normalizeFinanceCurrency(toAccount.currency);
     const normalizedBaseCurrency = normalizeFinanceCurrency(baseCurrency);
     const rateToBase =
       normalizedFromCurrency === normalizedBaseCurrency

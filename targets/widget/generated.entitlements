@@ -5,6 +5,7 @@
     <key>com.apple.security.application-groups</key>
     <array>
       <string>group.com.sarvaryarbekov.leora</string>
+      <string>group.com.sarvaryarbekov.leora</string>
     </array>
   </dict>
 </plist>

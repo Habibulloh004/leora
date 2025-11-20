@@ -263,7 +263,9 @@ const SCENARIO_ICONS: Record<GoalModalScenarioKey, string> = {
 
 const SCENARIO_ORDER: GoalModalScenarioKey[] = ['financialSave', 'financialSpend', 'habitSupport', 'skillGrowth', 'custom'];
 
-const METRIC_OPTIONS: { id: MetricKind; label: string; icon: string; description: string }[] = [
+type GoalModalMetricOption = 'amount' | 'count' | 'duration' | 'custom';
+
+const METRIC_OPTIONS: { id: GoalModalMetricOption; label: string; icon: string; description: string }[] = [
   { id: 'amount', label: 'Money', icon: '💰', description: 'Financial goals' },
   { id: 'count', label: 'Number', icon: '🔢', description: 'Count-based' },
   { id: 'duration', label: 'Time', icon: '⏱️', description: 'Time-based' },
@@ -399,20 +401,29 @@ export default function PlannerGoalModal() {
 
   // Get smart default unit based on context
   const getSmartDefaultUnit = useCallback((metric: MetricKind, goal: GoalType): string => {
-    if (metric === 'duration') return 'hours';
-    if (metric === 'amount') return '';
-    
-    // Context-aware defaults
-    if (goal === 'health') {
-      if (metric === 'count') return 'workouts';
-    } else if (goal === 'education') {
-      if (metric === 'count') return 'books';
-      if (metric === 'duration') return 'hours';
-    } else if (goal === 'productivity') {
-      return 'tasks';
+    switch (metric) {
+      case 'duration':
+        return 'hours';
+      case 'amount':
+        return '';
+      case 'count':
+        if (goal === 'health') {
+          return 'workouts';
+        }
+        if (goal === 'education') {
+          return 'books';
+        }
+        if (goal === 'productivity') {
+          return 'tasks';
+        }
+        return 'times';
+      case 'weight':
+      case 'none':
+      case 'custom':
+        return 'times';
+      default:
+        return 'times';
     }
-    
-    return 'times';
   }, []);
 
   useEffect(() => {
@@ -459,13 +470,18 @@ export default function PlannerGoalModal() {
   }, [plannerGoalModal.isOpen, resetForm]);
 
   const resolveScenarioIdFromGoal = useCallback((goal: Goal): GoalModalScenarioKey => {
-    const scenarios = [
+    const scenarios: {
+      id: GoalModalScenarioKey;
+      goalType: GoalType;
+      metricKind: MetricKind;
+      financeMode?: FinanceMode;
+    }[] = [
       { id: 'financialSave', goalType: 'financial', metricKind: 'amount', financeMode: 'save' },
       { id: 'financialSpend', goalType: 'financial', metricKind: 'amount', financeMode: 'spend' },
-      { id: 'habitSupport', goalType: 'health', metricKind: 'count' },
-      { id: 'skillGrowth', goalType: 'education', metricKind: 'duration' },
-      { id: 'custom', goalType: 'personal', metricKind: 'custom' },
-    ] as const;
+      { id: 'habitSupport', goalType: 'health', metricKind: 'count', financeMode: undefined },
+      { id: 'skillGrowth', goalType: 'education', metricKind: 'duration', financeMode: undefined },
+      { id: 'custom', goalType: 'personal', metricKind: 'custom', financeMode: undefined },
+    ];
 
     const match = scenarios.find(
       (scenario) =>
@@ -781,7 +797,6 @@ export default function PlannerGoalModal() {
         setTargetValueText('');
         setMilestones([]);
         setErrorKey(null);
-        setSelectedTemplate(null);
         return;
       }
       closePlannerGoalModal();

@@ -1,5 +1,31 @@
 import { z } from 'zod';
 
+export const MIN_PASSWORD_LENGTH = 8;
+export type PasswordRequirementKey = 'minLength' | 'uppercase' | 'lowercase' | 'number' | 'special';
+
+const PASSWORD_REQUIREMENT_CHECKS: Record<PasswordRequirementKey, (value: string) => boolean> = {
+  minLength: (value) => value.length >= MIN_PASSWORD_LENGTH,
+  uppercase: (value) => /[A-Z]/.test(value),
+  lowercase: (value) => /[a-z]/.test(value),
+  number: (value) => /[0-9]/.test(value),
+  special: (value) => /[^A-Za-z0-9]/.test(value),
+};
+
+export const evaluatePasswordRequirements = (value: string) => {
+  return (Object.keys(PASSWORD_REQUIREMENT_CHECKS) as PasswordRequirementKey[]).reduce(
+    (acc, key) => {
+      acc[key] = PASSWORD_REQUIREMENT_CHECKS[key](value);
+      return acc;
+    },
+    {} as Record<PasswordRequirementKey, boolean>
+  );
+};
+
+export const getFirstUnmetPasswordRequirement = (value: string): PasswordRequirementKey | undefined => {
+  const requirements = evaluatePasswordRequirements(value);
+  return (Object.keys(requirements) as PasswordRequirementKey[]).find((key) => !requirements[key]);
+};
+
 // Zod schemas for authentication forms
 export const emailSchema = z
   .string()
@@ -14,10 +40,11 @@ export const usernameSchema = z
 
 export const passwordSchema = z
   .string()
-  .min(8, 'Password must be at least 8 characters')
+  .min(MIN_PASSWORD_LENGTH, 'Password must be at least 8 characters')
   .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
   .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-  .regex(/[0-9]/, 'Password must contain at least one number');
+  .regex(/[0-9]/, 'Password must contain at least one number')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character');
 
 export const emailOrUsernameSchema = z.string().min(1, 'Email or username is required');
 

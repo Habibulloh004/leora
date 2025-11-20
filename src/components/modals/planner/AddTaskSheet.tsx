@@ -1080,6 +1080,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
   },
+  section: {
+    paddingHorizontal: 20,
+    gap: 10,
+    marginTop: 12,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  glassSurface: {
+    borderRadius: 14,
+  },
   goalScroll: {
     gap: 10,
     paddingVertical: 6,

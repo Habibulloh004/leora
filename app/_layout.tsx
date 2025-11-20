@@ -2,8 +2,8 @@ import 'react-native-reanimated';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { DarkTheme, DefaultTheme, ThemeProvider as NavigationThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState, type ReactElement } from 'react';
-import { Platform } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { Asset } from 'expo-asset';
@@ -21,6 +21,7 @@ import { useFocusSettingsStore } from '@/features/focus/useFocusSettingsStore';
 import { TECHNIQUES } from '@/features/focus/types';
 import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
 import * as Linking from 'expo-linking';
+import '@/stores/usePlannerAggregatesStore';
 import ProfileHeader from './(tabs)/more/_components/ProfileHeader';
 import { useLocalization } from '@/localization/useLocalization';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
@@ -30,6 +31,7 @@ import { RealmProvider } from '@/utils/RealmContext';
 import { useRealmDiagnostics } from '@/hooks/useRealmDiagnostics';
 import { useFinanceRealmSync } from '@/hooks/useFinanceRealmSync';
 import { usePlannerRealmSync } from '@/hooks/usePlannerRealmSync';
+import Realm from 'realm';
 
 enableScreens(true);
 
@@ -41,6 +43,9 @@ export default function RootLayout() {
   const [assetsReady, setAssetsReady] = useState(false);
   const [animationFinished, setAnimationFinished] = useState(false);
   const [hasBooted, setHasBooted] = useState(false);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const realmRef = useRef<Realm | null>(null);
+  const [realmKey, setRealmKey] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
@@ -83,26 +88,45 @@ export default function RootLayout() {
     }
   }, [assetsReady, animationFinished]);
 
+  useEffect(() => {
+    if (isAuthenticated) {
+      return;
+    }
+    if (realmRef.current && !realmRef.current.isClosed) {
+      realmRef.current.close();
+    }
+    realmRef.current = null;
+    setRealmKey((prev) => prev + 1);
+  }, [isAuthenticated]);
+
   const handleSplashComplete = useCallback(() => {
     setAnimationFinished(true);
   }, []);
 
+  const navigator = (
+    <RootNavigator hasBooted={hasBooted} assetsReady={assetsReady} onSplashComplete={handleSplashComplete} />
+  );
+
   return (
-    <RealmProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          <BottomSheetModalProvider>
-            <ThemeProvider>
-              <RootNavigator
-                hasBooted={hasBooted}
-                assetsReady={assetsReady}
-                onSplashComplete={handleSplashComplete}
-              />
-            </ThemeProvider>
-          </BottomSheetModalProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
-    </RealmProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <BottomSheetModalProvider>
+          <ThemeProvider>
+            {isAuthenticated ? (
+              <RealmProvider
+                key={realmKey}
+                realmRef={realmRef}
+                fallback={<RealmLoadingFallback />}
+              >
+                <RealmSyncBoundary>{navigator}</RealmSyncBoundary>
+              </RealmProvider>
+            ) : (
+              navigator
+            )}
+          </ThemeProvider>
+        </BottomSheetModalProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -118,9 +142,6 @@ function RootNavigator({
   onSplashComplete,
 }: RootNavigatorProps): ReactElement {
   const { theme } = useTheme();
-  useRealmDiagnostics();
-  useFinanceRealmSync();
-  usePlannerRealmSync();
   const { isAuthenticated } = useAuthStore();
   const setLoggedIn = useLockStore((state) => state.setLoggedIn);
   const setLocked = useLockStore((state) => state.setLocked);
@@ -240,11 +261,14 @@ function RootNavigator({
 
     const inAuthGroup = segments[0] === '(auth)';
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // Redirect to login if not authenticated and trying to access protected routes
-      router.replace('/(auth)/login');
-    } else if (isAuthenticated && inAuthGroup) {
-      // Redirect to main app if authenticated and on auth screens
+    if (!isAuthenticated) {
+      if (!inAuthGroup) {
+        router.replace('/(auth)/login');
+      }
+      return;
+    }
+
+    if (inAuthGroup) {
       router.replace('/(tabs)');
     }
   }, [isAuthenticated, segments, hasBooted, router]);
@@ -310,7 +334,7 @@ function RootNavigator({
   const statusBarStyle = theme === 'dark' ? 'light' : 'dark';
   const profileStrings = strings.profile;
 
-  if (!hasBooted && !isAuthenticated) {
+  if (!hasBooted) {
     return <LeoraSplashScreen ready={assetsReady} onAnimationComplete={onSplashComplete} />;
   }
 
@@ -490,6 +514,16 @@ function RootNavigator({
             headerShown: false,
           }}
         />
+        {/* Accounts modals */}
+        <Stack.Screen
+          name="(modals)/add-account"
+          options={{
+            presentation: 'modal',
+            headerShown:false,
+            headerTitle: 'Add Account',
+            animation: "slide_from_bottom",
+          }}
+        />
       </Stack>
       {/* {canManageStatusBar && (
         <StatusBar  style={statusBarStyle} backgroundColor={palette.background} animated />
@@ -507,3 +541,20 @@ function RootNavigator({
     </NavigationThemeProvider>
   );
 }
+
+const RealmSyncBoundary = ({ children }: { children: ReactNode }) => {
+  useRealmDiagnostics();
+  useFinanceRealmSync();
+  usePlannerRealmSync();
+  return <>{children}</>;
+};
+
+const RealmLoadingFallback = () => {
+  const { theme } = useTheme();
+  const palette = useMemo(() => getTheme(theme).colors, [theme]);
+  return (
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.background }}>
+      <ActivityIndicator size="large" color={palette.primary} />
+    </View>
+  );
+};

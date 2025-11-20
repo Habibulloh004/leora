@@ -20,7 +20,6 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Wallet } from 'lucide-react-native';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import DateTimePicker, {
   DateTimePickerAndroid,
@@ -240,6 +239,7 @@ export default function DebtModal() {
   const defaultDebtAccounts = useFinancePreferencesStore(
     (state) => state.defaultDebtAccounts,
   );
+  const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
   const setDefaultDebtAccount = useFinancePreferencesStore(
     (state) => state.setDefaultDebtAccount,
   );
@@ -710,6 +710,9 @@ export default function DebtModal() {
     const direction = mapDebtTypeToDirection(activeType);
     const description = note.trim() || undefined;
     const counterpartyName = (selectedCounterpartyName.trim() || '—') as string;
+    const principalBaseValue = convertAmount(amountValue, selectedCurrency, baseCurrency);
+    const rateOnStart =
+      amountValue !== 0 ? principalBaseValue / amountValue : 1;
     const basePayload = {
       userId: 'local-user',
       direction,
@@ -720,6 +723,9 @@ export default function DebtModal() {
       principalOriginalAmount: amountValue,
       principalCurrency: selectedCurrency,
       principalOriginalCurrency: selectedCurrency,
+      baseCurrency,
+      principalBaseValue,
+      rateOnStart,
       startDate: startDate.toISOString(),
       dueDate: expectedDate?.toISOString(),
       fundingAccountId: selectedAccountId,
@@ -750,11 +756,12 @@ export default function DebtModal() {
     hasCurrencyMismatch,
     manualFundingEnabled,
     note,
-    person,
     reminderEnabled,
     reminderTime,
+    baseCurrency,
+    convertAmount,
     selectedAccountId,
-    selectedCounterparty?.displayName,
+    selectedCounterpartyName,
     selectedCounterpartyId,
     selectedCurrency,
     setDefaultDebtAccount,
@@ -858,6 +865,7 @@ export default function DebtModal() {
     counterpartyActionsStrings.renameTitle,
     counterpartyQuery,
     createCounterparty,
+    handleCancelCounterpartyEdit,
     closeCounterpartyModal,
   ]);
 
@@ -1040,7 +1048,7 @@ export default function DebtModal() {
   }, [closeShortcutContext]);
 
   const handleRecordPayment = useCallback(() => {
-    if (!isEditing || !editingDebtDomain || !paymentAccountId || paymentAmountValue <= 0) {
+    if (!isEditing || !editingDebtDomain || !editingDebt || !paymentAccountId || paymentAmountValue <= 0) {
       return;
     }
 
@@ -1052,12 +1060,31 @@ export default function DebtModal() {
       return;
     }
 
+    const debtCurrency = editingDebt.currency;
+    const debtBaseCurrency = (editingDebtDomain.baseCurrency ?? debtCurrency) as FinanceCurrency;
+    const convertedAmountToDebt = convertAmount(
+      paymentAmountValue,
+      paymentCurrency,
+      debtCurrency,
+    );
+    const convertedAmountToBase = convertAmount(
+      paymentAmountValue,
+      paymentCurrency,
+      debtBaseCurrency,
+    );
+    const rateUsedToDebt =
+      paymentAmountValue !== 0 ? convertedAmountToDebt / paymentAmountValue : 1;
+    const rateUsedToBase =
+      paymentAmountValue !== 0 ? convertedAmountToBase / paymentAmountValue : 1;
+
     addDebtPayment({
       debtId: editingDebtDomain.id,
       amount: paymentAmountValue,
       currency: paymentCurrency,
       accountId: paymentAccountId,
       paymentDate: new Date().toISOString(),
+      rateUsedToDebt,
+      rateUsedToBase,
       note: paymentNote.trim() || undefined,
     });
 
@@ -1068,8 +1095,10 @@ export default function DebtModal() {
   }, [
     addDebtPayment,
     editingDebtDomain,
+    editingDebt,
     handleClosePaymentModal,
     isEditing,
+    convertAmount,
     outstandingInPaymentCurrency,
     paymentAccountId,
     paymentAmountValue,
@@ -1105,12 +1134,26 @@ export default function DebtModal() {
       return;
     }
 
+    const debtCurrency = editingDebt.currency;
+    const debtBaseCurrency = (editingDebtDomain.baseCurrency ?? debtCurrency) as FinanceCurrency;
+    const convertedAmountToBase = convertAmount(
+      editingDebt.remainingAmount,
+      debtCurrency,
+      debtBaseCurrency,
+    );
+    const rateUsedToBase =
+      editingDebt.remainingAmount !== 0
+        ? convertedAmountToBase / editingDebt.remainingAmount
+        : 1;
+
     addDebtPayment({
       debtId: editingDebtDomain.id,
       amount: editingDebt.remainingAmount,
       currency: editingDebt.currency,
       accountId: targetAccountId,
       paymentDate: new Date().toISOString(),
+      rateUsedToDebt: 1,
+      rateUsedToBase,
       note: fullPaymentDescriptionText,
     });
 
@@ -1120,6 +1163,7 @@ export default function DebtModal() {
     addDebtPayment,
     editingDebt,
     editingDebtDomain,
+    convertAmount,
     fullPaymentDescriptionText,
     handleCloseFullPaymentModal,
     isEditing,

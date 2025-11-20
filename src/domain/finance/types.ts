@@ -19,6 +19,7 @@ export interface Account {
   currentBalance: number;
   linkedGoalId?: string;
   isArchived: boolean;
+  customTypeId?: string;
   createdAt: string;
   updatedAt: string;
 }

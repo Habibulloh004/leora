@@ -9,7 +9,19 @@ export const usePlannerRealmSync = () => {
   const hydrate = usePlannerDomainStore((state) => state.hydrateFromRealm);
 
   useEffect(() => {
+    if (!realm || realm.isClosed) {
+      return;
+    }
     const emitSnapshot = () => {
+      if (!realm || realm.isClosed) {
+        hydrate({
+          goals: [],
+          habits: [],
+          tasks: [],
+          focusSessions: [],
+        });
+        return;
+      }
       hydrate({
         goals: daos.goals.list(),
         habits: daos.habits.list(),
@@ -20,12 +32,14 @@ export const usePlannerRealmSync = () => {
 
     emitSnapshot();
 
-    const collections = [
-      realm.objects('Goal'),
-      realm.objects('Habit'),
-      realm.objects('Task'),
-      realm.objects('FocusSession'),
-    ];
+    const collections = realm.isClosed
+      ? []
+      : [
+          realm.objects('Goal'),
+          realm.objects('Habit'),
+          realm.objects('Task'),
+          realm.objects('FocusSession'),
+        ];
 
     collections.forEach((collection) => collection.addListener(emitSnapshot));
 

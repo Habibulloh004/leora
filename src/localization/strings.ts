@@ -83,6 +83,58 @@ export type GoalModalStrings = {
 
 export type AppTranslations = {
   auth: {
+    common: {
+      socialDivider: string;
+      languageButtonLabel: string;
+      languageHelper: string;
+      languageSheetTitle: string;
+    };
+    validation: {
+      emailOrUsernameRequired: string;
+      emailRequired: string;
+      emailInvalid: string;
+      nameRequired: string;
+      passwordRequired: string;
+      passwordConfirmRequired: string;
+      passwordMismatch: string;
+      passwordMinLength: string;
+      passwordUppercase: string;
+      passwordLowercase: string;
+      passwordNumber: string;
+      passwordSpecial: string;
+    };
+    login: {
+      title: string;
+      description: string;
+      fields: {
+        emailOrUsername: string;
+        password: string;
+      };
+      placeholders: {
+        emailOrUsername: string;
+        password: string;
+      };
+      rememberMe: string;
+      forgotPassword: string;
+      buttons: {
+        submit: string;
+      };
+      links: {
+        noAccount: string;
+        signUp: string;
+      };
+      alerts: {
+        failureTitle: string;
+        failureMessage: string;
+        socialTitle: string;
+        socialMessage: string;
+      };
+      errors: {
+        missingCredentials: string;
+        invalidCredentials: string;
+        generic: string;
+      };
+    };
     register: {
       title: string;
       description: string;
@@ -106,6 +158,10 @@ export type AppTranslations = {
         haveAccount: string;
         signIn: string;
       };
+      languageSelector: {
+        label: string;
+        helper: string;
+      };
       selectors: {
         sectionTitle: string;
         helper: string;
@@ -117,6 +173,7 @@ export type AppTranslations = {
         regionTitle: string;
         currencyTitle: string;
         currencySearch: string;
+        languageTitle: string;
       };
       alerts: {
         successTitle: string;
@@ -124,6 +181,81 @@ export type AppTranslations = {
         failureTitle: string;
         socialTitle: string;
         socialMessage: string;
+      };
+      passwordGuide: {
+        strengthLabel: string;
+        helper: string;
+        levels: {
+          empty: string;
+          weak: string;
+          medium: string;
+          strong: string;
+        };
+        requirementsTitle: string;
+        requirements: {
+          length: string;
+          uppercase: string;
+          lowercase: string;
+          number: string;
+          special: string;
+        };
+      };
+      errors: {
+        missingFields: string;
+        selectRegion: string;
+        passwordMismatch: string;
+        emailInvalid: string;
+        emailExists: string;
+        generic: string;
+      };
+    };
+    forgot: {
+      languageSelector: {
+        label: string;
+        helper: string;
+      };
+      emailStep: {
+        title: string;
+        description: string;
+        fieldLabel: string;
+        placeholder: string;
+        button: {
+          submit: string;
+          loading: string;
+        };
+      };
+      otpStep: {
+        title: string;
+        description: string;
+        timerHint: string;
+        resend: string;
+        back: string;
+        button: {
+          submit: string;
+          loading: string;
+        };
+      };
+      alerts: {
+        codeSentTitle: string;
+        codeSentMessage: string;
+        codeResentTitle: string;
+        codeResentMessage: string;
+        otpVerifiedTitle: string;
+        otpVerifiedMessage: string;
+        genericErrorTitle: string;
+        genericErrorMessage: string;
+        okButton: string;
+      };
+      footer: {
+        remember: string;
+        signIn: string;
+      };
+      errors: {
+        invalidEmail: string;
+        generic: string;
+        otpExpired: string;
+        otpInvalid: string;
+        otpIncomplete: string;
       };
     };
   };
@@ -818,6 +950,107 @@ export type AppTranslations = {
 const t = {
   en: {
     auth: {
+      common: {
+        socialDivider: 'Or continue with',
+        languageButtonLabel: 'Language',
+        languageHelper: 'Choose the language for this screen.',
+        languageSheetTitle: 'Choose language',
+      },
+      validation: {
+        emailOrUsernameRequired: 'Enter your email or username',
+        emailRequired: 'Email is required',
+        emailInvalid: 'Enter a valid email address',
+        nameRequired: 'Full name is required',
+        passwordRequired: 'Password is required',
+        passwordConfirmRequired: 'Confirm your password',
+        passwordMismatch: 'Passwords do not match',
+        passwordMinLength: 'Use at least 8 characters',
+        passwordUppercase: 'Add an uppercase letter',
+        passwordLowercase: 'Add a lowercase letter',
+        passwordNumber: 'Add a number',
+        passwordSpecial: 'Add a special character',
+      },
+      forgot: {
+        languageSelector: {
+          label: 'Language',
+          helper: 'Choose the language for password recovery.',
+        },
+        emailStep: {
+          title: 'Forgot your password',
+          description: 'Enter your email address to reset it.',
+          fieldLabel: 'Email',
+          placeholder: 'name@example.com',
+          button: {
+            submit: 'Send code',
+            loading: 'Sending…',
+          },
+        },
+        otpStep: {
+          title: 'Enter the verification code',
+          description: 'We sent a verification code to {email}',
+          timerHint: 'Send a new code in {time}',
+          resend: 'Resend code',
+          back: 'Back to email step',
+          button: {
+            submit: 'Verify code',
+            loading: 'Verifying…',
+          },
+        },
+        alerts: {
+          codeSentTitle: 'Code sent',
+          codeSentMessage: 'Check your inbox for a 4-digit code. (In the demo it also appears in the console.)',
+          codeResentTitle: 'Code resent',
+          codeResentMessage: 'We sent a new verification code to your email.',
+          otpVerifiedTitle: 'OTP verified',
+          otpVerifiedMessage: 'Success! You can now sign in again.',
+          genericErrorTitle: 'Error',
+          genericErrorMessage: 'Something went wrong. Please try again.',
+          okButton: 'OK',
+        },
+        footer: {
+          remember: 'Remember your password?',
+          signIn: 'Sign In',
+        },
+        errors: {
+          invalidEmail: 'Enter a valid email address',
+          generic: 'Something went wrong. Please try again.',
+          otpExpired: 'The verification code has expired. Request a new one.',
+          otpInvalid: 'The verification code is invalid.',
+          otpIncomplete: 'Please enter the complete verification code.',
+        },
+      },
+      login: {
+        title: 'Log In',
+        description: 'Welcome back! Enter your details to continue.',
+        fields: {
+          emailOrUsername: 'Email or Username',
+          password: 'Password',
+        },
+        placeholders: {
+          emailOrUsername: 'name@example.com',
+          password: 'Enter your password',
+        },
+        rememberMe: 'Remember me',
+        forgotPassword: 'Forgot password?',
+        buttons: {
+          submit: 'Log In',
+        },
+        links: {
+          noAccount: "Don't have an account?",
+          signUp: 'Sign Up',
+        },
+        alerts: {
+          failureTitle: 'Login failed',
+          failureMessage: 'Check your credentials and try again.',
+          socialTitle: 'Coming Soon',
+          socialMessage: '{provider} login will be available soon!',
+        },
+        errors: {
+          missingCredentials: 'Please enter both email/username and password',
+          invalidCredentials: 'Invalid email/username or password',
+          generic: 'Something went wrong. Please try again.',
+        },
+      },
       register: {
         title: 'Register',
         description: 'Create an account to continue!',
@@ -841,6 +1074,10 @@ const t = {
           haveAccount: 'Already have an account?',
           signIn: 'Sign In',
         },
+        languageSelector: {
+          label: 'Language',
+          helper: 'Choose the language for this registration.',
+        },
         selectors: {
           sectionTitle: 'Region & currency',
           helper: 'Main currency will be set to {currency}',
@@ -852,6 +1089,7 @@ const t = {
           regionTitle: 'Choose region',
           currencyTitle: 'Choose currency',
           currencySearch: 'Search currency',
+          languageTitle: 'Choose language',
         },
         alerts: {
           successTitle: 'Registration Successful',
@@ -859,6 +1097,32 @@ const t = {
           failureTitle: 'Registration Failed',
           socialTitle: 'Coming Soon',
           socialMessage: '{provider} registration will be available soon!',
+        },
+        passwordGuide: {
+          strengthLabel: 'Password strength',
+          helper: 'Use a mix of letters, numbers, and symbols.',
+          levels: {
+            empty: 'Start typing',
+            weak: 'Weak',
+            medium: 'Medium',
+            strong: 'Strong',
+          },
+          requirementsTitle: 'Password requirements',
+          requirements: {
+            length: 'At least {count} characters',
+            uppercase: 'One uppercase letter',
+            lowercase: 'One lowercase letter',
+            number: 'One number',
+            special: 'One special character',
+          },
+        },
+        errors: {
+          missingFields: 'Fill in all required fields',
+          selectRegion: 'Select your region',
+          passwordMismatch: 'Passwords do not match',
+          emailInvalid: 'Enter a valid email address',
+          emailExists: 'An account with this email already exists',
+          generic: 'Unable to register right now. Please try again.',
         },
       },
     },
@@ -1694,6 +1958,58 @@ const t = {
   },
   ru: {
     auth: {
+      common: {
+        socialDivider: 'Или продолжите через',
+        languageButtonLabel: 'Язык',
+        languageHelper: 'Выберите язык для этого экрана.',
+        languageSheetTitle: 'Выберите язык',
+      },
+      validation: {
+        emailOrUsernameRequired: 'Введите email или имя пользователя',
+        emailRequired: 'Введите email',
+        emailInvalid: 'Введите корректный email',
+        nameRequired: 'Введите полное имя',
+        passwordRequired: 'Введите пароль',
+        passwordConfirmRequired: 'Подтвердите пароль',
+        passwordMismatch: 'Пароли не совпадают',
+        passwordMinLength: 'Минимум 8 символов',
+        passwordUppercase: 'Добавьте заглавную букву',
+        passwordLowercase: 'Добавьте строчную букву',
+        passwordNumber: 'Добавьте цифру',
+        passwordSpecial: 'Добавьте специальный символ',
+      },
+      login: {
+        title: 'Вход',
+        description: 'С возвращением! Введите данные для продолжения.',
+        fields: {
+          emailOrUsername: 'Email или имя пользователя',
+          password: 'Пароль',
+        },
+        placeholders: {
+          emailOrUsername: 'name@example.com',
+          password: 'Введите пароль',
+        },
+        rememberMe: 'Запомнить меня',
+        forgotPassword: 'Забыли пароль?',
+        buttons: {
+          submit: 'Войти',
+        },
+        links: {
+          noAccount: 'Нет аккаунта?',
+          signUp: 'Регистрация',
+        },
+        alerts: {
+          failureTitle: 'Не удалось войти',
+          failureMessage: 'Проверьте данные и попробуйте снова.',
+          socialTitle: 'Скоро',
+          socialMessage: 'Вход через {provider} появится позже.',
+        },
+        errors: {
+          missingCredentials: 'Введите email/имя пользователя и пароль',
+          invalidCredentials: 'Неверный email/имя пользователя или пароль',
+          generic: 'Что-то пошло не так. Попробуйте снова.',
+        },
+      },
       register: {
         title: 'Регистрация',
         description: 'Создайте аккаунт, чтобы продолжить.',
@@ -1717,6 +2033,10 @@ const t = {
           haveAccount: 'Уже есть аккаунт?',
           signIn: 'Войти',
         },
+        languageSelector: {
+          label: 'Язык',
+          helper: 'Выберите язык для регистрации.',
+        },
         selectors: {
           sectionTitle: 'Регион и валюта',
           helper: 'Основная валюта будет {currency}',
@@ -1728,6 +2048,7 @@ const t = {
           regionTitle: 'Выберите регион',
           currencyTitle: 'Выберите валюту',
           currencySearch: 'Поиск валюты',
+          languageTitle: 'Выберите язык',
         },
         alerts: {
           successTitle: 'Регистрация выполнена',
@@ -1736,8 +2057,83 @@ const t = {
           socialTitle: 'Скоро',
           socialMessage: 'Регистрация через {provider} появится позже.',
         },
+        passwordGuide: {
+          strengthLabel: 'Надёжность пароля',
+          helper: 'Используйте буквы, цифры и символы.',
+          levels: {
+            empty: 'Начните ввод',
+            weak: 'Слабый',
+            medium: 'Средний',
+            strong: 'Сильный',
+          },
+          requirementsTitle: 'Требования к паролю',
+          requirements: {
+            length: 'От {count} символов',
+            uppercase: 'Минимум одна заглавная буква',
+            lowercase: 'Минимум одна строчная буква',
+            number: 'Минимум одна цифра',
+            special: 'Минимум один спецсимвол',
+          },
+        },
+        errors: {
+          missingFields: 'Заполните обязательные поля',
+          selectRegion: 'Выберите регион',
+          passwordMismatch: 'Пароли не совпадают',
+          emailInvalid: 'Введите корректный email',
+        emailExists: 'Аккаунт с таким email уже существует',
+        generic: 'Не удалось завершить регистрацию. Попробуйте позже.',
       },
     },
+      forgot: {
+        languageSelector: {
+          label: 'Язык',
+          helper: 'Выберите язык для восстановления доступа.',
+        },
+        emailStep: {
+          title: 'Забыли пароль',
+          description: 'Введите email, чтобы сбросить пароль.',
+          fieldLabel: 'Email',
+          placeholder: 'name@example.com',
+          button: {
+            submit: 'Отправить код',
+            loading: 'Отправляем…',
+          },
+        },
+        otpStep: {
+          title: 'Введите код подтверждения',
+          description: 'Мы отправили код на {email}',
+          timerHint: 'Отправить новый через {time}',
+          resend: 'Отправить код ещё раз',
+          back: 'Назад к email',
+          button: {
+            submit: 'Подтвердить код',
+            loading: 'Проверяем…',
+          },
+        },
+        alerts: {
+          codeSentTitle: 'Код отправлен',
+          codeSentMessage: 'Проверьте почту — код на 4 цифры (в демо смотрите консоль).',
+          codeResentTitle: 'Код отправлен снова',
+          codeResentMessage: 'Мы отправили новый код подтверждения.',
+          otpVerifiedTitle: 'Код подтверждён',
+          otpVerifiedMessage: 'Готово! Теперь можно войти снова.',
+          genericErrorTitle: 'Ошибка',
+          genericErrorMessage: 'Что-то пошло не так. Попробуйте ещё раз.',
+          okButton: 'ОК',
+        },
+        footer: {
+          remember: 'Пароль вспомнили?',
+          signIn: 'Войти',
+        },
+        errors: {
+          invalidEmail: 'Введите корректный email',
+          generic: 'Что-то пошло не так. Попробуйте снова.',
+          otpExpired: 'Срок действия кода истёк. Запросите новый.',
+          otpInvalid: 'Неверный код подтверждения.',
+          otpIncomplete: 'Введите весь код подтверждения.',
+        },
+      },
+  },
     addTask: ruAddTask as AppTranslations['addTask'],
     home: {
       header: {
@@ -2574,6 +2970,58 @@ const t = {
   },
   uz: {
     auth: {
+      common: {
+        socialDivider: 'Yoki quyidagilar bilan davom eting',
+        languageButtonLabel: 'Til',
+        languageHelper: 'Bu ekran uchun tilni tanlang.',
+        languageSheetTitle: 'Tilni tanlang',
+      },
+      validation: {
+        emailOrUsernameRequired: 'Email yoki foydalanuvchi nomini kiriting',
+        emailRequired: 'Email talab qilinadi',
+        emailInvalid: 'To‘g‘ri email manzilini kiriting',
+        nameRequired: 'To‘liq ism talab qilinadi',
+        passwordRequired: 'Parol talab qilinadi',
+        passwordConfirmRequired: 'Parolni tasdiqlang',
+        passwordMismatch: 'Parollar mos emas',
+        passwordMinLength: 'Kamida 8 ta belgi bo‘lsin',
+        passwordUppercase: 'Bitta katta harf qo‘shing',
+        passwordLowercase: 'Bitta kichik harf qo‘shing',
+        passwordNumber: 'Bitta raqam qo‘shing',
+        passwordSpecial: 'Bitta maxsus belgi qo‘shing',
+      },
+      login: {
+        title: 'Kirish',
+        description: 'Xush kelibsiz! Davom etish uchun maʼlumotlarni kiriting.',
+        fields: {
+          emailOrUsername: 'Email yoki foydalanuvchi nomi',
+          password: 'Parol',
+        },
+        placeholders: {
+          emailOrUsername: 'ism@example.com',
+          password: 'Parolingizni kiriting',
+        },
+        rememberMe: 'Eslab qolish',
+        forgotPassword: 'Parolni unutdingizmi?',
+        buttons: {
+          submit: 'Kirish',
+        },
+        links: {
+          noAccount: 'Hali akkauntingiz yo‘qmi?',
+          signUp: 'Ro‘yxatdan o‘tish',
+        },
+        alerts: {
+          failureTitle: 'Kirish amalga oshmadi',
+          failureMessage: 'Maʼlumotlarni tekshirib, yana urinib ko‘ring.',
+          socialTitle: 'Tez orada',
+          socialMessage: '{provider} orqali kirish tez orada mavjud bo‘ladi.',
+        },
+        errors: {
+          missingCredentials: 'Email/foydalanuvchi nomi va parolni kiriting',
+          invalidCredentials: 'Email/foydalanuvchi nomi yoki parol noto‘g‘ri',
+          generic: 'Xatolik yuz berdi. Qayta urinib ko‘ring.',
+        },
+      },
       register: {
         title: 'Ro‘yxatdan o‘ting',
         description: 'Davom etish uchun akkaunt yarating.',
@@ -2597,6 +3045,10 @@ const t = {
           haveAccount: 'Akkauntingiz bormi?',
           signIn: 'Kirish',
         },
+        languageSelector: {
+          label: 'Til',
+          helper: 'Ro‘yxatdan o‘tish uchun tilni tanlang.',
+        },
         selectors: {
           sectionTitle: 'Hudud va valyuta',
           helper: 'Asosiy valyuta {currency} bo‘ladi',
@@ -2608,6 +3060,7 @@ const t = {
           regionTitle: 'Hududni tanlang',
           currencyTitle: 'Valyutani tanlang',
           currencySearch: 'Valyutani qidirish',
+          languageTitle: 'Tilni tanlang',
         },
         alerts: {
           successTitle: 'Muvaffaqiyatli',
@@ -2615,6 +3068,81 @@ const t = {
           failureTitle: 'Xatolik',
           socialTitle: 'Tez orada',
           socialMessage: '{provider} orqali ro‘yxatdan o‘tish tez orada ochiladi.',
+        },
+        passwordGuide: {
+          strengthLabel: 'Parol kuchi',
+          helper: '8+ belgi, harflar, raqamlar va belgilarni aralashtiring.',
+          levels: {
+            empty: 'Yozishni boshlang',
+            weak: 'Zaif',
+            medium: 'O‘rtacha',
+            strong: 'Kuchli',
+          },
+          requirementsTitle: 'Parol talablari',
+          requirements: {
+            length: 'Kamida {count} ta belgi',
+            uppercase: 'Hech bo‘lmaganda bitta katta harf',
+            lowercase: 'Hech bo‘lmaganda bitta kichik harf',
+            number: 'Hech bo‘lmaganda bitta raqam',
+            special: 'Hech bo‘lmaganda bitta maxsus belgi',
+          },
+        },
+        errors: {
+          missingFields: 'Majburiy maydonlarni to‘ldiring',
+          selectRegion: 'Hududni tanlang',
+          passwordMismatch: 'Parollar mos emas',
+          emailInvalid: 'To‘g‘ri email kiriting',
+          emailExists: 'Bu email uchun akkaunt mavjud',
+          generic: 'Ro‘yxatdan o‘tishda xatolik. Qayta urinib ko‘ring.',
+        },
+      },
+      forgot: {
+        languageSelector: {
+          label: 'Til',
+          helper: 'Parolni tiklash uchun tilni tanlang.',
+        },
+        emailStep: {
+          title: 'Parolni unutdingizmi',
+          description: 'Parolni tiklash uchun emailingizni kiriting.',
+          fieldLabel: 'Email',
+          placeholder: 'name@example.com',
+          button: {
+            submit: 'Kod yuborish',
+            loading: 'Yuborilmoqda…',
+          },
+        },
+        otpStep: {
+          title: 'Tasdiqlash kodini kiriting',
+          description: 'Biz {email} manziliga kod yubordik',
+          timerHint: 'Yangi kod {time} dan keyin',
+          resend: 'Kodni qayta yuborish',
+          back: 'Email bosqichiga qaytish',
+          button: {
+            submit: 'Kod tasdiqlash',
+            loading: 'Tekshirilmoqda…',
+          },
+        },
+        alerts: {
+          codeSentTitle: 'Kod yuborildi',
+          codeSentMessage: '4 xonali kod emailingizga yuborildi (demo uchun konsolni ham tekshiring).',
+          codeResentTitle: 'Kod qayta yuborildi',
+          codeResentMessage: 'Yangi tasdiqlash kodi yuborildi.',
+          otpVerifiedTitle: 'Kod tasdiqlandi',
+          otpVerifiedMessage: 'Muvaffaqiyatli! Endi tizimga kira olasiz.',
+          genericErrorTitle: 'Xatolik',
+          genericErrorMessage: 'Xatolik yuz berdi. Qayta urinib ko‘ring.',
+          okButton: 'OK',
+        },
+        footer: {
+          remember: 'Parolni esladingizmi?',
+          signIn: 'Kirish',
+        },
+        errors: {
+          invalidEmail: 'To‘g‘ri email kiriting',
+          generic: 'Xatolik yuz berdi. Qayta urinib ko‘ring.',
+          otpExpired: 'Kod muddati tugagan. Yangi kod so‘rang.',
+          otpInvalid: 'Kiritilgan kod noto‘g‘ri.',
+          otpIncomplete: 'Tasdiqlash kodini to‘liq kiriting.',
         },
       },
     },
@@ -3454,6 +3982,58 @@ const t = {
   },
   ar: {
     auth: {
+      common: {
+        socialDivider: 'أو تابع عبر',
+        languageButtonLabel: 'اللغة',
+        languageHelper: 'اختر لغة هذه الشاشة.',
+        languageSheetTitle: 'اختر اللغة',
+      },
+      validation: {
+        emailOrUsernameRequired: 'أدخل البريد أو اسم المستخدم',
+        emailRequired: 'البريد مطلوب',
+        emailInvalid: 'أدخل بريداً صالحاً',
+        nameRequired: 'أدخل الاسم الكامل',
+        passwordRequired: 'كلمة المرور مطلوبة',
+        passwordConfirmRequired: 'أكد كلمة المرور',
+        passwordMismatch: 'كلمتا المرور غير متطابقتين',
+        passwordMinLength: 'على الأقل ٨ أحرف',
+        passwordUppercase: 'أضف حرفاً كبيراً',
+        passwordLowercase: 'أضف حرفاً صغيراً',
+        passwordNumber: 'أضف رقماً',
+        passwordSpecial: 'أضف رمزاً خاصاً',
+      },
+      login: {
+        title: 'تسجيل الدخول',
+        description: 'أهلاً بعودتك! أدخل بياناتك للمتابعة.',
+        fields: {
+          emailOrUsername: 'البريد أو اسم المستخدم',
+          password: 'كلمة المرور',
+        },
+        placeholders: {
+          emailOrUsername: 'name@example.com',
+          password: 'أدخل كلمة المرور',
+        },
+        rememberMe: 'تذكرني',
+        forgotPassword: 'نسيت كلمة المرور؟',
+        buttons: {
+          submit: 'دخول',
+        },
+        links: {
+          noAccount: 'ليس لديك حساب؟',
+          signUp: 'إنشاء حساب',
+        },
+        alerts: {
+          failureTitle: 'فشل تسجيل الدخول',
+          failureMessage: 'تحقق من البيانات وحاول مجدداً.',
+          socialTitle: 'قريباً',
+          socialMessage: 'تسجيل الدخول عبر {provider} متاح قريباً.',
+        },
+        errors: {
+          missingCredentials: 'أدخل البريد/اسم المستخدم وكلمة المرور',
+          invalidCredentials: 'بيانات الدخول غير صحيحة',
+          generic: 'حدث خطأ ما. حاول لاحقاً.',
+        },
+      },
       register: {
         title: 'إنشاء حساب',
         description: 'أنشئ حساباً للمتابعة.',
@@ -3477,6 +4057,10 @@ const t = {
           haveAccount: 'لديك حساب بالفعل؟',
           signIn: 'تسجيل الدخول',
         },
+        languageSelector: {
+          label: 'اللغة',
+          helper: 'اختر لغة التسجيل.',
+        },
         selectors: {
           sectionTitle: 'المنطقة والعملة',
           helper: 'سيتم استخدام {currency} كعملة أساسية',
@@ -3488,6 +4072,7 @@ const t = {
           regionTitle: 'اختر المنطقة',
           currencyTitle: 'اختر العملة',
           currencySearch: 'ابحث عن العملة',
+          languageTitle: 'اختر اللغة',
         },
         alerts: {
           successTitle: 'تم التسجيل بنجاح',
@@ -3495,6 +4080,81 @@ const t = {
           failureTitle: 'فشل التسجيل',
           socialTitle: 'قريباً',
           socialMessage: 'سيتم دعم التسجيل عبر {provider} قريباً.',
+        },
+        passwordGuide: {
+          strengthLabel: 'قوة كلمة المرور',
+          helper: 'استخدم مزيجاً من الأحرف والأرقام والرموز.',
+          levels: {
+            empty: 'ابدأ بالكتابة',
+            weak: 'ضعيفة',
+            medium: 'متوسطة',
+            strong: 'قوية',
+          },
+          requirementsTitle: 'متطلبات كلمة المرور',
+          requirements: {
+            length: 'على الأقل {count} حرفاً',
+            uppercase: 'حرف كبير واحد',
+            lowercase: 'حرف صغير واحد',
+            number: 'رقم واحد',
+            special: 'رمز خاص واحد',
+          },
+        },
+        errors: {
+          missingFields: 'أكمل الحقول المطلوبة',
+          selectRegion: 'اختر منطقتك',
+          passwordMismatch: 'كلمتا المرور غير متطابقتين',
+          emailInvalid: 'أدخل بريداً صالحاً',
+          emailExists: 'هذا البريد مستخدم مسبقاً',
+          generic: 'تعذر إكمال التسجيل. حاول لاحقاً.',
+        },
+      },
+      forgot: {
+        languageSelector: {
+          label: 'اللغة',
+          helper: 'اختر لغة استرجاع كلمة المرور.',
+        },
+        emailStep: {
+          title: 'نسيت كلمة المرور',
+          description: 'أدخل بريدك الإلكتروني لإعادة التعيين.',
+          fieldLabel: 'البريد الإلكتروني',
+          placeholder: 'name@example.com',
+          button: {
+            submit: 'إرسال الرمز',
+            loading: 'جارٍ الإرسال…',
+          },
+        },
+        otpStep: {
+          title: 'أدخل رمز التحقق',
+          description: 'أرسلنا رمزاً إلى {email}',
+          timerHint: 'إرسال رمز جديد خلال {time}',
+          resend: 'إعادة إرسال الرمز',
+          back: 'العودة إلى خطوة البريد',
+          button: {
+            submit: 'تحقق من الرمز',
+            loading: 'جارٍ التحقق…',
+          },
+        },
+        alerts: {
+          codeSentTitle: 'تم إرسال الرمز',
+          codeSentMessage: 'تحقق من بريدك لرمز مكوّن من 4 أرقام (يظهر أيضاً في وحدة التحكم أثناء التجربة).',
+          codeResentTitle: 'تمت إعادة الإرسال',
+          codeResentMessage: 'أرسلنا رمز تحقق جديد.',
+          otpVerifiedTitle: 'تم التحقق من الرمز',
+          otpVerifiedMessage: 'يمكنك الآن تسجيل الدخول مجدداً.',
+          genericErrorTitle: 'خطأ',
+          genericErrorMessage: 'حدث خطأ ما. حاول مرة أخرى.',
+          okButton: 'حسناً',
+        },
+        footer: {
+          remember: 'تتذكر كلمة المرور؟',
+          signIn: 'تسجيل الدخول',
+        },
+        errors: {
+          invalidEmail: 'أدخل بريداً صالحاً',
+          generic: 'حدث خطأ ما. حاول مرة أخرى.',
+          otpExpired: 'انتهت صلاحية الرمز. اطلب رمزاً جديداً.',
+          otpInvalid: 'الرمز غير صحيح.',
+          otpIncomplete: 'أدخل رمز التحقق كاملاً.',
         },
       },
     },
@@ -4334,6 +4994,58 @@ const t = {
   },
   tr: {
     auth: {
+      common: {
+        socialDivider: 'Ya da aşağıdakilerle devam et',
+        languageButtonLabel: 'Dil',
+        languageHelper: 'Bu ekran için dili seç.',
+        languageSheetTitle: 'Dili seç',
+      },
+      validation: {
+        emailOrUsernameRequired: 'E-posta veya kullanıcı adı girin',
+        emailRequired: 'E-posta gerekli',
+        emailInvalid: 'Geçerli bir e-posta girin',
+        nameRequired: 'Ad soyad gerekli',
+        passwordRequired: 'Şifre gerekli',
+        passwordConfirmRequired: 'Şifreyi doğrulayın',
+        passwordMismatch: 'Şifreler eşleşmiyor',
+        passwordMinLength: 'En az 8 karakter kullanın',
+        passwordUppercase: 'Bir büyük harf ekleyin',
+        passwordLowercase: 'Bir küçük harf ekleyin',
+        passwordNumber: 'Bir rakam ekleyin',
+        passwordSpecial: 'Bir özel karakter ekleyin',
+      },
+      login: {
+        title: 'Giriş yap',
+        description: 'Tekrar hoş geldin! Devam etmek için bilgilerini gir.',
+        fields: {
+          emailOrUsername: 'E-posta veya kullanıcı adı',
+          password: 'Şifre',
+        },
+        placeholders: {
+          emailOrUsername: 'name@example.com',
+          password: 'Şifrenizi girin',
+        },
+        rememberMe: 'Beni hatırla',
+        forgotPassword: 'Şifreni mi unuttun?',
+        buttons: {
+          submit: 'Giriş yap',
+        },
+        links: {
+          noAccount: 'Hesabın yok mu?',
+          signUp: 'Kayıt ol',
+        },
+        alerts: {
+          failureTitle: 'Giriş başarısız',
+          failureMessage: 'Bilgileri kontrol edip tekrar dene.',
+          socialTitle: 'Yakında',
+          socialMessage: '{provider} ile giriş yakında geliyor.',
+        },
+        errors: {
+          missingCredentials: 'E-posta/kullanıcı adı ve şifre girin',
+          invalidCredentials: 'E-posta/kullanıcı adı veya şifre hatalı',
+          generic: 'Bir hata oluştu. Lütfen tekrar deneyin.',
+        },
+      },
       register: {
         title: 'Kayıt ol',
         description: 'Devam etmek için bir hesap oluştur.',
@@ -4357,6 +5069,10 @@ const t = {
           haveAccount: 'Zaten hesabın var mı?',
           signIn: 'Giriş yap',
         },
+        languageSelector: {
+          label: 'Dil',
+          helper: 'Bu kayıt için kullanılacak dili seç.',
+        },
         selectors: {
           sectionTitle: 'Bölge ve para birimi',
           helper: 'Ana para birimi {currency} olacak',
@@ -4368,6 +5084,7 @@ const t = {
           regionTitle: 'Bölge seç',
           currencyTitle: 'Para birimi seç',
           currencySearch: 'Para birimi ara',
+          languageTitle: 'Dili seç',
         },
         alerts: {
           successTitle: 'Kayıt başarılı',
@@ -4375,6 +5092,81 @@ const t = {
           failureTitle: 'Kayıt başarısız',
           socialTitle: 'Yakında',
           socialMessage: '{provider} ile kayıt özelliği yakında gelecek.',
+        },
+        passwordGuide: {
+          strengthLabel: 'Şifre gücü',
+          helper: 'Harf, rakam ve sembolleri karıştır.',
+          levels: {
+            empty: 'Yazmaya başla',
+            weak: 'Zayıf',
+            medium: 'Orta',
+            strong: 'Güçlü',
+          },
+          requirementsTitle: 'Şifre gereklilikleri',
+          requirements: {
+            length: 'En az {count} karakter',
+            uppercase: 'Bir büyük harf',
+            lowercase: 'Bir küçük harf',
+            number: 'Bir rakam',
+            special: 'Bir özel karakter',
+          },
+        },
+        errors: {
+          missingFields: 'Zorunlu alanları doldurun',
+          selectRegion: 'Bölge seçin',
+          passwordMismatch: 'Şifreler eşleşmiyor',
+          emailInvalid: 'Geçerli bir e-posta girin',
+          emailExists: 'Bu e-posta zaten kayıtlı',
+          generic: 'Kayıt tamamlanamadı. Lütfen tekrar deneyin.',
+        },
+      },
+      forgot: {
+        languageSelector: {
+          label: 'Dil',
+          helper: 'Parola sıfırlama dili seçin.',
+        },
+        emailStep: {
+          title: 'Parolanı mı unuttun?',
+          description: 'Sıfırlamak için e-postanı gir.',
+          fieldLabel: 'E-posta',
+          placeholder: 'name@example.com',
+          button: {
+            submit: 'Kodu gönder',
+            loading: 'Gönderiliyor…',
+          },
+        },
+        otpStep: {
+          title: 'Doğrulama kodunu gir',
+          description: '{email} adresine bir kod gönderdik',
+          timerHint: 'Yeni kod {time} sonra',
+          resend: 'Kodu tekrar gönder',
+          back: 'E-posta adımına dön',
+          button: {
+            submit: 'Kodu doğrula',
+            loading: 'Doğrulanıyor…',
+          },
+        },
+        alerts: {
+          codeSentTitle: 'Kod gönderildi',
+          codeSentMessage: '4 haneli kod e-postana gönderildi (demo için konsolu da kontrol et).',
+          codeResentTitle: 'Kod tekrar gönderildi',
+          codeResentMessage: 'Yeni doğrulama kodu gönderildi.',
+          otpVerifiedTitle: 'Kod doğrulandı',
+          otpVerifiedMessage: 'Artık tekrar giriş yapabilirsin.',
+          genericErrorTitle: 'Hata',
+          genericErrorMessage: 'Bir hata oluştu. Lütfen tekrar dene.',
+          okButton: 'Tamam',
+        },
+        footer: {
+          remember: 'Parolanı hatırladın mı?',
+          signIn: 'Giriş yap',
+        },
+        errors: {
+          invalidEmail: 'Geçerli bir e-posta girin',
+          generic: 'Bir hata oluştu. Lütfen tekrar deneyin.',
+          otpExpired: 'Kodun süresi doldu. Yeni kod iste.',
+          otpInvalid: 'Kod geçersiz.',
+          otpIncomplete: 'Kodu eksiksiz girin.',
         },
       },
     },

@@ -2,11 +2,8 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SlidersHorizontal } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
-import FilterTransactionSheet, {
-  FilterState,
-  FilterTransactionSheetHandle,
-} from '@/components/modals/finance/FilterTransactionSheet';
 import CustomModal from '@/components/modals/CustomModal';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
@@ -22,18 +19,9 @@ import type { Transaction as LegacyTransaction, Debt as LegacyDebt } from '@/typ
 import type { Transaction as DomainTransaction } from '@/domain/finance/types';
 import { mapDomainDebtToLegacy } from '@/utils/finance/debtMappers';
 import { useShallow } from 'zustand/react/shallow';
+import { type FilterState, useTransactionFilterStore } from '@/stores/useTransactionFilterStore';
 
 const BASE_CURRENCY = 'UZS';
-
-const DEFAULT_FILTERS: FilterState = {
-  category: 'all',
-  account: 'all',
-  type: 'all',
-  minAmount: '',
-  maxAmount: '',
-  dateFrom: '',
-  dateTo: '',
-};
 
 const formatCurrencyDisplay = (value: number, currency?: string) => {
   const resolvedCurrency = currency ?? BASE_CURRENCY;
@@ -187,17 +175,16 @@ const DetailRow = ({ label, value }: DetailRowProps) => {
 };
 
 const TransactionsPage: React.FC = () => {
+  const router = useRouter();
   const theme = useAppTheme();
   const { strings } = useLocalization();
   const transactionsStrings = strings.financeScreens.transactions;
   const filterSheetStrings = transactionsStrings.filterSheet;
-  const filterSheetRef = useRef<FilterTransactionSheetHandle>(null);
-  const { accounts, transactions: domainTransactions, debts: domainDebts, categories } = useFinanceDomainStore(
+  const { accounts, transactions: domainTransactions, debts: domainDebts } = useFinanceDomainStore(
     useShallow((state) => ({
       accounts: state.accounts,
       transactions: state.transactions,
       debts: state.debts,
-      categories: state.categories,
     })),
   );
   const transactions = useMemo<LegacyTransaction[]>(
@@ -205,29 +192,19 @@ const TransactionsPage: React.FC = () => {
     [domainTransactions],
   );
   const debts = useMemo<LegacyDebt[]>(() => domainDebts.map(mapDomainDebtToLegacy), [domainDebts]);
+  const filters = useTransactionFilterStore((state) => state.filters);
   const openIncomeOutcome = useModalStore((state) => state.openIncomeOutcome);
   const openTransferModal = useModalStore((state) => state.openTransferModal);
   const detailModalRef = useRef<BottomSheetHandle>(null);
-  const [activeFilters, setActiveFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
 
   const openFilters = useCallback(() => {
-    filterSheetRef.current?.open();
-  }, []);
-
-  const accountOptions = useMemo(
-    () => [{ id: 'all', label: filterSheetStrings.all }, ...accounts.map((account) => ({ id: account.id, label: account.name }))],
-    [accounts, filterSheetStrings],
-  );
-
-  const categoryOptions = useMemo(
-    () => [{ id: 'all', label: filterSheetStrings.all }, ...categories.map((category) => ({ id: category, label: category }))],
-    [categories, filterSheetStrings],
-  );
+    router.push('/(modals)/finance-filter');
+  }, [router]);
 
   const groupedTransactions = useMemo(() => {
     const accountMap = new Map(accounts.map((account) => [account.id, account.name]));
-    const filtered = transactions.filter((transaction) => matchesFilters(transaction, activeFilters));
+    const filtered = transactions.filter((transaction) => matchesFilters(transaction, filters));
     const groups = new Map<string, TransactionGroupData & { timestamp: number }>();
 
     filtered
@@ -269,7 +246,7 @@ const TransactionsPage: React.FC = () => {
     return Array.from(groups.values())
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(({ timestamp, ...rest }) => rest);
-  }, [accounts, activeFilters, transactions]);
+  }, [accounts, filters, transactions]);
 
   const selectedTransaction = useMemo(
     () => transactions.find((txn) => txn.id === selectedTransactionId) ?? null,
@@ -308,14 +285,6 @@ const TransactionsPage: React.FC = () => {
     }
     return null;
   }, [filterSheetStrings.typeOptions, selectedTransaction]);
-
-  const handleApplyFilters = useCallback((filters: FilterState) => {
-    setActiveFilters(filters);
-  }, []);
-
-  const handleResetFilters = useCallback(() => {
-    setActiveFilters(DEFAULT_FILTERS);
-  }, []);
 
   const closeDetails = useCallback(() => {
     detailModalRef.current?.dismiss();
@@ -382,18 +351,10 @@ const TransactionsPage: React.FC = () => {
             group={group}
             onTransactionPress={handleTransactionPress}
           />
-        ))}
+        ))} 
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
-
-      <FilterTransactionSheet
-        ref={filterSheetRef}
-        onApply={handleApplyFilters}
-        onReset={handleResetFilters}
-        accountOptions={accountOptions}
-        categoryOptions={categoryOptions}
-      />
       <CustomModal
         ref={detailModalRef}
         variant="form"

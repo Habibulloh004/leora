@@ -14,21 +14,23 @@ export const AdaptiveGlassView: React.FC<AdaptiveGlassViewProps> = ({
   style,
 }) => {
   const theme = useAppTheme();
+  const borderWidth = Platform.OS === 'ios' ? StyleSheet.hairlineWidth : 1;
+  const glassBackground =
+    theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.08)';
+  const baseStyle = [
+    styles.container,
+    {
+      borderWidth,
+      borderColor: theme.colors.border,
+      backgroundColor: glassBackground,
+    },
+    style,
+  ];
 
   // For Android, use a semi-transparent background with theme colors
   if (Platform.OS === 'android') {
     return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: "transparent",
-            borderWidth: 1,
-            borderColor: theme.colors.border,
-          },
-          style,
-        ]}
-      >
+      <View style={baseStyle}>
         {children}
       </View>
     );
@@ -39,9 +41,14 @@ export const AdaptiveGlassView: React.FC<AdaptiveGlassViewProps> = ({
   const glassStyle = 'clear';
 
   return (
-      <GlassView tintColor={theme.colors.background} isInteractive glassEffectStyle={glassStyle} style={[styles.container, style]}>
-        {children}
-      </GlassView>
+    <GlassView
+      tintColor={theme.colors.background}
+      isInteractive
+      glassEffectStyle={glassStyle}
+      style={baseStyle}
+    >
+      {children}
+    </GlassView>
   );
 };
 

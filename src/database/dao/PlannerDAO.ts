@@ -5,6 +5,8 @@ import { fromObjectId, toISODate, toObjectId } from './helpers';
 
 const defaultUserId = 'local-user';
 
+const hasRealmInstance = (realm: Realm | null): realm is Realm => Boolean(realm && !realm.isClosed);
+
 const mapGoal = (record: any): Goal => ({
   id: fromObjectId(record._id)!,
   userId: record.userId ?? defaultUserId,
@@ -133,6 +135,9 @@ export class GoalDAO {
   constructor(private realm: Realm) {}
 
   list(): Goal[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Goal').map(mapGoal);
   }
 
@@ -186,6 +191,9 @@ export class HabitDAO {
   constructor(private realm: Realm) {}
 
   list(): Habit[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Habit').map(mapHabit);
   }
 }
@@ -194,6 +202,9 @@ export class TaskDAO {
   constructor(private realm: Realm) {}
 
   list(): Task[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('Task').map(mapTask);
   }
 }
@@ -202,6 +213,9 @@ export class FocusSessionDAO {
   constructor(private realm: Realm) {}
 
   list(): FocusSession[] {
+    if (!hasRealmInstance(this.realm)) {
+      return [];
+    }
     return this.realm.objects('FocusSession').map(mapFocusSession);
   }
 }

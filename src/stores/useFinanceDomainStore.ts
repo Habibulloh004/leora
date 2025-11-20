@@ -51,7 +51,11 @@ interface FinanceDomainState {
   updateAccount: (accountId: string, updates: Partial<Account>) => void;
   deleteAccount: (accountId: string) => void;
   archiveAccount: (accountId: string) => void;
-  createTransaction: (payload: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt' | 'rateUsedToBase' | 'convertedAmountToBase'>) => Transaction;
+  clearCustomTypeFromAccounts: (customTypeId: string) => void;
+  createTransaction: (
+    payload: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt'> &
+      Partial<Pick<Transaction, 'rateUsedToBase' | 'convertedAmountToBase'>>
+  ) => Transaction;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
   addCategory: (name: string) => void;
@@ -73,6 +77,7 @@ interface FinanceDomainState {
   getOutstandingDebts: () => OutstandingDebt[];
   getBudgetSnapshots: () => BudgetSnapshot[];
   hydrateFromRealm: (payload: Partial<Pick<FinanceDomainState, 'accounts' | 'transactions' | 'budgets' | 'budgetEntries' | 'debts' | 'debtPayments' | 'fxRates' | 'counterparties'>>) => void;
+  reset: () => void;
 }
 
 const generateId = (_prefix: string) => new BSON.ObjectId().toHexString();
@@ -118,6 +123,18 @@ const DEFAULT_CATEGORIES: string[] = [
   'Other',
   'Debt',
 ];
+
+const createInitialFinanceCollections = () => ({
+  accounts: [] as Account[],
+  categories: [...DEFAULT_CATEGORIES],
+  transactions: [] as Transaction[],
+  budgets: [] as Budget[],
+  budgetEntries: [] as BudgetEntry[],
+  debts: [] as Debt[],
+  debtPayments: [] as DebtPayment[],
+  fxRates: [] as FxRate[],
+  counterparties: [] as Counterparty[],
+});
 
 const applyTransactionToAccounts = (
   accounts: Account[],
@@ -229,15 +246,7 @@ const resolveDebtStatus = (debt: Debt): DebtStatus => {
 };
 
 export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
-      accounts: [],
-      categories: DEFAULT_CATEGORIES,
-      transactions: [],
-      budgets: [],
-      budgetEntries: [],
-      debts: [],
-      debtPayments: [],
-      fxRates: [],
-      counterparties: [],
+      ...createInitialFinanceCollections(),
 
       createAccount: (payload) => {
         const { accounts: accountDao } = getFinanceDaoRegistry();
@@ -247,6 +256,7 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           currency: payload.currency,
           initialBalance: payload.initialBalance,
           linkedGoalId: payload.linkedGoalId,
+          customTypeId: payload.customTypeId,
           isArchived: payload.isArchived,
         });
         set((state) => ({
@@ -287,6 +297,21 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           accounts: state.accounts.map((account) =>
             account.id === accountId ? { ...account, isArchived: true } : account,
           ),
+        }));
+      },
+
+      clearCustomTypeFromAccounts: (customTypeId) => {
+        const { accounts: accountDao } = getFinanceDaoRegistry();
+        set((state) => ({
+          accounts: state.accounts.map((account) => {
+            if (account.customTypeId === customTypeId) {
+              // Update in Realm
+              accountDao.update(account.id, { customTypeId: undefined, accountType: 'other' });
+              // Return updated account
+              return { ...account, customTypeId: undefined, accountType: 'other' };
+            }
+            return account;
+          }),
         }));
       },
 
@@ -858,4 +883,5 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           ...state,
           ...payload,
         })),
+      reset: () => set(createInitialFinanceCollections()),
 }));

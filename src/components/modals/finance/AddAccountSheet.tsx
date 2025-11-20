@@ -34,6 +34,7 @@ import {
   Wallet,
 } from 'lucide-react-native';
 
+import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import CustomBottomSheet, {
   BottomSheetHandle,
 } from '@/components/modals/BottomSheet';
@@ -105,6 +106,15 @@ const CUSTOM_ICON_OPTIONS: CustomIconOption[] = [
   { id: 'trending-up', label: 'Growth', Icon: ACCOUNT_ICON_COMPONENTS['trending-up'] },
 ];
 
+const modalProps: Partial<CustomModalProps> = {
+  variant: 'form',
+  enableDynamicSizing: false,
+  fallbackSnapPoint: '90%',
+  scrollable: true,
+  scrollProps: { keyboardShouldPersistTaps: 'handled' },
+  enablePanDownToClose: true,
+};
+
 const CURRENCY_LABELS: Record<FinanceCurrency, string> = {
   UZS: 'Uzbekistani Som',
   USD: 'US Dollar',
@@ -114,6 +124,7 @@ const CURRENCY_LABELS: Record<FinanceCurrency, string> = {
   SAR: 'Saudi Riyal',
   AED: 'UAE Dirham',
   USDT: 'Tether (USDT)',
+  RUB: 'Russian Ruble',
 };
 
 type CurrencyOption = {
@@ -206,7 +217,7 @@ const TypeOptionItem: React.FC<TypeOptionItemProps> = ({
 const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
   ({ onSubmit, onEditSubmit }, ref) => {
     const theme = useAppTheme();
-    const sheetRef = useRef<BottomSheetHandle>(null);
+    const modalRef = useRef<BottomSheetHandle>(null);
     const customTypeSheetRef = useRef<BottomSheetHandle>(null);
     const currencySheetRef = useRef<BottomSheetHandle>(null);
     const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
@@ -246,7 +257,8 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
       });
     }, [currencyOptions, currencyQuery]);
 
-    const snapPoints = useMemo<(string | number)[]>(() => ['55%', '80%'], []);
+    const customTypeSnapPoints = useMemo<(string | number)[]>(() => ['55%', '80%'], []);
+    const currencySnapPoints = useMemo<(string | number)[]>(() => ['55%'], []);
     const animationConfigs = useMemo(
       () => ({
         duration: 400,
@@ -335,7 +347,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
       () => ({
         expand: () => {
           handleResetForm();
-          sheetRef.current?.present();
+          modalRef.current?.present();
         },
         edit: (account: AccountSheetAccountPreview) => {
           setFormMode('edit');
@@ -361,15 +373,15 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
           } else {
             setSelectedCustomTypeId(null);
           }
-          sheetRef.current?.present();
+          modalRef.current?.present();
         },
-        close: () => sheetRef.current?.dismiss(),
+        close: () => modalRef.current?.dismiss(),
       }),
       [baseCurrency, handleResetForm, upsertCustomType],
     );
 
     const handleCancel = useCallback(() => {
-      sheetRef.current?.dismiss();
+      modalRef.current?.dismiss();
       handleResetForm();
     }, [handleResetForm]);
 
@@ -406,7 +418,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
       }
 
       handleResetForm();
-      sheetRef.current?.dismiss();
+      modalRef.current?.dismiss();
     }, [
       amount,
       customTypes,
@@ -426,14 +438,9 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
 
     return (
       <>
-        <CustomBottomSheet
-          ref={sheetRef}
-          snapPoints={snapPoints}
+        <CustomModal
+          ref={modalRef}
           animationConfigs={animationConfigs}
-          enableDynamicSizing={false}
-          enablePanDownToClose
-          scrollable
-          scrollProps={{ keyboardShouldPersistTaps: 'handled' }}
           keyboardBehavior="interactive"
           keyboardBlurBehavior="restore"
           backgroundStyle={[
@@ -452,6 +459,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
           ]}
           contentContainerStyle={styles.contentContainer}
           onDismiss={handleResetForm}
+          {...modalProps}
         >
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -541,7 +549,6 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
               <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Currency</Text>
               <Pressable
                 onPress={handleOpenCurrencyPicker}
-                style={({ pressed }) => [pressed && styles.pressed]}
               >
                 <AdaptiveGlassView
                   style={[
@@ -618,10 +625,10 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
               </AnimatedPressable>
             </View>
           </KeyboardAvoidingView>
-        </CustomBottomSheet>
+        </CustomModal>
         <CustomBottomSheet
           ref={currencySheetRef}
-          snapPoints={['55%']}
+          snapPoints={currencySnapPoints}
           enableDynamicSizing
           enablePanDownToClose
           backgroundStyle={[
@@ -665,7 +672,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
                 <Pressable
                   key={option.code}
                   onPress={() => handleSelectCurrency(option.code)}
-                  style={({ pressed }) => [styles.currencyRowPressable, pressed && styles.pressed]}
+                  style={({ pressed }) => [styles.currencyRowPressable]}
                 >
                   <AdaptiveGlassView
                     style={[
@@ -696,7 +703,7 @@ const AddAccountSheet = forwardRef<AddAccountSheetHandle, AddAccountSheetProps>(
         </CustomBottomSheet>
         <CustomBottomSheet
           ref={customTypeSheetRef}
-          snapPoints={snapPoints}
+          snapPoints={customTypeSnapPoints}
           enableDynamicSizing={false}
           enablePanDownToClose
           keyboardBehavior="interactive"
@@ -929,6 +936,7 @@ const styles = StyleSheet.create({
   },
   keyboardAvoider: {
     flex: 1,
+    paddingHorizontal: 12,
   },
   moreButtonContainer: {
     paddingHorizontal: 24,

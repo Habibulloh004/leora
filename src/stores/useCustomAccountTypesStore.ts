@@ -41,6 +41,9 @@ export const useCustomAccountTypesStore = create<CustomAccountTypesStore>()(
         });
       },
       removeCustomType: (id) => {
+        // When removing a custom type, we need to update all accounts using this type
+        // to fall back to 'other' type by clearing their customTypeId
+        // This is handled in the finance domain store via a subscription
         set((state) => ({
           customTypes: state.customTypes.filter((item) => item.id !== id),
         }));

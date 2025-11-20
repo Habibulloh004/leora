@@ -20,7 +20,10 @@
       "icon": "./assets/images/logoIos.png",
       "buildNumber": "1.2.0",
       "entitlements": {
-        "com.apple.security.application-groups": ["group.com.sarvaryarbekov.leora"]
+        "com.apple.security.application-groups": [
+          "group.com.sarvaryarbekov.leora",
+          "group.com.sarvaryarbekov.leora"
+        ]
       },
       "infoPlist": {
         "UIViewControllerBasedStatusBarAppearance": false,
@@ -30,10 +33,12 @@
         "NSPhotoLibraryUsageDescription": "LEORA needs access to your photo library.",
         "NSPhotoLibraryAddUsageDescription": "LEORA needs permission to save images.",
         "UIBackgroundModes": [
+          "audio",
           "audio"
         ],
         "NSSupportsLiveActivities": true,
-        "NSSupportsLiveActivitiesFrequentUpdates": false
+        "NSSupportsLiveActivitiesFrequentUpdates": false,
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -44,13 +49,14 @@
       "package": "com.sarvar.leora",
       "versionCode": 1,
       "permissions": [
-        "CAMERA",
-        "RECORD_AUDIO",
-        "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
-        "VIBRATE",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.VIBRATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
@@ -59,8 +65,6 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/adaptive-icon.png",
-          "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#000000",
           "dark": {
@@ -93,9 +97,25 @@
         "origin": false
       },
       "eas": {
-        "projectId": "5fa3a555-1519-4da3-9e1a-0879915b84d9"
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.sarvar.leora.widget",
+                  "targetName": "FocusLiveActivity",
+                  "entitlements": {
+                    "com.apple.security.application-groups": [
+                      "group.com.sarvaryarbekov.leora"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "5fc69c21-4008-47b3-9596-141e41d86b74"
       }
-    },
-    "owner": "sarvar"
+    }
   }
 }

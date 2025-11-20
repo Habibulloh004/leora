@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import type { FocusSession, Goal, Habit, Task, TaskDependency, TaskStatus } from '@/domain/planner/types';
+import { plannerEventBus, type PlannerEventName, type PlannerEventPayloadMap } from '@/events/plannerEventBus';
 import { addDays, startOfDay } from '@/utils/calendar';
 
 export type PlannerHistoryItem = {
@@ -19,20 +20,20 @@ interface PlannerDomainState {
   tasks: Task[];
   focusSessions: FocusSession[];
   taskHistory: PlannerHistoryItem[];
-  createGoal: (payload: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'progressPercent' | 'stats'> & { progressPercent?: number; stats?: Goal['stats'] }) => Goal;
+  createGoal: (payload: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'progressPercent' | 'stats'> & { id?: string; progressPercent?: number; stats?: Goal['stats'] }) => Goal;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   setGoalStatus: (id: string, status: Goal['status']) => void;
   completeGoal: (id: string, completedDate?: string) => void;
   archiveGoal: (id: string) => void;
   pauseGoal: (id: string) => void;
   resumeGoal: (id: string) => void;
-  createHabit: (payload: Omit<Habit, 'id' | 'createdAt' | 'updatedAt' | 'streakCurrent' | 'streakBest' | 'completionRate30d'>) => Habit;
+  createHabit: (payload: Omit<Habit, 'id' | 'createdAt' | 'updatedAt' | 'streakCurrent' | 'streakBest' | 'completionRate30d'> & { id?: string; streakCurrent?: number; streakBest?: number; completionRate30d?: number }) => Habit;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
   logHabitCompletion: (id: string, completed: boolean, options?: { date?: Date | string; clear?: boolean }) => void;
   pauseHabit: (id: string) => void;
   resumeHabit: (id: string) => void;
   archiveHabit: (id: string) => void;
-  createTask: (payload: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'focusTotalMinutes'> & { status?: TaskStatus }) => Task;
+  createTask: (payload: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'focusTotalMinutes'> & { id?: string; status?: TaskStatus; focusTotalMinutes?: number }) => Task;
   updateTask: (id: string, updates: Partial<Task>) => void;
   completeTask: (id: string, options?: { actualMinutes?: number }) => void;
   cancelTask: (id: string) => void;
@@ -51,6 +52,7 @@ interface PlannerDomainState {
   finishFocus: (sessionId: string, options?: { actualMinutes?: number }) => void;
   cancelFocus: (sessionId: string) => void;
   hydrateFromRealm: (payload: Partial<Pick<PlannerDomainState, 'goals' | 'habits' | 'tasks' | 'focusSessions'>>) => void;
+  reset: () => void;
 }
 
 const generateId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -112,6 +114,11 @@ const recalcHabitStatsFromHistory = (history?: Record<string, 'done' | 'miss'>) 
 
   return { streakCurrent, streakBest, completionRate30d };
 };
+
+const publishPlannerEvent = <E extends PlannerEventName>(
+  event: E,
+  payload: PlannerEventPayloadMap[E],
+) => plannerEventBus.publish(event, payload);
 
 const createDefaultGoal = (params: Partial<Goal> & { id: string }): Goal => ({
   id: params.id,
@@ -572,12 +579,16 @@ const DEFAULT_TASKS: Task[] = ENABLE_PLANNER_SEED_DATA ? SAMPLE_TASKS : [];
 
 const INITIAL_GOALS = recalcGoalProgress(DEFAULT_GOALS, DEFAULT_TASKS, DEFAULT_HABITS, []);
 
+const createInitialPlannerCollections = () => ({
+  goals: INITIAL_GOALS,
+  habits: DEFAULT_HABITS,
+  tasks: DEFAULT_TASKS,
+  focusSessions: [] as FocusSession[],
+  taskHistory: [] as PlannerHistoryItem[],
+});
+
 export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
-      goals: INITIAL_GOALS,
-      habits: DEFAULT_HABITS,
-      tasks: DEFAULT_TASKS,
-      focusSessions: [],
-      taskHistory: [],
+      ...createInitialPlannerCollections(),
 
       createGoal: (payload) => {
         const goal: Goal = {
@@ -588,14 +599,18 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           createdAt: nowIso(),
           updatedAt: nowIso(),
         };
+        let created: Goal = goal;
         set((state) => {
           const goals = recalcGoalProgress([goal, ...state.goals], state.tasks, state.habits, state.focusSessions);
+          created = goals.find((item) => item.id === goal.id) ?? goal;
           return { goals };
         });
-        return goal;
+        publishPlannerEvent('planner.goal.created', { goal: created });
+        return created;
       },
 
-      updateGoal: (id, updates) =>
+      updateGoal: (id, updates) => {
+        let updated: Goal | undefined;
         set((state) => {
           const goals = recalcGoalProgress(
             state.goals.map((goal) =>
@@ -605,10 +620,16 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             state.habits,
             state.focusSessions,
           );
+          updated = goals.find((goal) => goal.id === id);
           return { goals };
-        }),
+        });
+        if (updated) {
+          publishPlannerEvent('planner.goal.updated', { goal: updated });
+        }
+      },
 
-      setGoalStatus: (id, status) =>
+      setGoalStatus: (id, status) => {
+        let updated: Goal | undefined;
         set((state) => {
           const goals = recalcGoalProgress(
             state.goals.map((goal) =>
@@ -618,10 +639,16 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             state.habits,
             state.focusSessions,
           );
+          updated = goals.find((goal) => goal.id === id);
           return { goals };
-        }),
+        });
+        if (updated) {
+          publishPlannerEvent('planner.goal.updated', { goal: updated });
+        }
+      },
 
-      completeGoal: (id, completedDate) =>
+      completeGoal: (id, completedDate) => {
+        let completedGoal: Goal | undefined;
         set((state) => {
           const goals = recalcGoalProgress(
             state.goals.map((goal) =>
@@ -639,10 +666,16 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             state.habits,
             state.focusSessions,
           );
+          completedGoal = goals.find((goal) => goal.id === id);
           return { goals };
-        }),
+        });
+        if (completedGoal) {
+          publishPlannerEvent('planner.goal.completed', { goal: completedGoal });
+        }
+      },
 
-      archiveGoal: (id) =>
+      archiveGoal: (id) => {
+        let archived: Goal | undefined;
         set((state) => {
           const goals = recalcGoalProgress(
             state.goals.map((goal) =>
@@ -652,10 +685,16 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             state.habits,
             state.focusSessions,
           );
+          archived = goals.find((goal) => goal.id === id);
           return { goals };
-        }),
+        });
+        if (archived) {
+          publishPlannerEvent('planner.goal.archived', { goal: archived });
+        }
+      },
 
-      pauseGoal: (id) =>
+      pauseGoal: (id) => {
+        let updated: Goal | undefined;
         set((state) => {
           const goals = recalcGoalProgress(
             state.goals.map((goal) =>
@@ -665,10 +704,16 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             state.habits,
             state.focusSessions,
           );
+          updated = goals.find((goal) => goal.id === id);
           return { goals };
-        }),
+        });
+        if (updated) {
+          publishPlannerEvent('planner.goal.updated', { goal: updated });
+        }
+      },
 
-      resumeGoal: (id) =>
+      resumeGoal: (id) => {
+        let updated: Goal | undefined;
         set((state) => {
           const goals = recalcGoalProgress(
             state.goals.map((goal) =>
@@ -678,8 +723,13 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             state.habits,
             state.focusSessions,
           );
+          updated = goals.find((goal) => goal.id === id);
           return { goals };
-        }),
+        });
+        if (updated) {
+          publishPlannerEvent('planner.goal.updated', { goal: updated });
+        }
+      },
 
       createHabit: (payload) => {
         const habit: Habit = {
@@ -700,21 +750,30 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
           };
         });
+        publishPlannerEvent('planner.habit.created', { habit: { ...habit, ...stats } });
         return habit;
       },
 
-      updateHabit: (id, updates) =>
+      updateHabit: (id, updates) => {
+        let updated: Habit | undefined;
         set((state) => {
           const habits = state.habits.map((habit) =>
             habit.id === id ? { ...habit, ...updates, updatedAt: nowIso() } : habit,
           );
+          updated = habits.find((habit) => habit.id === id);
           return {
             habits,
             goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
           };
-        }),
+        });
+        if (updated) {
+          publishPlannerEvent('planner.habit.updated', { habit: updated });
+        }
+      },
 
-      logHabitCompletion: (id, completed, options) =>
+      logHabitCompletion: (id, completed, options) => {
+        let evaluated: Habit | undefined;
+        let evaluatedDate: string | undefined;
         set((state) => {
           const habits = state.habits.map((habit) => {
             if (habit.id !== id) {
@@ -725,6 +784,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
               ? startOfDay(typeof options.date === 'string' ? new Date(options.date) : options.date)
               : startOfDay(new Date());
             const key = dateKeyFromDate(targetDate);
+            evaluatedDate = key;
 
             if (options?.clear) {
               delete history[key];
@@ -733,18 +793,28 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             }
 
             const stats = recalcHabitStatsFromHistory(history);
-            return {
+            const nextHabit = {
               ...habit,
               completionHistory: history,
               ...stats,
               updatedAt: nowIso(),
             };
+            evaluated = nextHabit;
+            return nextHabit;
           });
           return {
             habits,
             goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
           };
-        }),
+        });
+        if (evaluated) {
+          publishPlannerEvent('planner.habit.day_evaluated', {
+            habit: evaluated,
+            date: evaluatedDate,
+            status: completed ? 'done' : 'miss',
+          });
+        }
+      },
 
       pauseHabit: (id) =>
         set((state) => {
@@ -805,21 +875,29 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             taskHistory: [historyEntry, ...state.taskHistory].slice(0, 200),
           };
         });
+        publishPlannerEvent('planner.task.created', { task });
         return task;
       },
 
-      updateTask: (id, updates) =>
+      updateTask: (id, updates) => {
+        let updated: Task | undefined;
         set((state) => {
           const tasks = state.tasks.map((task) =>
             task.id === id ? { ...task, ...updates, updatedAt: nowIso() } : task,
           );
+          updated = tasks.find((task) => task.id === id);
           return {
             tasks,
             goals: recalcGoalProgress(state.goals, tasks, state.habits, state.focusSessions),
           };
-        }),
+        });
+        if (updated) {
+          publishPlannerEvent('planner.task.updated', { task: updated });
+        }
+      },
 
-      completeTask: (id, options) =>
+      completeTask: (id, options) => {
+        let completedTask: Task | undefined;
         set((state) => {
           let completedTitle: string | undefined;
           const actualMinutes = options?.actualMinutes ?? 0;
@@ -828,14 +906,15 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
               return task;
             }
             completedTitle = task.title;
-            return {
+            const nextTask = {
               ...task,
               status: 'completed',
               focusTotalMinutes: (task.focusTotalMinutes ?? 0) + actualMinutes,
               updatedAt: nowIso(),
             };
+            completedTask = nextTask;
+            return nextTask;
           });
-          const completedTask = tasks.find((task) => task.id === id);
           const history = completedTitle && completedTask
             ? appendTaskHistoryEntry(
                 state.taskHistory,
@@ -853,9 +932,14 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             goals: recalcGoalProgress(state.goals, tasks, state.habits, state.focusSessions),
             taskHistory: history,
           };
-        }),
+        });
+        if (completedTask) {
+          publishPlannerEvent('planner.task.completed', { task: completedTask });
+        }
+      },
 
-      cancelTask: (id) =>
+      cancelTask: (id) => {
+        let canceledTask: Task | undefined;
         set((state) => {
           let canceledTitle: string | undefined;
           const tasks = state.tasks.map((task) => {
@@ -863,13 +947,14 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
               return task;
             }
             canceledTitle = task.title;
-            return {
+            const next = {
               ...task,
               status: 'canceled',
               updatedAt: nowIso(),
             };
+            canceledTask = next;
+            return next;
           });
-          const canceledTask = tasks.find((task) => task.id === id);
           const history = canceledTitle && canceledTask
             ? appendTaskHistoryEntry(
                 state.taskHistory,
@@ -887,9 +972,14 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             goals: recalcGoalProgress(state.goals, tasks, state.habits, state.focusSessions),
             taskHistory: history,
           };
-        }),
+        });
+        if (canceledTask) {
+          publishPlannerEvent('planner.task.canceled', { task: canceledTask });
+        }
+      },
 
-      scheduleTask: (id, schedule) =>
+      scheduleTask: (id, schedule) => {
+        let scheduledTask: Task | undefined;
         set((state) => {
           let scheduledTitle: string | undefined;
           const tasks = state.tasks.map((task) => {
@@ -897,7 +987,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
               return task;
             }
             scheduledTitle = task.title;
-            return {
+            const nextTask = {
               ...task,
               status: 'planned',
               dueDate: schedule.dueDate,
@@ -905,8 +995,9 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
               timeOfDay: schedule.timeOfDay ?? task.timeOfDay,
               updatedAt: nowIso(),
             };
+            scheduledTask = nextTask;
+            return nextTask;
           });
-          const scheduledTask = tasks.find((task) => task.id === id);
           const history = scheduledTitle && scheduledTask
             ? appendTaskHistoryEntry(
                 state.taskHistory,
@@ -924,7 +1015,11 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             goals: recalcGoalProgress(state.goals, tasks, state.habits, state.focusSessions),
             taskHistory: history,
           };
-        }),
+        });
+        if (scheduledTask) {
+          publishPlannerEvent('planner.task.updated', { task: scheduledTask });
+        }
+      },
 
       toggleTaskChecklist: (taskId, itemId) =>
         set((state) => ({
@@ -950,12 +1045,13 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           ),
         })),
 
-      setTaskStatus: (taskId, status) =>
+      setTaskStatus: (taskId, status) => {
+        let updatedTask: Task | undefined;
         set((state) => {
           const tasks = state.tasks.map((task) =>
             task.id === taskId ? { ...task, status, updatedAt: nowIso() } : task,
           );
-          const updatedTask = tasks.find((task) => task.id === taskId);
+          updatedTask = tasks.find((task) => task.id === taskId);
           const historyEntry = createHistoryEntry({
             id: taskId,
             title: updatedTask?.title ?? state.tasks.find((task) => task.id === taskId)?.title ?? '',
@@ -968,7 +1064,11 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             goals: recalcGoalProgress(state.goals, tasks, state.habits, state.focusSessions),
             taskHistory: [historyEntry, ...state.taskHistory].slice(0, 200),
           };
-        }),
+        });
+        if (updatedTask) {
+          publishPlannerEvent('planner.task.updated', { task: updatedTask });
+        }
+      },
 
       deleteTask: (taskId) =>
         set((state) => {
@@ -1070,6 +1170,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             };
           });
         }
+        publishPlannerEvent('planner.focus.started', { session });
         return session;
       },
 
@@ -1095,7 +1196,8 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           };
         }),
 
-      finishFocus: (sessionId, options) =>
+      finishFocus: (sessionId, options) => {
+        let completedSession: FocusSession | undefined;
         set((state) => {
           const targetSession = state.focusSessions.find((session) => session.id === sessionId);
           if (!targetSession) {
@@ -1114,6 +1216,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
                 }
               : session,
           );
+          completedSession = focusSessions.find((session) => session.id === sessionId);
           let tasks = state.tasks;
           if (targetSession.taskId) {
             tasks = state.tasks.map((task) =>
@@ -1132,7 +1235,11 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             tasks,
             goals: recalcGoalProgress(state.goals, tasks, state.habits, focusSessions),
           };
-        }),
+        });
+        if (completedSession) {
+          publishPlannerEvent('planner.focus.completed', { session: completedSession });
+        }
+      },
 
       cancelFocus: (sessionId) =>
         set((state) => {
@@ -1149,4 +1256,5 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           ...state,
           ...payload,
         })),
+      reset: () => set(createInitialPlannerCollections()),
 }));

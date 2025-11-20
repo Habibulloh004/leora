@@ -21,9 +21,26 @@ export const useFinanceRealmSync = () => {
   const hydrate = useFinanceDomainStore((state) => state.hydrateFromRealm);
 
   useEffect(() => {
+    if (!realm || realm.isClosed) {
+      return;
+    }
+
     setFinanceDaoRegistry(daos);
 
     const emitSnapshot = () => {
+      if (!realm || realm.isClosed) {
+        hydrate({
+          accounts: [],
+          transactions: [],
+          budgets: [],
+          debts: [],
+          fxRates: [],
+          budgetEntries: [],
+          debtPayments: [],
+          counterparties: [],
+        });
+        return;
+      }
       const accounts = daos.accounts.list();
       const transactions = daos.transactions.list();
       const budgets = daos.budgets.list();
@@ -48,15 +65,17 @@ export const useFinanceRealmSync = () => {
 
     emitSnapshot();
 
-    const collections = [
-      realm.objects('Account'),
-      realm.objects('Transaction'),
-      realm.objects('Budget'),
-      realm.objects('BudgetEntry'),
-      realm.objects('Debt'),
-      realm.objects('FxRate'),
-      realm.objects('Counterparty'),
-    ];
+    const collections = realm.isClosed
+      ? []
+      : [
+          realm.objects('Account'),
+          realm.objects('Transaction'),
+          realm.objects('Budget'),
+          realm.objects('BudgetEntry'),
+          realm.objects('Debt'),
+          realm.objects('FxRate'),
+          realm.objects('Counterparty'),
+        ];
 
     collections.forEach((collection) => collection.addListener(emitSnapshot));
 

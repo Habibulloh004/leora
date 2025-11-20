@@ -1,30 +1,33 @@
-import React, { useCallback, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-} from "react-native";
-import { router, useFocusEffect } from "expo-router";
-import { Mail, Lock } from "lucide-react-native";
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import { Mail, Lock } from 'lucide-react-native';
 import {
   Input,
   Button,
   SocialLoginButtons,
   AuthScreenContainer,
-} from "@/components/screens/auth";
-import GlassCard from "@/components/shared/GlassCard";
-import { CheckIcon } from "@assets/icons";
-import { useAuthStore } from "@/stores/useAuthStore";
-import { validateEmailOrUsername } from "@/utils/validation";
-import { useLockStore } from "@/stores/useLockStore";
+} from '@/components/screens/auth';
+import { LanguageSelectorControl } from '@/components/screens/auth/LanguageSelectorControl';
+import GlassCard from '@/components/shared/GlassCard';
+import { CheckIcon } from '@assets/icons';
+import { useAuthStore } from '@/stores/useAuthStore';
+import { useLockStore } from '@/stores/useLockStore';
+import { useLocalization } from '@/localization/useLocalization';
+import { SupportedLanguage, useSettingsStore } from '@/stores/useSettingsStore';
 
 const LoginScreen = () => {
+  const { strings } = useLocalization();
+  const loginStrings = strings.auth.login;
+  const validationStrings = strings.auth.validation;
+  const commonStrings = strings.auth.common;
+
   const { login, isLoading, error, clearError, setRememberMe } = useAuthStore();
   const setLoggedIn = useLockStore((state) => state.setLoggedIn);
   const setLocked = useLockStore((state) => state.setLocked);
   const updateLastActive = useLockStore((state) => state.updateLastActive);
+  const selectedLanguage = useSettingsStore((state) => state.language as SupportedLanguage);
+  const setLanguagePreference = useSettingsStore((state) => state.setLanguage);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -32,6 +35,22 @@ const LoginScreen = () => {
   const [emailError, setEmailError] = useState<string | undefined>();
   const [passwordError, setPasswordError] = useState<string | undefined>();
   const hasFocusedRef = useRef(false);
+
+  const remoteErrorMap = useMemo(
+    () => ({
+      "Please enter both email/username and password": loginStrings.errors.missingCredentials,
+      "Invalid email/username or password": loginStrings.errors.invalidCredentials,
+      "An error occurred during login. Please try again.": loginStrings.errors.generic,
+    }),
+    [loginStrings.errors]
+  );
+
+  const localizedError = useMemo(() => {
+    if (!error) return undefined;
+    return remoteErrorMap[error] ?? error;
+  }, [error, remoteErrorMap]);
+
+  const isFormValid = Boolean(email.trim() && password && !emailError && !passwordError);
 
   useFocusEffect(
     useCallback(() => {
@@ -51,20 +70,19 @@ const LoginScreen = () => {
   const handleLogin = async () => {
     clearError();
 
-    // Validate inputs
-    const emailValidationError = validateEmailOrUsername(email);
-    const passwordValidationError = password ? undefined : "Password is required";
+    const trimmedEmail = email.trim();
+    const emailValidationError = trimmedEmail ? undefined : validationStrings.emailOrUsernameRequired;
+    const passwordValidationError = password ? undefined : validationStrings.passwordRequired;
 
     setEmailError(emailValidationError);
     setPasswordError(passwordValidationError);
 
-    // If validation fails, don't proceed
     if (emailValidationError || passwordValidationError) {
       return;
     }
 
     const success = await login({
-      emailOrUsername: email,
+      emailOrUsername: trimmedEmail,
       password,
       rememberMe: rememberMeLocal,
     });
@@ -75,33 +93,55 @@ const LoginScreen = () => {
       setLocked(false);
       updateLastActive();
       router.replace("/(tabs)");
-    } else if (error) {
-      Alert.alert("Login Failed", error);
+      return;
     }
+
+    const latestError = useAuthStore.getState().error;
+    const message =
+      (latestError ? remoteErrorMap[latestError] ?? latestError : undefined) ??
+      loginStrings.alerts.failureMessage;
+    Alert.alert(loginStrings.alerts.failureTitle, message);
   };
 
   const handleSocialLogin = (provider: string) => {
-    Alert.alert("Coming Soon", `${provider} login will be available soon!`);
+    Alert.alert(
+      loginStrings.alerts.socialTitle,
+      loginStrings.alerts.socialMessage.replace("{provider}", provider)
+    );
   };
+
+  const handleSelectLanguage = useCallback(
+    (language: SupportedLanguage) => {
+      setLanguagePreference(language);
+      if (error) {
+        clearError();
+      }
+    },
+    [clearError, error, setLanguagePreference],
+  );
 
   return (
     <AuthScreenContainer>
       <View style={styles.container}>
         <GlassCard>
           <View style={styles.card}>
+            <LanguageSelectorControl
+              label={commonStrings.languageButtonLabel}
+              helper={commonStrings.languageHelper}
+              value={selectedLanguage}
+              onChange={handleSelectLanguage}
+            />
             {/* Header */}
             <View style={styles.header}>
-              <Text style={styles.title}>Login</Text>
-              <Text style={styles.description}>
-                Enter your mail and password to log in
-              </Text>
+              <Text style={styles.title}>{loginStrings.title}</Text>
+              <Text style={styles.description}>{loginStrings.description}</Text>
             </View>
 
             {/* Inputs */}
-          <View style={styles.form}>
+            <View style={styles.form}>
               <Input
-                label="Email or Username"
-                placeholder="Enter your email or username"
+                label={loginStrings.fields.emailOrUsername}
+                placeholder={loginStrings.placeholders.emailOrUsername}
                 value={email}
                 onChangeText={(text: string) => {
                   setEmail(text);
@@ -109,8 +149,12 @@ const LoginScreen = () => {
                     clearError();
                   }
                 }}
-                keyboardType="email-address"
                 autoCapitalize="none"
+                keyboardType="email-address"
+                inputMode="email"
+                autoComplete="email"
+                textContentType="username"
+                autoCorrect={false}
                 icon={Mail}
                 iconSize={22}
                 error={emailError}
@@ -118,8 +162,8 @@ const LoginScreen = () => {
               />
 
               <Input
-                label="Password"
-                placeholder="Enter your password"
+                label={loginStrings.fields.password}
+                placeholder={loginStrings.placeholders.password}
                 value={password}
                 onChangeText={(text: string) => {
                   setPassword(text);
@@ -128,6 +172,10 @@ const LoginScreen = () => {
                   }
                 }}
                 isPassword
+                autoComplete="password"
+                textContentType="password"
+                importantForAutofill="yes"
+                autoCorrect={false}
                 icon={Lock}
                 iconSize={22}
                 error={passwordError}
@@ -146,30 +194,32 @@ const LoginScreen = () => {
                   >
                     {rememberMeLocal && <CheckIcon color="#FFFFFF" size={14} />}
                   </View>
-                  <Text style={styles.rememberMeText}>Remember Me</Text>
+                  <Text style={styles.rememberMeText}>{loginStrings.rememberMe}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity onPress={() => router.navigate("/(auth)/forgot-password")}>
-                  <Text style={styles.forgotPassword}>Forgot Password?</Text>
+                  <Text style={styles.forgotPassword}>{loginStrings.forgotPassword}</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Error message */}
-              {error && (
+              {localizedError && (
                 <View style={styles.errorContainer}>
-                  <Text style={styles.errorText}>{error}</Text>
+                  <Text style={styles.errorText}>{localizedError}</Text>
                 </View>
               )}
 
               {/* Login button */}
               <Button
-                title={isLoading ? "Logging in..." : "Log In"}
+                title={loginStrings.buttons.submit}
                 onPress={handleLogin}
-                disabled={isLoading}
+                disabled={!isFormValid || isLoading}
+                loading={isLoading}
               />
 
               {/* Social buttons */}
               <SocialLoginButtons
+                dividerLabel={commonStrings.socialDivider}
                 onGooglePress={() => handleSocialLogin("Google")}
                 onFacebookPress={() => handleSocialLogin("Facebook")}
                 onApplePress={() => handleSocialLogin("Apple")}
@@ -178,9 +228,9 @@ const LoginScreen = () => {
 
             {/* Footer */}
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don&apos;t have an account? </Text>
+              <Text style={styles.footerText}>{loginStrings.links.noAccount} </Text>
               <TouchableOpacity onPress={() => router.navigate("/(auth)/register")}>
-                <Text style={styles.signUpLink}>Sign Up</Text>
+                <Text style={styles.signUpLink}>{loginStrings.links.signUp}</Text>
               </TouchableOpacity>
             </View>
           </View>

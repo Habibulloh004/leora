@@ -10,7 +10,7 @@ import { createGoalSections, type Goal, type GoalSection } from '@/features/plan
 import { useLocalization } from '@/localization/useLocalization';
 import type { PlannerGoalId } from '@/types/planner';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
-import { mapDomainTaskToPlannerTask } from '@/features/planner/taskAdapters';
+import { mapDomainTaskToPlannerTask, type PlannerTaskCard } from '@/features/planner/taskAdapters';
 import { useShallow } from 'zustand/react/shallow';
 import { useModalStore } from '@/stores/useModalStore';
 
@@ -33,7 +33,7 @@ const GoalsPage: React.FC = () => {
     [domainTasks],
   );
   const goalTaskMap = useMemo(() => {
-    const map = new Map<PlannerGoalId, PlannerTask[]>();
+    const map = new Map<PlannerGoalId, PlannerTaskCard[]>();
     tasks.forEach((task) => {
       if (!task.goalId) return;
       const goalId = task.goalId as PlannerGoalId;

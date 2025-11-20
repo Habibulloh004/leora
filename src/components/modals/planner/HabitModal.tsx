@@ -23,6 +23,7 @@ import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import DateChangeModal from '@/components/modals/DateChangeModal';
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { useAppTheme } from '@/constants/theme';
 import { useModalStore } from '@/stores/useModalStore';
 import { useShallow } from 'zustand/react/shallow';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
@@ -245,6 +246,8 @@ export default function PlannerHabitModal() {
   const { strings } = useLocalization();
   const addTaskStrings = strings.addTask;
   const habitStrings = strings.plannerScreens.habits;
+  const theme = useAppTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -692,7 +695,7 @@ export default function PlannerHabitModal() {
                   >
                     <AdaptiveGlassView style={styles.popularHabitInner}>
                       <View style={styles.popularHabitIcon}>
-                        {renderHabitIcon(template.icon, 36, '#FFFFFF')}
+                        {renderHabitIcon(template.icon, 36, theme.colors.textPrimary)}
                       </View>
                       <Text style={styles.popularHabitLabel}>{template.title}</Text>
                       {template.time !== '00:00' && (
@@ -710,7 +713,7 @@ export default function PlannerHabitModal() {
               <View style={styles.titleRow}>
                 <Pressable style={({ pressed }) => [styles.iconSelector, pressed && styles.pressed]}>
                   <AdaptiveGlassView style={styles.iconSelectorInner}>
-                    {renderHabitIcon(selectedIconId, 24, '#FFFFFF')}
+                    {renderHabitIcon(selectedIconId, 24, theme.colors.textPrimary)}
                   </AdaptiveGlassView>
                 </Pressable>
                 <AdaptiveGlassView style={styles.titleInput}>
@@ -718,7 +721,7 @@ export default function PlannerHabitModal() {
                     value={title}
                     onChangeText={setTitle}
                     placeholder="Title"
-                    placeholderTextColor="#7E8B9A"
+                    placeholderTextColor={theme.colors.textMuted}
                     style={styles.textInput}
                   />
                 </AdaptiveGlassView>
@@ -732,7 +735,7 @@ export default function PlannerHabitModal() {
                   value={description}
                   onChangeText={setDescription}
                   placeholder="Description (optional)"
-                  placeholderTextColor="#7E8B9A"
+                  placeholderTextColor={theme.colors.textMuted}
                   multiline
                   style={styles.descriptionInput}
                 />
@@ -760,7 +763,11 @@ export default function PlannerHabitModal() {
                           { opacity: isActive ? 1 : 0.6 },
                         ]}
                       >
-                        {renderHabitIcon(item.id, 24, isActive ? '#FFFFFF' : '#7E8B9A')}
+                        {renderHabitIcon(
+                          item.id,
+                          24,
+                          isActive ? theme.colors.textPrimary : theme.colors.textSecondary,
+                        )}
                       </AdaptiveGlassView>
                     </Pressable>
                   );
@@ -790,7 +797,7 @@ export default function PlannerHabitModal() {
                         <Text
                           style={[
                             styles.habitTypeLabel,
-                            { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                            { color: isActive ? theme.colors.textPrimary : theme.colors.textSecondary },
                           ]}
                         >
                           {type.label}
@@ -813,7 +820,7 @@ export default function PlannerHabitModal() {
                       value={targetValue}
                       onChangeText={setTargetValue}
                       placeholder="0"
-                      placeholderTextColor="#7E8B9A"
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="numeric"
                       style={styles.textInput}
                     />
@@ -823,7 +830,7 @@ export default function PlannerHabitModal() {
                       value={targetUnit}
                       onChangeText={setTargetUnit}
                       placeholder="times"
-                      placeholderTextColor="#7E8B9A"
+                      placeholderTextColor={theme.colors.textMuted}
                       style={styles.textInput}
                     />
                   </AdaptiveGlassView>
@@ -849,11 +856,15 @@ export default function PlannerHabitModal() {
                           { opacity: isActive ? 1 : 0.6 },
                         ]}
                       >
-                        {renderHabitIcon(cat.id, 20, isActive ? '#FFFFFF' : '#7E8B9A')}
+                        {renderHabitIcon(
+                          cat.id,
+                          20,
+                          isActive ? theme.colors.textPrimary : theme.colors.textSecondary,
+                        )}
                         <Text
                           style={[
                             styles.categoryButtonText,
-                            { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                            { color: isActive ? theme.colors.textPrimary : theme.colors.textSecondary },
                           ]}
                         >
                           {cat.label}
@@ -886,7 +897,7 @@ export default function PlannerHabitModal() {
                         <Text
                           style={[
                             styles.frequencyButtonText,
-                            { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                            { color: isActive ? theme.colors.textPrimary : theme.colors.textSecondary },
                           ]}
                         >
                           {freq.label}
@@ -920,7 +931,7 @@ export default function PlannerHabitModal() {
                           <Text
                             style={[
                               styles.weekdayText,
-                              { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                              { color: isActive ? theme.colors.textPrimary : theme.colors.textSecondary },
                             ]}
                           >
                             {day.short}
@@ -952,14 +963,14 @@ export default function PlannerHabitModal() {
                             { opacity: isActive ? 1 : 0.5 },
                           ]}
                         >
-                          <Text
-                            style={[
-                              styles.timesButtonText,
-                              { color: isActive ? '#FFFFFF' : '#7E8B9A' },
-                            ]}
-                          >
-                            {num}
-                          </Text>
+                        <Text
+                          style={[
+                            styles.timesButtonText,
+                            { color: isActive ? theme.colors.textPrimary : theme.colors.textSecondary },
+                          ]}
+                        >
+                          {num}
+                        </Text>
                         </AdaptiveGlassView>
                       </Pressable>
                     );
@@ -995,7 +1006,7 @@ export default function PlannerHabitModal() {
                         <Text
                           style={[
                             styles.challengeButtonLabel,
-                            { color: isActive ? '#FFFFFF' : '#7E8B9A' },
+                            { color: isActive ? theme.colors.textPrimary : theme.colors.textSecondary },
                           ]}
                         >
                           {duration.label}
@@ -1017,7 +1028,7 @@ export default function PlannerHabitModal() {
                       value={customDuration}
                       onChangeText={setCustomDuration}
                       placeholder="Enter days"
-                      placeholderTextColor="#7E8B9A"
+                      placeholderTextColor={theme.colors.textMuted}
                       keyboardType="numeric"
                       style={styles.textInput}
                     />
@@ -1029,7 +1040,7 @@ export default function PlannerHabitModal() {
               {/* Duration summary */}
               {challengeDuration !== 'forever' && (
                 <View style={styles.durationSummary}>
-                  <Ionicons name="calendar-outline" size={14} color="#7E8B9A" />
+                  <Ionicons name="calendar-outline" size={14} color={theme.colors.textSecondary} />
                   <Text style={styles.durationSummaryText}>
                     Starting {startDate.toLocaleDateString()} • Ending{' '}
                     {(() => {
@@ -1065,7 +1076,7 @@ export default function PlannerHabitModal() {
                       <Text
                         style={[
                           styles.goalChipLabel,
-                          { color: linkedGoalId ? '#9E9E9E' : '#FFFFFF' },
+                          { color: linkedGoalId ? theme.colors.textMuted : theme.colors.textPrimary },
                         ]}
                       >
                         {addTaskStrings.goalUnset}
@@ -1086,7 +1097,7 @@ export default function PlannerHabitModal() {
                           <Text
                             style={[
                               styles.goalChipLabel,
-                              { color: active ? '#FFFFFF' : '#9E9E9E' },
+                              { color: active ? theme.colors.textPrimary : theme.colors.textMuted },
                             ]}
                             numberOfLines={1}
                           >
@@ -1113,13 +1124,13 @@ export default function PlannerHabitModal() {
                   style={({ pressed }) => [pressed && styles.pressed]}
                 >
                   <AdaptiveGlassView style={styles.reminderTimeRow}>
-                    <Ionicons name="alarm-outline" size={18} color="#7E8B9A" />
+                    <Ionicons name="alarm-outline" size={18} color={theme.colors.textSecondary} />
                     <Text style={styles.reminderTimeText}>{reminder.time}</Text>
                     <Pressable
                       onPress={() => handleRemoveReminder(reminder.id)}
                       hitSlop={8}
                     >
-                      <Ionicons name="trash-outline" size={18} color="#7E8B9A" />
+                      <Ionicons name="trash-outline" size={18} color={theme.colors.textSecondary} />
                     </Pressable>
                   </AdaptiveGlassView>
                 </Pressable>
@@ -1129,7 +1140,7 @@ export default function PlannerHabitModal() {
                 style={({ pressed }) => [pressed && styles.pressed]}
               >
                 <AdaptiveGlassView style={styles.addReminderButton}>
-                  <Ionicons name="add" size={18} color="#7E8B9A" />
+                  <Ionicons name="add" size={18} color={theme.colors.textSecondary} />
                   <Text style={styles.addReminderText}>Add reminder</Text>
                 </AdaptiveGlassView>
               </Pressable>
@@ -1143,7 +1154,7 @@ export default function PlannerHabitModal() {
                   style={({ pressed }) => [pressed && styles.pressed]}
                 >
                   <AdaptiveGlassView style={styles.calendarOpenButton}>
-                    <Ionicons name="calendar-outline" size={16} color="#7E8B9A" />
+                    <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
                     <Text style={styles.calendarOpenText}>{habitStrings.calendarButton}</Text>
                   </AdaptiveGlassView>
                 </Pressable>
@@ -1156,7 +1167,7 @@ export default function PlannerHabitModal() {
               <View style={styles.aiTextContainer}>
                 <Text style={styles.aiText}>
                   AI:{' '}
-                  <Text style={{ color: '#FFFFFF' }}>
+                  <Text style={{ color: theme.colors.textPrimary }}>
                     Start with small goals. For new habits, it's better to aim for consistency rather than intensity.
                   </Text>
                 </Text>
@@ -1167,12 +1178,12 @@ export default function PlannerHabitModal() {
               <View style={styles.aiSuggestion}>
                 <Text style={styles.aiSuggestionIcon}>💡</Text>
                 <View style={styles.aiTextContainer}>
-                  <Text style={styles.aiText}>
-                    AI:{' '}
-                    <Text style={{ color: '#FFFFFF' }}>
-                      Track your progress daily. Studies show that tracking increases success rate by 42%.
-                    </Text>
+                <Text style={styles.aiText}>
+                  AI:{' '}
+                  <Text style={{ color: theme.colors.textPrimary }}>
+                    Track your progress daily. Studies show that tracking increases success rate by 42%.
                   </Text>
+                </Text>
                 </View>
               </View>
             )}
@@ -1204,12 +1215,7 @@ export default function PlannerHabitModal() {
                     { opacity: disablePrimary ? 0.4 : 1 },
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.primaryButtonText,
-                      { color: disablePrimary ? '#7E8B9A' : '#FFFFFF' },
-                    ]}
-                  >
+                  <Text style={styles.primaryButtonText}>
                     {isEditing ? 'Save changes' : 'Create habit'}
                   </Text>
                 </AdaptiveGlassView>
@@ -1249,11 +1255,12 @@ export default function PlannerHabitModal() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
+  StyleSheet.create({
   glassSurface: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderColor: theme.colors.border,
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)',
   },
   scrollContent: {
     paddingTop: 12,
@@ -1267,7 +1274,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 1.2,
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
   },
   section: {
     marginBottom: 20,
@@ -1281,12 +1288,12 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
     marginBottom: 12,
   },
   sectionDescription: {
     fontSize: 12,
-    color: '#7E8B9A',
+    color: theme.colors.textMuted,
     marginTop: -6,
     marginBottom: 12,
   },
@@ -1313,12 +1320,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     textAlign: 'center',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   popularHabitTime: {
     fontSize: 11,
     fontWeight: '400',
-    color: '#A0A0A0',
+    color: theme.colors.textMuted,
   },
   titleRow: {
     flexDirection: 'row',
@@ -1344,7 +1351,7 @@ const styles = StyleSheet.create({
   textInput: {
     fontSize: 15,
     fontWeight: '400',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   descriptionContainer: {
     borderRadius: 16,
@@ -1356,7 +1363,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '400',
     textAlignVertical: 'top',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   iconsList: {
     gap: 12,
@@ -1398,7 +1405,7 @@ const styles = StyleSheet.create({
   },
   habitTypeDescription: {
     fontSize: 10,
-    color: '#7E8B9A',
+    color: theme.colors.textMuted,
   },
   targetRow: {
     flexDirection: 'row',
@@ -1513,7 +1520,7 @@ const styles = StyleSheet.create({
   },
   challengeButtonDescription: {
     fontSize: 11,
-    color: '#7E8B9A',
+    color: theme.colors.textMuted,
     textAlign: 'center',
   },
   customDurationRow: {
@@ -1530,7 +1537,7 @@ const styles = StyleSheet.create({
   },
   customDurationLabel: {
     fontSize: 14,
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
     fontWeight: '500',
   },
   durationSummary: {
@@ -1540,12 +1547,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(15,23,42,0.04)',
     borderRadius: 12,
   },
   durationSummaryText: {
     fontSize: 12,
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
     flex: 1,
   },
   goalScroll: {
@@ -1566,7 +1573,7 @@ const styles = StyleSheet.create({
   goalHelper: {
     marginTop: 6,
     fontSize: 12,
-    color: '#7E8B9A',
+    color: theme.colors.textMuted,
   },
   reminderHeader: {
     flexDirection: 'row',
@@ -1587,7 +1594,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     fontWeight: '400',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   addReminderButton: {
     flexDirection: 'row',
@@ -1600,7 +1607,7 @@ const styles = StyleSheet.create({
   addReminderText: {
     fontSize: 14,
     fontWeight: '400',
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
   },
   calendarOpenButton: {
     flexDirection: 'row',
@@ -1613,7 +1620,7 @@ const styles = StyleSheet.create({
   calendarOpenText: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
   aiSuggestion: {
     flexDirection: 'row',
@@ -1632,7 +1639,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '400',
     lineHeight: 19,
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -1645,11 +1652,15 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
   secondaryButtonText: {
     fontSize: 15,
     fontWeight: '400',
-    color: '#7E8B9A',
+    color: theme.colors.textSecondary,
   },
   primaryButton: {
     flex: 1,
@@ -1660,10 +1671,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 16,
+    backgroundColor: theme.colors.primary,
   },
   primaryButtonText: {
     fontSize: 15,
     fontWeight: '600',
+    color: theme.colors.onPrimary,
   },
   pressed: {
     opacity: 0.7,
@@ -1692,6 +1705,6 @@ const styles = StyleSheet.create({
   timePickerDoneText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.textPrimary,
   },
 });

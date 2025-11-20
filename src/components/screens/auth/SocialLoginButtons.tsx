@@ -30,18 +30,20 @@ interface SocialLoginButtonsProps {
   onGooglePress?: () => void;
   onFacebookPress?: () => void;
   onApplePress?: () => void;
+  dividerLabel?: string;
 }
 
 export const SocialLoginButtons: React.FC<SocialLoginButtonsProps> = ({
   onGooglePress,
   onFacebookPress,
   onApplePress,
+  dividerLabel = 'Or continue with',
 }) => {
   return (
     <View style={styles.container}>
       <View style={styles.dividerContainer}>
         <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>Or continue with</Text>
+        <Text style={styles.dividerText}>{dividerLabel}</Text>
         <View style={styles.dividerLine} />
       </View>
 

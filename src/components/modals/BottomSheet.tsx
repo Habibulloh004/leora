@@ -95,7 +95,8 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
   }, []);
 
   const handleDismiss = useCallback(() => {
-    bottomSheetRef.current?.dismiss();
+    // `close` is safer here; `dismiss` can throw if index gets out of sync with snap points.
+    bottomSheetRef.current?.close();
   }, []);
 
   useImperativeHandle(
@@ -167,6 +168,22 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
     return defaultSnapPoints;
   }, [defaultSnapPoints, dynamicSizingEnabled, normalizedSnapPoints]);
 
+  const resolvedIndex = useMemo(() => {
+    const targetIndex = index ?? 0;
+
+    // Dynamic sizing without explicit snap points always ends up with a single snap point at index 0.
+    if (dynamicSizingEnabled && (!resolvedSnapPoints || resolvedSnapPoints.length === 0)) {
+      return Math.min(Math.max(targetIndex, -1), 0);
+    }
+
+    if (!resolvedSnapPoints || resolvedSnapPoints.length === 0) {
+      return Math.max(-1, targetIndex);
+    }
+
+    const maxIndex = resolvedSnapPoints.length - 1;
+    return Math.min(Math.max(targetIndex, -1), maxIndex);
+  }, [dynamicSizingEnabled, index, resolvedSnapPoints]);
+
   const panDownToClose = enablePanDownToClose ?? !isFullScreen;
   const backgroundStyles = useMemo(
     () => [styles.background, isFullScreen && styles.fullScreenBackground, backgroundStyle],
@@ -203,7 +220,7 @@ const CustomBottomSheet = forwardRef(function CustomBottomSheet(
   return (
     <BottomSheetModal
       ref={bottomSheetRef}
-      index={index ?? 0}
+      index={resolvedIndex}
       keyboardBehavior={keyboardBehavior ?? 'interactive'}
       keyboardBlurBehavior={keyboardBlurBehavior ?? 'restore'}
       enablePanDownToClose={panDownToClose}

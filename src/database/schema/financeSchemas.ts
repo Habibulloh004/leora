@@ -15,6 +15,7 @@ export const AccountSchema: ObjectSchema = {
     initialBalance: { type: 'double', default: 0 },
     currentBalance: { type: 'double', default: 0 },
     linkedGoalId: 'objectId?',
+    customTypeId: 'string?',
     icon: 'string?',
     color: 'string?',
     isArchived: { type: 'bool', default: false },
