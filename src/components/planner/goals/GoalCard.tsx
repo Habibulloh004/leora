@@ -1,9 +1,22 @@
 // src/components/planner/goals/GoalCard.tsx
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import { GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Pencil, Plus, RefreshCcw } from 'lucide-react-native';
+import {
+  BookOpen,
+  CalendarDays,
+  Clock3,
+  DollarSign,
+  Heart,
+  Info,
+  MoreVertical,
+  Target,
+  TrendingUp,
+  Users,
+} from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { EdgeSwiper } from '@/components/ui/EdgeSwiper';
+import GoalActionsDropdown from '@/components/planner/goals/GoalActionsDropdown';
 import { useAppTheme } from '@/constants/theme';
 import type { Goal } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
@@ -11,28 +24,26 @@ import { useLocalization } from '@/localization/useLocalization';
 type GoalCardProps = {
   goal: Goal;
   onPress: () => void;
-  onAddValue?: () => void;
-  onRefresh?: () => void;
+  onDelete?: () => void;
   onEdit?: () => void;
-  nextStep?: { title: string; dueDate?: string };
-  relationSummary?: { tasks: number; habits: number };
-  onAddStep?: () => void;
+  onAddTask?: () => void;
+  onRecover?: () => void;
+  onDeleteForever?: () => void;
 };
 
 const GoalCardComponent: React.FC<GoalCardProps> = ({
   goal,
   onPress,
-  onAddValue,
-  onRefresh,
+  onDelete,
   onEdit,
-  nextStep,
-  relationSummary,
-  onAddStep,
+  onAddTask,
+  onRecover,
+  onDeleteForever,
 }) => {
   const theme = useAppTheme();
   const { strings } = useLocalization();
   const cardStrings = strings.plannerScreens.goals.cards.actions;
-  const goalStrings = strings.plannerScreens.goals;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const intercept = useCallback(
     (handler?: () => void) => (event: GestureResponderEvent) => {
@@ -43,138 +54,119 @@ const GoalCardComponent: React.FC<GoalCardProps> = ({
   );
 
   const progressPercent = useMemo(() => Math.round(goal.progress * 100), [goal.progress]);
+  const renderIcon = useCallback(() => {
+    const type = (goal as any).goalType ?? (goal as any).type ?? 'personal';
+    switch (type) {
+      case 'financial':
+        return <DollarSign size={20} color={theme.colors.primary} />;
+      case 'health':
+        return <Heart size={20} color={theme.colors.primary} />;
+      case 'education':
+        return <BookOpen size={20} color={theme.colors.primary} />;
+      case 'productivity':
+        return <TrendingUp size={20} color={theme.colors.primary} />;
+      case 'personal':
+      default:
+        return <Users size={20} color={theme.colors.primary} />;
+    }
+  }, [goal, theme.colors.primary]);
+
+  const renderMenu = () => (
+    <GoalActionsDropdown
+      visible={menuOpen}
+      onClose={() => setMenuOpen(false)}
+      actions={[
+        { label: 'Open', onPress },
+        onEdit ? { label: 'Edit Goal', onPress: onEdit } : null,
+        onAddTask ? { label: 'Add Task', onPress: onAddTask } : null,
+        goal.status === 'archived' && onRecover
+          ? { label: 'Recover Goal', onPress: onRecover }
+          : goal.status === 'archived' && onDeleteForever
+            ? { label: 'Delete Permanently', onPress: onDeleteForever, destructive: true }
+          : onDelete
+            ? { label: 'Delete Goal', onPress: onDelete, destructive: true }
+            : null,
+      ].filter(Boolean) as any}
+    />
+  );
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.pressable,
-        pressed && {
-          transform: [{ scale: 0.995 }],
-          opacity: 0.96,
-        },
-      ]}
-      accessibilityRole="button"
-      accessibilityLabel={goal.title}
-      accessibilityHint={cardStrings.openDetailsA11y}
-    >
-      <AdaptiveGlassView style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
-        <View style={styles.inner}>
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.colors.textPrimary }]} numberOfLines={2}>
-              {goal.title}
-            </Text>
-            <View style={styles.badge}>
-              <Text style={[styles.badgeMain, { color: theme.colors.white }]}>{progressPercent}%</Text>
-              <Text style={[styles.badgeSub, { color: theme.colors.textSecondary }]}>
-                {goal.currentAmount}
-                <Text style={[styles.badgeMuted, { color: theme.colors.textTertiary }]}> / {goal.targetAmount}</Text>
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.progressRow}>
-            <View style={[styles.progressTrack, { backgroundColor: theme.colors.surfaceMuted }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  {
-                    width: `${progressPercent}%`,
-                    backgroundColor: progressPercent >= 80 ? theme.colors.success : theme.colors.secondary,
-                  },
-                ]}
-              />
-            </View>
-            <Text style={[styles.progressLabel, { color: theme.colors.textSecondary }]}>{progressPercent}%</Text>
-          </View>
-
-          <View style={styles.summary}>
-            {goal.summary.slice(0, 3).map((row) => (
-              <View key={row.label} style={styles.summaryRow}>
-                <Text style={[styles.summaryLabel, { color: theme.colors.textSecondary }]}>{row.label}</Text>
-                <Text style={[styles.summaryValue, { color: theme.colors.white }]} numberOfLines={1}>
-                  {row.value}
+    <EdgeSwiper onSwipeOpen={() => setMenuOpen(true)} onSwipeClose={() => setMenuOpen(false)}>
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.pressable,
+          pressed && {
+            transform: [{ scale: 0.995 }],
+            opacity: 0.96,
+          },
+        ]}
+        accessibilityRole="button"
+        accessibilityLabel={goal.title}
+        accessibilityHint={cardStrings.openDetailsA11y}
+      >
+        <AdaptiveGlassView style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.border }]}>
+          <View style={styles.inner}>
+            <View style={styles.header}>
+              <View style={styles.iconHolder}>{renderIcon()}</View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.title, { color: theme.colors.textPrimary }]} numberOfLines={2}>
+                  {goal.title}
+                </Text>
+                <Text style={[styles.metaRow, { color: theme.colors.textSecondary }]}>
+                  {(goal.goalType ?? 'goal').toUpperCase()}
                 </Text>
               </View>
-            ))}
-          </View>
-
-          <View style={[styles.nextStepCard, { backgroundColor: theme.colors.surfaceMuted }]}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.nextStepLabel, { color: theme.colors.textSecondary }]}>
-                {goalStrings.nextStep.title}
-              </Text>
-              <Text style={[styles.nextStepTitle, { color: theme.colors.white }]} numberOfLines={1}>
-                {nextStep?.title ?? goalStrings.nextStep.empty}
-              </Text>
-              {nextStep?.dueDate && (
-                <Text style={[styles.nextStepDue, { color: theme.colors.textTertiary }]}>{nextStep.dueDate}</Text>
-              )}
-              {relationSummary && (
-                <Text style={[styles.linkedSummary, { color: theme.colors.textTertiary }]}>
-                  {goalStrings.linkedSummary
-                    .replace('{tasks}', String(relationSummary.tasks))
-                    .replace('{habits}', String(relationSummary.habits))}
-                </Text>
-              )}
-            </View>
-            {onAddStep && (
-              <Pressable onPress={intercept(onAddStep)} style={[styles.nextStepAction, { borderColor: theme.colors.border }]}>
-                <Plus size={14} color={theme.colors.primary} />
-                <Text style={[styles.nextStepActionText, { color: theme.colors.primary }]}>
-                  {goalStrings.nextStep.cta}
-                </Text>
+              <Pressable
+                onPress={intercept(() => setMenuOpen((prev) => !prev))}
+                style={styles.moreButton}
+                hitSlop={8}
+              >
+                <MoreVertical size={16} color={theme.colors.textSecondary} />
               </Pressable>
-            )}
-          </View>
+            </View>
 
-          <View style={styles.actionsRow}>
-            <Pressable
-              style={[
-                styles.actionButton,
-                {
-                  backgroundColor: theme.colors.card,
-                },
-              ]}
-              onPress={intercept(onAddValue)}
-              accessibilityRole="button"
-              accessibilityLabel={cardStrings.addValueA11y}
-            >
-              <Plus size={16} color={theme.colors.iconText} />
-              <Text style={[styles.actionLabel, { color: theme.colors.iconText }]}>{cardStrings.addValue}</Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.actionButton,
-                {
-                  backgroundColor: theme.colors.card,
-                },
-              ]}
-              onPress={intercept(onRefresh)}
-              accessibilityRole="button"
-              accessibilityLabel={cardStrings.refreshA11y}
-            >
-              <RefreshCcw size={16} color={theme.colors.iconText} />
-              <Text style={[styles.actionLabel, { color: theme.colors.textSecondary }]}>{cardStrings.refresh}</Text>
-            </Pressable>
-            <Pressable
-              style={[
-                styles.actionButton,
-                {
-                  backgroundColor: theme.colors.card,
-                },
-              ]}
-              onPress={intercept(onEdit)}
-              accessibilityRole="button"
-              accessibilityLabel={cardStrings.editA11y}
-            >
-              <Pencil size={16} color={theme.colors.iconText} />
-              <Text style={[styles.actionLabel, { color: theme.colors.iconText }]}>{cardStrings.edit}</Text>
-            </Pressable>
+            <View style={styles.progressRow}>
+              <View style={[styles.progressTrack, { backgroundColor: theme.colors.surfaceMuted }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${progressPercent}%`,
+                      backgroundColor: progressPercent >= 80 ? theme.colors.success : theme.colors.secondary,
+                    },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressLabel, { color: theme.colors.textSecondary }]}>{progressPercent}%</Text>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Info size={14} color={theme.colors.textSecondary} />
+              <Text style={[styles.infoText, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                {goal.description || goal.currentAmount}
+              </Text>
+            </View>
+
+            <View style={styles.datesRow}>
+              <View style={styles.dateItem}>
+                <CalendarDays size={14} color={theme.colors.textSecondary} />
+                <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
+                  Created {goal.createdAt ? new Date(goal.createdAt).toLocaleDateString() : '—'}
+                </Text>
+              </View>
+              <View style={styles.dateItem}>
+                <Clock3 size={14} color={theme.colors.textSecondary} />
+                <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
+                  Due {goal.targetDate ? new Date(goal.targetDate).toLocaleDateString() : '—'}
+                </Text>
+              </View>
+            </View>
           </View>
-        </View>
-      </AdaptiveGlassView>
-    </Pressable>
+          {renderMenu()}
+        </AdaptiveGlassView>
+      </Pressable>
+    </EdgeSwiper>
   );
 };
 
@@ -199,7 +191,7 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
   },
   title: {
     flex: 1,
@@ -207,21 +199,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  badge: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  badgeMain: {
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  badgeSub: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  badgeMuted: {
+  metaRow: {
+    marginTop: 4,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: '700',
+    letterSpacing: 0.6,
   },
   progressRow: {
     flexDirection: 'row',
@@ -242,84 +224,43 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  summary: {
-    gap: 8,
+  iconHolder: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  summaryRow: {
+  moreButton: {
+    marginLeft: 8,
+    padding: 4,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  infoText: {
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
+  },
+  datesRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: 12,
+    marginTop: 6,
   },
-  summaryLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-  },
-  summaryValue: {
-    fontSize: 13,
-    fontWeight: '600',
-    flexShrink: 1,
-    textAlign: 'right',
-  },
-  nextStepCard: {
-    borderRadius: 14,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  nextStepLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
-    marginBottom: 4,
-  },
-  nextStepTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  nextStepDue: {
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 2,
-  },
-  linkedSummary: {
-    marginTop: 4,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  nextStepAction: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  dateItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    flex: 1,
   },
-  nextStepActionText: {
+  dateText: {
     fontSize: 12,
-    fontWeight: '700',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    flexWrap: 'wrap',
-  },
-  actionButton: {
-    minHeight: 44,
-    paddingHorizontal: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionLabel: {
-    fontSize: 13,
     fontWeight: '600',
   },
 });

@@ -1,7 +1,6 @@
 // app/(tabs)/(planner)/(tabs)/index.tsx
 import React, { useMemo, useCallback, useState } from 'react';
 import {
-  Dimensions,
   LayoutAnimation,
   Platform,
   Pressable,
@@ -10,22 +9,13 @@ import {
   Text,
   UIManager,
   View,
+  type ViewStyle,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolate,
-  interpolate,
-  runOnJS,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
 import {
   CheckSquare,
   Square,
   Zap,
   AlarmClock,
-  CalendarDays,
   Heart,
   Bell,
   ClipboardList,
@@ -36,31 +26,27 @@ import {
   Moon,
   MoreHorizontal,
   RotateCcw,
+  Pencil,
 } from 'lucide-react-native';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import EdgeSwipeable from '@/components/shared/EdgeSwipeable';
 import { useAppTheme } from '@/constants/theme';
 import { useLocalization } from '@/localization/useLocalization';
 import type { AppTranslations } from '@/localization/strings';
 import { useRouter } from 'expo-router';
 
-import type { PlannerGoalId, PlannerHabitId, PlannerTask, PlannerTaskSection, PlannerTaskStatus } from '@/types/planner';
-import { useSelectedDayStore } from '@/stores/selectedDayStore';
-import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
-import { getHabitTemplates } from '@/features/planner/habits/data';
+import type { PlannerTask, PlannerTaskSection, PlannerTaskStatus } from '@/types/planner';
 import { startOfDay } from '@/utils/calendar';
-import { useModalStore } from '@/stores/useModalStore';
-import { usePlannerDomainStore, type PlannerHistoryItem } from '@/stores/usePlannerDomainStore';
-import { mapDomainTaskToPlannerTask, mapHistoryEntryToPlannerTask, type PlannerTaskCard } from '@/features/planner/taskAdapters';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import type { PlannerTaskCard } from '@/features/planner/taskAdapters';
 import { useShallow } from 'zustand/react/shallow';
+import { usePlannerFocusBridge } from '@/features/planner/useFocusTaskBridge';
+import { usePlannerTasksForDay } from '@/features/planner/hooks/usePlannerTasksForDay';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SWIPE_TRIGGER = SCREEN_WIDTH * 0.24;
-const MAX_SWIPE_DISTANCE = SCREEN_WIDTH * 0.85;
 
 // -----------------------------
 // Helpers
@@ -86,15 +72,15 @@ const sectionMeta = (
 
 const isTaskOverdue = (task: PlannerTask) => {
   if (!task.dueAt) return false;
-  if (task.status === 'done' || task.status === 'moved') return false;
-  return task.status === 'overdue' || task.dueAt < Date.now();
+  if (task.status === 'completed' || task.status === 'archived') return false;
+  return task.dueAt < Date.now();
 };
 
 const stripeColor = (theme: ReturnType<typeof useAppTheme>, task: PlannerTask) => {
-  if (task.status === 'done') return theme.colors.success;
+  if (task.status === 'completed') return theme.colors.success;
   if (task.status === 'in_progress') return theme.colors.primary;
-  if (task.status === 'moved') return theme.colors.warning ?? theme.colors.textSecondary;
-  if (task.status === 'overdue' || isTaskOverdue(task)) return theme.colors.danger;
+  if (task.status === 'archived') return theme.colors.danger;
+  if (isTaskOverdue(task)) return theme.colors.danger;
   return theme.colors.textTertiary;
 };
 
@@ -103,13 +89,11 @@ const statusBadgeColors = (
   status: PlannerTaskStatus,
 ) => {
   switch (status) {
-    case 'done':
+    case 'completed':
       return { bg: `${theme.colors.success}1A`, text: theme.colors.success };
     case 'in_progress':
       return { bg: `${theme.colors.primary}1A`, text: theme.colors.primary };
-    case 'moved':
-      return { bg: `${(theme.colors.warning ?? theme.colors.textSecondary)}1A`, text: theme.colors.warning ?? theme.colors.textSecondary };
-    case 'overdue':
+    case 'archived':
       return { bg: `${theme.colors.danger}1A`, text: theme.colors.danger };
     default:
       return { bg: theme.colors.surfaceMuted, text: theme.colors.textSecondary };
@@ -139,101 +123,40 @@ export default function PlannerTasksTab() {
   const tasksStrings = strings.plannerScreens.tasks;
   const router = useRouter();
   const startFocusForTask = usePlannerFocusBridge((state) => state.startFocusForTask);
-  const habitTemplates = useMemo(() => getHabitTemplates(), []);
-  const openPlannerTaskModal = useModalStore((state) => state.openPlannerTaskModal);
   const handleEditTask = useCallback(
     (task: PlannerTask) => {
-      openPlannerTaskModal({ mode: 'edit', taskId: task.id });
+      router.push(`/(modals)/planner/task?id=${task.id}`);
     },
-    [openPlannerTaskModal],
+    [router],
   );
 
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const {
-    tasks: domainTasks,
-    taskHistory,
     setTaskStatus,
     completeTask,
     deleteTask: deleteDomainTask,
+    deleteTaskPermanently,
     restoreTaskFromHistory,
     removeHistoryEntry,
   } = usePlannerDomainStore(
     useShallow((state) => ({
-      tasks: state.tasks,
-      taskHistory: state.taskHistory,
       setTaskStatus: state.setTaskStatus,
       completeTask: state.completeTask,
       deleteTask: state.deleteTask,
+      deleteTaskPermanently: state.deleteTaskPermanently,
       restoreTaskFromHistory: state.restoreTaskFromHistory,
       removeHistoryEntry: state.removeHistoryEntry,
     })),
   );
 
-  const selectedDay = useSelectedDayStore((state) => state.selectedDate);
-  const normalizedSelectedDay = useMemo(() => startOfDay(selectedDay ?? new Date()), [selectedDay]);
-  const dayStart = normalizedSelectedDay.getTime();
-  const dayEnd = dayStart + 24 * 60 * 60 * 1000;
-
-  const plannerTasks: PlannerTaskCard[] = useMemo(
-    () => domainTasks.map((task) => mapDomainTaskToPlannerTask(task, expandedMap)),
-    [domainTasks, expandedMap],
-  );
-
-  const tasksForDay: PlannerTaskCard[] = useMemo(() => {
-    return plannerTasks.filter((task) => {
-      if (task.dueAt == null) return true;
-      return task.dueAt >= dayStart && task.dueAt < dayEnd;
-    });
-  }, [dayEnd, dayStart, plannerTasks]);
-
-  const historyForDay: PlannerTaskCard[] = useMemo(() => {
-    return taskHistory
-      .filter((entry) => {
-        const ts = new Date(entry.timestamp).getTime();
-        return ts >= dayStart && ts < dayEnd;
-      })
-      .map((entry) => mapHistoryEntryToPlannerTask(entry, expandedMap));
-  }, [dayEnd, dayStart, expandedMap, taskHistory]);
-
-  const grouped = useMemo(() => {
-    const base: Record<PlannerTaskSection, PlannerTaskCard[]> = {
-      morning: [],
-      afternoon: [],
-      evening: [],
-    };
-    tasksForDay.forEach((task) => {
-      base[task.section].push(task);
-    });
-    return base;
-  }, [tasksForDay]);
-
-  const sortedHistory: PlannerTaskCard[] = useMemo(
-    () =>
-      [...historyForDay].sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0)),
-    [historyForDay],
-  );
-
-  const doneCount = (arr: PlannerTaskCard[]) => arr.filter((t) => t.status === 'done').length;
-  const dayOfWeek = normalizedSelectedDay.getDay();
-  const habitsDueToday = useMemo(
-    () => habitTemplates.filter((habit) => habit.scheduleDays.includes(dayOfWeek)).length,
-    [habitTemplates, dayOfWeek],
-  );
-  const goalStepsToday = useMemo(() => {
-    const goalIds = new Set<string>();
-    tasksForDay.forEach((task) => {
-      if (task.goalId) {
-        goalIds.add(task.goalId);
-      }
-    });
-    return goalIds.size;
-  }, [tasksForDay]);
+  const { groupedTasks, historyTasks, normalizedDay, summaryCounts } = usePlannerTasksForDay(expandedMap);
+  const doneCount = (arr: PlannerTaskCard[]) => arr.filter((t) => t.status === 'completed').length;
 
   const handleToggleDone = useCallback(
     (task: PlannerTaskCard) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      if (task.status === 'done') {
-        setTaskStatus(task.id, 'planned');
+      if (task.status === 'completed') {
+        setTaskStatus(task.id, 'active');
         return;
       }
       completeTask(task.id);
@@ -263,16 +186,15 @@ export default function PlannerTasksTab() {
     [deleteDomainTask],
   );
 
-  const handleRestore = useCallback(
-    (historyId: string) => {
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      restoreTaskFromHistory(historyId);
-    },
-    [restoreTaskFromHistory],
-  );
+  const handleRestore = useCallback((historyId?: string) => {
+    if (!historyId) return;
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    restoreTaskFromHistory(historyId);
+  }, [restoreTaskFromHistory]);
 
   const handleRemoveFromHistory = useCallback(
-    (historyId: string) => {
+    (historyId?: string) => {
+      if (!historyId) return;
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       removeHistoryEntry(historyId);
     },
@@ -291,11 +213,11 @@ export default function PlannerTasksTab() {
 
   const plansLabel = useMemo(() => {
     const today = startOfDay(new Date());
-    if (normalizedSelectedDay.getTime() === today.getTime()) {
+    if (normalizedDay.getTime() === today.getTime()) {
       return tasksStrings.todayLabel;
     }
-    return dateFormatter.format(normalizedSelectedDay);
-  }, [dateFormatter, normalizedSelectedDay, tasksStrings.todayLabel]);
+    return dateFormatter.format(normalizedDay);
+  }, [dateFormatter, normalizedDay, tasksStrings.todayLabel]);
 
   const plansTitle = useMemo(
     () => tasksStrings.headerTemplate.replace('{date}', plansLabel),
@@ -304,10 +226,10 @@ export default function PlannerTasksTab() {
   const summaryLabel = useMemo(
     () =>
       tasksStrings.dailySummary
-        .replace('{tasks}', String(tasksForDay.length))
-        .replace('{habits}', String(habitsDueToday))
-        .replace('{goals}', String(goalStepsToday)),
-    [goalStepsToday, habitsDueToday, tasksForDay, tasksStrings.dailySummary],
+        .replace('{tasks}', String(summaryCounts.tasks))
+        .replace('{habits}', String(summaryCounts.habits))
+        .replace('{goals}', String(summaryCounts.goals)),
+    [summaryCounts.goals, summaryCounts.habits, summaryCounts.tasks, tasksStrings.dailySummary],
   );
 
   return (
@@ -317,6 +239,12 @@ export default function PlannerTasksTab() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        {/* Daily Summary Widget - MOVED TO TOP */}
+        <View style={[styles.dailySummary, { backgroundColor: theme.colors.surface }]}>
+          <Text style={[styles.dailySummaryText, { color: theme.colors.textPrimary }]}>{summaryLabel}</Text>
+        </View>
+
+
         {/* Top bar */}
         <View style={styles.topBar}>
           <Text style={[styles.topTitle, { color: theme.colors.textSecondary }]}>{plansTitle}</Text>
@@ -328,18 +256,14 @@ export default function PlannerTasksTab() {
 
         <View style={[styles.separator, { backgroundColor: theme.colors.border }]} />
 
-        <View style={[styles.dailySummary, { backgroundColor: theme.colors.surface }]}>
-          <Text style={[styles.dailySummaryText, { color: theme.colors.textPrimary }]}>{summaryLabel}</Text>
-        </View>
-
         {/* Sections */}
-        {grouped.morning.length > 0 && (
+        {groupedTasks.morning.length > 0 && (
           <Section
             id="morning"
-            items={grouped.morning}
+            items={groupedTasks.morning}
             theme={theme}
-            done={doneCount(grouped.morning)}
-            total={grouped.morning.length}
+            done={doneCount(groupedTasks.morning)}
+            total={groupedTasks.morning.length}
             onToggleDone={handleToggleDone}
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
@@ -350,13 +274,13 @@ export default function PlannerTasksTab() {
           />
         )}
 
-        {grouped.afternoon.length > 0 && (
+        {groupedTasks.afternoon.length > 0 && (
           <Section
             id="afternoon"
-            items={grouped.afternoon}
+            items={groupedTasks.afternoon}
             theme={theme}
-            done={doneCount(grouped.afternoon)}
-            total={grouped.afternoon.length}
+            done={doneCount(groupedTasks.afternoon)}
+            total={groupedTasks.afternoon.length}
             onToggleDone={handleToggleDone}
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
@@ -367,13 +291,13 @@ export default function PlannerTasksTab() {
           />
         )}
 
-        {grouped.evening.length > 0 && (
+        {groupedTasks.evening.length > 0 && (
           <Section
             id="evening"
-            items={grouped.evening}
+            items={groupedTasks.evening}
             theme={theme}
-            done={doneCount(grouped.evening)}
-            total={grouped.evening.length}
+            done={doneCount(groupedTasks.evening)}
+            total={groupedTasks.evening.length}
             onToggleDone={handleToggleDone}
             onToggleExpand={handleToggleExpand}
             onDelete={handleDelete}
@@ -384,9 +308,9 @@ export default function PlannerTasksTab() {
           />
         )}
 
-        {sortedHistory.length > 0 && (
+        {historyTasks.length > 0 && (
           <HistorySection
-            items={sortedHistory}
+            items={historyTasks}
             theme={theme}
             onRestore={handleRestore}
             onRemove={handleRemoveFromHistory}
@@ -427,7 +351,7 @@ function Section({
   onDelete: (id: string) => void;
   onComplete: (task: PlannerTaskCard) => void;
   onFocusTask: (task: PlannerTaskCard) => void;
-  onEditTask: (task: PlannerTask) => void;
+  onEditTask: (task: PlannerTaskCard) => void;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   const meta = sectionMeta(theme, id, tasksStrings.sections);
@@ -489,321 +413,290 @@ function TaskCard({
   onComplete: () => void;
   onRestore?: () => void;
   mode?: 'active' | 'history';
-  onFocusTask?: (task: PlannerTask) => void;
-  onEditTask?: (task: PlannerTask) => void;
+  onFocusTask?: (task: PlannerTaskCard) => void;
+  onEditTask?: (task: PlannerTaskCard) => void;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
-  const translateX = useSharedValue(0);
-
   const isHistory = mode === 'history';
-  const isCompleted = task.status === 'done';
+  const isCompleted = task.status === 'completed';
   const allowComplete = !isHistory && !isCompleted;
   const allowDelete = isHistory ? !!onDelete : true;
   const allowRestore = isHistory;
-  const hasSwipe = allowComplete || allowDelete || allowRestore;
-  const rightAction: 'complete' | 'restore' | null = allowRestore
-    ? 'restore'
-    : allowComplete
-    ? 'complete'
-    : null;
   const badgeColors = statusBadgeColors(theme, task.status);
   const statusLabel = tasksStrings.statuses[task.status];
-  const canFocus = !isHistory && task.status !== 'done' && typeof onFocusTask === 'function';
+  const focusPreferred = task.metadata?.needFocus;
+  const canFocus =
+    !isHistory && task.status !== 'completed' && typeof onFocusTask === 'function';
   const focusLabel =
     task.status === 'in_progress' ? tasksStrings.focus.inProgress : tasksStrings.focus.cta;
 
-  const animatedCardStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
-
-  const rightBackgroundStyle = useAnimatedStyle(() => {
-    if (!rightAction) return { opacity: 0 };
-    const progress = interpolate(
-      Math.max(translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return { opacity: progress };
-  });
-
-  const rightContentStyle = useAnimatedStyle(() => {
-    if (!rightAction) return { opacity: 0, transform: [{ scale: 0.9 }] };
-    const progress = interpolate(
-      Math.max(translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return {
-      opacity: progress,
-      transform: [{ scale: 0.88 + progress * 0.22 }],
-    };
-  });
-
-  const leftBackgroundStyle = useAnimatedStyle(() => {
-    if (!allowDelete) return { opacity: 0 };
-    const progress = interpolate(
-      Math.max(-translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return { opacity: progress };
-  });
-
-  const leftContentStyle = useAnimatedStyle(() => {
-    if (!allowDelete) return { opacity: 0, transform: [{ scale: 0.9 }] };
-    const progress = interpolate(
-      Math.max(-translateX.value, 0),
-      [0, SWIPE_TRIGGER],
-      [0, 1],
-      Extrapolate.CLAMP,
-    );
-    return {
-      opacity: progress,
-      transform: [{ scale: 0.88 + progress * 0.22 }],
-    };
-  });
-
-  const gesture = useMemo(() => {
-    if (!hasSwipe) {
-      return Gesture.Pan().enabled(false);
-    }
-
-    return Gesture.Pan()
-      .activateAfterLongPress(300)
-      .onUpdate((event) => {
-        let translation = event.translationX;
-
-        if (!allowDelete && translation < 0) translation = 0;
-        if (!rightAction && translation > 0) translation = 0;
-
-        const min = allowDelete ? -MAX_SWIPE_DISTANCE : 0;
-        const max = rightAction ? MAX_SWIPE_DISTANCE : 0;
-        translateX.value = Math.max(min, Math.min(translation, max));
-      })
-      .onEnd(() => {
-        const currentX = translateX.value;
-
-        if (allowDelete && currentX < -SWIPE_TRIGGER) {
-          translateX.value = withTiming(-SCREEN_WIDTH, { duration: 220 }, () => {
-            runOnJS(onDelete)();
-          });
-          return;
-        }
-
-        if (rightAction && currentX > SWIPE_TRIGGER) {
-          const action = rightAction === 'restore' ? onRestore : onComplete;
-          translateX.value = withTiming(SWIPE_TRIGGER * 1.1, { duration: 180 }, (finished) => {
-            if (finished && action) {
-              runOnJS(action)();
-            }
-            translateX.value = withTiming(0, { duration: 220 });
-          });
-          return;
-        }
-
-        translateX.value = withTiming(0, { duration: 200 });
-      })
-      .onFinalize(() => {
-        if (!hasSwipe) {
-          translateX.value = 0;
-        }
-      });
-  }, [allowDelete, allowRestore, hasSwipe, onComplete, onDelete, onRestore, rightAction, translateX]);
-
-  const successBgColor = theme.colors.successBg ?? 'rgba(16,185,129,0.18)';
-  const deleteBgColor = theme.colors.dangerBg ?? 'rgba(239,68,68,0.18)';
-  const restoreColor = theme.colors.primary ?? '#3b82f6';
-  const restoreBgColor = `${restoreColor}1A`;
-
   const checkboxDisabled = isHistory;
   const checkboxPress = checkboxDisabled ? undefined : onToggleDone;
+  const handleCardPress = useCallback(() => {
+    if (!isHistory && onFocusTask && focusPreferred) {
+      onFocusTask(task);
+      return;
+    }
+    onToggleExpand();
+  }, [focusPreferred, isHistory, onFocusTask, onToggleExpand, task]);
+
+  const renderRightActions = useCallback(() => {
+    const baseActionStyle: ViewStyle = {
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.sm,
+      flex: 1,
+      height: '100%',
+    };
+    const iconColor = theme.colors.white ?? theme.colors.textPrimary;
+    return (
+      <View
+        style={[
+          styles.swipeActions,
+          {
+            paddingVertical: theme.spacing.sm,
+            paddingHorizontal: theme.spacing.sm,
+            gap: 4,
+          },
+        ]}
+      >
+        {isHistory ? (
+          <>
+            {allowRestore && (
+              <Pressable
+                style={[
+                  styles.swipeActionButtonMono,
+                  baseActionStyle,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={onRestore}
+              >
+                <View style={styles.swipeActionContent}>
+                  <RotateCcw size={32} color={iconColor} />
+                </View>
+              </Pressable>
+            )}
+            {allowDelete && (
+              <Pressable
+                style={[
+                  styles.swipeActionButtonMono,
+                  baseActionStyle,
+                  { backgroundColor: theme.colors.danger },
+                ]}
+                onPress={onDelete}
+              >
+                <View style={styles.swipeActionContent}>
+                  <Trash2 size={32} color={iconColor} />
+                </View>
+              </Pressable>
+            )}
+          </>
+        ) : (
+          <>
+            {allowComplete && (
+              <Pressable
+                style={[
+                  styles.swipeActionButtonMono,
+                  baseActionStyle,
+                  { backgroundColor: theme.colors.success },
+                ]}
+                onPress={onComplete}
+              >
+                <View style={styles.swipeActionContent}>
+                  <CheckSquare size={32} color={iconColor} />
+                </View>
+              </Pressable>
+            )}
+            {onEditTask && (
+              <Pressable
+                style={[
+                  styles.swipeActionButtonMono,
+                  baseActionStyle,
+                  { backgroundColor: theme.colors.card },
+                ]}
+                onPress={() => onEditTask(task)}
+              >
+                <View style={styles.swipeActionContent}>
+                  <Pencil size={32} color={iconColor} />
+                </View>
+              </Pressable>
+            )}
+            {allowDelete && (
+              <Pressable
+                style={[
+                  styles.swipeActionButtonMono,
+                  baseActionStyle,
+                  { backgroundColor: theme.colors.danger },
+                ]}
+                onPress={onDelete}
+              >
+                <View style={styles.swipeActionContent}>
+                  <Trash2 size={32} color={iconColor} />
+                </View>
+              </Pressable>
+            )}
+          </>
+        )}
+      </View>
+    );
+  }, [
+    allowComplete,
+    allowDelete,
+    allowRestore,
+    onComplete,
+    onDelete,
+    onEditTask,
+    onRestore,
+    isHistory,
+    task,
+    theme.colors.card,
+    theme.colors.danger,
+    theme.colors.primary,
+    theme.colors.success,
+    theme.colors.white,
+    theme.colors.textPrimary,
+    theme.spacing.sm,
+    theme.spacing.xl,
+  ]);
 
   return (
-    <View style={styles.swipeContainer}>
-      {rightAction && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.actionBackground,
-            styles.actionBackgroundLeft,
-            {
-              backgroundColor: rightAction === 'restore' ? restoreBgColor : successBgColor,
-              borderColor: theme.colors.border,
-            },
-            rightBackgroundStyle,
-          ]}
-        >
-          <Animated.View style={[styles.actionContent, rightContentStyle]}>
-            {rightAction === 'restore' ? (
-              <>
-                <RotateCcw size={18} color={restoreColor} />
-                <Text style={[styles.actionText, { color: restoreColor }]}>{tasksStrings.actions.restore}</Text>
-              </>
-            ) : (
-              <>
-                <CheckSquare size={18} color={theme.colors.success} />
-                <Text style={[styles.actionText, { color: theme.colors.success }]}>
-                  {tasksStrings.actions.complete}
-                </Text>
-              </>
-            )}
-          </Animated.View>
-        </Animated.View>
-      )}
+    <EdgeSwipeable
+      activationEdgeRatio={0.25}
+      rightThreshold={72}
+      renderRightActions={renderRightActions}
+    >
+      <AdaptiveGlassView
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.card,
+            borderColor: theme.colors.border,
+            shadowOpacity: 0,
+          },
+        ]}
+      >
+        <Pressable style={styles.cardPress} onPress={handleCardPress} disabled={isHistory}>
+          {isHistory && task.deletedAt && (
+            <View style={[styles.historyBadge, { borderColor: theme.colors.danger }]}>
+              <Text style={[styles.historyBadgeText, { color: theme.colors.danger }]}>
+                {tasksStrings.history.deletedBadge}
+              </Text>
+            </View>
+          )}
 
-      {allowDelete && (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.actionBackground,
-            styles.actionBackgroundRight,
-            { backgroundColor: deleteBgColor, borderColor: theme.colors.border },
-            leftBackgroundStyle,
-          ]}
-        >
-          <Animated.View style={[styles.actionContent, leftContentStyle]}>
-            <Trash2 size={18} color={theme.colors.danger} />
-            <Text style={[styles.actionText, { color: theme.colors.danger }]}>
-              {isHistory ? tasksStrings.actions.remove : tasksStrings.actions.delete}
-            </Text>
-          </Animated.View>
-        </Animated.View>
-      )}
-
-      <GestureDetector gesture={gesture}>
-        <Animated.View style={animatedCardStyle}>
-          <AdaptiveGlassView
+          <View
             style={[
-              styles.card,
-              {
-                backgroundColor: theme.colors.card,
-                borderColor: theme.colors.border,
-                shadowOpacity: 0,
-              },
+              styles.stripe,
+              { backgroundColor: stripeColor(theme, task) },
             ]}
+          />
+
+          <Pressable
+            onPress={checkboxPress}
+            disabled={!checkboxPress}
+            style={styles.checkboxWrap}
           >
-            <Pressable style={styles.cardPress} onPress={onToggleExpand} disabled={isHistory}>
-              {isHistory && task.deletedAt && (
-                <View style={[styles.historyBadge, { borderColor: theme.colors.danger }]}>
-                  <Text style={[styles.historyBadgeText, { color: theme.colors.danger }]}>
-                    {tasksStrings.history.deletedBadge}
-                  </Text>
-                </View>
-              )}
+            {task.status === 'completed' ? (
+              <CheckSquare size={16} color={theme.colors.success} />
+            ) : task.deletedAt || task.status === 'archived' ? (
+              <Trash2 size={16} color={theme.colors.danger} />
+            ) : (
+              <Square size={16} color={theme.colors.textSecondary} />
+            )}
+          </Pressable>
 
-              <View
-                style={[
-                  styles.stripe,
-                  { backgroundColor: stripeColor(theme, task) },
-                ]}
-              />
+          <View style={styles.metaRow}>
+            <AlarmClock size={14} color={theme.colors.textSecondary} />
+            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.start}</Text>
+            <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
+            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.duration}</Text>
+            <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
+            <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.context}</Text>
 
-              <Pressable
-                onPress={checkboxPress}
-                disabled={!checkboxPress}
-                style={styles.checkboxWrap}
-              >
-                {task.status === 'done' ? (
-                  <CheckSquare size={16} color={theme.colors.success} />
-                ) : task.deletedAt ? (
-                  <Trash2 size={16} color={theme.colors.danger} />
-                ) : (
-                  <Square size={16} color={theme.colors.textSecondary} />
-                )}
+            <View style={{ flex: 1 }} />
+            <View style={styles.energyRow}>
+              {energyIcons(task.energy, theme.colors.textSecondary)}
+            </View>
+            {!isHistory && onEditTask && (
+              <Pressable hitSlop={10} onPress={() => onEditTask(task)}>
+                <MoreHorizontal size={16} color={theme.colors.textSecondary} />
               </Pressable>
+            )}
+          </View>
 
-              <View style={styles.metaRow}>
-                <AlarmClock size={14} color={theme.colors.textSecondary} />
-                <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.start}</Text>
-                <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
-                <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.duration}</Text>
-                <Text style={[styles.metaDot, { color: theme.colors.textSecondary }]}>•</Text>
-                <Text style={[styles.metaText, { color: theme.colors.textSecondary }]}>{task.context}</Text>
-
-                <View style={{ flex: 1 }} />
-                <View style={styles.energyRow}>
-                  {energyIcons(task.energy, theme.colors.textSecondary)}
-                </View>
-                {!isHistory && onEditTask && (
-                  <Pressable hitSlop={10} onPress={() => onEditTask(task)}>
-                    <MoreHorizontal size={16} color={theme.colors.textSecondary} />
-                  </Pressable>
-                )}
-              </View>
-
-              <View style={styles.statusRow}>
-                <View style={[styles.statusPill, { backgroundColor: badgeColors.bg }]}>
-                  <Text style={[styles.statusPillText, { color: badgeColors.text }]}>{statusLabel}</Text>
-                </View>
-                {!isHistory && canFocus && (
-                  <Pressable
-                    onPress={() => onFocusTask?.(task)}
-                    style={[styles.focusButton, { borderColor: theme.colors.border }]}
-                  >
-                    <Zap size={12} color={theme.colors.textSecondary} />
-                    <Text style={[styles.focusButtonText, { color: theme.colors.textSecondary }]}>
-                      {focusLabel}
-                    </Text>
-                  </Pressable>
-                )}
-              </View>
-
-              <View style={styles.titleRow}>
-                <Text
-                  numberOfLines={1}
-                  style={[
-                    styles.title,
-                    {
-                      color: theme.colors.white,
-                      textDecorationLine: task.status === 'done' ? 'line-through' : 'none',
-                      opacity: task.status === 'done' ? 0.6 : 1,
-                    },
-                  ]}
-                >
-                  {task.title}
+          <View style={styles.statusRow}>
+            <View style={[styles.statusPill, { backgroundColor: badgeColors.bg }]}>
+              <Text style={[styles.statusPillText, { color: badgeColors.text }]}>{statusLabel}</Text>
+            </View>
+            {!isHistory && canFocus && (
+              <Pressable
+                onPress={() => onFocusTask?.(task)}
+                style={[
+                  styles.focusButton,
+                  {
+                    borderColor: theme.colors.border,
+                    backgroundColor: focusPreferred ? `${theme.colors.primary}1A` : 'transparent',
+                  },
+                ]}
+              >
+                <Zap size={12} color={theme.colors.textSecondary} />
+                <Text style={[styles.focusButtonText, { color: theme.colors.textSecondary }]}>
+                  {focusLabel}
                 </Text>
+              </Pressable>
+            )}
+          </View>
 
-                {task.projectHeart && <Heart size={16} color={theme.colors.textSecondary} />}
+          <View style={styles.titleRow}>
+            <Text
+              numberOfLines={1}
+              style={[
+                styles.title,
+                {
+                  color: theme.colors.white,
+                  textDecorationLine: task.status === 'completed' ? 'line-through' : 'none',
+                  opacity: task.status === 'completed' ? 0.6 : 1,
+                },
+              ]}
+            >
+              {task.title}
+            </Text>
 
-                <Text style={[styles.timeRight, { color: theme.colors.textSecondary }]}>
-                  {task.afterWork ? '' : task.costUZS ?? ''}
+            {task.projectHeart && <Heart size={16} color={theme.colors.textSecondary} />}
+
+            <Text style={[styles.timeRight, { color: theme.colors.textSecondary }]}>
+              {task.afterWork ? '' : task.costUZS ?? ''}
+            </Text>
+          </View>
+
+          {task.expanded && !isHistory && (
+            <View style={styles.expandArea}>
+              {task.desc ? (
+                <Text style={[styles.desc, { color: theme.colors.textSecondary }]} numberOfLines={3}>
+                  {task.desc}
                 </Text>
+              ) : null}
+
+              <View style={styles.iconBar}>
+                <Bell size={16} color={theme.colors.textSecondary} />
+                <ClipboardList size={16} color={theme.colors.textSecondary} />
+                <Heart size={16} color={theme.colors.textSecondary} />
+                <CalendarDays size={16} color={theme.colors.textSecondary} />
+                <Trash2 size={16} color={theme.colors.textSecondary} />
               </View>
+            </View>
+          )}
 
-              {task.expanded && !isHistory && (
-                <View style={styles.expandArea}>
-                  {task.desc ? (
-                    <Text style={[styles.desc, { color: theme.colors.textSecondary }]} numberOfLines={3}>
-                      {task.desc}
-                    </Text>
-                  ) : null}
-
-                  <View style={styles.iconBar}>
-                    <Bell size={16} color={theme.colors.textSecondary} />
-                    <ClipboardList size={16} color={theme.colors.textSecondary} />
-                    <Heart size={16} color={theme.colors.textSecondary} />
-                    <CalendarDays size={16} color={theme.colors.textSecondary} />
-                    <Trash2 size={16} color={theme.colors.textSecondary} />
-                  </View>
-                </View>
-              )}
-
-              {task.aiNote && !isHistory && (
-                <View style={styles.aiRow}>
-                  <SunMedium size={14} color={theme.colors.textSecondary} />
-                  <Text numberOfLines={1} style={[styles.aiText, { color: theme.colors.textSecondary }]}>
-                    {tasksStrings.aiPrefix} {task.aiNote}
-                  </Text>
-                </View>
-              )}
-            </Pressable>
-          </AdaptiveGlassView>
-        </Animated.View>
-      </GestureDetector>
-    </View>
+          {task.aiNote && !isHistory && (
+            <View style={styles.aiRow}>
+              <SunMedium size={14} color={theme.colors.textSecondary} />
+              <Text numberOfLines={1} style={[styles.aiText, { color: theme.colors.textSecondary }]}>
+                {tasksStrings.aiPrefix} {task.aiNote}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+      </AdaptiveGlassView>
+    </EdgeSwipeable>
   );
 }
 function HistorySection({
@@ -815,8 +708,8 @@ function HistorySection({
 }: {
   items: PlannerTaskCard[];
   theme: ReturnType<typeof useAppTheme>;
-  onRestore: (historyId: string) => void;
-  onRemove: (historyId: string) => void;
+  onRestore: (historyId?: string) => void;
+  onRemove: (historyId?: string) => void;
   tasksStrings: AppTranslations['plannerScreens']['tasks'];
 }) {
   return (
@@ -835,10 +728,10 @@ function HistorySection({
             key={task.historyId ?? task.id}
             task={task}
             theme={theme}
-            onToggleDone={() => {}}
-            onToggleExpand={() => {}}
+            onToggleDone={() => { }}
+            onToggleExpand={() => { }}
             onDelete={() => onRemove(task.historyId ?? task.id)}
-            onComplete={() => {}}
+            onComplete={() => { }}
             onRestore={() => onRestore(task.historyId ?? task.id)}
             mode="history"
             tasksStrings={tasksStrings}
@@ -1009,30 +902,29 @@ const styles = StyleSheet.create({
   aiRow: { paddingLeft: 38, paddingRight: 8, marginTop: 6, flexDirection: 'row', alignItems: 'center', gap: 6 },
   aiText: { fontSize: 12 },
 
-  swipeContainer: {
-    position: 'relative',
-    borderRadius: 16,
-    overflow: 'hidden',
+  swipeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    height: '100%',
+    width:"100%"
   },
-  actionBackground: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    left: 0,
-    right: 0,
-    borderRadius: 16,
-    borderWidth: 1,
+  swipeActionButtonMono: {
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    flexShrink: 1,
+    borderRadius: 8,
+    flex: 1,
   },
-  actionBackgroundLeft: {
-    alignItems: 'flex-start',
+  swipeActionContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  actionBackgroundRight: {
-    alignItems: 'flex-end',
+  swipeActionTextMono: {
+    fontSize: 10,
+    fontWeight: '500',
   },
-  actionContent: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  actionText: { fontSize: 12, fontWeight: '700' },
 
   fab: {
     position: 'absolute',

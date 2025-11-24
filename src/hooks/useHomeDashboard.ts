@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'r
 
 import type { WidgetType } from '@/config/widgetConfig';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
-import { usePlannerAggregatesStore } from '@/stores/usePlannerAggregatesStore';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useLocalization } from '@/localization/useLocalization';
 import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
@@ -12,6 +11,8 @@ import type {
   ProgressData,
   Task,
   Goal as HomeGoal,
+  CalendarEventMap,
+  CalendarEventType,
 } from '@/types/home';
 import type {
   Task as PlannerTask,
@@ -29,6 +30,7 @@ import {
   startOfMonth,
   toISODateKey,
 } from '@/utils/calendar';
+import { calculateHabitProgress, calculateTaskProgress } from '@/utils/progressCalculator';
 import { useShallow } from 'zustand/shallow';
 import { Activity, BookOpen, Brain, Dumbbell, Heart, Sparkles } from 'lucide-react-native';
 
@@ -45,6 +47,7 @@ interface UseHomeDashboardResult {
   loading: boolean;
   refreshing: boolean;
   calendarIndicators: CalendarIndicatorsMap;
+  calendarEvents: CalendarEventMap;
   refresh: () => void;
 }
 
@@ -79,9 +82,6 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
     })),
   ) as FinanceSnapshot;
 
-  // Используем Aggregates Store для KPI
-  const homeSnapshot = usePlannerAggregatesStore((state) => state.homeSnapshot);
-
   const { locale } = useLocalization();
   const { convertAmount, globalCurrency } = useFinanceCurrency();
 
@@ -90,24 +90,10 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
     [financeState.budgets],
   );
 
-  // Используем данные из HomeSnapshot для прогресса на сегодняшний день
-  const isToday = useMemo(
-    () => startOfDay(selectedDate).getTime() === startOfDay(new Date()).getTime(),
-    [selectedDate],
+  const progress = useMemo(
+    () => computeProgressData(selectedDate, plannerState.tasks, plannerState.habits, budgetScore),
+    [budgetScore, plannerState.habits, plannerState.tasks, selectedDate],
   );
-
-  const progress = useMemo(() => {
-    if (isToday) {
-      // Для сегодняшнего дня используем данные из Aggregates Store
-      return {
-        tasks: Math.round(homeSnapshot.rings.goals * 100),
-        budget: Math.round(budgetScore),
-        focus: Math.round(homeSnapshot.rings.productivity * 100),
-      };
-    }
-    // Для других дат вычисляем вручную
-    return computeProgressData(selectedDate, plannerState.tasks, plannerState.focusSessions, budgetScore);
-  }, [budgetScore, homeSnapshot, isToday, plannerState.focusSessions, plannerState.tasks, selectedDate]);
 
   const widgetData = useMemo(() => {
     return buildWidgetPayloads({
@@ -123,16 +109,26 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
 
   const calendarIndicators = useMemo<CalendarIndicatorsMap>(() => {
     const dateKeys = new Set<string>();
-    plannerState.tasks.forEach((task) => {
-      if (task.dueDate) {
-        dateKeys.add(toISODateKey(new Date(task.dueDate)));
-      }
+    const appendKey = (value?: string | Date | null) => {
+      if (!value) return;
+      const date = typeof value === 'string' ? new Date(value) : value;
+      const iso = toISODateKey(date);
+      dateKeys.add(iso);
+    };
+
+    plannerState.tasks.forEach((task) => appendKey(task.dueDate));
+    plannerState.habits.forEach((habit) => {
+      if (!habit.completionHistory) return;
+      Object.keys(habit.completionHistory).forEach((key) => appendKey(`${key}T00:00:00.000Z`));
     });
-    plannerState.focusSessions.forEach((session) => {
-      if (session.startedAt) {
-        dateKeys.add(toISODateKey(new Date(session.startedAt)));
-      }
+    plannerState.goals.forEach((goal) => {
+      goal.checkIns?.forEach((checkIn) => appendKey(checkIn.dateKey ?? checkIn.createdAt));
+      goal.milestones?.forEach((milestone) => {
+        appendKey(milestone.completedAt);
+        appendKey(milestone.dueDate);
+      });
     });
+    financeState.transactions.forEach((txn) => appendKey(txn.date));
     dateKeys.add(toISODateKey(selectedDate));
 
     const indicators: CalendarIndicatorsMap = {};
@@ -141,13 +137,43 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
       const dailyProgress = computeProgressData(
         date,
         plannerState.tasks,
-        plannerState.focusSessions,
+        plannerState.habits,
         budgetScore,
       );
       indicators[key] = buildIndicators(dailyProgress);
     });
     return indicators;
-  }, [budgetScore, plannerState.focusSessions, plannerState.tasks, selectedDate]);
+  }, [budgetScore, financeState.transactions, plannerState.goals, plannerState.habits, plannerState.tasks, selectedDate]);
+
+  const calendarEvents = useMemo<CalendarEventMap>(() => {
+    const events: CalendarEventMap = {};
+    const register = (dateValue: string | Date | undefined | null, kind: CalendarEventType) => {
+      if (!dateValue) return;
+      const date = typeof dateValue === 'string' ? new Date(dateValue) : dateValue;
+      const iso = toISODateKey(date);
+      if (!events[iso]) {
+        events[iso] = {};
+      }
+      events[iso]![kind] = (events[iso]![kind] ?? 0) + 1;
+    };
+
+    plannerState.tasks.forEach((task) => register(task.dueDate, 'tasks'));
+    plannerState.habits.forEach((habit) => {
+      if (!habit.completionHistory) return;
+      Object.keys(habit.completionHistory).forEach((dateKey) => {
+        register(`${dateKey}T00:00:00.000Z`, 'habits');
+      });
+    });
+    plannerState.goals.forEach((goal) => {
+      goal.checkIns?.forEach((checkIn) => register(checkIn.dateKey ?? checkIn.createdAt, 'goals'));
+      goal.milestones?.forEach((milestone) => {
+        register(milestone.completedAt ?? milestone.dueDate, 'goals');
+      });
+    });
+    financeState.transactions.forEach((txn) => register(txn.date, 'finance'));
+
+    return events;
+  }, [financeState.transactions, plannerState.goals, plannerState.habits, plannerState.tasks]);
 
   const selectDate = useCallback((date: Date) => {
     const normalized = startOfDay(date);
@@ -177,6 +203,7 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
     loading,
     refreshing,
     calendarIndicators,
+    calendarEvents,
     refresh,
   };
 }
@@ -184,25 +211,13 @@ export function useHomeDashboard(initialDate?: Date): UseHomeDashboardResult {
 function computeProgressData(
   targetDate: Date,
   tasks: PlannerTask[],
-  focusSessions: FocusSession[],
+  habits: PlannerHabit[],
   budgetScore: number,
 ): ProgressData {
-  const tasksForDay = tasks.filter((task) =>
-    task.dueDate ? isSameDay(new Date(task.dueDate), targetDate) : false,
-  );
-  const totalTasks = tasksForDay.length;
-  const completedTasks = tasksForDay.filter((task) => task.status === 'completed').length;
-  const tasksScore = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-
-  const focusMinutes = focusSessions
-    .filter((session) => (session.startedAt ? isSameDay(new Date(session.startedAt), targetDate) : false))
-    .reduce((sum, session) => sum + (session.actualMinutes ?? session.plannedMinutes ?? 0), 0);
-  const focusScore = Math.min(100, Math.round((focusMinutes / 120) * 100));
-
   return {
-    tasks: tasksScore,
+    tasks: calculateTaskProgress(tasks, targetDate),
     budget: budgetScore,
-    focus: focusScore,
+    focus: calculateHabitProgress(habits, targetDate),
   };
 }
 

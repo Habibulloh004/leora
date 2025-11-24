@@ -4,7 +4,7 @@ import { financeSchemas } from './schema/financeSchemas';
 import { plannerSchemas } from './schema/plannerSchemas';
 import { SeedService } from '@/services/SeedService';
 
-const schemaVersion = 8;
+const schemaVersion = 9;
 
 const ensureField = <T>(collection: Realm.Results<T>, field: keyof T, value: any) => {
   collection.forEach((item: any) => {
@@ -45,6 +45,10 @@ export const realmConfig: Realm.Configuration = {
 
     const budgetEntries = newRealm.objects<any>('BudgetEntry');
     ensureField(budgetEntries, 'syncStatus', 'local');
+
+    const goals = newRealm.objects<any>('Goal');
+    ensureField(goals, 'direction', 'increase');
+    ensureField(goals, 'currentValue', 0);
 
     const debts = newRealm.objects<any>('Debt');
     ensureField(debts, 'userId', 'local-user');

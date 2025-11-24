@@ -42,6 +42,7 @@ import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 import type { AccountType } from '@/domain/finance/types';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useShallow } from 'zustand/react/shallow';
+import { useLocalization } from '@/localization/useLocalization';
 
 type TypeOption = {
   key: string;
@@ -146,6 +147,9 @@ export default function AddAccountModal() {
   const router = useRouter();
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
+  const { strings } = useLocalization();
+  const commonStrings = (strings as any).common ?? {};
+  const accountStrings = (strings as any).financeScreens?.accounts?.modal ?? {};
   const { id } = useLocalSearchParams<{ id?: string }>();
   const editingId = Array.isArray(id) ? id[0] : id ?? null;
 
@@ -237,9 +241,9 @@ export default function AddAccountModal() {
     () =>
       AVAILABLE_FINANCE_CURRENCIES.map((code) => ({
         code,
-        label: CURRENCY_LABELS[code] ?? code,
+        label: accountStrings.currencyLabels?.[code] ?? CURRENCY_LABELS[code] ?? code,
       })),
-    [],
+    [accountStrings.currencyLabels],
   );
 
   const customTypeOptions = useMemo<TypeOption[]>(
@@ -254,7 +258,17 @@ export default function AddAccountModal() {
     [customTypes],
   );
 
-  const typeOptions = useMemo<TypeOption[]>(() => [...TYPE_OPTIONS, ...customTypeOptions], [customTypeOptions]);
+  const typeOptions = useMemo<TypeOption[]>(() => {
+    const baseTypes = TYPE_OPTIONS.map((option) => ({
+      ...option,
+      label: accountStrings.typeOptions?.[option.id] ?? option.label,
+    }));
+    const customLabeled = customTypeOptions.map((option) => ({
+      ...option,
+      label: option.customTypeId ? option.label : accountStrings.typeOptions?.[option.id] ?? option.label,
+    }));
+    return [...baseTypes, ...customLabeled];
+  }, [accountStrings.typeOptions, customTypeOptions]);
 
   const handleCancel = useCallback(() => {
     router.back();
@@ -336,13 +350,13 @@ export default function AddAccountModal() {
 
   return (
     <>
-      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['bottom']}>
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]} edges={['bottom',"top"]}>
         <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
           <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
-            {isEditMode ? 'Edit Account' : 'Add New Account'}
+            {isEditMode ? accountStrings.titleEdit ?? 'Edit Account' : accountStrings.titleAdd ?? 'Add New Account'}
           </Text>
           <Pressable onPress={router.back} hitSlop={12}>
-            <Text style={[styles.closeText, { color: theme.colors.textSecondary }]}>Close</Text>
+            <Text style={[styles.closeText, { color: theme.colors.textSecondary }]}>{commonStrings.close ?? 'Close'}</Text>
           </Pressable>
         </View>
 
@@ -357,12 +371,14 @@ export default function AddAccountModal() {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Name</Text>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+                {accountStrings.nameLabel ?? 'Name'}
+              </Text>
               <AdaptiveGlassView style={[styles.inputGlass, { borderColor: theme.colors.border }]}>
                 <TextInput
                   value={name}
                   onChangeText={setName}
-                  placeholder="Account Name"
+                  placeholder={accountStrings.namePlaceholder ?? 'Account name'}
                   placeholderTextColor={theme.colors.textMuted}
                   style={[styles.input, { color: theme.colors.textPrimary }]}
                 />
@@ -370,14 +386,16 @@ export default function AddAccountModal() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Description</Text>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+                {accountStrings.descriptionLabel ?? 'Description'}
+              </Text>
               <AdaptiveGlassView
                 style={[styles.inputGlass, styles.multilineGlass, { borderColor: theme.colors.border }]}
               >
                 <TextInput
                   value={description}
                   onChangeText={setDescription}
-                  placeholder="Description"
+                  placeholder={accountStrings.descriptionPlaceholder ?? 'Description'}
                   placeholderTextColor={theme.colors.textMuted}
                   multiline
                   style={[styles.input, styles.multilineInput, { color: theme.colors.textPrimary }]}
@@ -386,7 +404,9 @@ export default function AddAccountModal() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Type</Text>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+                {accountStrings.typeLabel ?? 'Type'}
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -419,7 +439,9 @@ export default function AddAccountModal() {
                     <AdaptiveGlassView style={[styles.typeCard, { borderColor: theme.colors.border }]}>
                       <View style={styles.typeInner}>
                         <PlusCircle size={ICON_SIZE} color={theme.colors.textSecondary} strokeWidth={2} />
-                        <Text style={[styles.typeLabel, { color: theme.colors.textSecondary }]}>Add Type</Text>
+                        <Text style={[styles.typeLabel, { color: theme.colors.textSecondary }]}>
+                          {accountStrings.addType ?? 'Add type'}
+                        </Text>
                       </View>
                     </AdaptiveGlassView>
                   </Pressable>
@@ -433,7 +455,7 @@ export default function AddAccountModal() {
                     <TextInput
                       value={customTypeName}
                       onChangeText={setCustomTypeName}
-                      placeholder="New type name"
+                      placeholder={accountStrings.newTypePlaceholder ?? 'New type name'}
                       placeholderTextColor={theme.colors.textMuted}
                       style={[styles.input, { color: theme.colors.textPrimary }]}
                     />
@@ -446,6 +468,7 @@ export default function AddAccountModal() {
                     {CUSTOM_ICON_OPTIONS.map((option) => {
                       const SelectedIcon = option.Icon;
                       const active = option.id === customIconChoice;
+                      const label = accountStrings.iconOptions?.[option.id] ?? option.label;
                       return (
                         <View key={option.id} style={styles.customIconItem}>
                           <Pressable
@@ -464,7 +487,7 @@ export default function AddAccountModal() {
                               <View style={styles.customIconInner}>
                                 <SelectedIcon size={ICON_SIZE} color={!active ? theme.colors.primary : theme.colors.textSecondary} />
                                 <Text style={[styles.iconChoiceLabel, { color: !active ? theme.colors.primary : theme.colors.textSecondary }]}>
-                                  {option.label}
+                                  {label}
                                 </Text>
                               </View>
                             </AdaptiveGlassView>
@@ -481,14 +504,18 @@ export default function AddAccountModal() {
                       { backgroundColor: theme.colors.primary, opacity: customTypeName.trim() ? 1 : 0.5 },
                     ]}
                   >
-                    <Text style={[styles.primaryButtonText, { color: theme.colors.textPrimary }]}>Save Type</Text>
+                    <Text style={[styles.primaryButtonText, { color: theme.colors.textPrimary }]}>
+                      {accountStrings.saveType ?? commonStrings.save ?? 'Save'}
+                    </Text>
                   </AnimatedPressable>
                 </Animated.View>
               )}
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Currency</Text>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+                {accountStrings.currencyLabel ?? 'Currency'}
+              </Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -538,12 +565,17 @@ export default function AddAccountModal() {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>Amount</Text>
+              <Text style={[styles.label, { color: theme.colors.textSecondary }]}>
+                {accountStrings.amountLabel ?? 'Amount'}
+              </Text>
               <AdaptiveGlassView style={[styles.inputGlass, { borderColor: theme.colors.border }]}>
                 <TextInput
                   value={amount}
                   onChangeText={setAmount}
-                  placeholder={`Amount (${selectedCurrency})`}
+                  placeholder={
+                    (accountStrings.amountPlaceholder as string | undefined)?.replace('{currency}', selectedCurrency) ??
+                    `Amount (${selectedCurrency})`
+                  }
                   placeholderTextColor={theme.colors.textMuted}
                   style={[styles.input, { color: theme.colors.textPrimary }]}
                   keyboardType="decimal-pad"
@@ -566,7 +598,9 @@ export default function AddAccountModal() {
           disabled={isSaveDisabled}
         >
           <Text style={[styles.primaryButtonText, { color: theme.colors.onPrimary }]}>
-            {isEditMode ? 'Save' : 'Add'}
+            {isEditMode
+              ? accountStrings.primaryActionSave ?? commonStrings.save ?? 'Save'
+              : accountStrings.primaryActionAdd ?? commonStrings.add ?? 'Add'}
           </Text>
         </AnimatedPressable>
 
@@ -574,7 +608,9 @@ export default function AddAccountModal() {
           style={[styles.secondaryButton, { borderColor: theme.colors.border }]}
           onPress={handleCancel}
         >
-          <Text style={[styles.secondaryButtonText, { color: theme.colors.textSecondary }]}>Cancel</Text>
+          <Text style={[styles.secondaryButtonText, { color: theme.colors.textSecondary }]}>
+            {commonStrings.cancel ?? 'Cancel'}
+          </Text>
         </AnimatedPressable>
       </View>
     </>

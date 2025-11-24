@@ -54,7 +54,11 @@ const modalProps: Partial<CustomModalProps> = {
   contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
 };
 
-export default function IncomeOutcomeModal() {
+type IncomeOutcomeModalProps = {
+  onRequestClose?: () => void;
+};
+
+export default function IncomeOutcomeModal({ onRequestClose }: IncomeOutcomeModalProps) {
   const modalRef = useRef<BottomSheetHandle>(null);
   const categoryModalRef = useRef<BottomSheetHandle>(null);
   const accountModalRef = useRef<BottomSheetHandle>(null);
@@ -161,14 +165,14 @@ export default function IncomeOutcomeModal() {
         setSelectedCategory(transaction.category ?? null);
         setSelectedAccount(transaction.accountId);
         setTransactionDate(new Date(transaction.date));
-        
+
         // Парсим note для извлечения информации о долге
         const noteText = transaction.note ?? transaction.description ?? '';
-        const debtRegex = tab === 'income' 
-          ? /^(.+?) owes me\.?\s?(.*)$/i 
+        const debtRegex = tab === 'income'
+          ? /^(.+?) owes me\.?\s?(.*)$/i
           : /^I owe to (.+?)\.?\s?(.*)$/i;
         const match = noteText.match(debtRegex);
-        
+
         if (match) {
           setDebtPerson(match[1].trim());
           setNote(match[2]?.trim() ?? '');
@@ -356,7 +360,8 @@ export default function IncomeOutcomeModal() {
 
   const handleClose = useCallback(() => {
     closeIncomeOutcome();
-  }, [closeIncomeOutcome]);
+    onRequestClose?.();
+  }, [closeIncomeOutcome, onRequestClose]);
 
   const handleSubmit = useCallback(() => {
     if (isSaveDisabled || !selectedAccountData || !selectedCategory) {
@@ -366,11 +371,11 @@ export default function IncomeOutcomeModal() {
     // Формируем заметку с информацией о долге
     let finalNote = note.trim();
     if (isDebtCategory && debtPerson.trim()) {
-      const debtInfo = activeTab === 'income' 
-        ? `${debtPerson} owes me` 
+      const debtInfo = activeTab === 'income'
+        ? `${debtPerson} owes me`
         : `I owe to ${debtPerson}`;
-      finalNote = finalNote 
-        ? `${debtInfo}. ${finalNote}` 
+      finalNote = finalNote
+        ? `${debtInfo}. ${finalNote}`
         : debtInfo;
     }
 
@@ -385,6 +390,8 @@ export default function IncomeOutcomeModal() {
       description: finalNote.length ? finalNote : undefined,
       date: transactionDate.toISOString(),
       baseCurrency,
+      rateUsedToBase: 1,
+      convertedAmountToBase: amountNumber,
     };
 
     if (isEditing && editingTransaction) {
@@ -393,14 +400,14 @@ export default function IncomeOutcomeModal() {
       createTransaction(basePayload);
     }
 
-    closeIncomeOutcome();
+    handleClose();
   }, [
     activeTab,
     amountNumber,
-    closeIncomeOutcome,
     createTransaction,
     debtPerson,
     editingTransaction,
+    handleClose,
     isDebtCategory,
     isEditing,
     isSaveDisabled,
@@ -597,16 +604,16 @@ export default function IncomeOutcomeModal() {
             {isDebtCategory && (
               <View style={styles.section}>
                 <Text style={styles.sectionLabel}>
-                  {activeTab === 'income' 
-                    ? 'Who owes you?' 
+                  {activeTab === 'income'
+                    ? 'Who owes you?'
                     : 'Who do you owe?'}
                 </Text>
                 <AdaptiveGlassView style={[styles.glassSurface, styles.inputContainer]}>
                   <TextInput
                     value={debtPerson}
                     onChangeText={setDebtPerson}
-                    placeholder={activeTab === 'income' 
-                      ? 'Person name who owes you' 
+                    placeholder={activeTab === 'income'
+                      ? 'Person name who owes you'
                       : 'Person name you owe to'}
                     placeholderTextColor="#7E8B9A"
                     style={styles.textInput}

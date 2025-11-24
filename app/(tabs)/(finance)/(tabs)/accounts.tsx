@@ -762,7 +762,7 @@ export default function AccountsTab() {
       }
       setExpandedId(null);
       setActionModeId(null);
-      router.push({ pathname: '/(modals)/add-account', params: { id: account.id } });
+      router.push({ pathname: '/(modals)/finance/add-account', params: { id: account.id } });
     },
     [accountItems, router],
   );
@@ -790,7 +790,7 @@ export default function AccountsTab() {
   );
 
   const handleAddNew = useCallback(() => {
-    router.push('/(modals)/add-account');
+    router.push('/(modals)/finance/add-account');
   }, [router]);
 
   return (

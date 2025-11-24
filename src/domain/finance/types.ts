@@ -20,6 +20,7 @@ export interface Account {
   linkedGoalId?: string;
   isArchived: boolean;
   customTypeId?: string;
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -70,6 +71,7 @@ export interface Transaction {
   recurringId?: string;
   attachments?: string[];
   tags?: string[];
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -98,6 +100,7 @@ export interface Budget {
   rolloverMode?: 'none' | 'carryover';
   isArchived: boolean;
   notifyOnExceed?: boolean;
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -119,6 +122,7 @@ export interface Counterparty {
   userId: string;
   displayName: string;
   searchKeywords?: string;
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -149,6 +153,7 @@ export interface Debt {
   reminderEnabled?: boolean;
   reminderTime?: string;
   status: DebtStatus;
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -12,11 +12,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import IncomeOutcomeModal from '@/components/modals/finance/IncomeOutcomeModal';
-import TransactionModal from '@/components/modals/finance/TransactionModal';
-import DebtModal from '@/components/modals/finance/DebtModal';
-import { useModalStore } from '@/stores/useModalStore';
 import { useTab } from '../contexts/TabContext';
+import { useLocalization } from '@/localization/useLocalization';
 import { AddTaskIcon } from '@assets/icons/AddTaskIcon';
 import { QuickExpIcon } from '@assets/icons/QuickExpIcon';
 import { AIVoiceIcon } from '@assets/icons/AIVoiceIcon';
@@ -24,7 +21,6 @@ import { DebtIcon, InComingIcon, TransactionIcon } from '@assets/icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
-import { useShallow } from 'zustand/react/shallow';
 import { useAppTheme } from '@/constants/theme';
 
 const darkFabBackground = require('@assets/images/darkFub.png');
@@ -40,6 +36,7 @@ export default function UniversalFAB() {
   const theme = useAppTheme();
   const { activeTab } = useTab();
   const insets = useSafeAreaInsets();
+  const { strings } = useLocalization();
   const isOpen = useSharedValue(false);
   const rotation = useSharedValue(0);
   const overlayOpacity = useSharedValue(0);
@@ -55,52 +52,36 @@ export default function UniversalFAB() {
   ];
 
   const router = useRouter();
-  const {
-    openIncomeOutcome,
-    openTransferModal,
-    openDebtModal,
-    openPlannerTaskModal,
-    openPlannerGoalModal,
-    openPlannerHabitModal,
-  } = useModalStore(
-    useShallow((state) => ({
-      openIncomeOutcome: state.openIncomeOutcome,
-      openTransferModal: state.openTransferModal,
-      openDebtModal: state.openDebtModal,
-      openPlannerTaskModal: state.openPlannerTaskModal,
-      openPlannerGoalModal: state.openPlannerGoalModal,
-      openPlannerHabitModal: state.openPlannerHabitModal,
-    }))
-  );
 
   const actions: FABAction[] = useMemo(() => {
+    const fabStrings = strings.universalFab;
     switch (activeTab) {
       case 'index':
         return [
-          { id: 'add-task', icon: AddTaskIcon, label: 'ADD TASK' },
-          { id: 'quick-expense', icon: QuickExpIcon, label: 'QUICK EXPENSE' },
-          { id: 'start-focus', icon: HeartPulse, label: 'START FOCUS' },
-          { id: 'voice-note', icon: AIVoiceIcon, label: 'VOICE NOTE' },
+          { id: 'add-task', icon: AddTaskIcon, label: fabStrings.index.task },
+          { id: 'quick-expense', icon: QuickExpIcon, label: fabStrings.index.quickExpense },
+          { id: 'start-focus', icon: HeartPulse, label: fabStrings.index.focus },
+          { id: 'voice-note', icon: AIVoiceIcon, label: fabStrings.index.voiceNote },
         ];
       case 'finance':
       case '(finance)':
         return [
-          { id: 'finance-income-outcome', icon: InComingIcon, label: 'INCOME/OUT' },
-          { id: 'finance-transfer', icon: TransactionIcon, label: 'TRANSFER' },
-          { id: 'finance-debt', icon: DebtIcon, label: 'DEBT' },
+          { id: 'finance-income-outcome', icon: InComingIcon, label: fabStrings.finance.incomeOutcome },
+          { id: 'finance-transfer', icon: TransactionIcon, label: fabStrings.finance.transfer },
+          { id: 'finance-debt', icon: DebtIcon, label: fabStrings.finance.debt },
         ];
       case 'planner':
       case '(planner)':
         return [
-          { id: 'planner-task', icon: AddTaskIcon, label: 'NEW TASK' },
-          { id: 'planner-goal', icon: Flag, label: 'NEW GOAL' },
-          { id: 'planner-habit', icon: ListChecks, label: 'NEW HABIT' },
-          { id: 'planner-focus', icon: HeartPulse, label: 'FOCUS MODE' },
+          { id: 'planner-task', icon: AddTaskIcon, label: fabStrings.planner.task },
+          { id: 'planner-goal', icon: Flag, label: fabStrings.planner.goal },
+          { id: 'planner-habit', icon: ListChecks, label: fabStrings.planner.habit },
+          { id: 'planner-focus', icon: HeartPulse, label: fabStrings.planner.focus },
         ];
       default:
         return [];
     }
-  }, [activeTab]);
+  }, [activeTab, strings]);
 
   const [canUseHaptics, setCanUseHaptics] = useState(false);
 
@@ -337,7 +318,7 @@ export default function UniversalFAB() {
                         setTimeout(() => {
                           switch (action.id) {
                             case 'add-task':
-                              openPlannerTaskModal({ mode: 'create' });
+                              router.push('/(modals)/planner/task');
                               break;
                             case 'quick-expense':
                             case 'add-expense':
@@ -351,25 +332,28 @@ export default function UniversalFAB() {
                               router.navigate('/(modals)/voice-new');
                               break;
                             case 'planner-task':
-                              openPlannerTaskModal({ mode: 'create' });
+                              router.push('/(modals)/planner/task');
                               break;
                             case 'planner-goal':
-                              openPlannerGoalModal('create');
+                              router.push('/(modals)/planner/goal');
                               break;
                             case 'planner-habit':
-                              openPlannerHabitModal({ mode: 'create' });
+                              router.push('/(modals)/planner/habit');
                               break;
                             case 'planner-focus':
                               router.navigate('/focus-mode');
                               break;
                             case 'finance-income-outcome':
-                              openIncomeOutcome({ tab: 'income' });
+                              router.push({
+                                pathname: '/(modals)/finance/quick-exp',
+                                params: { tab: 'income' },
+                              });
                               break;
                             case 'finance-transfer':
-                              openTransferModal();
+                              router.push('/(modals)/finance/transaction');
                               break;
                             case 'finance-debt':
-                              openDebtModal();
+                              router.push('/(modals)/finance/debt');
                               break;
                           }
                         }, 300);
@@ -405,9 +389,6 @@ export default function UniversalFAB() {
           </View>
         </View>
       </View>
-      <IncomeOutcomeModal />
-      <TransactionModal />
-      <DebtModal />
     </>
   );
 }

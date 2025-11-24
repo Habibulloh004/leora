@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 
-import PlannerGoalModal from '@/components/modals/planner/GoalModal';
-import PlannerHabitModal from '@/components/modals/planner/HabitModal';
+import PlannerGoalModal, { GoalModalHandle } from '@/components/modals/planner/GoalModal';
 import PlannerFocusModal from '@/components/modals/planner/FocusModal';
 import AddTaskSheet, { AddTaskSheetHandle } from '@/components/modals/planner/AddTaskSheet';
 import { useModalStore } from '@/stores/useModalStore';
@@ -12,13 +11,16 @@ import { buildPayloadFromTask, buildDomainTaskInputFromPayload } from '@/feature
 import type { AddTaskPayload } from '@/types/planner';
 
 export default function PlannerModals() {
-  const { plannerTaskModal, closePlannerTaskModal } = useModalStore(
+  const { plannerTaskModal, plannerGoalModal, closePlannerTaskModal, closePlannerGoalModal } = useModalStore(
     useShallow((state) => ({
       plannerTaskModal: state.plannerTaskModal,
+      plannerGoalModal: state.plannerGoalModal,
       closePlannerTaskModal: state.closePlannerTaskModal,
+      closePlannerGoalModal: state.closePlannerGoalModal,
     })),
   );
   const sheetRef = useRef<AddTaskSheetHandle>(null);
+  const goalModalRef = useRef<GoalModalHandle>(null);
   const { tasks, createTask, updateTask } = usePlannerDomainStore(
     useShallow((state) => ({
       tasks: state.tasks,
@@ -93,6 +95,36 @@ export default function PlannerModals() {
     [createTask, taskStrings, updateTask],
   );
 
+  // Manage GoalModal
+  const hasHydratedGoalRef = useRef(false);
+
+  useEffect(() => {
+    if (!hasHydratedGoalRef.current) {
+      hasHydratedGoalRef.current = true;
+      if (plannerGoalModal.isOpen) {
+        closePlannerGoalModal();
+      }
+      return;
+    }
+
+    if (!plannerGoalModal.isOpen) {
+      goalModalRef.current?.dismiss();
+      return;
+    }
+
+    if (plannerGoalModal.mode === 'edit' && plannerGoalModal.goalId) {
+      goalModalRef.current?.edit(plannerGoalModal.goalId);
+      return;
+    }
+
+    goalModalRef.current?.present();
+  }, [
+    closePlannerGoalModal,
+    plannerGoalModal.isOpen,
+    plannerGoalModal.mode,
+    plannerGoalModal.goalId,
+  ]);
+
   return (
     <>
       <AddTaskSheet
@@ -105,8 +137,7 @@ export default function PlannerModals() {
         }}
         onDismiss={closePlannerTaskModal}
       />
-      <PlannerGoalModal />
-      <PlannerHabitModal />
+      <PlannerGoalModal ref={goalModalRef} />
       <PlannerFocusModal />
     </>
   );

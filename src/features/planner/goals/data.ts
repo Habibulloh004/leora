@@ -1,6 +1,7 @@
 // src/features/planner/goals/data.ts
 import type { AppTranslations } from '@/localization/strings';
 import type { Goal as PlannerDomainGoal } from '@/domain/planner/types';
+import { calculateGoalProgress } from '@/utils/goalProgress';
 
 export type GoalSummaryRow = {
   label: string;
@@ -24,6 +25,11 @@ export type Goal = {
   progress: number;
   currentAmount: string;
   targetAmount: string;
+  description?: string;
+  goalType?: PlannerDomainGoal['goalType'];
+  status?: PlannerDomainGoal['status'];
+  createdAt?: string;
+  targetDate?: string;
   summary: GoalSummaryRow[];
   milestones: GoalMilestone[];
   history: GoalHistoryEntry[];
@@ -101,12 +107,16 @@ export const createGoalSections = (
         data: [],
       });
     }
-    const targetValue = goal.targetValue ?? 0;
-    const progress = clampPercent(goal.progressPercent);
-    const currentValue =
-      targetValue > 0 && progress > 0 ? targetValue * progress : goal.initialValue ?? undefined;
+    const progressData = calculateGoalProgress(goal);
+    const targetValue = progressData.displayTarget ?? goal.targetValue ?? 0;
+    const currentValue = progressData.displayCurrent ?? goal.initialValue ?? undefined;
+    const progress = clampPercent(goal.status === 'completed' ? 1 : progressData.progressPercent);
     const leftValue =
-      targetValue != null && currentValue != null ? Math.max(targetValue - currentValue, 0) : undefined;
+      targetValue != null && currentValue != null
+        ? goal.direction === 'decrease'
+          ? Math.max(currentValue - targetValue, 0)
+          : Math.max(targetValue - currentValue, 0)
+        : undefined;
     const paceValue =
       goal.stats?.tasksProgressPercent ??
       goal.stats?.habitsProgressPercent ??
@@ -121,6 +131,11 @@ export const createGoalSections = (
     const card: Goal = {
       id: goal.id,
       title: goal.title,
+      description: goal.description,
+      goalType: goal.goalType,
+      status: goal.status,
+      createdAt: goal.createdAt,
+      targetDate: goal.targetDate,
       progress,
       currentAmount: formatMetricValue(goal, currentValue, locale),
       targetAmount: formatMetricValue(goal, targetValue || undefined, locale),

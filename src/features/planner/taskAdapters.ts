@@ -49,17 +49,16 @@ const formatStartTime = (task: Task) => {
 const mapStatusToPlannerStatus = (status: TaskStatus): PlannerTaskStatus => {
   switch (status) {
     case 'completed':
-      return 'done';
+      return 'completed';
     case 'in_progress':
       return 'in_progress';
-    case 'moved':
-      return 'moved';
-    case 'overdue':
-      return 'overdue';
+    case 'archived':
     case 'canceled':
-      return 'moved';
+    case 'deleted':
+    case 'moved':
+      return 'archived';
     default:
-      return 'planned';
+      return 'active';
   }
 };
 
@@ -76,6 +75,7 @@ export const mapDomainTaskToPlannerTask = (
 ): PlannerTaskCard => {
   const expandedMap = options?.expandedMap ?? {};
   const dueAtTs = task.dueDate ? new Date(task.dueDate).getTime() : options?.deletedAt ?? null;
+  const needFocus = task.needFocus ?? Boolean(task.focusTotalMinutes && task.focusTotalMinutes > 0);
   return {
     id: task.id,
     title: task.title,
@@ -104,7 +104,7 @@ export const mapDomainTaskToPlannerTask = (
           lastSessionEndedAt: task.lastFocusSessionId ? new Date(task.updatedAt).getTime() : undefined,
         }
       : undefined,
-    metadata: task.context ? { sourcePayload: undefined } : undefined,
+    metadata: needFocus ? { needFocus } : undefined,
     historyId: options?.historyId,
   };
 };
@@ -245,6 +245,7 @@ export const buildDomainTaskInputFromPayload = (
     priority: mapPriorityToDomain(payload.priority),
     checklist: buildChecklistFromPayload(payload),
     goalId: payload.goalId,
+    needFocus: payload.needFocus,
   };
 };
 
@@ -269,7 +270,7 @@ export const buildPayloadFromTask = (
     remindBeforeMin: 15,
     repeatEnabled: false,
     repeatRule: 'Everyday',
-    needFocus: Boolean(task.focusTotalMinutes && task.focusTotalMinutes > 0),
+    needFocus: task.needFocus ?? Boolean(task.focusTotalMinutes && task.focusTotalMinutes > 0),
     subtasks: task.checklist?.map((item) => item.title) ?? [],
   };
 };

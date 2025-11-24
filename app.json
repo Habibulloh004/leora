@@ -5,7 +5,7 @@
     "version": "1.1.0",
     "runtimeVersion": "1.1.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/icon1.png",
     "scheme": "leora",
     "userInterfaceStyle": "automatic",
     "splash": {
@@ -17,7 +17,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.sarvar.leora",
       "appleTeamId": "APPLE_TEAM_ID",
-      "icon": "./assets/images/logoIos.png",
+      "icon": "./assets/images/icon1.png",
       "buildNumber": "1.2.0",
       "entitlements": {
         "com.apple.security.application-groups": [

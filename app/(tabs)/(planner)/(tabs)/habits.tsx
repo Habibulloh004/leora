@@ -13,6 +13,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { AlarmClock, Award, Check, Flame, MoreHorizontal, Sparkles, Trophy, X } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
@@ -26,8 +27,8 @@ import {
   type HabitDayStatus,
 } from '@/features/planner/habits/data';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
-import { useModalStore } from '@/stores/useModalStore';
 import { useShallow } from 'zustand/react/shallow';
+import { startOfDay } from '@/utils/calendar';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -43,6 +44,7 @@ const pct = (a: number, b: number) => Math.round((a / Math.max(b, 1)) * 100);
 // Main Screen
 // -------------------------------------
 export default function PlannerHabitsTab() {
+  const router = useRouter();
   const styles = useStyles();
   const { strings, locale } = useLocalization();
   const habitStrings = strings.plannerScreens.habits;
@@ -54,6 +56,8 @@ export default function PlannerHabitsTab() {
       archiveHabit: state.archiveHabit,
     })),
   );
+  const storedSelectedDate = useSelectedDayStore((state) => state.selectedDate);
+  const selectedDate = storedSelectedDate;
   const activeDomainHabits = useMemo(() => domainHabits.filter((habit) => habit.status !== 'archived'), [domainHabits]);
   const goalTitleMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -65,9 +69,6 @@ export default function PlannerHabitsTab() {
   const [habits, setHabits] = useState<HabitCardModel[]>(() =>
     buildHabits(activeDomainHabits, { selectedDate, locale }),
   );
-  const storedSelectedDate = useSelectedDayStore((state) => state.selectedDate);
-  const selectedDate = storedSelectedDate;
-  const openPlannerHabitModal = useModalStore((state) => state.openPlannerHabitModal);
 
   useEffect(() => {
     setHabits((prev) => {
@@ -96,6 +97,7 @@ export default function PlannerHabitsTab() {
       prev.map((habit) => (habit.id === id ? { ...habit, expanded: !habit.expanded } : habit)),
     );
   }, []);
+
 
   return (
     <ScrollView
@@ -133,7 +135,7 @@ export default function PlannerHabitsTab() {
                   clear: options?.clear,
                 })
               }
-              onEditHabit={() => openPlannerHabitModal({ mode: 'edit', habitId: habit.id })}
+              onEditHabit={() => router.push(`/(modals)/planner/habit?id=${habit.id}`)}
               onDeleteHabit={(habitId) => archiveHabit(habitId)}
             />
           ))}

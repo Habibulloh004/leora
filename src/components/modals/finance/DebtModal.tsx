@@ -39,6 +39,7 @@ import {
 } from '@/stores/useFinancePreferencesStore';
 import type { Account, Counterparty, Debt } from '@/domain/finance/types';
 import { useShallow } from 'zustand/react/shallow';
+import { isDebtLocked, canDeleteDebt, getDebtTransactions } from '@/utils/debtValidation';
 
 const applyTemplate = (template: string, replacements: Record<string, string>) =>
   Object.entries(replacements).reduce<string>(
@@ -166,7 +167,11 @@ const adaptDebtForModal = (debt: Debt): DebtModalSnapshot => ({
   note: debt.description,
 });
 
-export default function DebtModal() {
+type DebtModalProps = {
+  onRequestClose?: () => void;
+};
+
+export default function DebtModal({ onRequestClose }: DebtModalProps) {
   const modalRef = useRef<BottomSheetHandle>(null);
   const accountModalRef = useRef<BottomSheetHandle>(null);
   const currencyModalRef = useRef<BottomSheetHandle>(null);
@@ -685,6 +690,11 @@ export default function DebtModal() {
     }
   }, [expectedDate]);
 
+  const handleClose = useCallback(() => {
+    closeDebtModal();
+    onRequestClose?.();
+  }, [closeDebtModal, onRequestClose]);
+
   const scheduleDateLabel = useMemo(() => {
     try {
       return new Intl.DateTimeFormat('en', {
@@ -699,8 +709,8 @@ export default function DebtModal() {
 
   const handleCancel = useCallback(() => {
     resetForm(activeType);
-    closeDebtModal();
-  }, [activeType, closeDebtModal, resetForm]);
+    handleClose();
+  }, [activeType, handleClose, resetForm]);
 
   const handleSubmit = useCallback(() => {
     if (isSaveDisabled || !selectedAccountId || !selectedCounterpartyId) {
@@ -743,16 +753,16 @@ export default function DebtModal() {
       setDefaultDebtAccount(activeType, selectedAccountId);
     }
 
-    closeDebtModal();
+    handleClose();
   }, [
     activeType,
     amountValue,
-    closeDebtModal,
     createDebt,
     editingDebtDomain,
     expectedDate,
     isEditing,
     isSaveDisabled,
+    handleClose,
     hasCurrencyMismatch,
     manualFundingEnabled,
     note,
@@ -778,6 +788,19 @@ export default function DebtModal() {
     if (!isEditing || !editingDebtDomain) {
       return;
     }
+
+    // Check if debt is locked (has linked transactions)
+    const deletionCheck = canDeleteDebt(editingDebtDomain.id);
+    if (!deletionCheck.canDelete) {
+      const linkedTransactions = getDebtTransactions(editingDebtDomain.id);
+      Alert.alert(
+        'Cannot Delete Debt',
+        `This debt cannot be deleted because it has ${linkedTransactions.length} linked transaction(s). Please delete the associated transactions first.`,
+        [{ text: 'OK', style: 'cancel' }]
+      );
+      return;
+    }
+
     Alert.alert(modalStrings.deleteTitle, modalStrings.deleteDescription, [
       {
         text: modalStrings.buttons.cancel,
@@ -788,11 +811,11 @@ export default function DebtModal() {
         style: 'destructive',
         onPress: () => {
           deleteDebt(editingDebtDomain.id);
-          closeDebtModal();
+          handleClose();
         },
       },
     ]);
-  }, [closeDebtModal, deleteDebt, editingDebtDomain, isEditing, modalStrings]);
+  }, [deleteDebt, editingDebtDomain, handleClose, isEditing, modalStrings]);
 
   const handleSelectAccount = useCallback(
     (accountId: string) => {
@@ -1002,9 +1025,9 @@ export default function DebtModal() {
 
   const closeShortcutContext = useCallback(() => {
     if (shouldCloseContext) {
-      closeDebtModal();
+      handleClose();
     }
-  }, [closeDebtModal, shouldCloseContext]);
+  }, [handleClose, shouldCloseContext]);
 
   const handleCloseFullPaymentModal = useCallback(() => {
     fullPaymentModalRef.current?.dismiss();
@@ -1575,14 +1598,37 @@ export default function DebtModal() {
             </View>
 
             {/* Delete Button */}
-            {isEditing && (
-              <Pressable
-                onPress={handleDelete}
-                style={({ pressed }) => [styles.deleteButton, pressed && styles.pressed]}
-              >
-                <Text style={styles.deleteButtonText}>{modalStrings.buttons.delete}</Text>
-              </Pressable>
-            )}
+            {isEditing && (() => {
+              const isLocked = editingDebtDomain ? isDebtLocked(editingDebtDomain.id) : false;
+              const linkedCount = isLocked ? getDebtTransactions(editingDebtDomain!.id).length : 0;
+
+              return (
+                <View>
+                  <Pressable
+                    onPress={handleDelete}
+                    style={({ pressed }) => [
+                      styles.deleteButton,
+                      isLocked && styles.deleteButtonLocked,
+                      pressed && !isLocked && styles.pressed
+                    ]}
+                  >
+                    <View style={styles.deleteButtonContent}>
+                      {isLocked && (
+                        <Ionicons name="lock-closed" size={16} color="#7E8B9A" style={{ marginRight: 6 }} />
+                      )}
+                      <Text style={[styles.deleteButtonText, isLocked && styles.deleteButtonTextLocked]}>
+                        {modalStrings.buttons.delete}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  {isLocked && (
+                    <Text style={styles.lockNotice}>
+                      Linked to {linkedCount} transaction{linkedCount > 1 ? 's' : ''}
+                    </Text>
+                  )}
+                </View>
+              );
+            })()}
           </ScrollView>
         </KeyboardAvoidingView>
       </CustomModal>
@@ -2236,10 +2282,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  deleteButtonLocked: {
+    opacity: 0.5,
+  },
+  deleteButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   deleteButtonText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#FF6B6B',
+  },
+  deleteButtonTextLocked: {
+    color: '#7E8B9A',
+  },
+  lockNotice: {
+    fontSize: 12,
+    color: '#7E8B9A',
+    textAlign: 'center',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   pressed: {
     opacity: 0.7,

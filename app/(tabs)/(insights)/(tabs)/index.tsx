@@ -25,10 +25,8 @@ import {
 } from '@/localization/insightsContent';
 import { useInsightsContent } from '@/localization/useInsightsContent';
 import useInsightsDataHook, { type InsightCard } from '@/hooks/useInsightsData';
-import { useModalStore } from '@/stores/useModalStore';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useInsightsExperienceStore } from '@/stores/useInsightsExperienceStore';
-import { mapDomainDebtToLegacy } from '@/utils/finance/debtMappers';
 
 type ComponentMetric = {
   key: OverviewComponentKey;
@@ -538,8 +536,6 @@ const InsightsIndexScreen: React.FC = () => {
   const { overview, questions: questionsContent, history: historyContent } = useInsightsContent();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const router = useRouter();
-  const openIncomeOutcome = useModalStore((state) => state.openIncomeOutcome);
-  const openDebtModal = useModalStore((state) => state.openDebtModal);
   const domainDebts = useFinanceDomainStore((state) => state.debts);
   const { overviewData, cards } = useInsightsDataHook();
   const answers = useInsightsExperienceStore((state) => state.answers);
@@ -678,17 +674,23 @@ const InsightsIndexScreen: React.FC = () => {
           router.push('/(modals)/finance-currency');
           break;
         case 'quick_add':
-          openIncomeOutcome({ mode: 'create', tab: 'outcome' });
+          router.push({
+            pathname: '/(modals)/finance/quick-exp',
+            params: { tab: 'outcome' },
+          });
           break;
         case 'open_debt': {
           if (card.payload?.debtId) {
             const domainDebt = domainDebts.find((item) => item.id === card.payload.debtId);
             if (domainDebt) {
-              openDebtModal({ mode: 'edit', debt: mapDomainDebtToLegacy(domainDebt), focus: 'schedule' });
+              router.push({
+                pathname: '/(modals)/finance/debt',
+                params: { id: domainDebt.id },
+              });
               break;
             }
           }
-          openDebtModal();
+          router.push('/(modals)/finance/debt');
           break;
         }
         case 'open_budgets':
@@ -714,7 +716,7 @@ const InsightsIndexScreen: React.FC = () => {
         markInsightStatus(card.id, 'completed');
       }
     },
-    [domainDebts, markInsightStatus, openDebtModal, openIncomeOutcome, router],
+    [domainDebts, markInsightStatus, router],
   );
 
   return (

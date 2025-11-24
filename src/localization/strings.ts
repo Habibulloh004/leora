@@ -11,6 +11,11 @@ import ruGoalModal from './goalModal/ru.json';
 import uzGoalModal from './goalModal/uz.json';
 import arGoalModal from './goalModal/ar.json';
 import trGoalModal from './goalModal/tr.json';
+import enUniversalFab from './universalFab/en.json';
+import ruUniversalFab from './universalFab/ru.json';
+import uzUniversalFab from './universalFab/uz.json';
+import arUniversalFab from './universalFab/ar.json';
+import trUniversalFab from './universalFab/tr.json';
 
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'ru', 'uz', 'ar', 'tr'];
 
@@ -333,6 +338,25 @@ export type AppTranslations = {
     goalUnset: string;
     goalHelper: string;
   };
+  universalFab: {
+    planner: {
+      task: string;
+      goal: string;
+      habit: string;
+      focus: string;
+    };
+    finance: {
+      incomeOutcome: string;
+      transfer: string;
+      debt: string;
+    };
+    index: {
+      task: string;
+      quickExpense: string;
+      focus: string;
+      voiceNote: string;
+    };
+  };
   plannerScreens: {
     tabs: {
       tasks: string;
@@ -367,7 +391,7 @@ export type AppTranslations = {
       };
       aiPrefix: string;
       dailySummary: string;
-      statuses: Record<'planned' | 'in_progress' | 'done' | 'moved' | 'overdue', string>;
+      statuses: Record<'active' | 'in_progress' | 'completed' | 'archived', string>;
       focus: {
         cta: string;
         inProgress: string;
@@ -949,6 +973,17 @@ export type AppTranslations = {
 
 const t = {
   en: {
+    common: {
+      close: 'Close',
+      cancel: 'Cancel',
+      save: 'Save',
+      add: 'Add',
+      delete: 'Delete',
+      apply: 'Apply',
+      reset: 'Reset',
+      done: 'Done',
+      select: 'Select',
+    },
     auth: {
       common: {
         socialDivider: 'Or continue with',
@@ -1127,6 +1162,7 @@ const t = {
       },
     },
     addTask: enAddTask as AppTranslations['addTask'],
+    universalFab: enUniversalFab as AppTranslations['universalFab'],
     home: {
       header: {
         todayLabel: 'TODAY',
@@ -1210,11 +1246,10 @@ const t = {
         aiPrefix: 'AI:',
         dailySummary: 'Today: {tasks} tasks • {habits} habits • {goals} goal steps',
         statuses: {
-          planned: 'Planned',
+          active: 'Active',
           in_progress: 'In focus',
-          done: 'Done',
-          moved: 'Moved',
-          overdue: 'Overdue',
+          completed: 'Completed',
+          archived: 'Archived',
         },
         focus: {
           cta: 'Focus',
@@ -1700,6 +1735,11 @@ const t = {
         analytics: 'Analytics',
         debts: 'Debts',
       },
+      goalActions: {
+        connectFinance: 'Connect finance',
+        createBudget: 'Create budget for this goal',
+        addContribution: 'Add contribution',
+      },
       review: {
         totalBalance: 'Total balance',
         income: 'Income',
@@ -1761,12 +1801,61 @@ const t = {
       accounts: {
         header: 'My accounts',
         income: 'Income',
-        outcome: 'Outcome',
-        goalProgress: '{value}% of the goal',
-        historyTitle: 'Transaction history',
-        historyHeaders: { type: 'Type', amount: 'Amount', time: 'Time' },
-        actions: { edit: 'Edit', archive: 'Archive', delete: 'Delete' },
+      outcome: 'Outcome',
+      goalProgress: '{value}% of the goal',
+      historyTitle: 'Transaction history',
+      historyHeaders: { type: 'Type', amount: 'Amount', time: 'Time' },
+      actions: { edit: 'Edit', archive: 'Archive', delete: 'Delete' },
+      modal: {
+        titleAdd: 'Add new account',
+        titleEdit: 'Edit account',
+        nameLabel: 'Name',
+        namePlaceholder: 'Account name',
+        descriptionLabel: 'Description',
+        descriptionPlaceholder: 'Description',
+        typeLabel: 'Type',
+        addType: 'Add type',
+        newTypePlaceholder: 'New type name',
+        saveType: 'Save type',
+        currencyLabel: 'Currency',
+        amountLabel: 'Amount',
+        amountPlaceholder: 'Amount ({currency})',
+        primaryActionAdd: 'Add',
+        primaryActionSave: 'Save',
+        typeOptions: {
+          cash: 'Cash',
+          card: 'Card',
+          savings: 'Savings',
+          usd: 'USD',
+          crypto: 'Crypto',
+          other: 'Other',
+          custom: 'Custom',
+        },
+        iconOptions: {
+          wallet: 'Wallet',
+          creditCard: 'Card',
+          piggyBank: 'Savings',
+          bank: 'Bank',
+          briefcase: 'Business',
+          coins: 'Coins',
+          sparkles: 'Other',
+          bitcoin: 'Crypto',
+          shield: 'Secure',
+          trendingUp: 'Growth',
+        },
+        currencyLabels: {
+          UZS: 'Uzbekistani Som',
+          USD: 'US Dollar',
+          EUR: 'Euro',
+          GBP: 'British Pound',
+          TRY: 'Turkish Lira',
+          SAR: 'Saudi Riyal',
+          AED: 'UAE Dirham',
+          USDT: 'Tether (USDT)',
+          RUB: 'Russian Ruble',
+        },
       },
+    },
       transactions: {
         header: 'Transactions history',
         details: {
@@ -1789,6 +1878,8 @@ const t = {
           amount: 'Amount range',
           from: 'From',
           to: 'To',
+          close: 'Close',
+          clearHint: 'Hold to clear',
           selectDate: 'Select date',
           reset: 'Reset',
           apply: 'Apply',
@@ -1800,6 +1891,38 @@ const t = {
             debt: 'Debt',
           },
         },
+        quick: {
+          incomeHeader: '+ Income',
+          outcomeHeader: '- Outcome',
+          amountPlaceholder: 'Input amount',
+          debtOwedToYouLabel: 'Who owes you?',
+          debtOwedToYouPlaceholder: 'Person name who owes you',
+          debtYouOweLabel: 'Who do you owe?',
+          debtYouOwePlaceholder: 'Person name you owe',
+          categoryAddTitle: 'Add category',
+          categoryEditTitle: 'Edit category',
+          categoryPlaceholder: 'Category name',
+          save: 'Save entry',
+          update: 'Save changes',
+        },
+        transferForm: {
+          title: 'Transfer between accounts',
+          submit: 'Transfer',
+          amountPlaceholder: 'Amount',
+          fromAccount: 'From account',
+          toAccount: 'To account',
+          exchangeRate: 'Exchange rate',
+          auto: 'Auto',
+          conversionInfo: '{amount} will be received',
+          resetRate: 'Reset to auto rate',
+          date: 'Date',
+          time: 'Time',
+          notePlaceholder: 'Add optional description or context…',
+          pickerDone: 'Done',
+          selectAccount: 'Select account',
+          rateInfoTemplate:
+            'Exchange rate: 1 {toCurrency} = {rate} {fromCurrency}. Received: {amount}',
+        },
       },
       budgets: {
         today: "Today's budget overview",
@@ -1810,6 +1933,9 @@ const t = {
       setLimit: 'Set a limit',
       states: { exceeding: 'Exceeding', fixed: 'Fixed', within: 'Within' },
       form: {
+        nameLabel: 'Budget name',
+        namePlaceholder: 'Budget name',
+        limitPlaceholder: '0',
         periodLabel: 'Budget period',
         periodOptions: { weekly: 'Weekly', monthly: 'Monthly', custom_range: 'Custom range' },
         selectedRangeLabel: 'Selected range: {range}',
@@ -1853,12 +1979,15 @@ const t = {
         modal: {
           title: 'Add new debt',
           editTitle: 'Edit debt',
-          subtitle: 'Track money you lend or borrow',
-          person: 'Name / Person',
-          personPlaceholder: 'Who is this debt for?',
-          amount: 'Amount',
-          accountLabel: 'Wallet',
-          accountHelper: 'Select the wallet involved in this debt',
+        subtitle: 'Track money you lend or borrow',
+        typeLabel: 'Type',
+        borrowedLabel: 'I owe',
+        lentLabel: 'They owe me',
+        person: 'Name / Person',
+        personPlaceholder: 'Who is this debt for?',
+        amount: 'Amount',
+        accountLabel: 'Wallet',
+        accountHelper: 'Select the wallet involved in this debt',
           accountPickerTitle: 'Select wallet',
           currencyLabel: 'Currency',
           currencyHelper: 'Choose the currency for this debt',
@@ -1957,6 +2086,17 @@ const t = {
     },
   },
   ru: {
+    common: {
+      close: 'Закрыть',
+      cancel: 'Отмена',
+      save: 'Сохранить',
+      add: 'Добавить',
+      delete: 'Удалить',
+      apply: 'Применить',
+      reset: 'Сбросить',
+      done: 'Готово',
+      select: 'Выбрать',
+    },
     auth: {
       common: {
         socialDivider: 'Или продолжите через',
@@ -2135,6 +2275,7 @@ const t = {
       },
   },
     addTask: ruAddTask as AppTranslations['addTask'],
+    universalFab: ruUniversalFab as AppTranslations['universalFab'],
     home: {
       header: {
         todayLabel: 'СЕГОДНЯ',
@@ -2218,11 +2359,10 @@ const t = {
         aiPrefix: 'ИИ:',
         dailySummary: 'Сегодня: {tasks} задач • {habits} привычек • {goals} шага по целям',
         statuses: {
-          planned: 'Запланировано',
+          active: 'Активно',
           in_progress: 'В фокусе',
-          done: 'Выполнено',
-          moved: 'Перенесено',
-          overdue: 'Просрочено',
+          completed: 'Выполнено',
+          archived: 'В архиве',
         },
         focus: {
           cta: 'Фокус',
@@ -2708,6 +2848,11 @@ const t = {
         analytics: 'Аналитика',
         debts: 'Долги',
       },
+      goalActions: {
+        connectFinance: 'Связать финансы',
+        createBudget: 'Создать бюджет для цели',
+        addContribution: 'Добавить взнос',
+      },
       review: {
         totalBalance: 'Общий баланс',
         income: 'Доход',
@@ -2774,6 +2919,55 @@ const t = {
         historyTitle: 'История транзакций',
         historyHeaders: { type: 'Тип', amount: 'Сумма', time: 'Время' },
         actions: { edit: 'Изменить', archive: 'Архивировать', delete: 'Удалить' },
+        modal: {
+          titleAdd: 'Добавить счёт',
+          titleEdit: 'Редактировать счёт',
+          nameLabel: 'Название',
+          namePlaceholder: 'Название счёта',
+          descriptionLabel: 'Описание',
+          descriptionPlaceholder: 'Описание',
+          typeLabel: 'Тип',
+          addType: 'Добавить тип',
+          newTypePlaceholder: 'Название нового типа',
+          saveType: 'Сохранить тип',
+          currencyLabel: 'Валюта',
+          amountLabel: 'Сумма',
+          amountPlaceholder: 'Сумма ({currency})',
+          primaryActionAdd: 'Добавить',
+          primaryActionSave: 'Сохранить',
+          typeOptions: {
+            cash: 'Наличные',
+            card: 'Карта',
+            savings: 'Накопительный',
+            usd: 'Кредит',
+            crypto: 'Крипто',
+            other: 'Другое',
+            custom: 'Свой тип',
+          },
+          iconOptions: {
+            wallet: 'Кошелёк',
+            creditCard: 'Карта',
+            piggyBank: 'Сбережения',
+            bank: 'Банк',
+            briefcase: 'Бизнес',
+            coins: 'Монеты',
+            sparkles: 'Другое',
+            bitcoin: 'Крипто',
+            shield: 'Безопасный',
+            trendingUp: 'Рост',
+          },
+          currencyLabels: {
+            UZS: 'Узбекский сум',
+            USD: 'Доллар США',
+            EUR: 'Евро',
+            GBP: 'Фунт стерлингов',
+            TRY: 'Турецкая лира',
+            SAR: 'Саудовский риял',
+            AED: 'Дирхам ОАЭ',
+            USDT: 'Tether (USDT)',
+            RUB: 'Российский рубль',
+          },
+        },
       },
       transactions: {
         header: 'История транзакций',
@@ -2797,6 +2991,8 @@ const t = {
           amount: 'Диапазон суммы',
           from: 'От',
           to: 'До',
+          close: 'Закрыть',
+          clearHint: 'Удерживайте, чтобы очистить',
           selectDate: 'Выберите дату',
           reset: 'Сбросить',
           apply: 'Применить',
@@ -2808,6 +3004,38 @@ const t = {
             debt: 'Долг',
           },
         },
+        quick: {
+          incomeHeader: '+ Доход',
+          outcomeHeader: '- Расход',
+          amountPlaceholder: 'Введите сумму',
+          debtOwedToYouLabel: 'Кто должен вам?',
+          debtOwedToYouPlaceholder: 'Имя должника',
+          debtYouOweLabel: 'Кому вы должны?',
+          debtYouOwePlaceholder: 'Имя кредитора',
+          categoryAddTitle: 'Добавить категорию',
+          categoryEditTitle: 'Редактировать категорию',
+          categoryPlaceholder: 'Название категории',
+          save: 'Сохранить запись',
+          update: 'Сохранить изменения',
+        },
+        transferForm: {
+          title: 'Перевод между счетами',
+          submit: 'Перевести',
+          amountPlaceholder: 'Сумма',
+          fromAccount: 'Со счёта',
+          toAccount: 'На счёт',
+          exchangeRate: 'Курс обмена',
+          auto: 'Авто',
+          conversionInfo: '{amount} будет зачислено',
+          resetRate: 'Сбросить курс',
+          date: 'Дата',
+          time: 'Время',
+          notePlaceholder: 'Добавьте описание или контекст…',
+          pickerDone: 'Готово',
+          selectAccount: 'Выберите счёт',
+          rateInfoTemplate:
+            'Курс: 1 {toCurrency} = {rate} {fromCurrency}. Получено: {amount}',
+        },
       },
       budgets: {
         today: 'Обзор бюджета на сегодня',
@@ -2818,6 +3046,9 @@ const t = {
       setLimit: 'Установить лимит',
       states: { exceeding: 'Превышение', fixed: 'Фиксировано', within: 'В пределах' },
       form: {
+        nameLabel: 'Название бюджета',
+        namePlaceholder: 'Название бюджета',
+        limitPlaceholder: '0',
         periodLabel: 'Период бюджета',
         periodOptions: {
           weekly: 'Неделя',
@@ -2866,6 +3097,9 @@ const t = {
           title: 'Добавить долг',
           editTitle: 'Редактировать долг',
           subtitle: 'Отслеживайте занятые и одолженные суммы',
+          typeLabel: 'Тип',
+          borrowedLabel: 'Я должен',
+          lentLabel: 'Мне должны',
           person: 'Имя / Человек',
           personPlaceholder: 'Для кого этот долг?',
           amount: 'Сумма',
@@ -2969,6 +3203,17 @@ const t = {
     },
   },
   uz: {
+    common: {
+      close: 'Yopish',
+      cancel: 'Bekor qilish',
+      save: 'Saqlash',
+      add: 'Qo‘shish',
+      delete: 'O‘chirish',
+      apply: 'Qo‘llash',
+      reset: 'Tozalash',
+      done: 'Tayyor',
+      select: 'Tanlash',
+    },
     auth: {
       common: {
         socialDivider: 'Yoki quyidagilar bilan davom eting',
@@ -3147,6 +3392,7 @@ const t = {
       },
     },
     addTask: uzAddTask as AppTranslations['addTask'],
+    universalFab: uzUniversalFab as AppTranslations['universalFab'],
     home: {
       header: {
         todayLabel: 'BUGUN',
@@ -3230,11 +3476,10 @@ const t = {
         aiPrefix: 'AI:',
         dailySummary: 'Bugun: {tasks} ta vazifa • {habits} ta odat • {goals} ta maqsad qadami',
         statuses: {
-          planned: 'Rejalangan',
+          active: 'Faol',
           in_progress: 'Fokusda',
-          done: 'Bajarildi',
-          moved: 'Ko‘chirildi',
-          overdue: 'Muddati o‘tgan',
+          completed: 'Bajarildi',
+          archived: 'Arxivlandi',
         },
         focus: {
           cta: 'Fokus',
@@ -3720,6 +3965,11 @@ const t = {
         analytics: 'Analitika',
         debts: 'Qarzlar',
       },
+      goalActions: {
+        connectFinance: 'Moliya bilan bog‘lash',
+        createBudget: 'Maqsad uchun byudjet yarating',
+        addContribution: 'Hissa qo‘shish',
+      },
       review: {
         totalBalance: 'Umumiy balans',
         income: 'Daromad',
@@ -3786,6 +4036,55 @@ const t = {
         historyTitle: 'Tranzaksiya tarixi',
         historyHeaders: { type: 'Turi', amount: 'Summasi', time: 'Vaqti' },
         actions: { edit: 'Tahrirlash', archive: 'Arxivlash', delete: 'O‘chirish' },
+        modal: {
+          titleAdd: 'Yangi hisob qo‘shish',
+          titleEdit: 'Hisobni tahrirlash',
+          nameLabel: 'Nomi',
+          namePlaceholder: 'Hisob nomi',
+          descriptionLabel: 'Tavsif',
+          descriptionPlaceholder: 'Tavsif',
+          typeLabel: 'Turi',
+          addType: 'Tur qo‘shish',
+          newTypePlaceholder: 'Yangi tur nomi',
+          saveType: 'Turni saqlash',
+          currencyLabel: 'Valyuta',
+          amountLabel: 'Summasi',
+          amountPlaceholder: 'Summasi ({currency})',
+          primaryActionAdd: 'Qo‘shish',
+          primaryActionSave: 'Saqlash',
+          typeOptions: {
+            cash: 'Naqd',
+            card: 'Karta',
+            savings: 'Jamg‘arma',
+            usd: 'Kredit',
+            crypto: 'Kripto',
+            other: 'Boshqa',
+            custom: 'Moslashgan',
+          },
+          iconOptions: {
+            wallet: 'Hamyon',
+            creditCard: 'Karta',
+            piggyBank: 'Jamg‘arma',
+            bank: 'Bank',
+            briefcase: 'Biznes',
+            coins: 'Tangalar',
+            sparkles: 'Boshqa',
+            bitcoin: 'Kripto',
+            shield: 'Xavfsiz',
+            trendingUp: 'O‘sish',
+          },
+          currencyLabels: {
+            UZS: 'O‘zbekiston so‘mi',
+            USD: 'AQSh dollari',
+            EUR: 'Yevro',
+            GBP: 'Funt sterling',
+            TRY: 'Turk lirasi',
+            SAR: 'Saudiya riyoli',
+            AED: 'BAA dirhami',
+            USDT: 'Tether (USDT)',
+            RUB: 'Rossiya rubli',
+          },
+        },
       },
       transactions: {
         header: 'Tranzaksiyalar tarixi',
@@ -3809,6 +4108,8 @@ const t = {
           amount: 'Summalar oralig‘i',
           from: 'Dan',
           to: 'Gacha',
+          close: 'Yopish',
+          clearHint: 'Tozalash uchun bosing va ushlab turing',
           selectDate: 'Sanani tanlang',
           reset: 'Tozalash',
           apply: 'Qo‘llash',
@@ -3820,6 +4121,38 @@ const t = {
             debt: 'Qarz',
           },
         },
+        quick: {
+          incomeHeader: '+ Daromad',
+          outcomeHeader: '- Xarajat',
+          amountPlaceholder: 'Summani kiriting',
+          debtOwedToYouLabel: 'Kim sizga qarzdor?',
+          debtOwedToYouPlaceholder: 'Qarzdor ismi',
+          debtYouOweLabel: 'Kimga qarzdorsiz?',
+          debtYouOwePlaceholder: 'Kimga qarzdor ekaningiz',
+          categoryAddTitle: 'Kategoriya qo‘shish',
+          categoryEditTitle: 'Kategoriyani tahrirlash',
+          categoryPlaceholder: 'Kategoriya nomi',
+          save: 'Yozuvni saqlash',
+          update: 'O‘zgarishlarni saqlash',
+        },
+        transferForm: {
+          title: 'Hisoblar orasida o‘tkazma',
+          submit: 'O‘tkazish',
+          amountPlaceholder: 'Summasi',
+          fromAccount: 'Qaysi hisobdan',
+          toAccount: 'Qaysi hisobga',
+          exchangeRate: 'Valyuta kursi',
+          auto: 'Avto',
+          conversionInfo: '{amount} qabul qilinadi',
+          resetRate: 'Avto kursga qaytarish',
+          date: 'Sana',
+          time: 'Vaqt',
+          notePlaceholder: 'Izoh yoki kontekst qo‘shing…',
+          pickerDone: 'Tayyor',
+          selectAccount: 'Hisobni tanlang',
+          rateInfoTemplate:
+            'Kurs: 1 {toCurrency} = {rate} {fromCurrency}. Qabul qilingan: {amount}',
+        },
       },
       budgets: {
         today: 'Bugungi byudjet sharhi',
@@ -3830,6 +4163,9 @@ const t = {
       setLimit: 'Limit qo‘yish',
       states: { exceeding: 'Limitdan oshgan', fixed: 'Belgilangan', within: 'Doirada' },
       form: {
+        nameLabel: 'Byudjet nomi',
+        namePlaceholder: 'Byudjet nomi',
+        limitPlaceholder: '0',
         periodLabel: 'Byudjet davri',
         periodOptions: {
           weekly: 'Haftalik',
@@ -3878,6 +4214,9 @@ const t = {
           title: 'Yangi qarz qo‘shish',
           editTitle: 'Qarzlarni tahrirlash',
           subtitle: 'Olingan va berilgan qarzlarni kuzating',
+          typeLabel: 'Turi',
+          borrowedLabel: 'Men qarzdorman',
+          lentLabel: 'Menga qarzdor',
           person: 'Ism / Shaxs',
           personPlaceholder: 'Bu qarz kim uchun?',
           amount: 'Summasi',
@@ -3981,6 +4320,17 @@ const t = {
     },
   },
   ar: {
+    common: {
+      close: 'إغلاق',
+      cancel: 'إلغاء',
+      save: 'حفظ',
+      add: 'إضافة',
+      delete: 'حذف',
+      apply: 'تطبيق',
+      reset: 'إعادة ضبط',
+      done: 'تم',
+      select: 'اختيار',
+    },
     auth: {
       common: {
         socialDivider: 'أو تابع عبر',
@@ -4159,6 +4509,7 @@ const t = {
       },
     },
     addTask: arAddTask as AppTranslations['addTask'],
+    universalFab: arUniversalFab as AppTranslations['universalFab'],
     home: {
       header: {
         todayLabel: 'اليوم',
@@ -4242,11 +4593,10 @@ const t = {
         aiPrefix: 'الذكاء الاصطناعي:',
         dailySummary: 'اليوم: {tasks} مهام • {habits} عادات • {goals} خطوات هدف',
         statuses: {
-          planned: 'مجدول',
+          active: 'نشطة',
           in_progress: 'وضع تركيز',
-          done: 'منجز',
-          moved: 'مؤجل',
-          overdue: 'متأخر',
+          completed: 'منجزة',
+          archived: 'مؤرشفة',
         },
         focus: {
           cta: 'تركيز',
@@ -4732,6 +5082,11 @@ const t = {
         analytics: 'التحليلات',
         debts: 'الديون',
       },
+      goalActions: {
+        connectFinance: 'ربط المالية',
+        createBudget: 'إنشاء ميزانية لهذا الهدف',
+        addContribution: 'إضافة مساهمة',
+      },
       review: {
         totalBalance: 'إجمالي الرصيد',
         income: 'الدخل',
@@ -4798,6 +5153,55 @@ const t = {
         historyTitle: 'سجل المعاملات',
         historyHeaders: { type: 'النوع', amount: 'المبلغ', time: 'الوقت' },
         actions: { edit: 'تحرير', archive: 'أرشفة', delete: 'حذف' },
+        modal: {
+          titleAdd: 'إضافة حساب جديد',
+          titleEdit: 'تعديل الحساب',
+          nameLabel: 'الاسم',
+          namePlaceholder: 'اسم الحساب',
+          descriptionLabel: 'الوصف',
+          descriptionPlaceholder: 'الوصف',
+          typeLabel: 'النوع',
+          addType: 'إضافة نوع',
+          newTypePlaceholder: 'اسم النوع الجديد',
+          saveType: 'حفظ النوع',
+          currencyLabel: 'العملة',
+          amountLabel: 'المبلغ',
+          amountPlaceholder: 'المبلغ ({currency})',
+          primaryActionAdd: 'إضافة',
+          primaryActionSave: 'حفظ',
+          typeOptions: {
+            cash: 'نقدي',
+            card: 'بطاقة',
+            savings: 'ادخار',
+            usd: 'ائتمان',
+            crypto: 'عملات رقمية',
+            other: 'أخرى',
+            custom: 'مخصص',
+          },
+          iconOptions: {
+            wallet: 'محفظة',
+            creditCard: 'بطاقة',
+            piggyBank: 'ادخار',
+            bank: 'بنك',
+            briefcase: 'عمل',
+            coins: 'عملات',
+            sparkles: 'أخرى',
+            bitcoin: 'عملات رقمية',
+            shield: 'آمن',
+            trendingUp: 'نمو',
+          },
+          currencyLabels: {
+            UZS: 'سوم أوزبكي',
+            USD: 'دولار أمريكي',
+            EUR: 'يورو',
+            GBP: 'جنيه إسترليني',
+            TRY: 'ليرة تركية',
+            SAR: 'ريال سعودي',
+            AED: 'درهم إماراتي',
+            USDT: 'تيثر (USDT)',
+            RUB: 'روبل روسي',
+          },
+        },
       },
       transactions: {
         header: 'سجل المعاملات',
@@ -4821,6 +5225,8 @@ const t = {
           amount: 'نطاق المبلغ',
           from: 'من',
           to: 'إلى',
+          close: 'إغلاق',
+          clearHint: 'اضغط مطولاً للمسح',
           selectDate: 'اختر التاريخ',
           reset: 'إعادة ضبط',
           apply: 'تطبيق',
@@ -4832,6 +5238,38 @@ const t = {
             debt: 'دين',
           },
         },
+        quick: {
+          incomeHeader: '+ دخل',
+          outcomeHeader: '- مصروف',
+          amountPlaceholder: 'أدخل المبلغ',
+          debtOwedToYouLabel: 'من يدين لك؟',
+          debtOwedToYouPlaceholder: 'اسم الشخص المدين',
+          debtYouOweLabel: 'لمن تدين؟',
+          debtYouOwePlaceholder: 'اسم الشخص الذي تدين له',
+          categoryAddTitle: 'إضافة فئة',
+          categoryEditTitle: 'تعديل الفئة',
+          categoryPlaceholder: 'اسم الفئة',
+          save: 'حفظ الإدخال',
+          update: 'حفظ التغييرات',
+        },
+        transferForm: {
+          title: 'التحويل بين الحسابات',
+          submit: 'تحويل',
+          amountPlaceholder: 'المبلغ',
+          fromAccount: 'من الحساب',
+          toAccount: 'إلى الحساب',
+          exchangeRate: 'سعر الصرف',
+          auto: 'تلقائي',
+          conversionInfo: '{amount} سيتم استلامها',
+          resetRate: 'إعادة التعيين للسعر التلقائي',
+          date: 'التاريخ',
+          time: 'الوقت',
+          notePlaceholder: 'أضف وصفاً أو سياقاً اختيارياً…',
+          pickerDone: 'تم',
+          selectAccount: 'اختر الحساب',
+          rateInfoTemplate:
+            'سعر الصرف: 1 {toCurrency} = {rate} {fromCurrency}. المستلم: {amount}',
+        },
       },
       budgets: {
         today: 'نظرة على ميزانية اليوم',
@@ -4842,6 +5280,9 @@ const t = {
       setLimit: 'تحديد حد',
       states: { exceeding: 'تجاوز', fixed: 'ثابت', within: 'ضمن الحد' },
       form: {
+        nameLabel: 'اسم الميزانية',
+        namePlaceholder: 'اسم الميزانية',
+        limitPlaceholder: '0',
         periodLabel: 'فترة الميزانية',
         periodOptions: {
           weekly: 'أسبوعية',
@@ -4890,6 +5331,9 @@ const t = {
           title: 'إضافة دين',
           editTitle: 'تعديل الدين',
           subtitle: 'تتبع الأموال التي أقرضتها أو اقترضتها',
+          typeLabel: 'النوع',
+          borrowedLabel: 'أنا مدين',
+          lentLabel: 'هم مدينون لي',
           person: 'الاسم / الشخص',
           personPlaceholder: 'لمن هذا الدين؟',
           amount: 'المبلغ',
@@ -4993,6 +5437,17 @@ const t = {
     },
   },
   tr: {
+    common: {
+      close: 'Kapat',
+      cancel: 'İptal',
+      save: 'Kaydet',
+      add: 'Ekle',
+      delete: 'Sil',
+      apply: 'Uygula',
+      reset: 'Sıfırla',
+      done: 'Tamam',
+      select: 'Seç',
+    },
     auth: {
       common: {
         socialDivider: 'Ya da aşağıdakilerle devam et',
@@ -5171,6 +5626,7 @@ const t = {
       },
     },
     addTask: trAddTask as AppTranslations['addTask'],
+    universalFab: trUniversalFab as AppTranslations['universalFab'],
     home: {
       header: {
         todayLabel: 'BUGÜN',
@@ -5254,11 +5710,10 @@ const t = {
         aiPrefix: 'YZ:',
         dailySummary: 'Bugün: {tasks} görev • {habits} alışkanlık • {goals} hedef adımı',
         statuses: {
-          planned: 'Planlandı',
+          active: 'Aktif',
           in_progress: 'Fokusta',
-          done: 'Tamamlandı',
-          moved: 'Taşındı',
-          overdue: 'Gecikmiş',
+          completed: 'Tamamlandı',
+          archived: 'Arşivlendi',
         },
         focus: {
           cta: 'Fokus',
@@ -5744,6 +6199,11 @@ const t = {
         analytics: 'Analitik',
         debts: 'Borçlar',
       },
+      goalActions: {
+        connectFinance: 'Finansı bağla',
+        createBudget: 'Bu hedef için bütçe oluştur',
+        addContribution: 'Katkı ekle',
+      },
       review: {
         totalBalance: 'Toplam bakiye',
         income: 'Gelir',
@@ -5810,6 +6270,55 @@ const t = {
         historyTitle: 'İşlem geçmişi',
         historyHeaders: { type: 'Tür', amount: 'Tutar', time: 'Saat' },
         actions: { edit: 'Düzenle', archive: 'Arşivle', delete: 'Sil' },
+        modal: {
+          titleAdd: 'Yeni hesap ekle',
+          titleEdit: 'Hesabı düzenle',
+          nameLabel: 'Ad',
+          namePlaceholder: 'Hesap adı',
+          descriptionLabel: 'Açıklama',
+          descriptionPlaceholder: 'Açıklama',
+          typeLabel: 'Tür',
+          addType: 'Tür ekle',
+          newTypePlaceholder: 'Yeni tür adı',
+          saveType: 'Türü kaydet',
+          currencyLabel: 'Para birimi',
+          amountLabel: 'Tutar',
+          amountPlaceholder: 'Tutar ({currency})',
+          primaryActionAdd: 'Ekle',
+          primaryActionSave: 'Kaydet',
+          typeOptions: {
+            cash: 'Nakit',
+            card: 'Kart',
+            savings: 'Birikim',
+            usd: 'Kredi',
+            crypto: 'Kripto',
+            other: 'Diğer',
+            custom: 'Özel',
+          },
+          iconOptions: {
+            wallet: 'Cüzdan',
+            creditCard: 'Kart',
+            piggyBank: 'Birikim',
+            bank: 'Banka',
+            briefcase: 'İş',
+            coins: 'Madeni para',
+            sparkles: 'Diğer',
+            bitcoin: 'Kripto',
+            shield: 'Güvenli',
+            trendingUp: 'Büyüme',
+          },
+          currencyLabels: {
+            UZS: 'Özbek so‘mı',
+            USD: 'ABD doları',
+            EUR: 'Euro',
+            GBP: 'İngiliz sterlini',
+            TRY: 'Türk Lirası',
+            SAR: 'Suudi Riyali',
+            AED: 'BAE Dirhemi',
+            USDT: 'Tether (USDT)',
+            RUB: 'Rus Rublesi',
+          },
+        },
       },
       transactions: {
         header: 'İşlem geçmişi',
@@ -5833,6 +6342,8 @@ const t = {
           amount: 'Tutar aralığı',
           from: 'Başlangıç',
           to: 'Bitiş',
+          close: 'Kapat',
+          clearHint: 'Temizlemek için basılı tutun',
           selectDate: 'Tarih seç',
           reset: 'Sıfırla',
           apply: 'Uygula',
@@ -5844,6 +6355,38 @@ const t = {
             debt: 'Borç',
           },
         },
+        quick: {
+          incomeHeader: '+ Gelir',
+          outcomeHeader: '- Gider',
+          amountPlaceholder: 'Tutar girin',
+          debtOwedToYouLabel: 'Kim size borçlu?',
+          debtOwedToYouPlaceholder: 'Borçlu adı',
+          debtYouOweLabel: 'Kime borçlusunuz?',
+          debtYouOwePlaceholder: 'Alacaklı adı',
+          categoryAddTitle: 'Kategori ekle',
+          categoryEditTitle: 'Kategoriyi düzenle',
+          categoryPlaceholder: 'Kategori adı',
+          save: 'Kaydı kaydet',
+          update: 'Değişiklikleri kaydet',
+        },
+        transferForm: {
+          title: 'Hesaplar arası transfer',
+          submit: 'Transfer',
+          amountPlaceholder: 'Tutar',
+          fromAccount: 'Hangi hesaptan',
+          toAccount: 'Hangi hesaba',
+          exchangeRate: 'Döviz kuru',
+          auto: 'Oto',
+          conversionInfo: '{amount} alınacak',
+          resetRate: 'Oto kura dön',
+          date: 'Tarih',
+          time: 'Saat',
+          notePlaceholder: 'İsteğe bağlı açıklama ekleyin…',
+          pickerDone: 'Tamam',
+          selectAccount: 'Hesap seç',
+          rateInfoTemplate:
+            'Kur: 1 {toCurrency} = {rate} {fromCurrency}. Alınan: {amount}',
+        },
       },
       budgets: {
         today: 'Bugünkü bütçe özeti',
@@ -5854,6 +6397,9 @@ const t = {
       setLimit: 'Limit belirle',
       states: { exceeding: 'Limit aşıldı', fixed: 'Sabit', within: 'Sınır içinde' },
       form: {
+        nameLabel: 'Bütçe adı',
+        namePlaceholder: 'Bütçe adı',
+        limitPlaceholder: '0',
         periodLabel: 'Bütçe dönemi',
         periodOptions: {
           weekly: 'Haftalık',
@@ -5902,6 +6448,9 @@ const t = {
           title: 'Yeni borç ekle',
           editTitle: 'Borcu düzenle',
           subtitle: 'Verdiğiniz veya aldığınız borçları takip edin',
+          typeLabel: 'Tür',
+          borrowedLabel: 'Ben borçluyum',
+          lentLabel: 'Bana borçlu',
           person: 'İsim / Kişi',
           personPlaceholder: 'Bu borç kime ait?',
           amount: 'Tutar',

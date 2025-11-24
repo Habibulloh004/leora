@@ -1,7 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import {
-  KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -14,43 +12,98 @@ import DateTimePicker, {
   DateTimePickerAndroid,
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
+import {
+  Target,
+  BarChart3,
+  Calendar,
+  Link,
+  DollarSign,
+  Heart,
+  BookOpen,
+  Briefcase,
+  Banknote,
+  ShoppingBag,
+  CreditCard,
+  Hash,
+  Timer,
+  Scale,
+  Settings,
+  Trash2,
+  Plus,
+  PlusCircle,
+  Circle,
+  CircleDot,
+} from 'lucide-react-native';
 import { useShallow } from 'zustand/react/shallow';
 
-import CustomModal, { CustomModalProps } from '@/components/modals/CustomModal';
+import CustomModal from '@/components/modals/CustomModal';
 import { BottomSheetHandle } from '@/components/modals/BottomSheet';
-import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
+import { StepIndicator } from '@/components/modals/StepIndicator';
+import { SmartHint } from '@/components/modals/SmartHint';
 import { useModalStore } from '@/stores/useModalStore';
 import { useLocalization } from '@/localization/useLocalization';
-import type { GoalModalScenarioKey } from '@/localization/strings';
-import type { FinanceMode, Goal, GoalType, MetricKind } from '@/domain/planner/types';
+import type { FinanceMode, GoalType, MetricKind } from '@/domain/planner/types';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import {
   AVAILABLE_FINANCE_CURRENCIES,
   type FinanceCurrency,
   useFinancePreferencesStore,
 } from '@/stores/useFinancePreferencesStore';
+import { createThemedStyles } from '@/constants/theme';
 
-const modalProps: Partial<CustomModalProps> = {
-  variant: 'form',
-  enableDynamicSizing: false,
-  fallbackSnapPoint: '96%',
-  scrollable: true,
-  scrollProps: { keyboardShouldPersistTaps: 'handled' },
-  contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
+// Export handle type for parent components
+export interface GoalModalHandle {
+  present: () => void;
+  dismiss: () => void;
+  edit: (goalId: string) => void;
+}
+
+// Wizard Step Definition
+type WizardStep = {
+  id: number;
+  key: 'what' | 'measure' | 'when' | 'connect';
+  label: string;
+  icon: string;
 };
 
-type GoalTemplate = {
-  id: string;
+const WIZARD_STEPS: WizardStep[] = [
+  { id: 1, key: 'what', label: 'What', icon: 'target' },
+  { id: 2, key: 'measure', label: 'Measure', icon: 'chart' },
+  { id: 3, key: 'when', label: 'When', icon: 'calendar' },
+  { id: 4, key: 'connect', label: 'Connect', icon: 'link' },
+];
+
+// Form Data Types
+type GoalFormData = {
+  // Step 1: What & Why
   title: string;
-  emoji: string;
   goalType: GoalType;
+  description: string;
+
+  // Step 2: How to Measure
   metricKind: MetricKind;
   financeMode?: FinanceMode;
-  defaultUnit?: string;
-  recommendedPercents?: number[];
-  targetValue?: number;
-  description?: string;
+  currency?: FinanceCurrency;
+  unit?: string;
+  currentValue: number;
+  targetValue: number;
+
+  // Step 3: When
+  startDate?: Date;
+  targetDate?: Date;
+  milestones: Array<{
+    id: string;
+    title: string;
+    percent: number;
+    dueDate?: Date;
+  }>;
+
+  // Step 4: Connect
+  linkedHabitIds: string[];
+  linkedTaskIds: string[];
+  linkedBudgetId?: string;
+  linkedDebtId?: string;
 };
 
 type MilestoneFormValue = {
@@ -62,344 +115,106 @@ type MilestoneFormValue = {
 
 type DatePickerTarget = { type: 'start' } | { type: 'due' } | { type: 'milestone'; id: string };
 
-type UnitDefinition = {
-  id: string;
-  label: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  category: 'time' | 'distance' | 'weight' | 'volume' | 'count' | 'other';
-  metricTypes: MetricKind[];
-  goalTypes?: GoalType[];
-};
-
-// Professional Unit System (based on Strides, Way of Life, Notion)
-const UNIT_DEFINITIONS: UnitDefinition[] = [
-  // Time units
-  { id: 'minutes', label: 'Minutes', icon: 'time-outline', category: 'time', metricTypes: ['duration'] },
-  { id: 'hours', label: 'Hours', icon: 'hourglass-outline', category: 'time', metricTypes: ['duration'] },
-  { id: 'days', label: 'Days', icon: 'calendar-outline', category: 'time', metricTypes: ['duration'] },
-  { id: 'weeks', label: 'Weeks', icon: 'calendar-number-outline', category: 'time', metricTypes: ['duration'] },
-  { id: 'months', label: 'Months', icon: 'calendar-clear-outline', category: 'time', metricTypes: ['duration'] },
-  
-  // Distance units
-  { id: 'km', label: 'Kilometers', icon: 'map-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'miles', label: 'Miles', icon: 'navigate-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'meters', label: 'Meters', icon: 'trending-up-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'steps', label: 'Steps', icon: 'footsteps-outline', category: 'distance', metricTypes: ['count'], goalTypes: ['health'] },
-  
-  // Weight units
-  { id: 'kg', label: 'Kilograms', icon: 'barbell-outline', category: 'weight', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'lbs', label: 'Pounds', icon: 'scale-outline', category: 'weight', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'grams', label: 'Grams', icon: 'nutrition-outline', category: 'weight', metricTypes: ['count'] },
-  
-  // Volume units
-  { id: 'liters', label: 'Liters', icon: 'water-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'ml', label: 'Milliliters', icon: 'flask-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'cups', label: 'Cups', icon: 'cafe-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'glasses', label: 'Glasses', icon: 'beaker-outline', category: 'volume', metricTypes: ['count'], goalTypes: ['health'] },
-  
-  // Count units (universal)
-  { id: 'times', label: 'Times', icon: 'repeat-outline', category: 'count', metricTypes: ['count'] },
-  { id: 'reps', label: 'Reps', icon: 'fitness-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'sets', label: 'Sets', icon: 'list-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'sessions', label: 'Sessions', icon: 'timer-outline', category: 'count', metricTypes: ['count', 'duration'] },
-  { id: 'workouts', label: 'Workouts', icon: 'barbell-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
-  { id: 'calories', label: 'Calories', icon: 'flame-outline', category: 'count', metricTypes: ['count'], goalTypes: ['health'] },
-  
-  // Education/Work units
-  { id: 'pages', label: 'Pages', icon: 'document-text-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
-  { id: 'books', label: 'Books', icon: 'book-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
-  { id: 'chapters', label: 'Chapters', icon: 'reader-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
-  { id: 'lessons', label: 'Lessons', icon: 'school-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
-  { id: 'courses', label: 'Courses', icon: 'library-outline', category: 'count', metricTypes: ['count'], goalTypes: ['education'] },
-  { id: 'tasks', label: 'Tasks', icon: 'checkmark-done-outline', category: 'count', metricTypes: ['count'], goalTypes: ['productivity'] },
-  { id: 'projects', label: 'Projects', icon: 'briefcase-outline', category: 'count', metricTypes: ['count'], goalTypes: ['productivity'] },
-  
-  // Other/Abstract
-  { id: 'points', label: 'Points', icon: 'star-outline', category: 'other', metricTypes: ['count', 'custom'] },
-  { id: 'score', label: 'Score', icon: 'trophy-outline', category: 'other', metricTypes: ['count', 'custom'] },
-  { id: 'level', label: 'Level', icon: 'stats-chart-outline', category: 'other', metricTypes: ['count', 'custom'] },
-  { id: 'percent', label: 'Percent', icon: 'pie-chart-outline', category: 'other', metricTypes: ['count', 'custom'] },
-];
-
-// Universal Goal Templates
-const GOAL_TEMPLATES: GoalTemplate[] = [
+const GOAL_TYPES: { id: GoalType; label: string; icon: string; examples: string[] }[] = [
+  { id: 'financial', label: 'Money', icon: 'dollar', examples: ['Save $5000', 'Pay off debt'] },
+  { id: 'health', label: 'Health', icon: 'heart', examples: ['Lose 10kg', 'Run 5km'] },
+  { id: 'education', label: 'Learning', icon: 'book', examples: ['Read 24 books', 'Master React'] },
   {
-    id: 'emergency-fund',
-    title: 'Emergency Fund',
-    emoji: '🛡️',
-    goalType: 'financial',
-    metricKind: 'amount',
-    financeMode: 'save',
-    targetValue: 10000,
-    description: '6 months of expenses',
-    recommendedPercents: [25, 50, 75],
+    id: 'productivity',
+    label: 'Career',
+    icon: 'briefcase',
+    examples: ['Get promoted', 'Launch side project'],
   },
   {
-    id: 'debt-free',
-    title: 'Debt Free',
-    emoji: '💳',
-    goalType: 'financial',
-    metricKind: 'amount',
-    financeMode: 'debt_close',
-    recommendedPercents: [25, 50, 75, 90],
-  },
-  {
-    id: 'save-vacation',
-    title: 'Save for Vacation',
-    emoji: '✈️',
-    goalType: 'financial',
-    metricKind: 'amount',
-    financeMode: 'save',
-    targetValue: 3000,
-    recommendedPercents: [50, 100],
-  },
-  {
-    id: 'spend-guardrails',
-    title: 'Spending guardrails',
-    emoji: '🧾',
-    goalType: 'financial',
-    metricKind: 'amount',
-    financeMode: 'spend',
-    targetValue: 1200,
-    description: 'Control discretionary categories',
-    recommendedPercents: [50, 75, 100],
-  },
-  {
-    id: 'fitness-target',
-    title: 'Fitness Goal',
-    emoji: '💪',
-    goalType: 'health',
-    metricKind: 'count',
-    defaultUnit: 'workouts',
-    targetValue: 100,
-    recommendedPercents: [25, 50, 75],
-  },
-  {
-    id: 'weight-loss',
-    title: 'Weight Loss',
-    emoji: '⚖️',
-    goalType: 'health',
-    metricKind: 'count',
-    defaultUnit: 'kg',
-    targetValue: 10,
-    recommendedPercents: [30, 60, 90],
-  },
-  {
-    id: 'learn-skill',
-    title: 'Learn New Skill',
-    emoji: '📚',
-    goalType: 'education',
-    metricKind: 'duration',
-    defaultUnit: 'hours',
-    targetValue: 100,
-    description: 'Master a new skill',
-    recommendedPercents: [25, 50, 100],
-  },
-  {
-    id: 'read-books',
-    title: 'Read Books',
-    emoji: '📖',
-    goalType: 'education',
-    metricKind: 'count',
-    defaultUnit: 'books',
-    targetValue: 24,
-    recommendedPercents: [25, 50, 75],
-  },
-  {
-    id: 'career-promotion',
-    title: 'Career Goal',
-    emoji: '🎯',
-    goalType: 'productivity',
-    metricKind: 'custom',
-    description: 'Achieve next level',
-  },
-  {
-    id: 'side-project',
-    title: 'Side Project',
-    emoji: '🚀',
-    goalType: 'productivity',
-    metricKind: 'count',
-    defaultUnit: 'tasks',
-    targetValue: 50,
-    recommendedPercents: [25, 50, 75, 100],
-  },
-  {
-    id: 'meditation-practice',
-    title: 'Meditation Practice',
-    emoji: '🧘',
-    goalType: 'personal',
-    metricKind: 'duration',
-    defaultUnit: 'hours',
-    targetValue: 50,
-    recommendedPercents: [30, 60, 90],
+    id: 'personal',
+    label: 'Personal',
+    icon: 'target',
+    examples: ['Meditate daily', 'Travel to 5 countries'],
   },
 ];
 
-const SCENARIO_TEMPLATE_MAP: Record<GoalModalScenarioKey, string | null> = {
-  financialSave: 'emergency-fund',
-  financialSpend: 'spend-guardrails',
-  habitSupport: 'fitness-target',
-  skillGrowth: 'learn-skill',
-  custom: null,
-};
-
-const TEMPLATE_SCENARIO_MAP = Object.entries(SCENARIO_TEMPLATE_MAP).reduce<Record<string, GoalModalScenarioKey>>(
-  (acc, [scenario, templateId]) => {
-    if (templateId) {
-      acc[templateId] = scenario as GoalModalScenarioKey;
-    }
-    return acc;
-  },
-  {},
-);
-
-const SCENARIO_ICONS: Record<GoalModalScenarioKey, string> = {
-  financialSave: '💰',
-  financialSpend: '🧾',
-  habitSupport: '💪',
-  skillGrowth: '📚',
-  custom: '✨',
-};
-
-const SCENARIO_ORDER: GoalModalScenarioKey[] = ['financialSave', 'financialSpend', 'habitSupport', 'skillGrowth', 'custom'];
-
-type GoalModalMetricOption = 'amount' | 'count' | 'duration' | 'custom';
-
-const METRIC_OPTIONS: { id: GoalModalMetricOption; label: string; icon: string; description: string }[] = [
-  { id: 'amount', label: 'Money', icon: '💰', description: 'Financial goals' },
-  { id: 'count', label: 'Number', icon: '🔢', description: 'Count-based' },
-  { id: 'duration', label: 'Time', icon: '⏱️', description: 'Time-based' },
-  { id: 'custom', label: 'Custom', icon: '⚙️', description: 'Your metric' },
+const FINANCE_MODES: { id: FinanceMode; label: string; icon: string; description: string }[] = [
+  { id: 'save', label: 'Save money', icon: 'banknote', description: 'Build savings' },
+  { id: 'spend', label: 'Budget limit', icon: 'shopping', description: 'Control spending' },
+  { id: 'debt_close', label: 'Pay off debt', icon: 'credit', description: 'Eliminate debt' },
 ];
 
-const FINANCE_MODES: { id: FinanceMode; label: string; icon: string }[] = [
-  { id: 'save', label: 'Save', icon: '💵' },
-  { id: 'spend', label: 'Budget', icon: '🛍️' },
-  { id: 'debt_close', label: 'Pay Off', icon: '💳' },
+const METRIC_OPTIONS: { id: MetricKind; label: string; icon: string; description: string }[] = [
+  { id: 'amount', label: 'Money', icon: 'dollar', description: 'Financial goals' },
+  { id: 'count', label: 'Number', icon: 'hash', description: 'Count-based' },
+  { id: 'duration', label: 'Time', icon: 'timer', description: 'Time-based' },
+  { id: 'weight', label: 'Weight', icon: 'scale', description: 'Weight tracking' },
+  { id: 'custom', label: 'Custom', icon: 'settings', description: 'Your metric' },
 ];
 
-const GOAL_TYPES: { id: GoalType; label: string; icon: string }[] = [
-  { id: 'financial', label: 'Financial', icon: '💰' },
-  { id: 'health', label: 'Health', icon: '❤️' },
-  { id: 'education', label: 'Learning', icon: '📚' },
-  { id: 'productivity', label: 'Career', icon: '💼' },
-  { id: 'personal', label: 'Personal', icon: '🎯' },
-];
-
-const UNIT_CATEGORIES = [
-  { id: 'time', label: 'Time', icon: 'time-outline' as keyof typeof Ionicons.glyphMap },
-  { id: 'distance', label: 'Distance', icon: 'map-outline' as keyof typeof Ionicons.glyphMap },
-  { id: 'weight', label: 'Weight', icon: 'barbell-outline' as keyof typeof Ionicons.glyphMap },
-  { id: 'volume', label: 'Volume', icon: 'water-outline' as keyof typeof Ionicons.glyphMap },
-  { id: 'count', label: 'General', icon: 'apps-outline' as keyof typeof Ionicons.glyphMap },
-  { id: 'other', label: 'Other', icon: 'ellipsis-horizontal-outline' as keyof typeof Ionicons.glyphMap },
-];
-
-const clampPercent = (value: number) => Math.min(Math.max(value, 0), 1);
-
+// Helper functions
 const parseNumericInput = (value: string) => {
-  if (!value.trim()) return undefined;
-  const normalized = value.replace(/[^0-9.,-]/g, '').replace(/,/g, '.');
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : undefined;
+  const cleaned = value.replace(/[^0-9.]/g, '');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
 };
 
-const generateMilestoneId = () => `goal-ms-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+const generateId = () => Math.random().toString(36).substring(2, 15);
 
-const formatMilestonePercent = (value: number) => Math.max(1, Math.min(100, Math.round(value)));
-
-// PL-10: Auto-plan suggestions
-type HabitSuggestion = {
-  id: string;
-  title: string;
-  description: string;
-  frequency: 'daily' | 'weekly';
-  icon: string;
+const addMonths = (date: Date, months: number) => {
+  const result = new Date(date);
+  result.setMonth(result.getMonth() + months);
+  return result;
 };
 
-type TaskSuggestion = {
-  id: string;
-  title: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  icon: string;
+const addYears = (date: Date, years: number) => {
+  const result = new Date(date);
+  result.setFullYear(result.getFullYear() + years);
+  return result;
 };
 
-const HABIT_SUGGESTIONS: Record<GoalType, HabitSuggestion[]> = {
-  financial: [
-    { id: 'h1', title: 'Daily Budget Check', description: 'Review spending every morning', frequency: 'daily', icon: '💰' },
-    { id: 'h2', title: 'No Impulse Buying', description: '24h rule before purchases', frequency: 'daily', icon: '🛡️' },
-    { id: 'h3', title: 'Save Receipt', description: 'Track all transactions', frequency: 'daily', icon: '🧾' },
-  ],
-  health: [
-    { id: 'h4', title: 'Morning Exercise', description: '30 min workout', frequency: 'daily', icon: '💪' },
-    { id: 'h5', title: 'Water Intake', description: 'Drink 8 glasses', frequency: 'daily', icon: '💧' },
-    { id: 'h6', title: 'Meal Prep', description: 'Prepare healthy meals', frequency: 'weekly', icon: '🥗' },
-  ],
-  education: [
-    { id: 'h7', title: 'Daily Reading', description: 'Read 30 minutes', frequency: 'daily', icon: '📚' },
-    { id: 'h8', title: 'Practice Skills', description: 'Apply what you learned', frequency: 'daily', icon: '🎯' },
-    { id: 'h9', title: 'Take Notes', description: 'Document key insights', frequency: 'daily', icon: '📝' },
-  ],
-  productivity: [
-    { id: 'h10', title: 'Deep Work Block', description: '2h focused work', frequency: 'daily', icon: '🧠' },
-    { id: 'h11', title: 'Weekly Review', description: 'Plan next week', frequency: 'weekly', icon: '📊' },
-    { id: 'h12', title: 'Daily Planning', description: 'Set 3 key tasks', frequency: 'daily', icon: '✅' },
-  ],
-  personal: [
-    { id: 'h13', title: 'Meditation', description: '10 min mindfulness', frequency: 'daily', icon: '🧘' },
-    { id: 'h14', title: 'Journaling', description: 'Reflect on your day', frequency: 'daily', icon: '📔' },
-    { id: 'h15', title: 'Gratitude Practice', description: 'List 3 things', frequency: 'daily', icon: '🙏' },
-  ],
+// Icon render helpers
+const renderIcon = (iconId: string, size: number, color: string) => {
+  switch (iconId) {
+    case 'target':
+      return <Target size={size} color={color} />;
+    case 'chart':
+      return <BarChart3 size={size} color={color} />;
+    case 'calendar':
+      return <Calendar size={size} color={color} />;
+    case 'link':
+      return <Link size={size} color={color} />;
+    case 'dollar':
+      return <DollarSign size={size} color={color} />;
+    case 'heart':
+      return <Heart size={size} color={color} />;
+    case 'book':
+      return <BookOpen size={size} color={color} />;
+    case 'briefcase':
+      return <Briefcase size={size} color={color} />;
+    case 'banknote':
+      return <Banknote size={size} color={color} />;
+    case 'shopping':
+      return <ShoppingBag size={size} color={color} />;
+    case 'credit':
+      return <CreditCard size={size} color={color} />;
+    case 'hash':
+      return <Hash size={size} color={color} />;
+    case 'timer':
+      return <Timer size={size} color={color} />;
+    case 'scale':
+      return <Scale size={size} color={color} />;
+    case 'settings':
+      return <Settings size={size} color={color} />;
+    default:
+      return <Target size={size} color={color} />;
+  }
 };
 
-const TASK_SUGGESTIONS: Record<GoalType, TaskSuggestion[]> = {
-  financial: [
-    { id: 't1', title: 'Set up budget', description: 'Create monthly budget plan', priority: 'high', icon: '📊' },
-    { id: 't2', title: 'Review expenses', description: 'Analyze last month spending', priority: 'medium', icon: '🔍' },
-    { id: 't3', title: 'Automate savings', description: 'Set up auto-transfer', priority: 'high', icon: '🤖' },
-  ],
-  health: [
-    { id: 't4', title: 'Create workout plan', description: 'Design weekly routine', priority: 'high', icon: '📝' },
-    { id: 't5', title: 'Schedule check-up', description: 'Book health appointment', priority: 'medium', icon: '🏥' },
-    { id: 't6', title: 'Buy equipment', description: 'Get necessary gear', priority: 'low', icon: '🛒' },
-  ],
-  education: [
-    { id: 't7', title: 'Enroll in course', description: 'Sign up for learning', priority: 'high', icon: '🎓' },
-    { id: 't8', title: 'Get materials', description: 'Buy books/resources', priority: 'medium', icon: '📚' },
-    { id: 't9', title: 'Set study schedule', description: 'Plan learning time', priority: 'high', icon: '📅' },
-  ],
-  productivity: [
-    { id: 't10', title: 'Break down project', description: 'Create task list', priority: 'high', icon: '📋' },
-    { id: 't11', title: 'Setup workspace', description: 'Organize environment', priority: 'medium', icon: '🖥️' },
-    { id: 't12', title: 'Define milestones', description: 'Set checkpoints', priority: 'high', icon: '🎯' },
-  ],
-  personal: [
-    { id: 't13', title: 'Define vision', description: 'Clarify your goal', priority: 'high', icon: '🌟' },
-    { id: 't14', title: 'Find accountability', description: 'Get support buddy', priority: 'medium', icon: '🤝' },
-    { id: 't15', title: 'Track progress', description: 'Set up measurement', priority: 'medium', icon: '📈' },
-  ],
-};
-
-export default function PlannerGoalModal() {
-  const { plannerGoalModal, closePlannerGoalModal } = useModalStore(
-    useShallow((state) => ({
-      plannerGoalModal: state.plannerGoalModal,
-      closePlannerGoalModal: state.closePlannerGoalModal,
-    })),
-  );
+// Component
+const GoalModalComponent: React.ForwardRefRenderFunction<GoalModalHandle> = (_, ref) => {
+  const styles = useStyles();
+  const { locale } = useLocalization();
   const modalRef = useRef<BottomSheetHandle>(null);
-  const hasHydratedRef = useRef(false);
-  const { strings, locale } = useLocalization();
-  const modalStrings = strings.plannerModals.goal;
-  const sectionTimelineStrings = modalStrings.timelineSection;
-  const measurementStrings = modalStrings.measurementSection;
-  const scenarioStrings = modalStrings.scenarios;
-  const dateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric' }),
-    [locale],
-  );
-  const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
+
+  const modalState = useModalStore((state) => state.plannerGoalModal);
+  const closePlannerGoalModal = useModalStore((state) => state.closePlannerGoalModal);
+
   const { goals, createGoal, updateGoal } = usePlannerDomainStore(
     useShallow((state) => ({
       goals: state.goals,
@@ -408,1672 +223,1090 @@ export default function PlannerGoalModal() {
     })),
   );
 
-  // Form state
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [goalType, setGoalType] = useState<GoalType>('financial');
-  const [metricKind, setMetricKind] = useState<MetricKind>('amount');
-  const [currentValueText, setCurrentValueText] = useState('');
-  const [targetValueText, setTargetValueText] = useState('');
-  const [unit, setUnit] = useState('');
-  const [customUnit, setCustomUnit] = useState('');
-  const [showCustomUnit, setShowCustomUnit] = useState(false);
-  const [currency, setCurrency] = useState<FinanceCurrency>(baseCurrency);
-  const [financeMode, setFinanceMode] = useState<FinanceMode>('save');
-
-  // Auto-plan state (PL-10: Create and more)
-  const [showAutoPlan, setShowAutoPlan] = useState(false);
-  const [createdGoalId, setCreatedGoalId] = useState<string | null>(null);
-  const [selectedHabits, setSelectedHabits] = useState<Set<string>>(new Set());
-  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
-  const [startDate, setStartDate] = useState<Date | undefined>(undefined);
-  const [targetDate, setTargetDate] = useState<Date | undefined>(undefined);
-  const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
-  const [pickerState, setPickerState] = useState<{ target: DatePickerTarget; value: Date } | null>(null);
-  const [errorKey, setErrorKey] = useState<keyof typeof modalStrings.alerts | null>(null);
-  const [editingGoalId, setEditingGoalId] = useState<string | null>(null);
-  const [selectedScenario, setSelectedScenario] = useState<GoalModalScenarioKey>('custom');
-
-  const currencyOptions = useMemo(() => {
-    const ordered = new Set<FinanceCurrency>([baseCurrency, ...AVAILABLE_FINANCE_CURRENCIES]);
-    return Array.from(ordered);
-  }, [baseCurrency]);
-
-  const scenarioEntries = useMemo(
-    () => SCENARIO_ORDER.map((key) => ({ key, ...scenarioStrings[key] })),
-    [scenarioStrings],
-  );
-
-  const isEditing = plannerGoalModal.mode === 'edit' && !!editingGoalId;
-
-  // Smart unit filtering based on context
-  const availableUnits = useMemo(() => {
-    return UNIT_DEFINITIONS.filter(unitDef => {
-      // Filter by metric type
-      if (!unitDef.metricTypes.includes(metricKind)) {
-        return false;
-      }
-      
-      // If unit has specific goal types, check if current goal type matches
-      if (unitDef.goalTypes && unitDef.goalTypes.length > 0) {
-        return unitDef.goalTypes.includes(goalType);
-      }
-      
-      return true;
-    });
-  }, [metricKind, goalType]);
-
-  // Group units by category for better UX
-  const unitsByCategory = useMemo(() => {
-    const grouped = new Map<string, UnitDefinition[]>();
-    
-    availableUnits.forEach(unit => {
-      const category = unit.category;
-      if (!grouped.has(category)) {
-        grouped.set(category, []);
-      }
-      grouped.get(category)!.push(unit);
-    });
-    
-    return grouped;
-  }, [availableUnits]);
-
-  // Get smart default unit based on context
-  const getSmartDefaultUnit = useCallback((metric: MetricKind, goal: GoalType): string => {
-    switch (metric) {
-      case 'duration':
-        return 'hours';
-      case 'amount':
-        return '';
-      case 'count':
-        if (goal === 'health') {
-          return 'workouts';
-        }
-        if (goal === 'education') {
-          return 'books';
-        }
-        if (goal === 'productivity') {
-          return 'tasks';
-        }
-        return 'times';
-      case 'weight':
-      case 'none':
-      case 'custom':
-        return 'times';
-      default:
-        return 'times';
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!hasHydratedRef.current) {
-      hasHydratedRef.current = true;
-      if (plannerGoalModal.isOpen) {
-        closePlannerGoalModal();
-      }
-      return;
-    }
-
-    if (plannerGoalModal.isOpen) {
-      modalRef.current?.present();
-    } else {
-      modalRef.current?.dismiss();
-    }
-  }, [closePlannerGoalModal, plannerGoalModal.isOpen]);
-
-  const resetForm = useCallback(() => {
-    setTitle('');
-    setDescription('');
-    setGoalType('financial');
-    setMetricKind('amount');
-    setCurrentValueText('');
-    setTargetValueText('');
-    setUnit('');
-    setCustomUnit('');
-    setShowCustomUnit(false);
-    setCurrency(baseCurrency);
-    setFinanceMode('save');
-    setStartDate(undefined);
-    setTargetDate(undefined);
-    setMilestones([]);
-    setPickerState(null);
-    setErrorKey(null);
-    setEditingGoalId(null);
-    setSelectedScenario('custom');
-  }, [baseCurrency]);
-
-  useEffect(() => {
-    if (!plannerGoalModal.isOpen) {
-      resetForm();
-    }
-  }, [plannerGoalModal.isOpen, resetForm]);
-
-  const resolveScenarioIdFromGoal = useCallback((goal: Goal): GoalModalScenarioKey => {
-    const scenarios: {
-      id: GoalModalScenarioKey;
-      goalType: GoalType;
-      metricKind: MetricKind;
-      financeMode?: FinanceMode;
-    }[] = [
-      { id: 'financialSave', goalType: 'financial', metricKind: 'amount', financeMode: 'save' },
-      { id: 'financialSpend', goalType: 'financial', metricKind: 'amount', financeMode: 'spend' },
-      { id: 'habitSupport', goalType: 'health', metricKind: 'count', financeMode: undefined },
-      { id: 'skillGrowth', goalType: 'education', metricKind: 'duration', financeMode: undefined },
-      { id: 'custom', goalType: 'personal', metricKind: 'custom', financeMode: undefined },
-    ];
-
-    const match = scenarios.find(
-      (scenario) =>
-        scenario.goalType === goal.goalType &&
-        scenario.metricKind === goal.metricType &&
-        (scenario.financeMode === undefined || scenario.financeMode === goal.financeMode)
-    );
-    return (match?.id ?? 'custom') as GoalModalScenarioKey;
-  }, []);
-
-  useEffect(() => {
-    if (!plannerGoalModal.isOpen || plannerGoalModal.mode !== 'edit' || !plannerGoalModal.goalId) {
-      return;
-    }
-    const existing = goals.find((goal) => goal.id === plannerGoalModal.goalId);
-    if (!existing) return;
-
-    setEditingGoalId(existing.id);
-    setTitle(existing.title);
-    setDescription(existing.description ?? '');
-    setGoalType(existing.goalType);
-    setMetricKind(existing.metricType);
-    setFinanceMode(existing.financeMode ?? 'save');
-    setCurrency((existing.currency as FinanceCurrency) ?? baseCurrency);
-    
-    // Handle unit - check if it's a predefined unit or custom
-    const existingUnit = existing.unit ?? '';
-    const predefinedUnit = UNIT_DEFINITIONS.find(u => u.id === existingUnit);
-    
-    if (predefinedUnit) {
-      setUnit(existingUnit);
-      setShowCustomUnit(false);
-      setCustomUnit('');
-    } else if (existingUnit) {
-      setUnit('custom');
-      setCustomUnit(existingUnit);
-      setShowCustomUnit(true);
-    } else {
-      setUnit('');
-      setShowCustomUnit(false);
-      setCustomUnit('');
-    }
-    
-    setCurrentValueText(
-      existing.initialValue != null && Number.isFinite(existing.initialValue)
-        ? String(existing.initialValue)
-        : '',
-    );
-    setTargetValueText(
-      existing.targetValue != null && Number.isFinite(existing.targetValue)
-        ? String(existing.targetValue)
-        : '',
-    );
-    setStartDate(existing.startDate ? new Date(existing.startDate) : undefined);
-    setTargetDate(existing.targetDate ? new Date(existing.targetDate) : undefined);
-    setMilestones(
-      (existing.milestones ?? []).map((milestone) => ({
-        id: milestone.id,
-        title: milestone.title,
-        percent: formatMilestonePercent((milestone.targetPercent ?? 0) * 100),
-        dueDate: milestone.dueDate ? new Date(milestone.dueDate) : undefined,
-      })),
-    );
-    setErrorKey(null);
-    setSelectedScenario(resolveScenarioIdFromGoal(existing));
-  }, [baseCurrency, goals, plannerGoalModal.goalId, plannerGoalModal.isOpen, plannerGoalModal.mode, resolveScenarioIdFromGoal]);
-
-  const applyTemplate = useCallback((template: GoalTemplate, scenarioOverride?: GoalModalScenarioKey) => {
-    setSelectedScenario(scenarioOverride ?? TEMPLATE_SCENARIO_MAP[template.id] ?? 'custom');
-    setTitle(template.title);
-    setDescription(template.description ?? '');
-    setGoalType(template.goalType);
-    setMetricKind(template.metricKind);
-
-    if (template.financeMode) {
-      setFinanceMode(template.financeMode);
-    }
-
-    if (template.defaultUnit) {
-      setUnit(template.defaultUnit);
-      setShowCustomUnit(false);
-      setCustomUnit('');
-    }
-
-    if (template.targetValue) {
-      setTargetValueText(String(template.targetValue));
-    }
-
-    if (template.recommendedPercents && template.recommendedPercents.length > 0) {
-      setMilestones(
-        template.recommendedPercents.map((percent) => ({
-          id: generateMilestoneId(),
-          title: `${percent}% Complete`,
-          percent,
-        })),
-      );
-    }
-  }, []);
-
-  const handleMetricChange = useCallback((kind: MetricKind) => {
-    setMetricKind(kind);
-    if (kind !== 'amount') {
-      setFinanceMode('save');
-      // Smart default unit
-      const smartUnit = getSmartDefaultUnit(kind, goalType);
-      setUnit(smartUnit);
-      setShowCustomUnit(false);
-      setCustomUnit('');
-    } else {
-      setCurrency((prev) => prev || baseCurrency);
-      setUnit('');
-    }
-  }, [baseCurrency, getSmartDefaultUnit, goalType]);
-
-  const handleGoalTypeChange = useCallback((type: GoalType) => {
-    setGoalType(type);
-    // Update unit if metric kind is not amount
-    if (metricKind !== 'amount') {
-      const smartUnit = getSmartDefaultUnit(metricKind, type);
-      setUnit(smartUnit);
-      setShowCustomUnit(false);
-      setCustomUnit('');
-    }
-  }, [getSmartDefaultUnit, metricKind]);
-
-  const handleScenarioSelect = useCallback(
-    (scenario: GoalModalScenarioKey) => {
-      setSelectedScenario(scenario);
-      const templateId = SCENARIO_TEMPLATE_MAP[scenario];
-      if (templateId) {
-        const template = GOAL_TEMPLATES.find((item) => item.id === templateId);
-        if (template) {
-          applyTemplate(template, scenario);
-        }
-      }
-    },
-    [applyTemplate],
-  );
-
-  const handleAddMilestone = useCallback(() => {
-    const lastPercent = milestones[milestones.length - 1]?.percent ?? 0;
-    const nextPercent = formatMilestonePercent(lastPercent + 25);
-    setMilestones((prev) => [
-      ...prev, 
-      { 
-        id: generateMilestoneId(), 
-        title: `${nextPercent}% Complete`, 
-        percent: nextPercent 
-      }
-    ]);
-  }, [milestones]);
-
-  const handleUpdateMilestone = useCallback((id: string, updates: Partial<MilestoneFormValue>) => {
-    setMilestones((prev) =>
-      prev.map((item) => {
-        if (item.id !== id) return item;
-        const nextPercent = updates.percent ?? item.percent;
-        return {
-          ...item,
-          ...updates,
-          percent: formatMilestonePercent(nextPercent),
-        };
-      }),
-    );
-  }, []);
-
-  const handleRemoveMilestone = useCallback((id: string) => {
-    setMilestones((prev) => prev.filter((item) => item.id !== id));
-  }, []);
-
-  const applyDateValue = useCallback(
-    (target: DatePickerTarget, value: Date) => {
-      if (target.type === 'start') {
-        setStartDate(value);
-      } else if (target.type === 'due') {
-        setTargetDate(value);
-      } else {
-        setMilestones((prev) =>
-          prev.map((item) => (item.id === target.id ? { ...item, dueDate: value } : item)),
-        );
-      }
-      setPickerState(null);
-    },
-    [],
-  );
-
-  const openDatePicker = useCallback(
-    (target: DatePickerTarget) => {
-      let currentValue: Date | undefined;
-      if (target.type === 'start') {
-        currentValue = startDate;
-      } else if (target.type === 'due') {
-        currentValue = targetDate;
-      } else {
-        currentValue = milestones.find((item) => item.id === target.id)?.dueDate;
-      }
-      const baseValue = currentValue ?? new Date();
-      if (Platform.OS === 'android') {
-        DateTimePickerAndroid.open({
-          value: baseValue,
-          mode: 'date',
-          onChange: (event, selected) => {
-            if (event.type === 'set' && selected) {
-              applyDateValue(target, selected);
-            }
-          },
-        });
-        return;
-      }
-      setPickerState({ target, value: baseValue });
-    },
-    [applyDateValue, milestones, startDate, targetDate],
-  );
-
-  const handleIosPickerChange = useCallback(
-    (event: DateTimePickerEvent, selected?: Date) => {
-      if (event.type === 'dismissed') {
-        setPickerState(null);
-        return;
-      }
-      if (selected && pickerState) {
-        applyDateValue(pickerState.target, selected);
-      }
-    },
-    [applyDateValue, pickerState],
-  );
-
-  const formatDateLabel = useCallback(
-    (date?: Date) => (date ? dateFormatter.format(date) : sectionTimelineStrings.noDate),
-    [dateFormatter, sectionTimelineStrings.noDate],
-  );
-
-  const targetValue = parseNumericInput(targetValueText);
-  const disablePrimary = !title.trim() || !targetValue || targetValue <= 0;
-
-  const buildMilestonePayload = useCallback(
-    () =>
-      milestones
-        .map((item) => ({
-          id: item.id,
-          title: item.title.trim() || `${formatMilestonePercent(item.percent)}%`,
-          targetPercent: clampPercent(item.percent / 100),
-          dueDate: item.dueDate?.toISOString(),
-        }))
-        .filter((item) => item.targetPercent > 0),
-    [milestones],
-  );
-
-  const handleSubmit = useCallback(
-    (options?: { keepOpen?: boolean; showAutoPlan?: boolean }) => {
-      const trimmedTitle = title.trim();
-      if (!trimmedTitle) {
-        setErrorKey('missingTitle');
-        return;
-      }
-      const parsedTarget = parseNumericInput(targetValueText);
-      if (!parsedTarget || parsedTarget <= 0) {
-        setErrorKey('invalidTarget');
-        return;
-      }
-      const parsedCurrent = parseNumericInput(currentValueText) ?? 0;
-      const progressPercent = clampPercent(parsedCurrent / parsedTarget);
-      const stats: Goal['stats'] = {};
-      if (metricKind === 'amount') {
-        stats.financialProgressPercent = progressPercent;
-      } else if (metricKind === 'count') {
-        stats.tasksProgressPercent = progressPercent;
-      } else {
-        stats.habitsProgressPercent = progressPercent;
-      }
-
-      // Determine final unit value
-      let finalUnit: string | undefined;
-      if (metricKind === 'amount') {
-        finalUnit = undefined;
-      } else if (showCustomUnit) {
-        finalUnit = customUnit.trim() || undefined;
-      } else if (unit && unit !== 'custom') {
-        finalUnit = unit;
-      } else {
-        finalUnit = undefined;
-      }
-
-      const payload = {
-        userId: 'local-user',
-        title: trimmedTitle,
-        description: description.trim() || undefined,
-        goalType,
-        status: 'active' as const,
-        metricType: metricKind,
-        unit: finalUnit,
-        initialValue: parsedCurrent,
-        targetValue: parsedTarget,
-        financeMode: metricKind === 'amount' ? financeMode : undefined,
-        currency: metricKind === 'amount' ? currency : undefined,
-        startDate: (startDate ?? new Date()).toISOString(),
-        targetDate: targetDate?.toISOString(),
-        milestones: buildMilestonePayload(),
-        progressPercent,
-        stats,
-      } satisfies Omit<Goal, 'id' | 'createdAt' | 'updatedAt'>;
-
-      let newGoalId: string;
-      if (isEditing && editingGoalId) {
-        updateGoal(editingGoalId, payload);
-        newGoalId = editingGoalId;
-      } else {
-        const newGoal = createGoal(payload);
-        newGoalId = newGoal.id;
-      }
-
-      // PL-10: Show auto-plan after creating goal
-      if (options?.showAutoPlan && !isEditing) {
-        setCreatedGoalId(newGoalId);
-        setShowAutoPlan(true);
-        setTitle('');
-        setDescription('');
-        setCurrentValueText('');
-        setTargetValueText('');
-        setMilestones([]);
-        setErrorKey(null);
-        return;
-      }
-
-      if (options?.keepOpen && !isEditing) {
-        setTitle('');
-        setDescription('');
-        setCurrentValueText('');
-        setTargetValueText('');
-        setMilestones([]);
-        setErrorKey(null);
-        return;
-      }
-      closePlannerGoalModal();
-    },
-    [
-      buildMilestonePayload,
-      closePlannerGoalModal,
-      createGoal,
-      currency,
-      currentValueText,
-      customUnit,
-      description,
-      editingGoalId,
-      financeMode,
-      goalType,
-      isEditing,
-      metricKind,
-      showCustomUnit,
-      startDate,
-      targetDate,
-      targetValueText,
-      title,
-      unit,
-      updateGoal,
-    ],
-  );
-
-  // PL-10: Auto-plan handlers
-  const { createHabit, createTask } = usePlannerDomainStore(
+  const { budgets, debts } = useFinanceDomainStore(
     useShallow((state) => ({
-      createHabit: state.createHabit,
-      createTask: state.createTask,
+      budgets: state.budgets,
+      debts: state.debts,
     })),
   );
 
-  const habitSuggestions = useMemo(() => HABIT_SUGGESTIONS[goalType].slice(0, 3), [goalType]);
-  const taskSuggestions = useMemo(() => TASK_SUGGESTIONS[goalType].slice(0, 3), [goalType]);
+  const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
 
-  const handleToggleHabit = useCallback((habitId: string) => {
-    setSelectedHabits((prev) => {
-      const next = new Set(prev);
-      if (next.has(habitId)) {
-        next.delete(habitId);
-      } else {
-        next.add(habitId);
+  // Wizard state
+  const [currentStep, setCurrentStep] = useState(1);
+  const [formData, setFormData] = useState<GoalFormData>({
+    title: '',
+    goalType: 'financial',
+    description: '',
+    metricKind: 'amount',
+    currentValue: 0,
+    targetValue: 0,
+    milestones: [],
+    linkedHabitIds: [],
+    linkedTaskIds: [],
+  });
+
+  // UI state
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [datePickerTarget, setDatePickerTarget] = useState<DatePickerTarget | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Expose imperative handle to parent
+  useImperativeHandle(ref, () => ({
+    present: () => {
+      modalRef.current?.present();
+    },
+    dismiss: () => {
+      modalRef.current?.dismiss();
+    },
+    edit: (goalId: string) => {
+      const existingGoal = goals.find((g) => g.id === goalId);
+      if (existingGoal) {
+        loadGoalData(existingGoal);
       }
-      return next;
+      modalRef.current?.present();
+    },
+  }), [goals]);
+
+  // Helper to load goal data for editing
+  const loadGoalData = useCallback((goal: any) => {
+    setFormData({
+      title: goal.title || '',
+      goalType: goal.goalType || 'financial',
+      description: goal.description || '',
+      metricKind: goal.metricKind || 'amount',
+      financeMode: goal.financeMode,
+      currency: goal.currency as FinanceCurrency | undefined,
+      unit: goal.unit,
+      currentValue: goal.initialValue || 0,
+      targetValue: goal.targetValue || 0,
+      startDate: goal.startDate ? new Date(goal.startDate) : undefined,
+      targetDate: goal.targetDate ? new Date(goal.targetDate) : undefined,
+      milestones: goal.milestones?.map((m: any) => ({
+        id: m.id,
+        title: m.title,
+        percent: m.targetPercent,
+        dueDate: m.dueDate ? new Date(m.dueDate) : undefined,
+      })) || [],
+      linkedHabitIds: goal.linkedHabitIds || [],
+      linkedTaskIds: goal.linkedTaskIds || [],
+      linkedBudgetId: goal.linkedBudgetId,
+      linkedDebtId: goal.linkedDebtId,
     });
+    setCurrentStep(1);
+    setErrors({});
   }, []);
 
-  const handleToggleTask = useCallback((taskId: string) => {
-    setSelectedTasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
-    });
+  // Smart defaults when goalType changes
+  useEffect(() => {
+    if (formData.goalType === 'financial') {
+      setFormData((prev) => ({
+        ...prev,
+        metricKind: 'amount',
+        currency: prev.currency ?? baseCurrency,
+        financeMode: prev.financeMode ?? 'save',
+      }));
+    } else if (formData.goalType === 'health') {
+      setFormData((prev) => ({
+        ...prev,
+        metricKind: prev.metricKind === 'amount' ? 'count' : prev.metricKind,
+      }));
+    } else if (formData.goalType === 'education') {
+      setFormData((prev) => ({
+        ...prev,
+        metricKind: prev.metricKind === 'amount' ? 'count' : prev.metricKind,
+      }));
+    }
+  }, [formData.goalType, baseCurrency]);
+
+  // Field update handlers
+  const updateField = useCallback(<K extends keyof GoalFormData>(field: K, value: GoalFormData[K]) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => ({ ...prev, [field]: '' }));
   }, []);
 
-  const handleCreateSelected = useCallback(() => {
-    if (!createdGoalId) return;
+  // Validation
+  const validateStep = useCallback(
+    (step: number): boolean => {
+      const newErrors: Record<string, string> = {};
 
-    // Create selected habits
-    habitSuggestions
-      .filter((h) => selectedHabits.has(h.id))
-      .forEach((habit) => {
-        createHabit({
-          userId: 'local-user',
-          title: habit.title,
-          description: habit.description,
-          goalId: createdGoalId,
-          frequency: habit.frequency,
-          completionMode: 'boolean',
-          status: 'active',
-          habitType: goalType === 'health' ? 'health' : 'productivity',
-          completionHistory: [],
-        });
+      if (step === 1) {
+        if (!formData.title.trim()) {
+          newErrors.title = 'Title is required';
+        } else if (formData.title.length < 3) {
+          newErrors.title = 'Title is too short. Be more specific!';
+        }
+      }
+
+      if (step === 2) {
+        // Only validate that target is a valid number (can be any value, including negative)
+        if (isNaN(formData.targetValue)) {
+          newErrors.targetValue = 'Target must be a valid number';
+        }
+
+        // Check that target and current are not exactly equal (they should be different to track progress)
+        if (formData.targetValue === formData.currentValue) {
+          newErrors.targetValue = 'Target should be different from current value';
+        }
+      }
+
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    },
+    [formData],
+  );
+
+  // Navigation
+  const goToNextStep = useCallback(() => {
+    if (validateStep(currentStep)) {
+      if (currentStep < 4) {
+        setCurrentStep((prev) => prev + 1);
+      } else {
+        handleSubmit();
+      }
+    }
+  }, [currentStep, validateStep]);
+
+  const goToPreviousStep = useCallback(() => {
+    if (currentStep > 1) {
+      setCurrentStep((prev) => prev - 1);
+    }
+  }, [currentStep]);
+
+  // Submit
+  const handleSubmit = useCallback(() => {
+    // Calculate goal direction automatically
+    const calculateDirection = (): 'increase' | 'decrease' | 'neutral' => {
+      if (formData.targetValue > formData.currentValue) {
+        return 'increase';
+      } else if (formData.targetValue < formData.currentValue) {
+        return 'decrease';
+      } else {
+        return 'neutral';
+      }
+    };
+
+    const direction = calculateDirection();
+
+    if (modalState.mode === 'edit' && modalState.goalId) {
+      updateGoal(modalState.goalId, {
+        title: formData.title,
+        goalType: formData.goalType,
+        description: formData.description || undefined,
+        metricType: formData.metricKind,
+        direction,
+        financeMode: formData.financeMode,
+        currency: formData.currency,
+        unit: formData.unit,
+        initialValue: formData.currentValue,
+        targetValue: formData.targetValue,
+        startDate: formData.startDate?.toISOString(),
+        targetDate: formData.targetDate?.toISOString(),
+        milestones: formData.milestones.map((m) => ({
+          id: m.id,
+          title: m.title,
+          targetPercent: m.percent,
+          dueDate: m.dueDate?.toISOString(),
+        })),
+        linkedBudgetId: formData.linkedBudgetId,
+        linkedDebtId: formData.linkedDebtId,
       });
-
-    // Create selected tasks
-    taskSuggestions
-      .filter((t) => selectedTasks.has(t.id))
-      .forEach((task) => {
-        createTask({
-          userId: 'local-user',
-          title: task.title,
-          description: task.description,
-          goalId: createdGoalId,
-          priority: task.priority,
-          context: 'personal',
-        });
+    } else {
+      createGoal({
+        userId: 'current-user', // TODO: Get from auth
+        title: formData.title,
+        goalType: formData.goalType,
+        description: formData.description || undefined,
+        status: 'active',
+        metricType: formData.metricKind,
+        direction,
+        financeMode: formData.financeMode,
+        currency: formData.currency,
+        unit: formData.unit,
+        initialValue: formData.currentValue,
+        targetValue: formData.targetValue,
+        startDate: formData.startDate?.toISOString(),
+        targetDate: formData.targetDate?.toISOString(),
+        milestones: formData.milestones.map((m) => ({
+          id: m.id,
+          title: m.title,
+          targetPercent: m.percent,
+          dueDate: m.dueDate?.toISOString(),
+        })),
+        linkedBudgetId: formData.linkedBudgetId,
+        linkedDebtId: formData.linkedDebtId,
       });
+    }
 
-    // Close modal
-    setShowAutoPlan(false);
-    setCreatedGoalId(null);
-    setSelectedHabits(new Set());
-    setSelectedTasks(new Set());
+    // Close modal and reset form
+    modalRef.current?.dismiss();
     closePlannerGoalModal();
-  }, [
-    closePlannerGoalModal,
-    createdGoalId,
-    createHabit,
-    createTask,
-    goalType,
-    habitSuggestions,
-    selectedHabits,
-    selectedTasks,
-    taskSuggestions,
-  ]);
 
-  const handleSkipAutoPlan = useCallback(() => {
-    setShowAutoPlan(false);
-    setCreatedGoalId(null);
-    setSelectedHabits(new Set());
-    setSelectedTasks(new Set());
-    closePlannerGoalModal();
-  }, [closePlannerGoalModal]);
+    // Reset form to defaults
+    setFormData({
+      title: '',
+      goalType: 'financial',
+      description: '',
+      metricKind: 'amount',
+      currency: baseCurrency,
+      currentValue: 0,
+      targetValue: 0,
+      milestones: [],
+      linkedHabitIds: [],
+      linkedTaskIds: [],
+    });
+    setCurrentStep(1);
+    setErrors({});
+  }, [formData, modalState, createGoal, updateGoal, closePlannerGoalModal, baseCurrency]);
 
-  const renderMilestone = (milestone: MilestoneFormValue) => (
-    <AdaptiveGlassView key={milestone.id} style={styles.milestoneCard}>
-      <View style={styles.milestoneHeader}>
+  // Date picker handlers
+  const handleDateChange = useCallback(
+    (event: DateTimePickerEvent, selectedDate?: Date) => {
+      if (Platform.OS === 'android') {
+        setDatePickerVisible(false);
+      }
+
+      if (event.type === 'set' && selectedDate && datePickerTarget) {
+        if (datePickerTarget.type === 'start') {
+          updateField('startDate', selectedDate);
+        } else if (datePickerTarget.type === 'due') {
+          updateField('targetDate', selectedDate);
+        } else if (datePickerTarget.type === 'milestone') {
+          setFormData((prev) => ({
+            ...prev,
+            milestones: prev.milestones.map((m) =>
+              m.id === datePickerTarget.id ? { ...m, dueDate: selectedDate } : m,
+            ),
+          }));
+        }
+      }
+
+      if (Platform.OS === 'ios') {
+        // Keep picker open on iOS
+      }
+    },
+    [datePickerTarget, updateField],
+  );
+
+  const openDatePicker = useCallback((target: DatePickerTarget) => {
+    setDatePickerTarget(target);
+    if (Platform.OS === 'android') {
+      const currentDate =
+        target.type === 'start'
+          ? formData.startDate ?? new Date()
+          : target.type === 'due'
+            ? formData.targetDate ?? new Date()
+            : formData.milestones.find((m) => m.id === target.id)?.dueDate ?? new Date();
+
+      DateTimePickerAndroid.open({
+        value: currentDate,
+        onChange: handleDateChange,
+        mode: 'date',
+        is24Hour: true,
+      });
+    } else {
+      setDatePickerVisible(true);
+    }
+  }, [formData, handleDateChange]);
+
+  const closeDatePicker = useCallback(() => {
+    setDatePickerVisible(false);
+    setDatePickerTarget(null);
+  }, []);
+
+  // Milestone handlers
+  const addMilestone = useCallback(() => {
+    const newMilestone: MilestoneFormValue = {
+      id: generateId(),
+      title: '',
+      percent: 25,
+    };
+    setFormData((prev) => ({
+      ...prev,
+      milestones: [...prev.milestones, newMilestone],
+    }));
+  }, []);
+
+  const updateMilestone = useCallback((id: string, updates: Partial<MilestoneFormValue>) => {
+    setFormData((prev) => ({
+      ...prev,
+      milestones: prev.milestones.map((m) => (m.id === id ? { ...m, ...updates } : m)),
+    }));
+  }, []);
+
+  const removeMilestone = useCallback((id: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      milestones: prev.milestones.filter((m) => m.id !== id),
+    }));
+  }, []);
+
+  // Render step content
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return renderStep1();
+      case 2:
+        return renderStep2();
+      case 3:
+        return renderStep3();
+      case 4:
+        return renderStep4();
+      default:
+        return null;
+    }
+  };
+
+  // Step 1: What & Why
+  const renderStep1 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>What do you want to achieve?</Text>
+
+      {/* Title */}
+      <View style={styles.fieldContainer}>
         <TextInput
-          value={milestone.title}
-          onChangeText={(text) => handleUpdateMilestone(milestone.id, { title: text })}
-          placeholder={modalStrings.milestoneSection.title}
-          placeholderTextColor="#7E8B9A"
-          style={[styles.textInput, { flex: 1 }]}
+          style={[styles.input, errors.title && styles.inputError]}
+          value={formData.title}
+          onChangeText={(text) => updateField('title', text)}
+          placeholder='E.g., "Save for vacation", "Run a marathon", "Learn Spanish"'
+          placeholderTextColor={styles.placeholder.color}
+          maxLength={100}
+          autoFocus
         />
-        <Pressable onPress={() => handleRemoveMilestone(milestone.id)} hitSlop={8}>
-          <Ionicons name="trash-outline" size={18} color="#7E8B9A" />
+        {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+        <Text style={styles.characterCount}>{formData.title.length}/100</Text>
+      </View>
+
+      {/* Goal Type */}
+      <View style={styles.fieldContainer}>
+        <Text style={styles.fieldLabel}>Category</Text>
+        <View style={styles.chipRow}>
+          {GOAL_TYPES.map((type) => (
+            <Pressable
+              key={type.id}
+              style={[styles.chip, formData.goalType === type.id && styles.chipSelected]}
+              onPress={() => updateField('goalType', type.id)}
+            >
+              {renderIcon(type.icon, 20, formData.goalType === type.id ? styles.chipLabelSelected.color : styles.chipLabel.color)}
+              <Text style={[styles.chipLabel, formData.goalType === type.id && styles.chipLabelSelected]}>
+                {type.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        {formData.goalType && (
+          <SmartHint
+            type="tip"
+            message={`Examples: ${GOAL_TYPES.find((t) => t.id === formData.goalType)?.examples.join(', ')}`}
+          />
+        )}
+      </View>
+
+      {/* Description (optional) */}
+      <View style={styles.fieldContainer}>
+        <Text style={styles.fieldLabel}>Why is this important? (optional)</Text>
+        <TextInput
+          style={[styles.textArea]}
+          value={formData.description}
+          onChangeText={(text) => updateField('description', text)}
+          placeholder="Your motivation..."
+          placeholderTextColor={styles.placeholder.color}
+          multiline
+          numberOfLines={3}
+          maxLength={500}
+        />
+        <SmartHint type="info" message="Goals with clear 'why' are 60% more likely to succeed" />
+      </View>
+    </View>
+  );
+
+  // Step 2: How to Measure
+  const renderStep2 = () => {
+    const isFinancial = formData.goalType === 'financial';
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>How will you track it?</Text>
+
+        {isFinancial ? (
+          <>
+            {/* Finance Mode */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Goal Type</Text>
+              <View style={styles.chipRow}>
+                {FINANCE_MODES.map((mode) => (
+                  <Pressable
+                    key={mode.id}
+                    style={[styles.chip, formData.financeMode === mode.id && styles.chipSelected]}
+                    onPress={() => updateField('financeMode', mode.id)}
+                  >
+                    {renderIcon(mode.icon, 20, formData.financeMode === mode.id ? styles.chipLabelSelected.color : styles.chipLabel.color)}
+                    <Text style={[styles.chipLabel, formData.financeMode === mode.id && styles.chipLabelSelected]}>
+                      {mode.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Currency */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Currency</Text>
+              <View style={styles.chipRow}>
+                {AVAILABLE_FINANCE_CURRENCIES.map((curr) => (
+                  <Pressable
+                    key={curr}
+                    style={[styles.chip, formData.currency === curr && styles.chipSelected]}
+                    onPress={() => updateField('currency', curr)}
+                  >
+                    <Text style={[styles.chipLabel, formData.currency === curr && styles.chipLabelSelected]}>
+                      {curr}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Current & Target Values */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.row}>
+                <View style={styles.halfField}>
+                  <Text style={styles.fieldLabel}>Current</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.currentValue.toString()}
+                    onChangeText={(text) => updateField('currentValue', parseNumericInput(text))}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor={styles.placeholder.color}
+                  />
+                </View>
+                <View style={styles.halfField}>
+                  <Text style={styles.fieldLabel}>Target *</Text>
+                  <TextInput
+                    style={[styles.input, errors.targetValue && styles.inputError]}
+                    value={formData.targetValue.toString()}
+                    onChangeText={(text) => updateField('targetValue', parseNumericInput(text))}
+                    keyboardType="numeric"
+                    placeholder="5000"
+                    placeholderTextColor={styles.placeholder.color}
+                  />
+                </View>
+              </View>
+              {errors.targetValue && <Text style={styles.errorText}>{errors.targetValue}</Text>}
+            </View>
+
+            <SmartHint type="success" message="Progress will update automatically based on your transactions" />
+          </>
+        ) : (
+          <>
+            {/* Metric Kind */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>What will you measure?</Text>
+              <View style={styles.chipRow}>
+                {METRIC_OPTIONS.filter((m) => m.id !== 'amount').map((metric) => (
+                  <Pressable
+                    key={metric.id}
+                    style={[styles.chip, formData.metricKind === metric.id && styles.chipSelected]}
+                    onPress={() => updateField('metricKind', metric.id)}
+                  >
+                    {renderIcon(metric.icon, 20, formData.metricKind === metric.id ? styles.chipLabelSelected.color : styles.chipLabel.color)}
+                    <Text style={[styles.chipLabel, formData.metricKind === metric.id && styles.chipLabelSelected]}>
+                      {metric.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+
+            {/* Unit (for count/duration) */}
+            {(formData.metricKind === 'count' || formData.metricKind === 'duration') && (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Unit</Text>
+                <TextInput
+                  style={styles.input}
+                  value={formData.unit ?? ''}
+                  onChangeText={(text) => updateField('unit', text)}
+                  placeholder={formData.metricKind === 'count' ? 'workouts, books, km...' : 'hours, minutes...'}
+                  placeholderTextColor={styles.placeholder.color}
+                />
+              </View>
+            )}
+
+            {/* Current & Target Values */}
+            <View style={styles.fieldContainer}>
+              <View style={styles.row}>
+                <View style={styles.halfField}>
+                  <Text style={styles.fieldLabel}>Current</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={formData.currentValue.toString()}
+                    onChangeText={(text) => updateField('currentValue', parseNumericInput(text))}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor={styles.placeholder.color}
+                  />
+                </View>
+                <View style={styles.halfField}>
+                  <Text style={styles.fieldLabel}>Target *</Text>
+                  <TextInput
+                    style={[styles.input, errors.targetValue && styles.inputError]}
+                    value={formData.targetValue.toString()}
+                    onChangeText={(text) => updateField('targetValue', parseNumericInput(text))}
+                    keyboardType="numeric"
+                    placeholder="100"
+                    placeholderTextColor={styles.placeholder.color}
+                  />
+                </View>
+              </View>
+              {errors.targetValue && <Text style={styles.errorText}>{errors.targetValue}</Text>}
+            </View>
+          </>
+        )}
+      </View>
+    );
+  };
+
+  // Step 3: When
+  const renderStep3 = () => (
+    <View style={styles.stepContainer}>
+      <Text style={styles.stepTitle}>When do you want to achieve this?</Text>
+
+      {/* Deadline */}
+      <View style={styles.fieldContainer}>
+        <Text style={styles.fieldLabel}>Deadline (optional)</Text>
+        <Pressable
+          style={styles.dateButton}
+          onPress={() => openDatePicker({ type: 'due' })}
+        >
+          <Calendar size={20} color={styles.dateButtonText.color} />
+          <Text style={styles.dateButtonText}>
+            {formData.targetDate ? formData.targetDate.toLocaleDateString(locale) : 'Select date'}
+          </Text>
+        </Pressable>
+        <SmartHint type="tip" message="Goals with deadlines are 42% more successful" />
+      </View>
+
+      {/* Quick presets */}
+      {!formData.targetDate && (
+        <View style={styles.fieldContainer}>
+          <Text style={styles.fieldLabel}>Quick select</Text>
+          <View style={styles.chipRow}>
+            <Pressable style={styles.chip} onPress={() => updateField('targetDate', addMonths(new Date(), 1))}>
+              <Text style={styles.chipLabel}>1 month</Text>
+            </Pressable>
+            <Pressable style={styles.chip} onPress={() => updateField('targetDate', addMonths(new Date(), 3))}>
+              <Text style={styles.chipLabel}>3 months</Text>
+            </Pressable>
+            <Pressable style={styles.chip} onPress={() => updateField('targetDate', addMonths(new Date(), 6))}>
+              <Text style={styles.chipLabel}>6 months</Text>
+            </Pressable>
+            <Pressable style={styles.chip} onPress={() => updateField('targetDate', addYears(new Date(), 1))}>
+              <Text style={styles.chipLabel}>1 year</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Milestones */}
+      <View style={styles.fieldContainer}>
+        <Text style={styles.fieldLabel}>Milestones (optional)</Text>
+        {formData.milestones.map((milestone, index) => (
+          <View key={milestone.id} style={styles.milestoneItem}>
+            <TextInput
+              style={[styles.input, { flex: 1 }]}
+              value={milestone.title}
+              onChangeText={(text) => updateMilestone(milestone.id, { title: text })}
+              placeholder={`Milestone ${index + 1}`}
+              placeholderTextColor={styles.placeholder.color}
+            />
+            <Pressable onPress={() => removeMilestone(milestone.id)}>
+              <Trash2 size={20} color={styles.deleteIcon.color} />
+            </Pressable>
+          </View>
+        ))}
+        <Pressable style={styles.addButton} onPress={addMilestone}>
+          <PlusCircle size={20} color={styles.addButtonText.color} />
+          <Text style={styles.addButtonText}>Add milestone</Text>
         </Pressable>
       </View>
-      <View style={styles.milestoneRow}>
-        <View style={styles.milestoneColumn}>
-          <Text style={styles.label}>{modalStrings.milestoneSection.percentLabel}</Text>
-          <AdaptiveGlassView style={styles.milestoneInput}>
-            <TextInput
-              value={String(milestone.percent)}
-              onChangeText={(text) => {
-                const parsed = parseNumericInput(text) ?? 0;
-                handleUpdateMilestone(milestone.id, { percent: formatMilestonePercent(parsed) });
-              }}
-              keyboardType="numeric"
-              placeholder="%"
-              placeholderTextColor="#7E8B9A"
-              style={styles.textInput}
-            />
-          </AdaptiveGlassView>
-        </View>
-        <View style={styles.milestoneColumn}>
-          <Text style={styles.label}>{modalStrings.milestoneSection.dueLabel}</Text>
-          <Pressable onPress={() => openDatePicker({ type: 'milestone', id: milestone.id })}>
-            <AdaptiveGlassView style={styles.milestoneInput}>
-              <Text style={styles.dateText}>{formatDateLabel(milestone.dueDate)}</Text>
-            </AdaptiveGlassView>
+    </View>
+  );
+
+  // Step 4: Connect
+  const renderStep4 = () => {
+    const isFinancial = formData.goalType === 'financial';
+    const isSaveMode = formData.financeMode === 'save';
+    const isDebtMode = formData.financeMode === 'debt_close';
+    const isSpendMode = formData.financeMode === 'spend';
+
+    // Filter budgets and debts
+    const activeBudgets = budgets.filter((b) => !b.isArchived);
+    const activeDebts = debts.filter((d) => d.status === 'active');
+
+    return (
+      <View style={styles.stepContainer}>
+        <Text style={styles.stepTitle}>Connect to finances (optional)</Text>
+        <Text style={styles.stepSubtitle}>Link to budgets or debts to track progress automatically</Text>
+
+        {isFinancial ? (
+          <>
+            {/* Save mode: Link to budget */}
+            {isSaveMode && (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Link to savings budget</Text>
+                {activeBudgets.length > 0 ? (
+                  <View style={styles.listContainer}>
+                    <Pressable
+                      style={[styles.listItem, !formData.linkedBudgetId && styles.listItemSelected]}
+                      onPress={() => updateField('linkedBudgetId', undefined)}
+                    >
+                      {!formData.linkedBudgetId ? (
+                        <CircleDot size={20} color={styles.primaryColor.color} />
+                      ) : (
+                        <Circle size={20} color={styles.textSecondary.color} />
+                      )}
+                      <Text style={styles.listItemText}>No budget</Text>
+                    </Pressable>
+                    {activeBudgets.map((budget) => (
+                      <Pressable
+                        key={budget.id}
+                        style={[styles.listItem, formData.linkedBudgetId === budget.id && styles.listItemSelected]}
+                        onPress={() => updateField('linkedBudgetId', budget.id)}
+                      >
+                        {formData.linkedBudgetId === budget.id ? (
+                          <CircleDot size={20} color={styles.primaryColor.color} />
+                        ) : (
+                          <Circle size={20} color={styles.textSecondary.color} />
+                        )}
+                        <View style={styles.listItemContent}>
+                          <Text style={styles.listItemText}>{budget.name}</Text>
+                          <Text style={styles.listItemSubtext}>
+                            {budget.currency} {budget.spentAmount.toFixed(2)} / {budget.limitAmount.toFixed(2)}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : (
+                  <SmartHint type="info" message="No budgets available. Create one in Finance tab." />
+                )}
+              </View>
+            )}
+
+            {/* Debt mode: Link to debt */}
+            {isDebtMode && (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Which debt are you paying off?</Text>
+                {activeDebts.length > 0 ? (
+                  <View style={styles.listContainer}>
+                    <Pressable
+                      style={[styles.listItem, !formData.linkedDebtId && styles.listItemSelected]}
+                      onPress={() => updateField('linkedDebtId', undefined)}
+                    >
+                      {!formData.linkedDebtId ? (
+                        <CircleDot size={20} color={styles.primaryColor.color} />
+                      ) : (
+                        <Circle size={20} color={styles.textSecondary.color} />
+                      )}
+                      <Text style={styles.listItemText}>No debt</Text>
+                    </Pressable>
+                    {activeDebts.map((debt) => (
+                      <Pressable
+                        key={debt.id}
+                        style={[styles.listItem, formData.linkedDebtId === debt.id && styles.listItemSelected]}
+                        onPress={() => updateField('linkedDebtId', debt.id)}
+                      >
+                        {formData.linkedDebtId === debt.id ? (
+                          <CircleDot size={20} color={styles.primaryColor.color} />
+                        ) : (
+                          <Circle size={20} color={styles.textSecondary.color} />
+                        )}
+                        <View style={styles.listItemContent}>
+                          <Text style={styles.listItemText}>{debt.counterpartyName}</Text>
+                          <Text style={styles.listItemSubtext}>
+                            {debt.principalCurrency} {debt.principalAmount.toFixed(2)}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : (
+                  <SmartHint type="info" message="No active debts. Create one in Finance tab." />
+                )}
+                <SmartHint type="success" message="Progress updates automatically when you make payments" />
+              </View>
+            )}
+
+            {/* Spend mode: Link to budget */}
+            {isSpendMode && (
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>Link to budget category</Text>
+                {activeBudgets.length > 0 ? (
+                  <View style={styles.listContainer}>
+                    <Pressable
+                      style={[styles.listItem, !formData.linkedBudgetId && styles.listItemSelected]}
+                      onPress={() => updateField('linkedBudgetId', undefined)}
+                    >
+                      {!formData.linkedBudgetId ? (
+                        <CircleDot size={20} color={styles.primaryColor.color} />
+                      ) : (
+                        <Circle size={20} color={styles.textSecondary.color} />
+                      )}
+                      <Text style={styles.listItemText}>No budget</Text>
+                    </Pressable>
+                    {activeBudgets.map((budget) => (
+                      <Pressable
+                        key={budget.id}
+                        style={[styles.listItem, formData.linkedBudgetId === budget.id && styles.listItemSelected]}
+                        onPress={() => updateField('linkedBudgetId', budget.id)}
+                      >
+                        {formData.linkedBudgetId === budget.id ? (
+                          <CircleDot size={20} color={styles.primaryColor.color} />
+                        ) : (
+                          <Circle size={20} color={styles.textSecondary.color} />
+                        )}
+                        <View style={styles.listItemContent}>
+                          <Text style={styles.listItemText}>{budget.name}</Text>
+                          <Text style={styles.listItemSubtext}>
+                            {budget.currency} {budget.spentAmount.toFixed(2)} / {budget.limitAmount.toFixed(2)}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ))}
+                  </View>
+                ) : (
+                  <SmartHint type="info" message="No budgets available. Create one in Finance tab." />
+                )}
+              </View>
+            )}
+          </>
+        ) : (
+          <SmartHint
+            type="info"
+            message="Finance linking is only available for financial goals. You can add habits and tasks later from the goal details screen."
+          />
+        )}
+      </View>
+    );
+  };
+
+  // Render
+  return (
+    <CustomModal
+      ref={modalRef}
+      variant="form"
+      enableDynamicSizing={false}
+      fallbackSnapPoint="96%"
+      onDismiss={() => {
+        closePlannerGoalModal();
+        // Reset form when dismissed via swipe/backdrop
+        setFormData({
+          title: '',
+          goalType: 'financial',
+          description: '',
+          metricKind: 'amount',
+          currency: baseCurrency,
+          currentValue: 0,
+          targetValue: 0,
+          milestones: [],
+          linkedHabitIds: [],
+          linkedTaskIds: [],
+        });
+        setCurrentStep(1);
+        setErrors({});
+      }}
+    >
+      <View style={styles.container}>
+        {/* Step Indicator */}
+        <StepIndicator currentStep={currentStep} totalSteps={4} steps={WIZARD_STEPS} />
+
+        {/* Step Content */}
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {renderStepContent()}
+        </ScrollView>
+
+        {/* Navigation Buttons */}
+        <View style={styles.footer}>
+          {currentStep > 1 && (
+            <Pressable style={[styles.button, styles.buttonSecondary]} onPress={goToPreviousStep}>
+              <Text style={styles.buttonSecondaryText}>Back</Text>
+            </Pressable>
+          )}
+          <Pressable
+            style={[styles.button, styles.buttonPrimary, currentStep === 1 && styles.buttonPrimaryFull]}
+            onPress={goToNextStep}
+          >
+            <Text style={styles.buttonPrimaryText}>{currentStep < 4 ? 'Next →' : 'Create Goal'}</Text>
           </Pressable>
         </View>
-      </View>
-    </AdaptiveGlassView>
-  );
 
-  return (
-    <>
-      <CustomModal ref={modalRef} onDismiss={closePlannerGoalModal} {...modalProps}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={styles.scrollContent}
-          >
-            {showAutoPlan ? (
-              /* PL-10: Auto-plan UI */
-              <>
-                {/* Success Header */}
-                <View style={[styles.header, styles.sectionPadding]}>
-                  <Text style={styles.autoPlanEmoji}>🎉</Text>
-                  <Text style={styles.autoPlanTitle}>Goal Created!</Text>
-                  <Text style={styles.autoPlanSubtitle}>
-                    Let's set up some habits and tasks to help you achieve it
-                  </Text>
-                </View>
-
-                {/* Habit Suggestions */}
-                <View style={[styles.section, styles.sectionPadding]}>
-                  <Text style={styles.sectionLabel}>Recommended Habits</Text>
-                  <View style={styles.suggestionsList}>
-                    {habitSuggestions.map((habit) => {
-                      const isSelected = selectedHabits.has(habit.id);
-                      return (
-                        <Pressable
-                          key={habit.id}
-                          onPress={() => handleToggleHabit(habit.id)}
-                          style={({ pressed }) => [styles.suggestionItem, pressed && styles.pressed]}
-                        >
-                          <AdaptiveGlassView style={[styles.suggestionInner, isSelected && styles.suggestionSelected]}>
-                            <View style={styles.suggestionCheckbox}>
-                              {isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
-                            </View>
-                            <Text style={styles.suggestionEmoji}>{habit.icon}</Text>
-                            <View style={styles.suggestionContent}>
-                              <Text style={styles.suggestionTitle}>{habit.title}</Text>
-                              <Text style={styles.suggestionDescription}>{habit.description}</Text>
-                              <Text style={styles.suggestionMeta}>{habit.frequency}</Text>
-                            </View>
-                          </AdaptiveGlassView>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {/* Task Suggestions */}
-                <View style={[styles.section, styles.sectionPadding]}>
-                  <Text style={styles.sectionLabel}>Recommended Tasks</Text>
-                  <View style={styles.suggestionsList}>
-                    {taskSuggestions.map((task) => {
-                      const isSelected = selectedTasks.has(task.id);
-                      return (
-                        <Pressable
-                          key={task.id}
-                          onPress={() => handleToggleTask(task.id)}
-                          style={({ pressed }) => [styles.suggestionItem, pressed && styles.pressed]}
-                        >
-                          <AdaptiveGlassView style={[styles.suggestionInner, isSelected && styles.suggestionSelected]}>
-                            <View style={styles.suggestionCheckbox}>
-                              {isSelected && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
-                            </View>
-                            <Text style={styles.suggestionEmoji}>{task.icon}</Text>
-                            <View style={styles.suggestionContent}>
-                              <Text style={styles.suggestionTitle}>{task.title}</Text>
-                              <Text style={styles.suggestionDescription}>{task.description}</Text>
-                              <View style={styles.taskMetaRow}>
-                                <Text style={[styles.suggestionMeta, styles.priorityBadge]}>
-                                  {task.priority}
-                                </Text>
-                              </View>
-                            </View>
-                          </AdaptiveGlassView>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {/* Auto-plan Actions */}
-                <View style={styles.actionButtons}>
-                  <Pressable
-                    onPress={handleSkipAutoPlan}
-                    style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.secondaryButtonText}>Skip</Text>
-                  </Pressable>
-                  <Pressable
-                    onPress={handleCreateSelected}
-                    disabled={selectedHabits.size === 0 && selectedTasks.size === 0}
-                    style={({ pressed }) => [
-                      styles.primaryButton,
-                      pressed && styles.pressed,
-                      (selectedHabits.size === 0 && selectedTasks.size === 0) && { opacity: 0.4 },
-                    ]}
-                  >
-                    <AdaptiveGlassView style={styles.primaryButtonInner}>
-                      <Text style={styles.primaryButtonText}>
-                        Create Selected ({selectedHabits.size + selectedTasks.size})
-                      </Text>
-                    </AdaptiveGlassView>
-                  </Pressable>
-                </View>
-              </>
-            ) : (
-              /* Regular Goal Form */
-              <>
-                {/* Header */}
-                <View style={[styles.header, styles.sectionPadding]}>
-                  <Text style={styles.headerTitle}>
-                    {isEditing ? modalStrings.actions.update.toUpperCase() : modalStrings.title.toUpperCase()}
-                  </Text>
-                </View>
-
-            {/* Scenario selector */}
-            <View style={[styles.section, styles.sectionNoPadding]}>
-              <View style={styles.sectionPadding}>
-                <Text style={styles.sectionLabel}>{modalStrings.scenarioSection.title}</Text>
-                <Text style={styles.sectionDescription}>{modalStrings.scenarioSection.subtitle}</Text>
-              </View>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.templatesScroll}
-              >
-                {scenarioEntries.map(({ key, title: scenarioTitle, subtitle }) => {
-                  const isActive = selectedScenario === key;
-                  return (
-                    <Pressable
-                      key={key}
-                      onPress={() => handleScenarioSelect(key)}
-                      style={({ pressed }) => [styles.templateCard, pressed && styles.pressed]}
-                    >
-                      <AdaptiveGlassView style={[styles.templateInner, { opacity: isActive ? 1 : 0.6 }]}>
-                        <Text style={styles.templateEmoji}>{SCENARIO_ICONS[key]}</Text>
-                        <Text style={[styles.templateLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
-                          {scenarioTitle}
-                        </Text>
-                        <Text style={styles.templateSubtitle}>{subtitle}</Text>
-                      </AdaptiveGlassView>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-            </View>
-
-            {/* Details */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>{modalStrings.detailsSection.titleLabel}</Text>
-              <AdaptiveGlassView style={styles.inputContainer}>
-                <TextInput
-                  value={title}
-                  onChangeText={(text) => {
-                    setTitle(text);
-                    setErrorKey(null);
-                  }}
-                  placeholder={modalStrings.detailsSection.titlePlaceholder}
-                  placeholderTextColor="#7E8B9A"
-                  style={styles.textInput}
-                />
-              </AdaptiveGlassView>
-            </View>
-
-            {/* Description */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>{modalStrings.detailsSection.descriptionLabel}</Text>
-              <AdaptiveGlassView style={styles.descriptionContainer}>
-                <TextInput
-                  value={description}
-                  onChangeText={setDescription}
-                  placeholder={modalStrings.detailsSection.descriptionPlaceholder}
-                  placeholderTextColor="#7E8B9A"
-                  multiline
-                  style={styles.descriptionInput}
-                />
-              </AdaptiveGlassView>
-            </View>
-
-            {/* Goal type */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>Category</Text>
-              <View style={styles.typeRow}>
-                {GOAL_TYPES.map((type) => {
-                  const isActive = goalType === type.id;
-                  return (
-                    <Pressable
-                      key={type.id}
-                      onPress={() => handleGoalTypeChange(type.id)}
-                      style={({ pressed }) => [styles.typeButton, pressed && styles.pressed]}
-                    >
-                      <AdaptiveGlassView style={[styles.typeButtonInner, { opacity: isActive ? 1 : 0.6 }]}>
-                        <Text style={styles.typeEmoji}>{type.icon}</Text>
-                        <Text style={[styles.typeLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
-                          {type.label}
-                        </Text>
-                      </AdaptiveGlassView>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Measurement type */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>{measurementStrings.title}</Text>
-              <Text style={styles.label}>{measurementStrings.metricLabel}</Text>
-              <View style={styles.measurementGrid}>
-                {METRIC_OPTIONS.map((metric) => {
-                  const isActive = metricKind === metric.id;
-                  return (
-                    <Pressable
-                      key={metric.id}
-                      onPress={() => handleMetricChange(metric.id)}
-                      style={({ pressed }) => [styles.measurementButton, pressed && styles.pressed]}
-                    >
-                      <AdaptiveGlassView style={[styles.measurementButtonInner, { opacity: isActive ? 1 : 0.6 }]}>
-                        <Text style={styles.measurementEmoji}>{metric.icon}</Text>
-                        <Text style={[styles.measurementLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
-                          {measurementStrings.metricOptions[metric.id] ?? metric.label}
-                        </Text>
-                        <Text style={styles.measurementDescription}>{metric.description}</Text>
-                      </AdaptiveGlassView>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-
-            {/* Target values */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>{measurementStrings.title}</Text>
-              <View style={styles.valueRow}>
-                <View style={styles.valueColumn}>
-                  <Text style={styles.label}>{measurementStrings.currentLabel}</Text>
-                  <AdaptiveGlassView style={styles.inputContainer}>
-                    <TextInput
-                      value={currentValueText}
-                      onChangeText={(text) => {
-                        setCurrentValueText(text);
-                        setErrorKey(null);
-                      }}
-                      placeholder={measurementStrings.placeholders.current}
-                      placeholderTextColor="#7E8B9A"
-                      keyboardType="numeric"
-                      style={styles.textInput}
-                    />
-                  </AdaptiveGlassView>
-                </View>
-                <View style={styles.valueColumn}>
-                  <Text style={styles.label}>{measurementStrings.targetLabel}</Text>
-                  <AdaptiveGlassView style={styles.inputContainer}>
-                    <TextInput
-                      value={targetValueText}
-                      onChangeText={(text) => {
-                        setTargetValueText(text);
-                        setErrorKey(null);
-                      }}
-                      placeholder={measurementStrings.placeholders.target}
-                      placeholderTextColor="#7E8B9A"
-                      keyboardType="numeric"
-                      style={styles.textInput}
-                    />
-                  </AdaptiveGlassView>
-                </View>
-              </View>
-
-              {/* Currency / Unit */}
-              {metricKind === 'amount' ? (
-                <>
-                  <Text style={styles.label}>{measurementStrings.currencyLabel}</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.currencyScroll}>
-                    {currencyOptions.map((curr) => {
-                      const isActive = currency === curr;
-                      return (
-                        <Pressable
-                          key={curr}
-                          onPress={() => setCurrency(curr)}
-                          style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
-                        >
-                          <AdaptiveGlassView style={[styles.chipInner, { opacity: isActive ? 1 : 0.6 }]}>
-                            <Text style={[styles.chipText, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
-                              {curr}
-                            </Text>
-                          </AdaptiveGlassView>
-                        </Pressable>
-                      );
-                    })}
-                  </ScrollView>
-
-                  <Text style={styles.label}>{measurementStrings.financeModeLabel}</Text>
-                  <View style={styles.modeRow}>
-                    {FINANCE_MODES.map((mode) => {
-                      const isActive = financeMode === mode.id;
-                      return (
-                        <Pressable
-                          key={mode.id}
-                          onPress={() => setFinanceMode(mode.id)}
-                          style={({ pressed }) => [styles.modeButton, pressed && styles.pressed]}
-                        >
-                          <AdaptiveGlassView style={[styles.modeButtonInner, { opacity: isActive ? 1 : 0.6 }]}>
-                            <Text style={styles.modeEmoji}>{mode.icon}</Text>
-                            <Text style={[styles.modeLabel, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
-                              {measurementStrings.financeModes[mode.id] ?? mode.label}
-                            </Text>
-                          </AdaptiveGlassView>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </>
-              ) : metricKind !== 'custom' ? (
-                <>
-                  <Text style={styles.label}>{measurementStrings.unitLabel}</Text>
-                  <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.unitsScroll}
-                  >
-                    {Array.from(unitsByCategory.entries()).map(([categoryId, units]) => {
-                      const categoryInfo = UNIT_CATEGORIES.find(c => c.id === categoryId);
-                      if (!categoryInfo || units.length === 0) return null;
-                      
-                      return (
-                        <View key={categoryId} style={styles.unitCategoryGroup}>
-                          <View style={styles.unitCategoryHeader}>
-                            <Ionicons name={categoryInfo.icon} size={14} color="#7E8B9A" />
-                            <Text style={styles.unitCategoryLabel}>{categoryInfo.label}</Text>
-                          </View>
-                          <View style={styles.unitCategoryItems}>
-                            {units.map((unitDef) => {
-                              const isActive = unit === unitDef.id;
-                              return (
-                                <Pressable
-                                  key={unitDef.id}
-                                  onPress={() => {
-                                    setUnit(unitDef.id);
-                                    setShowCustomUnit(false);
-                                    setCustomUnit('');
-                                  }}
-                                  style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
-                                >
-                                  <AdaptiveGlassView style={[styles.unitChipInner, { opacity: isActive ? 1 : 0.6 }]}>
-                                    <Ionicons 
-                                      name={unitDef.icon} 
-                                      size={16} 
-                                      color={isActive ? '#FFFFFF' : '#7E8B9A'} 
-                                    />
-                                    <Text style={[styles.unitChipText, { color: isActive ? '#FFFFFF' : '#7E8B9A' }]}>
-                                      {unitDef.label}
-                                    </Text>
-                                  </AdaptiveGlassView>
-                                </Pressable>
-                              );
-                            })}
-                          </View>
-                        </View>
-                      );
-                    })}
-                    
-                    {/* Custom option */}
-                    <View style={styles.unitCategoryGroup}>
-                      <View style={styles.unitCategoryHeader}>
-                        <Ionicons name="create-outline" size={14} color="#7E8B9A" />
-                        <Text style={styles.unitCategoryLabel}>{measurementStrings.unitLabel}</Text>
-                      </View>
-                      <Pressable
-                        onPress={() => {
-                          setUnit('custom');
-                          setShowCustomUnit(true);
-                        }}
-                        style={({ pressed }) => [styles.unitChip, pressed && styles.pressed]}
-                      >
-                        <AdaptiveGlassView style={[styles.unitChipInner, { opacity: showCustomUnit ? 1 : 0.6 }]}>
-                          <Ionicons 
-                            name="add-circle-outline" 
-                            size={16} 
-                            color={showCustomUnit ? '#FFFFFF' : '#7E8B9A'} 
-                          />
-                          <Text style={[styles.unitChipText, { color: showCustomUnit ? '#FFFFFF' : '#7E8B9A' }]}>
-                            {measurementStrings.unitLabel}
-                          </Text>
-                        </AdaptiveGlassView>
-                      </Pressable>
-                    </View>
-                  </ScrollView>
-                  
-                  {/* Custom unit input */}
-                  {showCustomUnit && (
-                    <AdaptiveGlassView style={[styles.inputContainer, { marginTop: 12 }]}>
-                      <TextInput
-                        value={customUnit}
-                        onChangeText={setCustomUnit}
-                        placeholder={measurementStrings.placeholders.unit}
-                        placeholderTextColor="#7E8B9A"
-                        style={styles.textInput}
-                        autoFocus
-                      />
-                    </AdaptiveGlassView>
-                  )}
-                </>
-              ) : (
-                <>
-                  <Text style={styles.label}>{measurementStrings.unitLabel}</Text>
-                  <AdaptiveGlassView style={styles.inputContainer}>
-                    <TextInput
-                      value={unit}
-                      onChangeText={setUnit}
-                      placeholder={measurementStrings.placeholders.unit}
-                      placeholderTextColor="#7E8B9A"
-                      style={styles.textInput}
-                    />
-                  </AdaptiveGlassView>
-                </>
-              )}
-              {errorKey && <Text style={styles.errorText}>{modalStrings.alerts[errorKey]}</Text>}
-            </View>
-
-            {/* Timeline */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <Text style={styles.sectionLabel}>{sectionTimelineStrings.title}</Text>
-              <View style={styles.timelineRow}>
-                <Pressable style={styles.dateButton} onPress={() => openDatePicker({ type: 'start' })}>
-                  <AdaptiveGlassView style={styles.dateButtonInner}>
-                    <Ionicons name="calendar-outline" size={16} color="#7E8B9A" />
-                    <View style={styles.dateTextContainer}>
-                      <Text style={styles.dateLabel}>{sectionTimelineStrings.startLabel}</Text>
-                      <Text style={styles.dateText}>{formatDateLabel(startDate)}</Text>
-                    </View>
-                  </AdaptiveGlassView>
-                </Pressable>
-                <Pressable style={styles.dateButton} onPress={() => openDatePicker({ type: 'due' })}>
-                  <AdaptiveGlassView style={styles.dateButtonInner}>
-                    <Ionicons name="flag-outline" size={16} color="#7E8B9A" />
-                    <View style={styles.dateTextContainer}>
-                      <Text style={styles.dateLabel}>{sectionTimelineStrings.dueLabel}</Text>
-                      <Text style={styles.dateText}>{formatDateLabel(targetDate)}</Text>
-                    </View>
-                  </AdaptiveGlassView>
-                </Pressable>
-              </View>
-            </View>
-
-            {/* Milestones */}
-            <View style={[styles.section, styles.sectionPadding]}>
-              <View style={styles.milestoneHeaderRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.sectionLabel}>{modalStrings.milestoneSection.title}</Text>
-                  <Text style={styles.sectionDescription}>{modalStrings.milestoneSection.description}</Text>
-                </View>
-                <Pressable onPress={handleAddMilestone} style={styles.addButton} accessibilityLabel={modalStrings.milestoneSection.add}>
-                  <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" />
-                </Pressable>
-              </View>
-              {milestones.length === 0 ? (
-                <AdaptiveGlassView style={styles.emptyCard}>
-                  <Text style={styles.emptyText}>{modalStrings.milestoneSection.empty}</Text>
-                </AdaptiveGlassView>
-              ) : (
-                <View style={styles.milestoneList}>{milestones.map(renderMilestone)}</View>
-              )}
-            </View>
-
-            {/* AI Suggestions */}
-            <View style={styles.aiSuggestion}>
-              <Text style={styles.aiSuggestionIcon}>💡</Text>
-              <View style={styles.aiTextContainer}>
-                <Text style={styles.aiText}>
-                  AI:{' '}
-                  <Text style={{ color: '#FFFFFF' }}>
-                    Goals with specific deadlines are 42% more likely to be achieved. Set a realistic target date!
-                  </Text>
-                </Text>
-              </View>
-            </View>
-
-            {milestones.length > 0 && (
-              <View style={styles.aiSuggestion}>
-                <Text style={styles.aiSuggestionIcon}>🎯</Text>
-                <View style={styles.aiTextContainer}>
-                  <Text style={styles.aiText}>
-                    AI:{' '}
-                    <Text style={{ color: '#FFFFFF' }}>
-                      Great! Breaking goals into milestones increases success rate by 60%.
-                    </Text>
-                  </Text>
-                </View>
-              </View>
-            )}
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              {!isEditing && (
-                <Pressable
-                  disabled={disablePrimary}
-                  onPress={() => handleSubmit({ showAutoPlan: true })}
-                  style={({ pressed }) => [
-                    styles.secondaryButton,
-                    pressed && !disablePrimary && styles.pressed,
-                    disablePrimary && { opacity: 0.4 },
-                  ]}
-                >
-                  <Text style={styles.secondaryButtonText}>{modalStrings.actions.createAndMore || 'Create and more'}</Text>
-                </Pressable>
-              )}
-              <Pressable
-                disabled={disablePrimary}
-                onPress={() => handleSubmit()}
-                style={({ pressed }) => [
-                  styles.primaryButton,
-                  pressed && !disablePrimary && styles.pressed,
-                  !isEditing && { flex: 1 },
-                ]}
-              >
-                <AdaptiveGlassView style={[styles.primaryButtonInner, { opacity: disablePrimary ? 0.4 : 1 }]}>
-                  <Text style={[styles.primaryButtonText, { color: disablePrimary ? '#7E8B9A' : '#FFFFFF' }]}>
-                    {isEditing ? modalStrings.actions.update : modalStrings.actions.create}
-                  </Text>
-                </AdaptiveGlassView>
-              </Pressable>
-            </View>
-              </>
-            )}
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </CustomModal>
-
-      {Platform.OS === 'ios' && pickerState && (
-        <Modal transparent visible onRequestClose={() => setPickerState(null)} animationType="fade">
-          <View style={styles.pickerModal}>
-            <Pressable style={styles.pickerBackdrop} onPress={() => setPickerState(null)} />
-            <AdaptiveGlassView style={styles.pickerCard}>
-              <DateTimePicker value={pickerState.value} mode="date" display="spinner" onChange={handleIosPickerChange} />
-              <Pressable onPress={() => setPickerState(null)} style={styles.pickerDoneButton}>
-                <Text style={styles.pickerDoneText}>Done</Text>
-              </Pressable>
-            </AdaptiveGlassView>
+        {/* Date Picker (iOS) */}
+        {Platform.OS === 'ios' && datePickerVisible && datePickerTarget && (
+          <View style={styles.datePickerContainer}>
+            <DateTimePicker
+              value={
+                datePickerTarget.type === 'start'
+                  ? formData.startDate ?? new Date()
+                  : datePickerTarget.type === 'due'
+                    ? formData.targetDate ?? new Date()
+                    : formData.milestones.find((m) => m.id === datePickerTarget.id)?.dueDate ?? new Date()
+              }
+              mode="date"
+              display="spinner"
+              onChange={handleDateChange}
+            />
+            <Pressable style={styles.datePickerDone} onPress={closeDatePicker}>
+              <Text style={styles.datePickerDoneText}>Done</Text>
+            </Pressable>
           </View>
-        </Modal>
-      )}
-    </>
+        )}
+      </View>
+    </CustomModal>
   );
-}
+};
 
-const styles = StyleSheet.create({
+// Styles
+const useStyles = createThemedStyles((theme) => ({
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
-    paddingTop: 12,
-    paddingBottom: 32,
+    paddingBottom: 20,
   },
-  header: {
-    alignItems: 'center',
-    marginBottom: 24,
+  stepContainer: {
+    gap: 20,
   },
-  headerTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 1.2,
-    color: '#7E8B9A',
-  },
-  section: {
-    marginBottom: 20,
-  },
-  sectionPadding: {
-    paddingHorizontal: 20,
-  },
-  sectionNoPadding: {
-    paddingHorizontal: 0,
-  },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: '400',
-    color: '#7E8B9A',
-    marginBottom: 12,
-  },
-  sectionDescription: {
-    fontSize: 12,
-    color: '#7E8B9A',
-    marginTop: -6,
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 12,
-    color: '#7E8B9A',
+  stepTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
     marginBottom: 8,
-    marginTop: 8,
   },
-  templatesScroll: {
-    gap: 12,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  templateCard: {
-    borderRadius: 16,
-  },
-  templateInner: {
-    width: 110,
-    height: 100,
-    borderRadius: 16,
-    padding: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  templateEmoji: {
-    fontSize: 32,
-  },
-  templateLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  templateSubtitle: {
-    fontSize: 10,
-    textAlign: 'center',
-    color: '#7E8B9A',
-  },
-  inputContainer: {
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  textInput: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: '#FFFFFF',
-  },
-  descriptionContainer: {
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 80,
-  },
-  descriptionInput: {
-    fontSize: 15,
-    fontWeight: '400',
-    textAlignVertical: 'top',
-    color: '#FFFFFF',
-  },
-  typeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  typeButton: {
-    borderRadius: 16,
-  },
-  typeButtonInner: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    minWidth: 70,
-  },
-  typeEmoji: {
-    fontSize: 20,
-  },
-  typeLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  measurementGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  measurementButton: {
-    width: '48%',
-    borderRadius: 16,
-  },
-  measurementButtonInner: {
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    borderRadius: 16,
-    gap: 6,
-    alignItems: 'center',
-  },
-  measurementEmoji: {
-    fontSize: 24,
-  },
-  measurementLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  measurementDescription: {
-    fontSize: 10,
-    color: '#7E8B9A',
-  },
-  valueRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  valueColumn: {
-    flex: 1,
-  },
-  currencyScroll: {
-    gap: 10,
-    paddingVertical: 4,
-  },
-  chip: {
-    borderRadius: 12,
-  },
-  chipInner: {
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  chipText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  modeButton: {
-    flex: 1,
-    borderRadius: 16,
-  },
-  modeButtonInner: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 16,
-  },
-  modeEmoji: {
-    fontSize: 20,
-  },
-  modeLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-  unitsScroll: {
-    gap: 16,
-    paddingVertical: 8,
-  },
-  unitCategoryGroup: {
-    gap: 8,
-  },
-  unitCategoryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 4,
-  },
-  unitCategoryLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#7E8B9A',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  unitCategoryItems: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  unitChip: {
-    borderRadius: 12,
-  },
-  unitChipInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  unitChipText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  timelineRow: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  dateButton: {
-    flex: 1,
-  },
-  dateButtonInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
-  dateTextContainer: {
-    flex: 1,
-    gap: 2,
-  },
-  dateLabel: {
-    fontSize: 10,
-    color: '#7E8B9A',
-  },
-  dateText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#FFFFFF',
-  },
-  milestoneHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  addButton: {
-    padding: 4,
-  },
-  emptyCard: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 6,
-  },
-  emptyText: {
-    color: '#FFFFFF',
+  stepSubtitle: {
     fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+    marginTop: -12,
+    marginBottom: 8,
+  },
+  fieldContainer: {
+    gap: 8,
+  },
+  fieldLabel: {
+    fontSize: 15,
     fontWeight: '600',
+    color: theme.colors.textPrimary,
   },
-  emptyDescription: {
-    color: '#7E8B9A',
-    fontSize: 13,
-  },
-  milestoneList: {
-    gap: 12,
-  },
-  milestoneCard: {
-    borderRadius: 16,
+  input: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 12,
     padding: 14,
-    gap: 12,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  milestoneHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+  inputError: {
+    borderColor: theme.colors.danger,
   },
-  milestoneRow: {
-    flexDirection: 'row',
-    gap: 12,
+  textArea: {
+    backgroundColor: theme.colors.card,
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    minHeight: 80,
+    textAlignVertical: 'top',
   },
-  milestoneColumn: {
-    flex: 1,
+  placeholder: {
+    color: theme.colors.textMuted,
   },
-  milestoneInput: {
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  characterCount: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    textAlign: 'right',
   },
   errorText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#FCA5A5',
-  },
-  aiSuggestion: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    marginBottom: 16,
-    paddingHorizontal: 20,
-  },
-  aiSuggestionIcon: {
-    fontSize: 22,
-  },
-  aiTextContainer: {
-    flex: 1,
-  },
-  aiText: {
     fontSize: 13,
-    fontWeight: '400',
-    lineHeight: 19,
-    color: '#7E8B9A',
+    color: theme.colors.danger,
   },
-  actionButtons: {
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  chipSelected: {
+    backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+  },
+  chipIcon: {
+    fontSize: 16,
+  },
+  chipLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  chipLabelSelected: {
+    color: '#FFFFFF',
+  },
+  row: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
-    paddingHorizontal: 20,
   },
-  secondaryButton: {
+  halfField: {
     flex: 1,
-    paddingVertical: 16,
+    gap: 8,
+  },
+  dateButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-  },
-  secondaryButtonText: {
-    fontSize: 15,
-    fontWeight: '400',
-    color: '#7E8B9A',
-  },
-  primaryButton: {
-    flex: 2,
-    borderRadius: 16,
-  },
-  primaryButtonInner: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 16,
-  },
-  primaryButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  pickerModal: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  pickerBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-  },
-  pickerCard: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-    borderRadius: 24,
-    padding: 16,
-    gap: 12,
-  },
-  pickerDoneButton: {
-    alignSelf: 'flex-end',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    gap: 10,
+    backgroundColor: theme.colors.card,
     borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  pickerDoneText: {
+  dateButtonText: {
+    fontSize: 16,
+    color: theme.colors.textPrimary,
+  },
+  milestoneItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deleteIcon: {
+    color: theme.colors.danger,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+  },
+  addButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: theme.colors.primary,
   },
-  // PL-10: Auto-plan styles
-  autoPlanEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  autoPlanTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  autoPlanSubtitle: {
+  comingSoonText: {
     fontSize: 14,
-    fontWeight: '400',
-    color: '#7E8B9A',
-    textAlign: 'center',
-    lineHeight: 20,
+    color: theme.colors.textMuted,
+    marginLeft: 8,
   },
-  suggestionsList: {
-    gap: 12,
+  listContainer: {
+    gap: 8,
   },
-  suggestionItem: {
-    borderRadius: 16,
-  },
-  suggestionInner: {
+  listItem: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
     padding: 14,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: 'transparent',
+    backgroundColor: theme.colors.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  suggestionSelected: {
-    borderColor: '#FFFFFF',
+  listItemSelected: {
+    borderColor: theme.colors.primary,
+    backgroundColor: `${theme.colors.primary}10`,
   },
-  suggestionCheckbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: '#7E8B9A',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  suggestionEmoji: {
-    fontSize: 24,
-  },
-  suggestionContent: {
+  listItemContent: {
     flex: 1,
-    gap: 4,
   },
-  suggestionTitle: {
+  listItemText: {
     fontSize: 15,
     fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  listItemSubtext: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  primaryColor: {
+    color: theme.colors.primary,
+  },
+  textSecondary: {
+    color: theme.colors.textSecondary,
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 20,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+  },
+  button: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  buttonSecondary: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  buttonSecondaryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.textPrimary,
+  },
+  buttonPrimary: {
+    backgroundColor: theme.colors.primary,
+  },
+  buttonPrimaryFull: {
+    flex: 1,
+  },
+  buttonPrimaryText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
-  suggestionDescription: {
-    fontSize: 13,
-    fontWeight: '400',
-    color: '#7E8B9A',
-    lineHeight: 18,
+  datePickerContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: theme.colors.card,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 20,
   },
-  suggestionMeta: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#7E8B9A',
-    textTransform: 'capitalize',
-  },
-  taskMetaRow: {
-    flexDirection: 'row',
+  datePickerDone: {
     alignItems: 'center',
-    gap: 8,
+    padding: 12,
   },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.1)',
+  datePickerDoneText: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: theme.colors.primary,
   },
-});
+}));
+
+export const GoalModal = forwardRef<GoalModalHandle>(GoalModalComponent);
+export default GoalModal;

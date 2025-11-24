@@ -2,6 +2,20 @@ export type GoalType = 'financial' | 'health' | 'education' | 'productivity' | '
 export type GoalStatus = 'active' | 'paused' | 'completed' | 'archived';
 export type MetricKind = 'none' | 'amount' | 'weight' | 'count' | 'duration' | 'custom';
 export type FinanceMode = 'save' | 'spend' | 'debt_close';
+export type GoalDirection = 'increase' | 'decrease' | 'neutral';
+
+export type GoalProgressSource = 'manual' | 'task' | 'habit' | 'finance';
+
+export interface GoalCheckIn {
+  id: string;
+  goalId: string;
+  value: number;
+  note?: string;
+  sourceType: GoalProgressSource;
+  sourceId?: string;
+  dateKey?: string;
+  createdAt: string;
+}
 
 export interface GoalStats {
   financialProgressPercent?: number;
@@ -30,32 +44,45 @@ export interface Goal {
   unit?: string;
   initialValue?: number;
   targetValue?: number;
+  progressTargetValue?: number;
+  currentValue?: number;
+  checkIns?: GoalCheckIn[];
+  direction?: GoalDirection;
   financeMode?: FinanceMode;
   currency?: string;
   linkedBudgetId?: string;
+  linkedHabitIds?: string[];
+  linkedTaskIds?: string[];
+  linkedDebtId?: string;
+  financeContributionIds?: string[];
   startDate?: string;
   targetDate?: string;
   completedDate?: string;
   progressPercent: number;
   stats: GoalStats;
   milestones?: GoalMilestone[];
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
 export type HabitStatus = 'active' | 'paused' | 'archived';
-export type HabitType = 'health' | 'finance' | 'productivity' | 'education' | 'personal';
+export type HabitType = 'health' | 'finance' | 'productivity' | 'education' | 'personal' | 'custom';
 export type Frequency = 'daily' | 'weekly' | 'custom';
 export type CompletionMode = 'boolean' | 'numeric';
 
-export interface HabitFinanceRule {
-  rule: 'no_spend_in_categories' | 'spend_in_categories' | 'has_any_transactions';
-  categories?: string[];
-  thresholdAmount?: number;
-  currency?: string;
-}
+export type HabitFinanceRule =
+  | { type: 'no_spend_in_categories'; categoryIds: string[] }
+  | { type: 'spend_in_categories'; categoryIds: string[]; minAmount?: number; currency?: string }
+  | { type: 'has_any_transactions'; accountIds?: string[] }
+  | { type: 'daily_spend_under'; amount: number; currency: string };
 
 export type HabitCompletionStatus = 'done' | 'miss';
+
+export type HabitCompletionEntry = {
+  status: HabitCompletionStatus;
+  value?: number;
+};
 
 export interface Habit {
   id: string;
@@ -67,7 +94,6 @@ export interface Habit {
   status: HabitStatus;
   goalId?: string;
   linkedGoalIds?: string[];
-  completionHistory?: Record<string, HabitCompletionStatus>;
   frequency: Frequency;
   daysOfWeek?: number[];
   timesPerWeek?: number;
@@ -80,11 +106,23 @@ export interface Habit {
   streakCurrent: number;
   streakBest: number;
   completionRate30d: number;
+  completionHistory?: Record<string, HabitCompletionEntry>;
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export type TaskStatus = 'inbox' | 'planned' | 'in_progress' | 'completed' | 'canceled' | 'moved' | 'overdue';
+export type TaskStatus =
+  | 'inbox'
+  | 'planned'
+  | 'in_progress'
+  | 'completed'
+  | 'canceled'
+  | 'moved'
+  | 'overdue'
+  | 'active'
+  | 'archived'
+  | 'deleted';
 export type TaskPriority = 'low' | 'medium' | 'high';
 export type TaskFinanceLink = 'record_expenses' | 'pay_debt' | 'review_budget' | 'transfer_money' | 'none';
 
@@ -117,11 +155,14 @@ export interface Task {
   priority: TaskPriority;
   goalId?: string;
   habitId?: string;
+  progressValue?: number;
+  progressUnit?: string;
   financeLink?: TaskFinanceLink;
   dueDate?: string;
   startDate?: string;
   timeOfDay?: string;
   estimatedMinutes?: number;
+  needFocus?: boolean;
   energyLevel?: 1 | 2 | 3;
   checklist?: TaskChecklistItem[];
   dependencies?: TaskDependency[];
@@ -129,6 +170,7 @@ export interface Task {
   focusTotalMinutes?: number;
   context?: string;
   notes?: string;
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -147,6 +189,7 @@ export interface FocusSession {
   endedAt?: string;
   interruptionsCount?: number;
   notes?: string;
+  isPending?: boolean;
   createdAt: string;
   updatedAt: string;
 }

@@ -2,13 +2,14 @@ export type PlannerGoalId = 'dream-car' | 'emergency-fund' | 'fitness' | 'langua
 export type PlannerHabitId = 'h1' | 'h2' | 'h3' | 'h4' | 'h5';
 export type GoalSummaryKey = 'left' | 'pace' | 'prediction';
 
-export type PlannerTaskStatus = 'planned' | 'in_progress' | 'done' | 'moved' | 'overdue';
+export type PlannerTaskStatus = 'active' | 'in_progress' | 'completed' | 'archived';
 export type PlannerTaskSection = 'morning' | 'afternoon' | 'evening';
 export type PlannerTaskCategoryId = 'work' | 'personal' | 'health' | 'learning' | 'errands';
 
 export type AddTaskDateMode = 'today' | 'tomorrow' | 'pick';
 export type TaskEnergyLevel = 'low' | 'medium' | 'high';
 export type TaskPriorityLevel = 'low' | 'medium' | 'high';
+export type TaskFinanceLink = 'record_expenses' | 'pay_debt' | 'review_budget' | 'transfer_money' | 'none';
 
 export interface AddTaskPayload {
   title: string;
@@ -22,6 +23,7 @@ export interface AddTaskPayload {
   priority: TaskPriorityLevel;
   categoryId?: PlannerTaskCategoryId;
   goalId?: string;
+  financeLink?: TaskFinanceLink;
   reminderEnabled: boolean;
   remindBeforeMin?: number;
   repeatEnabled: boolean;
@@ -32,6 +34,7 @@ export interface AddTaskPayload {
 
 export interface PlannerTaskMetadata {
   sourcePayload?: AddTaskPayload;
+  needFocus?: boolean;
 }
 
 export interface PlannerTaskFocusMeta {

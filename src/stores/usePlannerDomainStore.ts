@@ -1,8 +1,14 @@
 import { create } from 'zustand';
+import { BSON } from 'realm';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
-import type { FocusSession, Goal, Habit, Task, TaskDependency, TaskStatus } from '@/domain/planner/types';
+import type { FocusSession, Goal, Habit, Task, TaskDependency, TaskStatus, GoalCheckIn } from '@/domain/planner/types';
 import { plannerEventBus, type PlannerEventName, type PlannerEventPayloadMap } from '@/events/plannerEventBus';
 import { addDays, startOfDay } from '@/utils/calendar';
+import { offlineQueueService } from '@/services/offlineQueueService';
+import { mmkvStorageAdapter } from '@/utils/storage';
+import { calculateGoalProgress, syncGoalMilestones } from '@/utils/goalProgress';
+import { getPlannerDaoRegistry, hasPlannerDaoRegistry } from '@/database/dao/plannerDaoRegistry';
 
 export type PlannerHistoryItem = {
   historyId: string;
@@ -20,6 +26,8 @@ interface PlannerDomainState {
   tasks: Task[];
   focusSessions: FocusSession[];
   taskHistory: PlannerHistoryItem[];
+  addGoalCheckIn: (payload: { goalId: string; value: number; note?: string; sourceType?: GoalCheckIn['sourceType']; sourceId?: string; dateKey?: string; createdAt?: string }) => GoalCheckIn | undefined;
+  removeFinanceContribution: (sourceId: string) => void;
   createGoal: (payload: Omit<Goal, 'id' | 'createdAt' | 'updatedAt' | 'progressPercent' | 'stats'> & { id?: string; progressPercent?: number; stats?: Goal['stats'] }) => Goal;
   updateGoal: (id: string, updates: Partial<Goal>) => void;
   setGoalStatus: (id: string, status: Goal['status']) => void;
@@ -27,6 +35,7 @@ interface PlannerDomainState {
   archiveGoal: (id: string) => void;
   pauseGoal: (id: string) => void;
   resumeGoal: (id: string) => void;
+  deleteGoalPermanently: (id: string) => void;
   createHabit: (payload: Omit<Habit, 'id' | 'createdAt' | 'updatedAt' | 'streakCurrent' | 'streakBest' | 'completionRate30d'> & { id?: string; streakCurrent?: number; streakBest?: number; completionRate30d?: number }) => Habit;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
   logHabitCompletion: (id: string, completed: boolean, options?: { date?: Date | string; clear?: boolean }) => void;
@@ -42,6 +51,7 @@ interface PlannerDomainState {
   addTaskDependency: (taskId: string, dependency: TaskDependency) => void;
   setTaskStatus: (taskId: string, status: TaskStatus) => void;
   deleteTask: (taskId: string) => void;
+  deleteTaskPermanently: (taskId: string) => void;
   restoreTaskFromHistory: (historyId: string) => void;
   removeHistoryEntry: (historyId: string) => void;
   createFocusSession: (payload: Omit<FocusSession, 'id' | 'status' | 'createdAt' | 'updatedAt'> & { status?: FocusSession['status'] }) => FocusSession;
@@ -55,7 +65,7 @@ interface PlannerDomainState {
   reset: () => void;
 }
 
-const generateId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+const generateId = (_prefix: string) => new BSON.ObjectId().toHexString();
 
 const nowIso = () => new Date().toISOString();
 
@@ -66,14 +76,17 @@ const ENABLE_PLANNER_SEED_DATA = false;
 const dateKeyFromDate = (date: Date) => startOfDay(date).toISOString().split('T')[0]!;
 const parseDateKey = (key: string) => new Date(`${key}T00:00:00.000Z`);
 
-const recalcHabitStatsFromHistory = (history?: Record<string, 'done' | 'miss'>) => {
+const recalcHabitStatsFromHistory = (history?: Habit['completionHistory']) => {
   const map = history ?? {};
+  const getStatus = (value?: Habit['completionHistory'][string]) =>
+    typeof value === 'string' ? value : value?.status;
+
   const today = startOfDay(new Date());
   let streakCurrent = 0;
   let cursor = today;
   while (true) {
     const key = dateKeyFromDate(cursor);
-    if (map[key] === 'done') {
+    if (getStatus(map[key]) === 'done') {
       streakCurrent += 1;
       cursor = addDays(cursor, -1);
       continue;
@@ -84,7 +97,9 @@ const recalcHabitStatsFromHistory = (history?: Record<string, 'done' | 'miss'>) 
   let streakBest = 0;
   let bestChain = 0;
   let prevDate: Date | null = null;
-  const sortedKeys = Object.keys(map).filter((key) => map[key] === 'done').sort();
+  const sortedKeys = Object.keys(map)
+    .filter((key) => getStatus(map[key]) === 'done')
+    .sort();
   sortedKeys.forEach((key) => {
     const date = parseDateKey(key);
     if (prevDate) {
@@ -106,7 +121,7 @@ const recalcHabitStatsFromHistory = (history?: Record<string, 'done' | 'miss'>) 
   let doneCount = 0;
   for (let i = 0; i < windowDays; i += 1) {
     const key = dateKeyFromDate(addDays(today, -i));
-    if (map[key] === 'done') {
+    if (getStatus(map[key]) === 'done') {
       doneCount += 1;
     }
   }
@@ -120,6 +135,83 @@ const publishPlannerEvent = <E extends PlannerEventName>(
   payload: PlannerEventPayloadMap[E],
 ) => plannerEventBus.publish(event, payload);
 
+/**
+ * Queue offline operation if no internet connection
+ */
+const queueIfOffline = async (
+  entityType: 'goal' | 'habit' | 'task' | 'focusSession',
+  operationType: 'create' | 'update' | 'delete',
+  entityId: string,
+  payload: any,
+) => {
+  const isOnline = offlineQueueService.getIsOnline();
+  if (!isOnline) {
+    await offlineQueueService.enqueue({
+      entityType,
+      operationType,
+      entityId,
+      payload,
+    });
+  }
+  return !isOnline; // Return true if operation was queued (offline)
+};
+
+const persistGoalToRealm = (goal: Goal) => {
+  if (!hasPlannerDaoRegistry()) return;
+  try {
+    getPlannerDaoRegistry().goals.upsert(goal);
+  } catch (error) {
+    console.warn('[PlannerDAO] Failed to persist goal', error);
+  }
+};
+
+const persistHabitToRealm = (habit: Habit) => {
+  if (!hasPlannerDaoRegistry()) return habit;
+  try {
+    const stored = getPlannerDaoRegistry().habits.upsert(habit);
+    return stored;
+  } catch (error) {
+    console.warn('[PlannerDAO] Failed to persist habit', error);
+    return habit;
+  }
+};
+
+const persistTaskToRealm = (task: Task) => {
+  if (!hasPlannerDaoRegistry()) return;
+  try {
+    getPlannerDaoRegistry().tasks.upsert(task);
+  } catch (error) {
+    console.warn('[PlannerDAO] Failed to persist task', error);
+  }
+};
+
+const deleteGoalFromRealm = (goalId: string) => {
+  if (!hasPlannerDaoRegistry()) return;
+  try {
+    getPlannerDaoRegistry().goals.delete(goalId);
+  } catch (error) {
+    console.warn('[PlannerDAO] Failed to delete goal', error);
+  }
+};
+
+const deleteHabitFromRealm = (habitId: string) => {
+  if (!hasPlannerDaoRegistry()) return;
+  try {
+    getPlannerDaoRegistry().habits.delete(habitId);
+  } catch (error) {
+    console.warn('[PlannerDAO] Failed to delete habit', error);
+  }
+};
+
+const deleteTaskFromRealm = (taskId: string) => {
+  if (!hasPlannerDaoRegistry()) return;
+  try {
+    getPlannerDaoRegistry().tasks.delete(taskId);
+  } catch (error) {
+    console.warn('[PlannerDAO] Failed to delete task', error);
+  }
+};
+
 const createDefaultGoal = (params: Partial<Goal> & { id: string }): Goal => ({
   id: params.id,
   userId: 'local-user',
@@ -127,11 +219,15 @@ const createDefaultGoal = (params: Partial<Goal> & { id: string }): Goal => ({
   goalType: params.goalType ?? 'personal',
   status: params.status ?? 'active',
   metricType: params.metricType ?? 'none',
+  direction: params.direction ?? 'increase',
   financeMode: params.financeMode,
   currency: params.currency,
   progressPercent: params.progressPercent ?? 0,
+  progressTargetValue: params.progressTargetValue,
+  currentValue: params.currentValue ?? 0,
   stats: params.stats ?? {},
   milestones: params.milestones ?? [],
+  checkIns: params.checkIns ?? [],
   startDate: params.startDate ?? nowIso(),
   targetDate: params.targetDate,
   createdAt: params.createdAt ?? nowIso(),
@@ -460,7 +556,11 @@ const createHistoryEntry = (params: {
 
 const computeTaskProgress = (goalId: string, tasks: Task[]) => {
   const related = tasks.filter(
-    (task) => task.goalId === goalId && task.status !== 'canceled',
+    (task) =>
+      task.goalId === goalId &&
+      task.status !== 'canceled' &&
+      task.status !== 'archived' &&
+      task.status !== 'deleted',
   );
   if (!related.length) {
     return undefined;
@@ -532,46 +632,49 @@ const recalcGoalProgress = (
     return goals;
   }
   const taskGoalMap = buildTaskGoalMap(tasks);
+
   return goals.map((goal) => {
-    const tasksProgress = computeTaskProgress(goal.id, tasks);
-    const habitsProgress = computeHabitProgress(goal.id, habits);
     const focusMinutesLast30 = computeFocusMinutesLast30(goal.id, focusSessions, taskGoalMap);
-    const financialProgress = clampPercent(goal.stats?.financialProgressPercent);
+    const tasksProgressPercent = computeTaskProgress(goal.id, tasks);
+    const habitsProgressPercent = computeHabitProgress(goal.id, habits);
+    const financialProgressPercent =
+      goal.metricType === 'amount' && goal.targetValue
+        ? clampPercent((goal.currentValue ?? 0) / goal.targetValue)
+        : goal.stats?.financialProgressPercent;
+
     const stats: Goal['stats'] = {
       ...goal.stats,
-      financialProgressPercent: financialProgress ?? goal.stats?.financialProgressPercent,
-      tasksProgressPercent: tasksProgress ?? goal.stats?.tasksProgressPercent,
-      habitsProgressPercent: habitsProgress ?? goal.stats?.habitsProgressPercent,
       focusMinutesLast30,
+      tasksProgressPercent,
+      habitsProgressPercent,
+      financialProgressPercent,
     };
-    if (goal.status === 'completed') {
-      return {
-        ...goal,
-        stats,
-        progressPercent: 1,
-      };
-    }
-    const components: number[] = [];
-    if (typeof stats.financialProgressPercent === 'number') {
-      components.push(stats.financialProgressPercent);
-    }
-    if (typeof stats.habitsProgressPercent === 'number') {
-      components.push(stats.habitsProgressPercent);
-    }
-    if (typeof stats.tasksProgressPercent === 'number') {
-      components.push(stats.tasksProgressPercent);
-    }
-    const progressPercent =
-      components.length > 0
-        ? Number(
-            (components.reduce((sum, value) => sum + value, 0) / components.length).toFixed(4),
-          )
-        : goal.progressPercent;
-    return {
+
+    const progressData = calculateGoalProgress(goal);
+    const milestones = syncGoalMilestones(goal);
+    const blendedPercent = goal.status === 'completed'
+      ? 1
+      : Math.max(
+          progressData.progressPercent ?? 0,
+          tasksProgressPercent ?? 0,
+          habitsProgressPercent ?? 0,
+          financialProgressPercent ?? 0,
+        );
+    const progressValue =
+      progressData.progressTargetValue != null
+        ? blendedPercent * (progressData.progressTargetValue as number)
+        : progressData.progressValue;
+
+    const nextGoal: Goal = {
       ...goal,
       stats,
-      progressPercent,
+      currentValue: progressValue,
+      progressTargetValue: progressData.progressTargetValue,
+      progressPercent: goal.status === 'completed' ? 1 : blendedPercent,
+      milestones,
     };
+
+    return nextGoal;
   });
 };
 
@@ -587,24 +690,161 @@ const createInitialPlannerCollections = () => ({
   taskHistory: [] as PlannerHistoryItem[],
 });
 
-export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
+export const usePlannerDomainStore = create<PlannerDomainState>()(
+  persist(
+    (set, get) => ({
       ...createInitialPlannerCollections(),
 
+      addGoalCheckIn: (payload) => {
+        let created: GoalCheckIn | undefined;
+        let updatedGoal: Goal | undefined;
+        set((state) => {
+          if (!payload.goalId || !Number.isFinite(payload.value)) {
+            return state;
+          }
+          const checkInId = generateId('checkin');
+          const createdAt = payload.createdAt ?? nowIso();
+          const goals = recalcGoalProgress(
+            state.goals.map((goal) => {
+              if (goal.id !== payload.goalId) {
+                return goal;
+              }
+              const entry: GoalCheckIn = {
+                id: checkInId,
+                goalId: payload.goalId,
+                value: payload.value,
+                note: payload.note,
+                sourceType: payload.sourceType ?? 'manual',
+                sourceId: payload.sourceId,
+                dateKey: payload.dateKey,
+                createdAt,
+              };
+              created = entry;
+              const existing = goal.checkIns ?? [];
+              const filtered = payload.sourceId
+                ? existing.filter((item) =>
+                    !(
+                      item.sourceId === payload.sourceId &&
+                      item.sourceType === (payload.sourceType ?? 'manual') &&
+                      (!payload.dateKey || item.dateKey === payload.dateKey)
+                    ),
+                  )
+                : existing;
+              const checkIns = [entry, ...filtered];
+              const nextFinanceIds =
+                entry.sourceType === 'finance' && entry.sourceId
+                  ? Array.from(new Set([...(goal.financeContributionIds ?? []), entry.sourceId]))
+                  : goal.financeContributionIds;
+              return {
+                ...goal,
+                checkIns,
+                financeContributionIds: nextFinanceIds,
+                updatedAt: nowIso(),
+              };
+            }),
+            state.tasks,
+            state.habits,
+            state.focusSessions,
+          );
+          updatedGoal = goals.find((g) => g.id === payload.goalId);
+          return { goals };
+        });
+
+        if (updatedGoal) {
+          persistGoalToRealm(updatedGoal);
+          publishPlannerEvent('planner.goal.progress_updated', { goal: updatedGoal });
+        }
+        return created;
+      },
+
+      removeFinanceContribution: (sourceId) => {
+        if (!sourceId) {
+          return;
+        }
+        const changedGoalIds: string[] = [];
+        set((state) => {
+          const goals = recalcGoalProgress(
+            state.goals.map((goal) => {
+              const filteredCheckIns = (goal.checkIns ?? []).filter(
+                (entry) => !(entry.sourceType === 'finance' && entry.sourceId === sourceId),
+              );
+              const financeContributionIds = goal.financeContributionIds?.filter((id) => id !== sourceId);
+              const checkInsChanged = filteredCheckIns.length !== (goal.checkIns?.length ?? 0);
+              const idsChanged =
+                (goal.financeContributionIds?.length ?? 0) !== (financeContributionIds?.length ?? 0);
+              if (!checkInsChanged && !idsChanged) {
+                return goal;
+              }
+              changedGoalIds.push(goal.id);
+              return {
+                ...goal,
+                checkIns: filteredCheckIns,
+                financeContributionIds,
+                updatedAt: nowIso(),
+              };
+            }),
+            state.tasks,
+            state.habits,
+            state.focusSessions,
+          );
+          return { goals };
+        });
+        changedGoalIds.forEach((goalId) => {
+          const goal = get().goals.find((item) => item.id === goalId);
+          if (goal) {
+            persistGoalToRealm(goal);
+            publishPlannerEvent('planner.goal.progress_updated', { goal });
+          }
+        });
+      },
+
       createGoal: (payload) => {
-        const goal: Goal = {
+        const goalId = payload.id ?? generateId('goal');
+        const now = nowIso();
+        const initialValue = payload.initialValue ?? 0;
+        const targetValue = payload.targetValue ?? 0;
+        const direction =
+          payload.direction ?? (targetValue > initialValue ? 'increase' : targetValue < initialValue ? 'decrease' : 'neutral');
+
+        const baseGoal: Goal = {
           ...payload,
-          id: payload.id ?? generateId('goal'),
+          id: goalId,
+          direction,
+          initialValue,
+          targetValue,
+          progressTargetValue: payload.progressTargetValue,
+          currentValue: 0,
+          checkIns: payload.checkIns ?? [],
+          financeContributionIds: payload.financeContributionIds ?? [],
           progressPercent: payload.progressPercent ?? 0,
           stats: payload.stats ?? {},
-          createdAt: nowIso(),
-          updatedAt: nowIso(),
+          createdAt: now,
+          updatedAt: now,
         };
+
+        const progressData = calculateGoalProgress(baseGoal);
+        const goal: Goal = {
+          ...baseGoal,
+          progressTargetValue: progressData.progressTargetValue,
+          progressPercent: progressData.progressPercent,
+        };
+
+        // Queue operation if offline and set isPending flag
+        queueIfOffline('goal', 'create', goalId, goal).then((isOffline) => {
+          if (isOffline) {
+            set((state) => ({
+              goals: state.goals.map((g) => g.id === goalId ? { ...g, isPending: true } : g),
+            }));
+          }
+        });
+
         let created: Goal = goal;
         set((state) => {
           const goals = recalcGoalProgress([goal, ...state.goals], state.tasks, state.habits, state.focusSessions);
           created = goals.find((item) => item.id === goal.id) ?? goal;
           return { goals };
         });
+        persistGoalToRealm(created);
         publishPlannerEvent('planner.goal.created', { goal: created });
         return created;
       },
@@ -624,6 +864,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           return { goals };
         });
         if (updated) {
+          persistGoalToRealm(updated);
           publishPlannerEvent('planner.goal.updated', { goal: updated });
         }
       },
@@ -643,6 +884,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           return { goals };
         });
         if (updated) {
+          persistGoalToRealm(updated);
           publishPlannerEvent('planner.goal.updated', { goal: updated });
         }
       },
@@ -670,6 +912,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           return { goals };
         });
         if (completedGoal) {
+          persistGoalToRealm(completedGoal);
           publishPlannerEvent('planner.goal.completed', { goal: completedGoal });
         }
       },
@@ -689,6 +932,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           return { goals };
         });
         if (archived) {
+          persistGoalToRealm(archived);
           publishPlannerEvent('planner.goal.archived', { goal: archived });
         }
       },
@@ -708,6 +952,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           return { goals };
         });
         if (updated) {
+          persistGoalToRealm(updated);
           publishPlannerEvent('planner.goal.updated', { goal: updated });
         }
       },
@@ -727,8 +972,18 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           return { goals };
         });
         if (updated) {
+          persistGoalToRealm(updated);
           publishPlannerEvent('planner.goal.updated', { goal: updated });
         }
+      },
+
+      deleteGoalPermanently: (id) => {
+        set((state) => {
+          const goals = state.goals.filter((goal) => goal.id !== id);
+          return { goals };
+        });
+        deleteGoalFromRealm(id);
+        publishPlannerEvent('planner.goal.deleted', { goalId: id });
       },
 
       createHabit: (payload) => {
@@ -745,35 +1000,125 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
         const stats = recalcHabitStatsFromHistory(habit.completionHistory);
         set((state) => {
           const habits = [{ ...habit, ...stats }, ...state.habits];
+          const goalIds = [habit.goalId, ...(habit.linkedGoalIds ?? [])].filter(Boolean) as string[];
+          const goalsWithLinks = state.goals.map((goal) => {
+            if (!goalIds.includes(goal.id)) return goal;
+            const nextLinked = Array.from(new Set([...(goal.linkedHabitIds ?? []), habit.id]));
+            return { ...goal, linkedHabitIds: nextLinked, updatedAt: nowIso() };
+          });
           return {
             habits,
-            goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+            goals: recalcGoalProgress(goalsWithLinks, state.tasks, habits, state.focusSessions),
           };
         });
-        publishPlannerEvent('planner.habit.created', { habit: { ...habit, ...stats } });
-        return habit;
+        const persistedHabit = { ...habit, ...stats };
+        const storedHabit = persistHabitToRealm(persistedHabit);
+        const finalHabit = storedHabit ?? persistedHabit;
+        if (storedHabit && storedHabit.id !== persistedHabit.id) {
+          set((state) => {
+            const habits = state.habits.map((h) => (h.id === persistedHabit.id ? storedHabit : h));
+            return {
+              habits,
+              goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+            };
+          });
+        }
+        const goalIds = [habit.goalId, ...(habit.linkedGoalIds ?? [])].filter(Boolean) as string[];
+        if (goalIds.length) {
+          set((state) => {
+            const goals = recalcGoalProgress(
+              state.goals.map((goal) => {
+                if (!goalIds.includes(goal.id)) return goal;
+                const nextLinked = Array.from(new Set([...(goal.linkedHabitIds ?? []), finalHabit.id]));
+                return { ...goal, linkedHabitIds: nextLinked, updatedAt: nowIso() };
+              }),
+              state.tasks,
+              state.habits,
+              state.focusSessions,
+            );
+            return { goals };
+          });
+          goalIds.forEach((goalId) => {
+            const goal = get().goals.find((g) => g.id === goalId);
+            if (goal) {
+              persistGoalToRealm(goal);
+              publishPlannerEvent('planner.goal.updated', { goal });
+            }
+          });
+        }
+        publishPlannerEvent('planner.habit.created', { habit: finalHabit });
+        return finalHabit;
       },
 
       updateHabit: (id, updates) => {
         let updated: Habit | undefined;
         set((state) => {
-          const habits = state.habits.map((habit) =>
-            habit.id === id ? { ...habit, ...updates, updatedAt: nowIso() } : habit,
-          );
+          const habits = state.habits.map((habit) => {
+            if (habit.id !== id) return habit;
+            return { ...habit, ...updates, updatedAt: nowIso() };
+          });
           updated = habits.find((habit) => habit.id === id);
+
+          const prevHabit = state.habits.find((habit) => habit.id === id);
+          const nextGoalIds = updated
+            ? [updated.goalId, ...(updated.linkedGoalIds ?? [])].filter(Boolean)
+            : [];
+          const prevGoalIds = prevHabit
+            ? [prevHabit.goalId, ...(prevHabit.linkedGoalIds ?? [])].filter(Boolean)
+            : [];
+
+          const goals = recalcGoalProgress(
+            state.goals.map((goal) => {
+              let linked = goal.linkedHabitIds ?? [];
+              if (prevGoalIds.includes(goal.id) && !nextGoalIds.includes(goal.id)) {
+                linked = linked.filter((hid) => hid !== id);
+              }
+              if (nextGoalIds.includes(goal.id)) {
+                linked = Array.from(new Set([...linked, id]));
+              }
+              if (linked === goal.linkedHabitIds) {
+                return goal;
+              }
+              return { ...goal, linkedHabitIds: linked, updatedAt: nowIso() };
+            }),
+            state.tasks,
+            habits,
+            state.focusSessions,
+          );
+
           return {
             habits,
-            goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+            goals,
           };
         });
         if (updated) {
-          publishPlannerEvent('planner.habit.updated', { habit: updated });
+          const storedHabit = persistHabitToRealm(updated);
+          const finalHabit = storedHabit ?? updated;
+          if (storedHabit && storedHabit.id !== updated.id) {
+            set((state) => {
+              const habits = state.habits.map((habit) => (habit.id === updated?.id ? storedHabit : habit));
+              return {
+                habits,
+                goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+              };
+            });
+          }
+          publishPlannerEvent('planner.habit.updated', { habit: finalHabit });
+          const goalIds = [finalHabit.goalId, ...(finalHabit.linkedGoalIds ?? [])].filter(Boolean) as string[];
+          goalIds.forEach((goalId) => {
+            const goal = get().goals.find((g) => g.id === goalId);
+            if (goal) {
+              persistGoalToRealm(goal);
+              publishPlannerEvent('planner.goal.updated', { goal });
+            }
+          });
         }
       },
 
       logHabitCompletion: (id, completed, options) => {
         let evaluated: Habit | undefined;
         let evaluatedDate: string | undefined;
+        let affectedGoals: Goal[] | undefined;
         set((state) => {
           const habits = state.habits.map((habit) => {
             if (habit.id !== id) {
@@ -789,7 +1134,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             if (options?.clear) {
               delete history[key];
             } else {
-              history[key] = completed ? 'done' : 'miss';
+              history[key] = { status: completed ? 'done' : 'miss' };
             }
 
             const stats = recalcHabitStatsFromHistory(history);
@@ -813,47 +1158,168 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             date: evaluatedDate,
             status: completed ? 'done' : 'miss',
           });
+          const persisted = persistHabitToRealm(evaluated);
+          if (persisted && persisted.id !== evaluated.id) {
+            set((state) => {
+              const habits = state.habits.map((habit) => (habit.id === evaluated?.id ? persisted : habit));
+              return {
+                habits,
+                goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+              };
+            });
+          }
+        }
+
+        if (evaluated && evaluatedDate) {
+          const goalIds = [evaluated.goalId, ...(evaluated.linkedGoalIds ?? [])].filter(
+            (goalId): goalId is string => Boolean(goalId),
+          );
+
+          if (completed) {
+            const value = Number.isFinite(evaluated.targetPerDay) && evaluated.targetPerDay ? evaluated.targetPerDay : 1;
+            goalIds.forEach((goalId) => {
+              get().addGoalCheckIn({
+                goalId,
+                value,
+                note: evaluated?.title,
+                sourceType: 'habit',
+                sourceId: evaluated.id,
+                dateKey: evaluatedDate,
+              });
+            });
+          } else if (options?.clear || completed === false) {
+            if (goalIds.length) {
+              set((state) => {
+                const goals = recalcGoalProgress(
+                  state.goals.map((goal) => {
+                    if (!goalIds.includes(goal.id)) {
+                      return goal;
+                    }
+                    const existing = goal.checkIns ?? [];
+                    const filtered = existing.filter(
+                      (entry) =>
+                        !(
+                          entry.sourceType === 'habit' &&
+                          entry.sourceId === evaluated?.id &&
+                          (!evaluatedDate || entry.dateKey === evaluatedDate)
+                        ),
+                    );
+                    if (filtered.length === existing.length) {
+                      return goal;
+                    }
+                    return { ...goal, checkIns: filtered, currentValue: undefined, updatedAt: nowIso() };
+                  }),
+                  state.tasks,
+                  state.habits,
+                  state.focusSessions,
+                );
+                affectedGoals = goals.filter((goal) => goalIds.includes(goal.id));
+                return { goals };
+              });
+            }
+          }
+        }
+
+        if (affectedGoals?.length) {
+          affectedGoals.forEach((goal) => {
+            persistGoalToRealm(goal);
+            publishPlannerEvent('planner.goal.progress_updated', { goal });
+          });
         }
       },
 
-      pauseHabit: (id) =>
+      pauseHabit: (id) => {
+        let updatedHabit: Habit | undefined;
         set((state) => {
-          const habits = state.habits.map((habit) =>
-            habit.id === id ? { ...habit, status: 'paused', updatedAt: nowIso() } : habit,
-          );
+          const habits = state.habits.map((habit) => {
+            if (habit.id === id) {
+              updatedHabit = { ...habit, status: 'paused', updatedAt: nowIso() };
+              return updatedHabit;
+            }
+            return habit;
+          });
           return {
             habits,
             goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
           };
-        }),
+        });
+        if (updatedHabit) {
+          const storedHabit = persistHabitToRealm(updatedHabit);
+          if (storedHabit && storedHabit.id !== updatedHabit.id) {
+            set((state) => {
+              const habits = state.habits.map((habit) => (habit.id === updatedHabit?.id ? storedHabit : habit));
+              return {
+                habits,
+                goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+              };
+            });
+          }
+        }
+      },
 
-      resumeHabit: (id) =>
+      resumeHabit: (id) => {
+        let updatedHabit: Habit | undefined;
         set((state) => {
-          const habits = state.habits.map((habit) =>
-            habit.id === id ? { ...habit, status: 'active', updatedAt: nowIso() } : habit,
-          );
+          const habits = state.habits.map((habit) => {
+            if (habit.id === id) {
+              updatedHabit = { ...habit, status: 'active', updatedAt: nowIso() };
+              return updatedHabit;
+            }
+            return habit;
+          });
           return {
             habits,
             goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
           };
-        }),
+        });
+        if (updatedHabit) {
+          const storedHabit = persistHabitToRealm(updatedHabit);
+          if (storedHabit && storedHabit.id !== updatedHabit.id) {
+            set((state) => {
+              const habits = state.habits.map((habit) => (habit.id === updatedHabit?.id ? storedHabit : habit));
+              return {
+                habits,
+                goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+              };
+            });
+          }
+        }
+      },
 
-      archiveHabit: (id) =>
+      archiveHabit: (id) => {
+        let updatedHabit: Habit | undefined;
         set((state) => {
-          const habits = state.habits.map((habit) =>
-            habit.id === id ? { ...habit, status: 'archived', updatedAt: nowIso() } : habit,
-          );
+          const habits = state.habits.map((habit) => {
+            if (habit.id === id) {
+              updatedHabit = { ...habit, status: 'archived', updatedAt: nowIso() };
+              return updatedHabit;
+            }
+            return habit;
+          });
           return {
             habits,
             goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
           };
-        }),
+        });
+        if (updatedHabit) {
+          const storedHabit = persistHabitToRealm(updatedHabit);
+          if (storedHabit && storedHabit.id !== updatedHabit.id) {
+            set((state) => {
+              const habits = state.habits.map((habit) => (habit.id === updatedHabit?.id ? storedHabit : habit));
+              return {
+                habits,
+                goals: recalcGoalProgress(state.goals, state.tasks, habits, state.focusSessions),
+              };
+            });
+          }
+        }
+      },
 
       createTask: (payload) => {
         const task: Task = {
           ...payload,
           id: payload.id ?? generateId('task'),
-          status: payload.status ?? 'planned',
+          status: payload.status ?? 'active',
           focusTotalMinutes: payload.focusTotalMinutes ?? 0,
           checklist: payload.checklist ?? [],
           dependencies: payload.dependencies ?? [],
@@ -875,6 +1341,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             taskHistory: [historyEntry, ...state.taskHistory].slice(0, 200),
           };
         });
+        persistTaskToRealm(task);
         publishPlannerEvent('planner.task.created', { task });
         return task;
       },
@@ -892,6 +1359,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           };
         });
         if (updated) {
+          persistTaskToRealm(updated);
           publishPlannerEvent('planner.task.updated', { task: updated });
         }
       },
@@ -934,12 +1402,29 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           };
         });
         if (completedTask) {
+          persistTaskToRealm(completedTask);
           publishPlannerEvent('planner.task.completed', { task: completedTask });
+          if (completedTask.goalId) {
+            const value = Number.isFinite(completedTask.progressValue)
+              ? (completedTask.progressValue as number)
+              : Number.isFinite(completedTask.estimatedMinutes)
+                ? (completedTask.estimatedMinutes as number)
+                : 1;
+            get().addGoalCheckIn({
+              goalId: completedTask.goalId,
+              value,
+              note: completedTask.title,
+              sourceType: 'task',
+              sourceId: completedTask.id,
+              createdAt: completedTask.updatedAt,
+            });
+          }
         }
       },
 
       cancelTask: (id) => {
         let canceledTask: Task | undefined;
+        let affectedGoals: Goal[] | undefined;
         set((state) => {
           let canceledTitle: string | undefined;
           const tasks = state.tasks.map((task) => {
@@ -974,7 +1459,37 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           };
         });
         if (canceledTask) {
+          persistTaskToRealm(canceledTask);
           publishPlannerEvent('planner.task.canceled', { task: canceledTask });
+          if (canceledTask.goalId) {
+            set((state) => {
+              const goals = recalcGoalProgress(
+                state.goals.map((goal) => {
+                  if (goal.id !== canceledTask?.goalId) {
+                    return goal;
+                  }
+                  const filtered = (goal.checkIns ?? []).filter(
+                    (entry) => !(entry.sourceType === 'task' && entry.sourceId === canceledTask?.id),
+                  );
+                  if (filtered.length === (goal.checkIns ?? []).length) {
+                    return goal;
+                  }
+                  return { ...goal, checkIns: filtered, updatedAt: nowIso() };
+                }),
+                state.tasks,
+                state.habits,
+                state.focusSessions,
+              );
+              affectedGoals = goals.filter((goal) => goal.id === canceledTask?.goalId);
+              return { goals };
+            });
+          }
+        }
+        if (affectedGoals?.length) {
+          affectedGoals.forEach((goal) => {
+            persistGoalToRealm(goal);
+            publishPlannerEvent('planner.goal.progress_updated', { goal });
+          });
         }
       },
 
@@ -989,7 +1504,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
             scheduledTitle = task.title;
             const nextTask = {
               ...task,
-              status: 'planned',
+              status: 'active',
               dueDate: schedule.dueDate,
               startDate: schedule.dueDate,
               timeOfDay: schedule.timeOfDay ?? task.timeOfDay,
@@ -1017,6 +1532,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           };
         });
         if (scheduledTask) {
+          persistTaskToRealm(scheduledTask);
           publishPlannerEvent('planner.task.updated', { task: scheduledTask });
         }
       },
@@ -1047,7 +1563,10 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
 
       setTaskStatus: (taskId, status) => {
         let updatedTask: Task | undefined;
+        let previousTask: Task | undefined;
+        let affectedGoals: Goal[] | undefined;
         set((state) => {
+          previousTask = state.tasks.find((task) => task.id === taskId);
           const tasks = state.tasks.map((task) =>
             task.id === taskId ? { ...task, status, updatedAt: nowIso() } : task,
           );
@@ -1066,29 +1585,149 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           };
         });
         if (updatedTask) {
+          persistTaskToRealm(updatedTask);
           publishPlannerEvent('planner.task.updated', { task: updatedTask });
+          if (updatedTask.goalId && status === 'completed') {
+            const value = Number.isFinite(updatedTask.progressValue)
+              ? (updatedTask.progressValue as number)
+              : Number.isFinite(updatedTask.estimatedMinutes)
+                ? (updatedTask.estimatedMinutes as number)
+                : 1;
+            get().addGoalCheckIn({
+              goalId: updatedTask.goalId,
+              value,
+              note: updatedTask.title,
+              sourceType: 'task',
+              sourceId: updatedTask.id,
+              createdAt: updatedTask.updatedAt,
+            });
+          } else if (previousTask?.goalId && previousTask.status === 'completed' && status !== 'completed') {
+            set((state) => {
+              const goals = recalcGoalProgress(
+                state.goals.map((goal) => {
+                  if (goal.id !== previousTask?.goalId) {
+                    return goal;
+                  }
+                  const filtered = (goal.checkIns ?? []).filter(
+                    (entry) => !(entry.sourceType === 'task' && entry.sourceId === previousTask?.id),
+                  );
+                  if (filtered.length === (goal.checkIns ?? []).length) {
+                    return goal;
+                  }
+                  return { ...goal, checkIns: filtered, currentValue: undefined, updatedAt: nowIso() };
+                }),
+                state.tasks,
+                state.habits,
+                state.focusSessions,
+              );
+              affectedGoals = previousTask?.goalId ? goals.filter((goal) => goal.id === previousTask?.goalId) : [];
+              return { goals };
+            });
+          }
+        }
+        if (affectedGoals?.length) {
+          affectedGoals.forEach((goal) => {
+            persistGoalToRealm(goal);
+            publishPlannerEvent('planner.goal.progress_updated', { goal });
+          });
         }
       },
 
-      deleteTask: (taskId) =>
+      deleteTask: (taskId) => {
+        let affectedGoal: Goal | undefined;
+        let archivedTask: Task | undefined;
+        set((state) => {
+          const tasks = state.tasks.map((task) => {
+            if (task.id !== taskId) {
+              return task;
+            }
+            archivedTask = {
+              ...task,
+              status: 'archived',
+              updatedAt: nowIso(),
+            };
+            return archivedTask;
+          });
+          if (!archivedTask) {
+            return state;
+          }
+          const historyEntry = createHistoryEntry({
+            id: taskId,
+            title: archivedTask?.title ?? '',
+            status: archivedTask?.status ?? 'archived',
+            action: 'deleted',
+            snapshot: archivedTask,
+          });
+          const nextGoals = recalcGoalProgress(
+            state.goals.map((goal) => {
+              if (archivedTask?.goalId && goal.id === archivedTask.goalId) {
+                const filtered = (goal.checkIns ?? []).filter(
+                  (entry) => !(entry.sourceType === 'task' && entry.sourceId === archivedTask.id),
+                );
+                if (filtered.length !== (goal.checkIns ?? []).length) {
+                  affectedGoal = { ...goal, checkIns: filtered, currentValue: undefined, updatedAt: nowIso() };
+                  return affectedGoal;
+                }
+              }
+              return goal;
+            }),
+            tasks,
+            state.habits,
+            state.focusSessions,
+          );
+          return {
+            tasks,
+            goals: nextGoals,
+            taskHistory: [historyEntry, ...state.taskHistory].slice(0, 200),
+          };
+        });
+        if (archivedTask) {
+          persistTaskToRealm(archivedTask);
+          publishPlannerEvent('planner.task.updated', { task: archivedTask });
+        }
+        if (affectedGoal) {
+          persistGoalToRealm(affectedGoal);
+          publishPlannerEvent('planner.goal.progress_updated', { goal: affectedGoal });
+        }
+      },
+
+      deleteTaskPermanently: (taskId) => {
+        let affectedGoal: Goal | undefined;
         set((state) => {
           const removedTask = state.tasks.find((task) => task.id === taskId);
           const tasks = state.tasks.filter((task) => task.id !== taskId);
-          const historyEntry = createHistoryEntry({
-            id: taskId,
-            title: removedTask?.title ?? '',
-            status: 'canceled',
-            action: 'deleted',
-            snapshot: removedTask,
-          });
+          const nextGoals = recalcGoalProgress(
+            state.goals.map((goal) => {
+              if (removedTask?.goalId && goal.id === removedTask.goalId) {
+                const filtered = (goal.checkIns ?? []).filter(
+                  (entry) => !(entry.sourceType === 'task' && entry.sourceId === removedTask.id),
+                );
+                if (filtered.length !== (goal.checkIns ?? []).length) {
+                  affectedGoal = { ...goal, checkIns: filtered, currentValue: undefined, updatedAt: nowIso() };
+                  return affectedGoal;
+                }
+              }
+              return goal;
+            }),
+            tasks,
+            state.habits,
+            state.focusSessions,
+          );
           return {
             tasks,
-            goals: recalcGoalProgress(state.goals, tasks, state.habits, state.focusSessions),
-            taskHistory: [historyEntry, ...state.taskHistory].slice(0, 200),
+            goals: nextGoals,
+            taskHistory: state.taskHistory.filter((entry) => entry.taskId !== taskId),
           };
-        }),
+        });
+        deleteTaskFromRealm(taskId);
+        if (affectedGoal) {
+          persistGoalToRealm(affectedGoal);
+          publishPlannerEvent('planner.goal.progress_updated', { goal: affectedGoal });
+        }
+      },
 
-      restoreTaskFromHistory: (historyId) =>
+      restoreTaskFromHistory: (historyId) => {
+        let restoredTask: Task | undefined;
         set((state) => {
           const entryIndex = state.taskHistory.findIndex((item) => item.historyId === historyId);
           if (entryIndex === -1) {
@@ -1102,16 +1741,21 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           }
           const restored: Task = {
             ...entry.snapshot,
-            status: entry.snapshot.status === 'canceled' ? 'planned' : entry.snapshot.status,
+            status: entry.snapshot.status === 'canceled' ? 'active' : entry.snapshot.status,
             updatedAt: nowIso(),
           };
+          restoredTask = restored;
           const tasks = [restored, ...state.tasks.filter((task) => task.id !== restored.id)];
           return {
             tasks,
             goals: recalcGoalProgress(state.goals, tasks, state.habits, state.focusSessions),
             taskHistory: state.taskHistory.filter((item, idx) => idx !== entryIndex),
           };
-        }),
+        });
+        if (restoredTask) {
+          persistTaskToRealm(restoredTask);
+        }
+      },
 
       removeHistoryEntry: (historyId) =>
         set((state) => ({
@@ -1252,9 +1896,33 @@ export const usePlannerDomainStore = create<PlannerDomainState>((set, get) => ({
           };
         }),
       hydrateFromRealm: (payload) =>
-        set((state) => ({
-          ...state,
-          ...payload,
-        })),
+        set((state) => {
+          const nextGoals = payload.goals ?? state.goals;
+          const nextHabits = payload.habits ?? state.habits;
+          const nextTasks = payload.tasks ?? state.tasks;
+          const nextFocusSessions = payload.focusSessions ?? state.focusSessions;
+          return {
+            ...state,
+            ...payload,
+            goals: recalcGoalProgress(nextGoals, nextTasks, nextHabits, nextFocusSessions),
+            habits: nextHabits,
+            tasks: nextTasks,
+            focusSessions: nextFocusSessions,
+          };
+        }),
       reset: () => set(createInitialPlannerCollections()),
-}));
+    }),
+    {
+      name: 'planner-domain',
+      storage: createJSONStorage(() => mmkvStorageAdapter),
+      version: 1,
+      partialize: (state) => ({
+        goals: state.goals,
+        habits: state.habits,
+        tasks: state.tasks,
+        focusSessions: state.focusSessions,
+        taskHistory: state.taskHistory,
+      }),
+    }
+  )
+);

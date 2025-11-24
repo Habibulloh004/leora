@@ -45,7 +45,11 @@ const modalProps: Partial<CustomModalProps> = {
   contentContainerStyle: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 32 },
 };
 
-export default function TransactionModal() {
+type TransactionModalProps = {
+  onRequestClose?: () => void;
+};
+
+export default function TransactionModal({ onRequestClose }: TransactionModalProps) {
   const modalRef = useRef<BottomSheetHandle>(null);
   const accountPickerRef = useRef<BottomSheetHandle>(null);
 
@@ -338,7 +342,8 @@ export default function TransactionModal() {
 
   const handleClose = useCallback(() => {
     closeTransferModal();
-  }, [closeTransferModal]);
+    onRequestClose?.();
+  }, [closeTransferModal, onRequestClose]);
 
   const handleSubmit = useCallback(() => {
     if (isSaveDisabled || !fromAccount || !toAccount) {
@@ -386,11 +391,10 @@ export default function TransactionModal() {
       createTransaction(basePayload);
     }
 
-    closeTransferModal();
+    handleClose();
   }, [
     amountNumber,
     baseCurrency,
-    closeTransferModal,
     convertAmount,
     convertedAmount,
     currentExchangeRate,
@@ -399,6 +403,7 @@ export default function TransactionModal() {
     fromAccount,
     isEditing,
     isSaveDisabled,
+    handleClose,
     createTransaction,
     needsConversion,
     note,

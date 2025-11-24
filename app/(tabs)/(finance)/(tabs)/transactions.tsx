@@ -12,7 +12,6 @@ import TransactionGroup from '@/components/screens/finance/transactions/Transact
 import type { TransactionGroupData } from '@/components/screens/finance/transactions/types';
 import { useLocalization } from '@/localization/useLocalization';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
-import { useModalStore } from '@/stores/useModalStore';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 import type { Transaction as LegacyTransaction, Debt as LegacyDebt } from '@/types/store.types';
@@ -193,13 +192,11 @@ const TransactionsPage: React.FC = () => {
   );
   const debts = useMemo<LegacyDebt[]>(() => domainDebts.map(mapDomainDebtToLegacy), [domainDebts]);
   const filters = useTransactionFilterStore((state) => state.filters);
-  const openIncomeOutcome = useModalStore((state) => state.openIncomeOutcome);
-  const openTransferModal = useModalStore((state) => state.openTransferModal);
   const detailModalRef = useRef<BottomSheetHandle>(null);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
 
   const openFilters = useCallback(() => {
-    router.push('/(modals)/finance-filter');
+    router.push('/(modals)/finance/transaction-filter');
   }, [router]);
 
   const groupedTransactions = useMemo(() => {
@@ -253,13 +250,6 @@ const TransactionsPage: React.FC = () => {
     [selectedTransactionId, transactions],
   );
 
-  const selectedDomainTransaction = useMemo(() => {
-    if (!selectedTransaction) {
-      return null;
-    }
-    return domainTransactions.find((txn) => txn.id === (selectedTransaction.sourceTransactionId ?? selectedTransaction.id)) ?? null;
-  }, [domainTransactions, selectedTransaction]);
-
   const relatedDebt = useMemo(() => {
     if (!selectedTransaction?.relatedDebtId) {
       return null;
@@ -297,21 +287,24 @@ const TransactionsPage: React.FC = () => {
     }
     closeDetails();
 
+    const targetId = selectedTransaction.sourceTransactionId ?? selectedTransaction.id;
+
     if (selectedTransaction.type === 'transfer') {
-      const original = selectedDomainTransaction;
-      if (!original) {
-        return;
-      }
-      openTransferModal({ mode: 'edit', transaction: original });
+      router.push({
+        pathname: '/(modals)/finance/transaction',
+        params: { id: targetId },
+      });
       return;
     }
 
-    openIncomeOutcome({
-      mode: 'edit',
-      tab: (selectedTransaction.type ?? 'income') as 'income' | 'outcome',
-      transaction: selectedTransaction,
+    router.push({
+      pathname: '/(modals)/finance/quick-exp',
+      params: {
+        id: targetId,
+        tab: (selectedTransaction.type ?? 'income') as 'income' | 'outcome',
+      },
     });
-  }, [closeDetails, openIncomeOutcome, openTransferModal, selectedDomainTransaction, selectedTransaction]);
+  }, [closeDetails, router, selectedTransaction]);
 
   const handleTransactionPress = useCallback((transactionId: string) => {
     setSelectedTransactionId(transactionId);

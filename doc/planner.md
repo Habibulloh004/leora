@@ -1,4 +1,4 @@
-# PLANNER_START_HERE_v1.md
+# PLANNER_DETAILED_SPEC_v2.md
 
 > **Дизайн НЕ менять.** Реализуем механику, события и локализацию (RU/UZ/EN/TR/AR).
 > **Офлайн‑первый.** Все изменения живут локально; сеть нужна только для AI и курсов (вне PLANNER).
@@ -20,7 +20,109 @@
 
 ---
 
-## 1) Агрегаты (экраны читают только их)
+## 1) TypeScript типы данных (ОБЯЗАТЕЛЬНО к реализации)
+
+### 1.1. FinanceRule для привычек
+
+```typescript
+type FinanceRule =
+  | { type: 'no_spend_in_categories'; categoryIds: string[] }
+  | { type: 'spend_in_categories'; categoryIds: string[]; minAmount?: number }
+  | { type: 'has_any_transaction'; accountIds?: string[] }
+  | { type: 'daily_spend_under'; amount: number; currency: string };
+```
+
+### 1.2. FinanceLink для задач
+
+```typescript
+type FinanceLink =
+  | { action: 'pay_debt'; debtId: string; minAmount?: number }
+  | { action: 'review_budget'; budgetId: string }
+  | { action: 'record_expenses'; categoryId: string; minCount?: number }
+  | { action: 'transfer_money'; fromAccountId: string; toAccountId: string; amount: number };
+```
+
+### 1.3. RiskFlag для целей
+
+```typescript
+type RiskFlag =
+  | 'deadline_soon' // < 7 дней до дедлайна и прогресс < 70%
+  | 'no_progress' // нет изменений 14+ дней
+  | 'budget_overrun' // траты превысили план
+  | 'habits_failing'; // < 50% выполнения привычек за неделю
+```
+
+---
+
+## 2) Формулы прогресса (ВАЖНО!)
+
+### 2.1. Прогресс цели (Goal.progressPercent)
+
+```typescript
+function computeGoalProgress(goal: Goal, habits: Habit[], tasks: Task[]): number {
+  const metricProgress = goal.initialValue / goal.targetValue;
+
+  const linkedHabits = habits.filter(h => h.goalId === goal.id);
+  const habitsProgress = linkedHabits.length > 0
+    ? linkedHabits.reduce((sum, h) => sum + h.completionRate30d, 0) / linkedHabits.length
+    : 0;
+
+  const linkedTasks = tasks.filter(t => t.goalId === goal.id);
+  const tasksProgress = linkedTasks.length > 0
+    ? linkedTasks.filter(t => t.status === 'completed').length / linkedTasks.length
+    : 0;
+
+  // Адаптивные веса
+  if (!linkedHabits.length && !linkedTasks.length) {
+    return clamp(metricProgress, 0, 1); // Только метрика
+  }
+  if (!linkedHabits.length) {
+    return clamp(0.6 * metricProgress + 0.4 * tasksProgress, 0, 1);
+  }
+  if (!linkedTasks.length) {
+    return clamp(0.6 * metricProgress + 0.4 * habitsProgress, 0, 1);
+  }
+
+  // Все три компонента
+  return clamp(0.4 * metricProgress + 0.3 * habitsProgress + 0.3 * tasksProgress, 0, 1);
+}
+```
+
+### 2.2. ETA (Estimated Time to Achieve)
+
+```typescript
+function computeGoalETA(goal: Goal): string | undefined {
+  if (!goal.targetDate) return undefined;
+  if (goal.progressPercent >= 1.0) return 'Completed';
+
+  const now = Date.now();
+  const deadline = new Date(goal.targetDate).getTime();
+  const daysUntilDeadline = (deadline - now) / (1000 * 60 * 60 * 24);
+
+  if (daysUntilDeadline <= 0) return 'Overdue';
+
+  const started = new Date(goal.startDate).getTime();
+  const daysSinceStart = (now - started) / (1000 * 60 * 60 * 24);
+
+  if (daysSinceStart <= 0 || goal.progressPercent <= 0) {
+    return formatDuration(daysUntilDeadline); // "5 days" | "2 weeks" | "3 months"
+  }
+
+  const progressPerDay = goal.progressPercent / daysSinceStart;
+  const remainingProgress = 1.0 - goal.progressPercent;
+  const estimatedDaysToComplete = remainingProgress / progressPerDay;
+
+  if (estimatedDaysToComplete > daysUntilDeadline * 1.2) {
+    return 'At risk';
+  }
+
+  return formatDuration(estimatedDaysToComplete);
+}
+```
+
+---
+
+## 3) Агрегаты (экраны читают только их)
 
 **1.1. `TaskSummary`**
 `taskId, title, status, priority, dueDate?, timeOfDay?, estimatedMin?, goalId?, habitId?, financeLink?, focusTotalMin, nextAction?, badges{overdue,today,planned}, subtasksDone/total`

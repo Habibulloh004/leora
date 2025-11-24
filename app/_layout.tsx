@@ -22,6 +22,10 @@ import { TECHNIQUES } from '@/features/focus/types';
 import { useFocusTimerStore } from '@/features/focus/useFocusTimerStore';
 import * as Linking from 'expo-linking';
 import '@/stores/usePlannerAggregatesStore';
+import { initHabitAutoEvaluator } from '@/services/habitAutoEvaluator';
+import { initTaskAutoCompleter } from '@/services/taskAutoCompleter';
+import { initFinancePlannerLinker } from '@/services/financePlannerLinker';
+import { initDebtTransactionLinker } from '@/services/debtTransactionLinker';
 import ProfileHeader from './(tabs)/more/_components/ProfileHeader';
 import { useLocalization } from '@/localization/useLocalization';
 import LoadingOverlay from '@/components/ui/LoadingOverlay';
@@ -85,6 +89,14 @@ export default function RootLayout() {
   useEffect(() => {
     if (assetsReady && animationFinished) {
       setHasBooted(true);
+      // Initialize habit auto-evaluator
+      initHabitAutoEvaluator();
+      // Initialize task auto-completer
+      initTaskAutoCompleter();
+      // Initialize Finance ↔ Planner linker
+      initFinancePlannerLinker();
+      // Initialize Debt ↔ Transaction linker
+      initDebtTransactionLinker();
     }
   }, [assetsReady, animationFinished]);
 
@@ -360,34 +372,6 @@ function RootNavigator({
           ),
         }} />
         <Stack.Screen
-          name="(modals)/add-task"
-          options={{
-            presentation: 'modal',
-            headerTitle: 'Add Task',
-            headerStyle: { backgroundColor: palette.surface },
-            headerTintColor: palette.textPrimary,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/add-goal"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/quick-exp"
-          options={{
-            presentation: 'formSheet',
-            gestureDirection: "vertical",
-            headerTitle: 'Quick Expence',
-            animation: "slide_from_bottom",
-            sheetGrabberVisible: true,
-            sheetInitialDetentIndex: 0,
-            sheetAllowedDetents: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
-          }}
-        />
-        <Stack.Screen
           name="(modals)/search"
           options={{
             presentation: 'modal',
@@ -426,41 +410,6 @@ function RootNavigator({
             headerShown: false,
             headerStyle: { backgroundColor: palette.surface },
             headerTintColor: palette.textPrimary,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/finance-currency"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/finance-stats"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/finance-export"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/finance-search"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
-          }}
-        />
-        <Stack.Screen
-          name="(modals)/goal-details"
-          options={{
-            presentation: 'modal',
-            headerShown: false,
           }}
         />
         <Stack.Screen
@@ -514,13 +463,113 @@ function RootNavigator({
             headerShown: false,
           }}
         />
-        {/* Accounts modals */}
+        {/* Planner modals */}
         <Stack.Screen
-          name="(modals)/add-account"
+          name="(modals)/planner/habit"
           options={{
             presentation: 'modal',
-            headerShown:false,
-            headerTitle: 'Add Account',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/planner/goal"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/planner/task"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/planner/goal-details"
+          options={{
+            presentation: 'modal',
+            animation: "slide_from_bottom",
+            headerShown: false,
+          }}
+        />
+        {/* Finance Screen Modals */}
+        <Stack.Screen
+          name="(modals)/finance-currency"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance-stats"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance-export"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance-search"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/add-account"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/budget"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/transaction"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/transaction-filter"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/quick-exp"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/debt"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
             animation: "slide_from_bottom",
           }}
         />

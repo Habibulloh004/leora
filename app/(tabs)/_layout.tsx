@@ -15,7 +15,6 @@ import InsightsHeader from '@/components/screens/insights/InsightsHeader';
 import FinanceHeader from '@/components/screens/finance/FinanceHeader';
 import { useAppTheme } from '@/constants/theme';
 import { useLocalization } from '@/localization/useLocalization';
-import PlannerModals from '@/components/screens/planner/PlannerModals';
 
 const { width } = Dimensions.get('window');
 const TAB_COUNT = 5 as const;
@@ -334,7 +333,6 @@ export default function TabsLayout() {
   return (
     <TabProvider>
       <TabsContent />
-      <PlannerModals />
     </TabProvider>
   );
 }

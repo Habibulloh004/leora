@@ -15,7 +15,7 @@ import { BellFilledIcon, ListSearchIcon } from '@assets/icons';
 import { useAuthStore } from '@/stores/useAuthStore';
 import { useAppTheme } from '@/constants/theme';
 import { useLocalization } from '@/localization/useLocalization';
-import type { CalendarIndicatorsMap } from '@/types/home';
+import type { CalendarEventMap, CalendarIndicatorsMap } from '@/types/home';
 import { startOfDay, addDays, toISODateKey } from '@/utils/calendar';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
 import { useNotificationsStore } from '@/stores/useNotificationsStore';
@@ -27,6 +27,7 @@ interface HeaderProps {
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
   calendarIndicators: CalendarIndicatorsMap;
+  calendarEvents: CalendarEventMap;
   networkStatusTone?: 'online' | 'offline' | 'muted';
 }
 
@@ -37,6 +38,7 @@ export default function Header({
   selectedDate,
   onSelectDate,
   calendarIndicators,
+  calendarEvents,
   networkStatusTone,
 }: HeaderProps) {
   const dateSheetRef = useRef<BottomSheetHandle>(null);
@@ -241,6 +243,7 @@ export default function Header({
         ref={dateSheetRef}
         selectedDate={selectedDate}
         indicators={calendarIndicators}
+        events={calendarEvents}
         onSelectDate={handleConfirmDate}
       />
     </Animated.View>

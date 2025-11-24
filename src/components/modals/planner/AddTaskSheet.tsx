@@ -26,20 +26,25 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
 import {
+  ArrowLeftRight,
   AtSign,
   Bell,
   CalendarDays,
   ChevronDown,
   Clock4,
+  CreditCard,
+  DollarSign,
   Flag,
   FolderClosed,
   Heart,
   Lightbulb,
   List,
+  PieChart,
   Plus,
   Repeat,
   Square,
   SquareCheck,
+  X,
   Zap,
 } from 'lucide-react-native';
 
@@ -54,6 +59,7 @@ import type {
   AddTaskPayload,
   PlannerTaskCategoryId,
   TaskEnergyLevel,
+  TaskFinanceLink,
   TaskPriorityLevel,
 } from '@/types/planner';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
@@ -128,6 +134,7 @@ const AddTaskSheetComponent = (
   const [priority, setPriority] = useState<TaskPriorityLevel>('medium');
   const [selectedCategoryId, setSelectedCategoryId] = useState<PlannerTaskCategoryId>(defaultCategoryId);
   const [selectedGoalId, setSelectedGoalId] = useState<string | undefined>(undefined);
+  const [financeLink, setFinanceLink] = useState<TaskFinanceLink>('none');
 
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [remindBeforeMin, setRemindBeforeMin] = useState<number>(15);
@@ -182,6 +189,7 @@ const AddTaskSheetComponent = (
       setContext(initial.context ?? CATEGORY_PRESETS[0].context);
       selectCategoryByContext(initial.context ?? CATEGORY_PRESETS[0].context);
       setSelectedGoalId(initial.goalId ?? undefined);
+      setFinanceLink(initial.financeLink ?? 'none');
       setEnergy(initial.energy ?? 'medium');
       setPriority(initial.priority ?? 'medium');
       setReminderEnabled(initial.reminderEnabled ?? true);
@@ -219,6 +227,7 @@ const AddTaskSheetComponent = (
       priority,
       categoryId: selectedCategoryId,
       goalId: selectedGoalId,
+      financeLink: financeLink !== 'none' ? financeLink : undefined,
       reminderEnabled,
       remindBeforeMin,
       repeatEnabled,
@@ -232,6 +241,7 @@ const AddTaskSheetComponent = (
       dateMode,
       description,
       energy,
+      financeLink,
       needFocus,
       priority,
       project,
@@ -257,6 +267,7 @@ const AddTaskSheetComponent = (
     setContext(CATEGORY_PRESETS[0].context);
     setSelectedCategoryId(defaultCategoryId);
     setSelectedGoalId(undefined);
+    setFinanceLink('none');
     setEnergy('medium');
     setPriority('medium');
     setSubtasks([]);
@@ -659,6 +670,167 @@ const AddTaskSheetComponent = (
               Medium
             </Text>
           </AdaptiveGlassView>
+        </View>
+
+        {/* Finance Link */}
+        <View style={styles.fieldSection}>
+          <Text style={[styles.fieldLabel, { color: tokens.textSecondary }]}>
+            Finance Action
+          </Text>
+          <View style={styles.financeLinkGrid}>
+            <Pressable
+              onPress={() => setFinanceLink('record_expenses')}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <AdaptiveGlassView
+                style={[
+                  styles.financeLinkButton,
+                  {
+                    backgroundColor:
+                      financeLink === 'record_expenses' ? tokens.card : tokens.cardItem,
+                    borderWidth: financeLink === 'record_expenses' ? 1.5 : 0,
+                    borderColor: financeLink === 'record_expenses' ? tokens.accent : 'transparent',
+                  },
+                ]}
+              >
+                <DollarSign
+                  size={20}
+                  color={financeLink === 'record_expenses' ? tokens.accent : tokens.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.financeLinkLabel,
+                    {
+                      color:
+                        financeLink === 'record_expenses' ? tokens.textPrimary : tokens.textSecondary,
+                    },
+                  ]}
+                >
+                  Record expenses
+                </Text>
+              </AdaptiveGlassView>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setFinanceLink('pay_debt')}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <AdaptiveGlassView
+                style={[
+                  styles.financeLinkButton,
+                  {
+                    backgroundColor: financeLink === 'pay_debt' ? tokens.card : tokens.cardItem,
+                    borderWidth: financeLink === 'pay_debt' ? 1.5 : 0,
+                    borderColor: financeLink === 'pay_debt' ? tokens.accent : 'transparent',
+                  },
+                ]}
+              >
+                <CreditCard
+                  size={20}
+                  color={financeLink === 'pay_debt' ? tokens.accent : tokens.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.financeLinkLabel,
+                    { color: financeLink === 'pay_debt' ? tokens.textPrimary : tokens.textSecondary },
+                  ]}
+                >
+                  Pay debt
+                </Text>
+              </AdaptiveGlassView>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setFinanceLink('review_budget')}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <AdaptiveGlassView
+                style={[
+                  styles.financeLinkButton,
+                  {
+                    backgroundColor: financeLink === 'review_budget' ? tokens.card : tokens.cardItem,
+                    borderWidth: financeLink === 'review_budget' ? 1.5 : 0,
+                    borderColor: financeLink === 'review_budget' ? tokens.accent : 'transparent',
+                  },
+                ]}
+              >
+                <PieChart
+                  size={20}
+                  color={financeLink === 'review_budget' ? tokens.accent : tokens.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.financeLinkLabel,
+                    {
+                      color:
+                        financeLink === 'review_budget' ? tokens.textPrimary : tokens.textSecondary,
+                    },
+                  ]}
+                >
+                  Review budget
+                </Text>
+              </AdaptiveGlassView>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setFinanceLink('transfer_money')}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <AdaptiveGlassView
+                style={[
+                  styles.financeLinkButton,
+                  {
+                    backgroundColor:
+                      financeLink === 'transfer_money' ? tokens.card : tokens.cardItem,
+                    borderWidth: financeLink === 'transfer_money' ? 1.5 : 0,
+                    borderColor: financeLink === 'transfer_money' ? tokens.accent : 'transparent',
+                  },
+                ]}
+              >
+                <ArrowLeftRight
+                  size={20}
+                  color={financeLink === 'transfer_money' ? tokens.accent : tokens.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.financeLinkLabel,
+                    {
+                      color:
+                        financeLink === 'transfer_money' ? tokens.textPrimary : tokens.textSecondary,
+                    },
+                  ]}
+                >
+                  Transfer money
+                </Text>
+              </AdaptiveGlassView>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setFinanceLink('none')}
+              style={({ pressed }) => [pressed && styles.pressed]}
+            >
+              <AdaptiveGlassView
+                style={[
+                  styles.financeLinkButton,
+                  {
+                    backgroundColor: financeLink === 'none' ? tokens.card : tokens.cardItem,
+                    borderWidth: financeLink === 'none' ? 1.5 : 0,
+                    borderColor: financeLink === 'none' ? tokens.accent : 'transparent',
+                  },
+                ]}
+              >
+                <X size={20} color={financeLink === 'none' ? tokens.accent : tokens.textSecondary} />
+                <Text
+                  style={[
+                    styles.financeLinkLabel,
+                    { color: financeLink === 'none' ? tokens.textPrimary : tokens.textSecondary },
+                  ]}
+                >
+                  None
+                </Text>
+              </AdaptiveGlassView>
+            </Pressable>
+          </View>
         </View>
 
         {/* Additional */}
@@ -1184,5 +1356,24 @@ const styles = StyleSheet.create({
   timePickerDoneText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  financeLinkGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
+  },
+  financeLinkButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minWidth: 110,
+  },
+  financeLinkLabel: {
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

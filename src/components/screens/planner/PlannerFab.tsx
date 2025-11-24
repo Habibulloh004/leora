@@ -1,11 +1,12 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 import { useModalStore } from '@/stores/useModalStore';
 
 export default function PlannerFab() {
-  const openTask = useModalStore((state) => state.openPlannerTaskModal);
+  const router = useRouter();
   const openFocus = useModalStore((state) => state.openPlannerFocusModal);
 
   return (
@@ -15,12 +16,12 @@ export default function PlannerFab() {
           <Ionicons name="timer-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.menuText}>Start focus</Text>
         </Pressable>
-        <Pressable style={styles.menuButton} onPress={() => openTask({ mode: 'create' })}>
+        <Pressable style={styles.menuButton} onPress={() => router.push('/(modals)/planner/task')}>
           <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
           <Text style={styles.menuText}>Add task</Text>
         </Pressable>
       </View>
-      <Pressable style={styles.mainFab} onPress={() => openTask({ mode: 'create' })}>
+      <Pressable style={styles.mainFab} onPress={() => router.push('/(modals)/planner/task')}>
         <Ionicons name="add" size={26} color="#000" />
       </Pressable>
     </View>

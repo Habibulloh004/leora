@@ -11,6 +11,8 @@ import { BottomSheetHandle } from '@/components/modals/BottomSheet';
 import { useSelectedDayStore } from '@/stores/selectedDayStore';
 import { HeartPulse } from 'lucide-react-native';
 import { startOfDay, toISODateKey } from '@/utils/calendar';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
+import type { CalendarEventMap, CalendarEventType } from '@/types/home';
 
 interface PlannerHeaderProps {
   title?: string;
@@ -25,6 +27,13 @@ export default function PlannerHeader({ title }: PlannerHeaderProps) {
     useShallow((state) => ({
       selectedDate: state.selectedDate,
       setSelectedDate: state.setSelectedDate,
+    })),
+  );
+  const plannerData = usePlannerDomainStore(
+    useShallow((state) => ({
+      tasks: state.tasks,
+      habits: state.habits,
+      goals: state.goals,
     })),
   );
   const headerTitle = title ?? strings.tabs.planner;
@@ -50,6 +59,32 @@ export default function PlannerHeader({ title }: PlannerHeaderProps) {
     },
     [setSelectedDate],
   );
+
+  const calendarEvents = useMemo<CalendarEventMap>(() => {
+    const events: CalendarEventMap = {};
+    const register = (value: string | Date | undefined | null, type: CalendarEventType) => {
+      if (!value) return;
+      const date = typeof value === 'string' ? new Date(value) : value;
+      if (Number.isNaN(date.getTime())) return;
+      const iso = toISODateKey(date);
+      if (!events[iso]) {
+        events[iso] = {};
+      }
+      events[iso]![type] = (events[iso]![type] ?? 0) + 1;
+    };
+
+    plannerData.tasks.forEach((task) => register(task.dueDate, 'tasks'));
+    plannerData.habits.forEach((habit) => {
+      if (!habit.completionHistory) return;
+      Object.keys(habit.completionHistory).forEach((key) => register(`${key}T00:00:00.000Z`, 'habits'));
+    });
+    plannerData.goals.forEach((goal) => {
+      goal.checkIns?.forEach((checkIn) => register(checkIn.dateKey ?? checkIn.createdAt, 'goals'));
+      goal.milestones?.forEach((milestone) => register(milestone.completedAt ?? milestone.dueDate, 'goals'));
+    });
+
+    return events;
+  }, [plannerData.goals, plannerData.habits, plannerData.tasks]);
 
   return (
     <>
@@ -89,6 +124,7 @@ export default function PlannerHeader({ title }: PlannerHeaderProps) {
       <DateChangeModal
         ref={calendarSheetRef}
         selectedDate={selectedDate}
+        events={calendarEvents}
         onSelectDate={handleSelectDate}
       />
     </>

@@ -8,61 +8,42 @@ import { GoalCard } from '@/components/planner/goals/GoalCard';
 import { createThemedStyles } from '@/constants/theme';
 import { createGoalSections, type Goal, type GoalSection } from '@/features/planner/goals/data';
 import { useLocalization } from '@/localization/useLocalization';
-import type { PlannerGoalId } from '@/types/planner';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
-import { mapDomainTaskToPlannerTask, type PlannerTaskCard } from '@/features/planner/taskAdapters';
 import { useShallow } from 'zustand/react/shallow';
-import { useModalStore } from '@/stores/useModalStore';
 
 const GoalsPage: React.FC = () => {
   const styles = useStyles();
   const router = useRouter();
   const { strings, locale } = useLocalization();
   const goalStrings = strings.plannerScreens.goals;
-  const openPlannerGoalModal = useModalStore((state) => state.openPlannerGoalModal);
-  const openPlannerTaskModal = useModalStore((state) => state.openPlannerTaskModal);
-  const { goals: domainGoals, habits: domainHabits, tasks: domainTasks } = usePlannerDomainStore(
+  const { goals: domainGoals, archiveGoal, resumeGoal, deleteGoalPermanently } = usePlannerDomainStore(
     useShallow((state) => ({
       goals: state.goals,
-      habits: state.habits,
-      tasks: state.tasks,
+      archiveGoal: state.archiveGoal,
+      resumeGoal: state.resumeGoal,
+      deleteGoalPermanently: state.deleteGoalPermanently,
     })),
   );
-  const tasks = useMemo(
-    () => domainTasks.map((task) => mapDomainTaskToPlannerTask(task, {})),
-    [domainTasks],
-  );
-  const goalTaskMap = useMemo(() => {
-    const map = new Map<PlannerGoalId, PlannerTaskCard[]>();
-    tasks.forEach((task) => {
-      if (!task.goalId) return;
-      const goalId = task.goalId as PlannerGoalId;
-      const current = map.get(goalId) ?? [];
-      current.push(task);
-      map.set(goalId, current);
-    });
-    return map;
-  }, [tasks]);
-  const goalHabitMap = useMemo(() => {
-    const map = new Map<PlannerGoalId, number>();
-    domainHabits.forEach((habit) => {
-      habit.linkedGoalIds?.forEach((goalId) => {
-        const key = goalId as PlannerGoalId;
-        const current = map.get(key) ?? 0;
-        map.set(key, current + 1);
-      });
-    });
-    return map;
-  }, [domainHabits]);
-  const dateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric' }),
-    [locale],
-  );
 
-  const sections = useMemo(
-    () => createGoalSections(goalStrings, domainGoals, locale),
-    [domainGoals, goalStrings, locale],
-  );
+  const activeGoals = useMemo(() => domainGoals.filter((goal) => goal.status !== 'archived'), [domainGoals]);
+  const deletedGoals = useMemo(() => domainGoals.filter((goal) => goal.status === 'archived'), [domainGoals]);
+
+  const sections = useMemo(() => {
+    const activeSections = createGoalSections(goalStrings, activeGoals, locale);
+    const deletedCards = createGoalSections(goalStrings, deletedGoals, locale).flatMap((section) => section.data);
+    if (!deletedCards.length) {
+      return activeSections;
+    }
+    return [
+      ...activeSections,
+      {
+        id: 'deleted',
+        title: 'Delete History',
+        subtitle: 'Recover deleted goals',
+        data: deletedCards,
+      },
+    ];
+  }, [activeGoals, deletedGoals, goalStrings, locale]);
 
   const renderSectionHeader = useCallback(
     ({ section }: { section: GoalSection }) => (
@@ -81,50 +62,26 @@ const GoalsPage: React.FC = () => {
 
   const handleOpenGoal = useCallback(
     (goalId: string) => {
-      router.push({ pathname: '/(modals)/goal-details', params: { goalId } });
+      router.push({ pathname: '/(modals)/planner/goal-details', params: { goalId } });
     },
     [router],
   );
 
   const renderItem = useCallback(
     ({ item }: { item: Goal }) => {
-      const goalId = item.id as PlannerGoalId;
-      const goalTasks = goalTaskMap.get(goalId) ?? [];
-      const pendingTasks = [...goalTasks].filter((task) => task.status !== 'done');
-      pendingTasks.sort((a, b) => (a.dueAt ?? Number.POSITIVE_INFINITY) - (b.dueAt ?? Number.POSITIVE_INFINITY));
-      const nextTask = pendingTasks[0];
-      const relationSummary = {
-        tasks: goalTasks.length,
-        habits: goalHabitMap.get(goalId) ?? 0,
-      };
-      const nextStep = nextTask
-        ? {
-            title: nextTask.title,
-            dueDate: nextTask.dueAt ? dateFormatter.format(new Date(nextTask.dueAt)) : undefined,
-          }
-        : undefined;
-
       return (
         <GoalCard
           goal={item}
-          nextStep={nextStep}
-          relationSummary={relationSummary}
-          onAddStep={() => openPlannerTaskModal({ mode: 'create', goalId: item.id })}
           onPress={() => handleOpenGoal(item.id)}
-          onAddValue={() => openPlannerGoalModal({ mode: 'edit', goalId: item.id })}
-          onRefresh={() => {}}
-          onEdit={() => openPlannerGoalModal({ mode: 'edit', goalId: item.id })}
+          onDelete={item.status !== 'archived' ? () => archiveGoal(item.id) : undefined}
+          onEdit={item.status !== 'archived' ? () => router.push(`/(modals)/planner/goal?id=${item.id}`) : undefined}
+          onAddTask={item.status !== 'archived' ? () => router.push(`/(modals)/planner/task?goalId=${item.id}`) : undefined}
+          onRecover={item.status === 'archived' ? () => resumeGoal(item.id) : undefined}
+          onDeleteForever={item.status === 'archived' ? () => deleteGoalPermanently(item.id) : undefined}
         />
       );
     },
-    [
-      dateFormatter,
-      goalHabitMap,
-      goalTaskMap,
-      handleOpenGoal,
-      openPlannerGoalModal,
-      openPlannerTaskModal,
-    ],
+    [archiveGoal, deleteGoalPermanently, handleOpenGoal, resumeGoal, router],
   );
 
   return (

@@ -1,10 +1,16 @@
 import { create } from 'zustand';
 
-import type { Goal, Habit, Task } from '@/domain/planner/types';
+import type { FocusSession, Goal, Habit, Task } from '@/domain/planner/types';
 import { plannerEventBus } from '@/events/plannerEventBus';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 import type { GoalSummary, HabitSummary, HomeSnapshot, TaskSummary } from '@/types/plannerSummaries';
 import { startOfDay } from '@/utils/calendar';
+import {
+  calculateTaskProgress,
+  calculateHabitProgress,
+  calculateGoalProgress as calculateGoalProgressAverage,
+} from '@/utils/progressCalculator';
+import { calculateGoalProgress as buildGoalProgress } from '@/utils/goalProgress';
 
 interface PlannerAggregatesState {
   taskSummaries: TaskSummary[];
@@ -16,14 +22,20 @@ interface PlannerAggregatesState {
 
 const todayKey = () => startOfDay(new Date()).toISOString().slice(0, 10);
 
+const isHistoricalTask = (status: Task['status']) =>
+  status === 'completed' || status === 'archived' || status === 'deleted' || status === 'canceled';
+
+const isPlannedTask = (status: Task['status']) =>
+  status === 'planned' || status === 'active' || status === 'in_progress' || status === 'overdue' || status === 'inbox';
+
 const computeTaskSummary = (task: Task): TaskSummary => {
   const subtasksTotal = task.checklist?.length ?? 0;
   const subtasksDone = task.checklist?.filter((item) => item.completed).length ?? 0;
   const due = task.dueDate ? new Date(task.dueDate) : null;
   const badges = {
-    overdue: Boolean(due && due.getTime() < Date.now() && task.status !== 'completed'),
+    overdue: Boolean(due && due.getTime() < Date.now() && !isHistoricalTask(task.status)),
     today: Boolean(due && due.toISOString().slice(0, 10) === todayKey()),
-    planned: task.status === 'planned',
+    planned: isPlannedTask(task.status),
   };
   return {
     taskId: task.id,
@@ -48,16 +60,19 @@ const computeGoalSummary = (goal: Goal, tasks: Task[], habits: Habit[]): GoalSum
   const milestonesTotal = goal.milestones?.length ?? 0;
   const milestonesDone = goal.milestones?.filter((m) => m.completedAt).length ?? 0;
   const habitsLinked = habits.filter((h) => h.goalId === goal.id);
-  const tasksLinked = tasks.filter((t) => t.goalId === goal.id && t.status !== 'completed');
+  const tasksLinked = tasks.filter(
+    (t) => t.goalId === goal.id && !isHistoricalTask(t.status),
+  );
+  const progress = buildGoalProgress(goal);
   return {
     goalId: goal.id,
     title: goal.title,
     type: goal.goalType,
     unit: goal.unit,
     currency: goal.currency,
-    target: goal.targetValue,
-    current: goal.initialValue,
-    progressPercent: goal.progressPercent ?? 0,
+    target: progress.displayTarget,
+    current: progress.displayCurrent,
+    progressPercent: goal.status === 'completed' ? 1 : progress.progressPercent,
     deadline: goal.targetDate,
     eta: undefined,
     riskFlags: [],
@@ -74,16 +89,18 @@ const computeGoalSummary = (goal: Goal, tasks: Task[], habits: Habit[]): GoalSum
 
 const computeHabitSummary = (habit: Habit): HabitSummary => {
   const today = todayKey();
-  const todayCompletion = habit.completionHistory?.find((entry) => entry.date === today);
-  const todayStatus: HabitSummary['todayStatus'] = todayCompletion
-    ? todayCompletion.completed
+  const todayEntry = habit.completionHistory ? habit.completionHistory[today] : undefined;
+  const todayStatus: HabitSummary['todayStatus'] = todayEntry
+    ? (typeof todayEntry === 'string' ? todayEntry === 'done' : todayEntry.status === 'done')
       ? 'done'
-      : 'failed'
+      : 'remaining'
     : undefined;
 
+  const todayValue =
+    typeof todayEntry === 'object' && todayEntry?.value != null ? todayEntry.value : undefined;
   const remainingValue =
-    habit.completionMode === 'numeric' && habit.targetPerDay && todayCompletion?.value
-      ? Math.max(0, habit.targetPerDay - todayCompletion.value)
+    habit.completionMode === 'numeric' && habit.targetPerDay
+      ? Math.max(0, habit.targetPerDay - (todayValue ?? 0))
       : undefined;
 
   return {
@@ -103,29 +120,30 @@ const computeHabitSummary = (habit: Habit): HabitSummary => {
   };
 };
 
+const computeFocusProductivity = (sessions: FocusSession[], targetDate: Date) => {
+  const dayKey = startOfDay(targetDate).toISOString().slice(0, 10);
+  const minutes = sessions
+    .filter((session) => session.startedAt && session.startedAt.slice(0, 10) === dayKey)
+    .reduce((sum, session) => sum + (session.actualMinutes ?? session.plannedMinutes ?? 0), 0);
+  return Math.min(1, minutes / 120);
+};
+
 const computeHomeSnapshot = (
   goals: GoalSummary[],
   habits: HabitSummary[],
   tasks: TaskSummary[],
 ): HomeSnapshot => {
-  // Goals% - средний прогресс активных целей
-  const activeGoals = goals.filter((g) => g.progressPercent != null);
-  const goalsProgress = activeGoals.length
-    ? activeGoals.reduce((sum, g) => sum + (g.progressPercent || 0), 0) / activeGoals.length
-    : 0;
+  const domain = usePlannerDomainStore.getState();
+  const today = startOfDay(new Date());
 
-  // Habits% - процент выполненных привычек за сегодня
-  const habitsToday = habits.filter((h) => h.todayStatus !== undefined);
-  const habitsCompleted = habitsToday.filter((h) => h.todayStatus === 'done').length;
-  const habitsProgress = habitsToday.length ? habitsCompleted / habitsToday.length : 0;
+  // Use centralized progress calculator (returns 0-100, convert to 0-1 for storage)
+  const taskProgressPercent = calculateTaskProgress(domain.tasks, today) / 100;
+  const habitProgressPercent = calculateHabitProgress(domain.habits, today) / 100;
+  const goalProgressPercent = calculateGoalProgressAverage(domain.goals) ?? 0;
+  const focusPercent = computeFocusProductivity(domain.focusSessions ?? [], today);
 
-  // Tasks for today
+  // Tasks for today (keep for counts)
   const tasksToday = tasks.filter((t) => t.badges.today);
-  const tasksDone = tasksToday.filter((t) => t.status === 'completed').length;
-
-  // Productivity% - фокус минуты / 120 (дневная цель)
-  const totalFocusMinutes = tasksToday.reduce((sum, t) => sum + (t.focusTotalMin || 0), 0);
-  const productivityPercent = Math.min(1, totalFocusMinutes / 120);
 
   // Определяем at-risk цели (прогресс < 30% и дедлайн близок)
   const now = Date.now();
@@ -138,12 +156,15 @@ const computeHomeSnapshot = (
     })
     .map((g) => g.goalId);
 
+  // Habits today count
+  const habitsToday = habits.filter((h) => h.todayStatus !== undefined);
+
   return {
     date: todayKey(),
     rings: {
-      goals: Number(goalsProgress.toFixed(3)),
-      habits: Number(habitsProgress.toFixed(3)),
-      productivity: Number(productivityPercent.toFixed(3)),
+      goals: Number((goalProgressPercent / 100).toFixed(3)),
+      habits: Number(habitProgressPercent.toFixed(3)),
+      productivity: Number(focusPercent.toFixed(3)),
       finance: 0, // Finance% будет обновляться из Finance модуля
     },
     today: {
@@ -201,6 +222,9 @@ export const usePlannerAggregatesStore = create<PlannerAggregatesState>((set) =>
   plannerEvents.forEach((eventName) => {
     plannerEventBus.subscribe(eventName, () => recompute());
   });
+
+  // Keep aggregates in sync with persisted planner store (incl. hydration)
+  usePlannerDomainStore.subscribe(() => recompute());
 
   return {
     taskSummaries: [],

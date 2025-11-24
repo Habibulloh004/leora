@@ -36,6 +36,7 @@ export default function HomeScreen() {
     loading,
     refreshing,
     calendarIndicators,
+    calendarEvents,
     refresh,
   } = useHomeDashboard();
 
@@ -97,6 +98,7 @@ export default function HomeScreen() {
           selectedDate={selectedDate}
           onSelectDate={handleDateChange}
           calendarIndicators={calendarIndicators}
+          calendarEvents={calendarEvents}
           networkStatusTone={statusTone}
         />
         <Animated.ScrollView

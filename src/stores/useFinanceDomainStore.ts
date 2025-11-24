@@ -20,6 +20,8 @@ import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore'
 import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 import { getFinanceDaoRegistry } from '@/database/dao/financeDaoRegistry';
 import type { BudgetCreateInput } from '@/database/dao/FinanceDAO';
+import { plannerEventBus } from '@/events/plannerEventBus';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 type CreateDebtInput = Omit<
   Debt,
@@ -107,6 +109,86 @@ const convertBetweenCurrencies = (amount: number, fromCurrency: string, toCurren
     return convertAmount(amount, fromCurrency as FinanceCurrency, toCurrency as FinanceCurrency);
   } catch {
     return amount;
+  }
+};
+
+const resolveGoalLinksForTransaction = (
+  transaction: Transaction,
+  budgets: Budget[],
+  debts: Debt[],
+): string[] => {
+  const goalIds = new Set<string>();
+  if (transaction.goalId) {
+    goalIds.add(transaction.goalId);
+  }
+  if (transaction.budgetId) {
+    const budget = budgets.find((item) => item.id === transaction.budgetId && item.linkedGoalId);
+    if (budget?.linkedGoalId) {
+      goalIds.add(budget.linkedGoalId);
+    }
+  }
+  budgets.forEach((budget) => {
+    if (!budget.linkedGoalId) return;
+    const matchesCurrency =
+      !transaction.currency ||
+      budget.currency === transaction.currency ||
+      transaction.baseCurrency === budget.currency;
+    if (matchesCurrency) {
+      goalIds.add(budget.linkedGoalId);
+    }
+  });
+  if (transaction.debtId) {
+    const debt = debts.find((item) => item.id === transaction.debtId && item.linkedGoalId);
+    if (debt?.linkedGoalId) {
+      goalIds.add(debt.linkedGoalId);
+    }
+  }
+  return Array.from(goalIds);
+};
+
+const applyFinanceContributionToGoals = (
+  transaction: Transaction,
+  state: Pick<FinanceDomainState, 'budgets' | 'debts'>,
+) => {
+  const plannerStore = usePlannerDomainStore.getState();
+  if (!plannerStore?.addGoalCheckIn) {
+    return;
+  }
+  const goalIds = resolveGoalLinksForTransaction(transaction, state.budgets, state.debts);
+  if (!goalIds.length) {
+    return;
+  }
+  const dateKey = transaction.date?.slice(0, 10);
+  const amountSource = transaction.toAmount ?? transaction.amount;
+  const currencySource = transaction.toCurrency ?? transaction.currency ?? getBaseCurrency();
+
+  goalIds.forEach((goalId) => {
+    const goal = plannerStore.goals.find((item) => item.id === goalId);
+    if (!goal || goal.metricType !== 'amount') {
+      return;
+    }
+    const targetCurrency = goal.currency ?? currencySource;
+    const convertedAmount = convertBetweenCurrencies(amountSource, currencySource, targetCurrency);
+    const value = Number.isFinite(convertedAmount) ? Math.max(convertedAmount, 0) : Math.max(amountSource, 0);
+    if (!(value > 0)) {
+      return;
+    }
+    plannerStore.addGoalCheckIn({
+      goalId,
+      value,
+      note: transaction.description,
+      sourceId: transaction.id,
+      sourceType: 'finance',
+      dateKey,
+      createdAt: transaction.date,
+    });
+  });
+};
+
+const removeFinanceContributionForTransaction = (transactionId: string) => {
+  const plannerStore = usePlannerDomainStore.getState();
+  if (plannerStore?.removeFinanceContribution) {
+    plannerStore.removeFinanceContribution(transactionId);
   }
 };
 
@@ -348,6 +430,8 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           return previous && previous.currentBalance !== account.currentBalance;
         });
         persistChangedAccounts(changedAccounts);
+        plannerEventBus.publish('finance.tx.created', { transaction: created });
+        applyFinanceContributionToGoals(created, { budgets: get().budgets, debts: get().debts });
         return created;
       },
 
@@ -371,6 +455,7 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
         if (!updated) {
           return;
         }
+        removeFinanceContributionForTransaction(id);
         budgetDao.removeEntriesForTransaction(id);
         const timestamp = updated.updatedAt;
         const newEntries = buildBudgetEntriesForTransaction(updated, get().budgets, timestamp);
@@ -397,6 +482,8 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           return previous && previous.currentBalance !== account.currentBalance;
         });
         persistChangedAccounts(changedAccounts);
+        applyFinanceContributionToGoals(updated, { budgets: get().budgets, debts: get().debts });
+        plannerEventBus.publish('finance.tx.updated', { transaction: updated });
       },
 
       deleteTransaction: (id) => {
@@ -427,6 +514,7 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           return previous && previous.currentBalance !== account.currentBalance;
         });
         persistChangedAccounts(changedAccounts);
+        removeFinanceContributionForTransaction(id);
       },
 
       addCategory: (name) =>

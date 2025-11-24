@@ -26,6 +26,8 @@ export interface ProgressData {
 export type HomeDataStatus = 'success' | 'warning' | 'danger' | 'muted';
 
 export type CalendarIndicatorsMap = Record<string, HomeDataStatus[]>;
+export type CalendarEventType = 'tasks' | 'habits' | 'goals' | 'finance';
+export type CalendarEventMap = Record<string, Partial<Record<CalendarEventType, number>>>;
 
 export interface FABActionType {
   id: string;

@@ -23,7 +23,7 @@ import { useAppTheme } from '@/constants/theme';
 import { useLocalization } from '@/localization/useLocalization';
 import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
-import { useModalStore } from '@/stores/useModalStore';
+import { useRouter } from 'expo-router';
 import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 import type { Debt as LegacyDebt } from '@/types/store.types';
@@ -422,6 +422,7 @@ const DebtsScreen: React.FC = () => {
   const { strings } = useLocalization();
   const debtsStrings = strings.financeScreens.debts;
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const router = useRouter();
 
   const domainDebts = useFinanceDomainStore((state) => state.debts);
   const debts = useMemo<LegacyDebt[]>(() => domainDebts.map(mapDomainDebtToLegacy), [domainDebts]);
@@ -431,7 +432,6 @@ const DebtsScreen: React.FC = () => {
     globalCurrency,
     formatAccountAmount,
   } = useFinanceCurrency();
-  const openDebtModal = useModalStore((state) => state.openDebtModal);
 
   const incoming = useMemo(() => debts.filter((debt) => debt.type === 'lent'), [debts]);
   const outgoing = useMemo(() => debts.filter((debt) => debt.type === 'borrowed'), [debts]);
@@ -462,25 +462,10 @@ const DebtsScreen: React.FC = () => {
   }, [convertAmount, debtsStrings.summary, formatCurrency, globalCurrency, incoming, outgoing]);
 
   const handleDebtAction = React.useCallback(
-    (debt: LegacyDebt, action: DebtCardActionKind) => {
-      switch (action) {
-        case 'full':
-          openDebtModal({ mode: 'edit', debt, focus: 'full', showPrimarySheet: false });
-          break;
-        case 'partial':
-          openDebtModal({ mode: 'edit', debt, focus: 'partial', showPrimarySheet: false });
-          break;
-        case 'schedule':
-          openDebtModal({ mode: 'edit', debt, focus: 'schedule', showPrimarySheet: false });
-          break;
-        case 'reminder':
-          openDebtModal({ mode: 'edit', debt, focus: 'reminder', showPrimarySheet: false });
-          break;
-        default:
-          openDebtModal({ mode: 'edit', debt });
-      }
+    (debt: LegacyDebt, _action: DebtCardActionKind) => {
+      router.push({ pathname: '/(modals)/finance/debt', params: { id: debt.id } });
     },
-    [openDebtModal],
+    [router],
   );
 
   const sections: DebtSectionData[] = useMemo(
@@ -561,7 +546,9 @@ const DebtsScreen: React.FC = () => {
             key={section.title}
             section={section}
             strings={debtsStrings}
-            onCardPress={(debt) => openDebtModal({ mode: 'edit', debt })}
+            onCardPress={(debt) =>
+              router.push({ pathname: '/(modals)/finance/debt', params: { id: debt.id } })
+            }
             formatAmount={formatAccountAmount}
             onActionPress={handleDebtAction}
           />

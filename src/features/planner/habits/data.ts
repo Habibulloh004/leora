@@ -45,6 +45,9 @@ export interface HabitLegendSummary {
   total: number;
 }
 
+const getStatus = (value: PlannerDomainHabit['completionHistory'] extends Record<string, infer V> ? V : never) =>
+  typeof value === 'string' ? value : value?.status;
+
 const chunk = <T,>(items: T[], size: number): T[][] => {
   const chunks: T[][] = [];
   for (let i = 0; i < items.length; i += size) {
@@ -96,7 +99,7 @@ const buildDaysRowFromHistory = (
       return 'none';
     }
     const key = dateKeyFromDate(current);
-    const status = history?.[key];
+    const status = getStatus(history?.[key]);
     if (status === 'done') return 'done';
     if (status === 'miss') return 'miss';
     return 'none';
@@ -113,7 +116,7 @@ export const buildHabitCalendar = (
   const calendarDays = buildCalendarDays(monthStart, referenceDate, today);
   const annotated = calendarDays.map((day) => {
     const key = dateKeyFromDate(day.date);
-    const status = history?.[key] ?? 'none';
+    const status = getStatus(history?.[key]) ?? 'none';
     return {
       key,
       label: day.label,
@@ -178,14 +181,14 @@ export const buildHabits = (
     let weeklyCompleted = 0;
     for (let i = 0; i < 7; i += 1) {
       const key = dateKeyFromDate(addDays(weekStart, i));
-      if (habit.completionHistory?.[key] === 'done') {
+      if (getStatus(habit.completionHistory?.[key]) === 'done') {
         weeklyCompleted += 1;
       }
     }
     const todayStatus =
-      habit.completionHistory?.[todayKey] === 'done'
+      getStatus(habit.completionHistory?.[todayKey]) === 'done'
         ? 'done'
-        : habit.completionHistory?.[todayKey] === 'miss'
+        : getStatus(habit.completionHistory?.[todayKey]) === 'miss'
         ? 'miss'
         : 'none';
     const canLogToday =
