@@ -332,6 +332,7 @@ const buildBudgetEntriesForTransaction = (
   if (transaction.type === 'transfer') {
     return [];
   }
+  const amount = Math.abs(transaction.amount);
   return budgets
     .filter((budget) => {
       if (transaction.budgetId && budget.id !== transaction.budgetId) {
@@ -348,7 +349,7 @@ const buildBudgetEntriesForTransaction = (
     .map((budget) => {
       const sameCurrency = budget.currency === transaction.currency;
       const rate = sameCurrency ? 1 : transaction.rateUsedToBase ?? 1;
-      const convertedAmount = transaction.amount * rate;
+      const convertedAmount = amount * rate;
       return {
         id: generateId('bentry'),
         budgetId: budget.id,

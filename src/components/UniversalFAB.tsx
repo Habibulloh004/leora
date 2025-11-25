@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
     gap: 4,
-    minWidth: 160,
+    minWidth: 240,
   },
   actionButton: {
     width: 56,

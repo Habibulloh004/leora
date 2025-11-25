@@ -841,6 +841,37 @@ export type AppTranslations = {
       addCategory: string;
       setLimit: string;
       states: { exceeding: string; fixed: string; within: string };
+      detail: {
+        title: string;
+        status: string;
+        linkedGoal: string;
+        goalUnlinked: string;
+        accountLabel: string;
+        currencyLabel: string;
+        limitLabel: string;
+        spentLabel: string;
+        remainingLabel: string;
+        balanceLabel: string;
+        createdAt: string;
+        updatedAt: string;
+        categoriesLabel: string;
+        notifyLabel: string;
+        valueAddTitle: string;
+        valueAddAccountCurrency: string;
+        valueAddBudgetCurrency: string;
+        valueAddDisplayCurrency: string;
+        actions: {
+          title: string;
+          edit: string;
+          delete: string;
+          viewGoal: string;
+          viewTransactions: string;
+          confirmDeleteTitle: string;
+          confirmDeleteMessage: string;
+          confirmDeleteConfirm: string;
+          confirmDeleteCancel: string;
+        };
+      };
       form: {
         periodLabel: string;
         periodOptions: Record<'weekly' | 'monthly' | 'custom_range', string>;
@@ -1927,11 +1958,43 @@ const t = {
       budgets: {
         today: "Today's budget overview",
         dateTemplate: 'Budget overview for {date}',
-        mainTitle: 'Main budget',
+      mainTitle: 'Main budget',
       categoriesTitle: 'Categories',
       addCategory: 'Add category',
       setLimit: 'Set a limit',
       states: { exceeding: 'Exceeding', fixed: 'Fixed', within: 'Within' },
+      detail: {
+        title: 'Budget details',
+        status: 'Status',
+        linkedGoal: 'Linked goal',
+        goalUnlinked: 'Not linked to a goal',
+        accountLabel: 'Account',
+        currencyLabel: 'Budget currency',
+        limitLabel: 'Limit',
+        spentLabel: 'Spent',
+        remainingLabel: 'Remaining',
+        balanceLabel: 'Current balance',
+        createdAt: 'Created',
+        updatedAt: 'Updated',
+        categoriesLabel: 'Categories',
+        notifyLabel: 'Notify on exceed',
+        valueAddTitle: 'Value add',
+        valueAddAccountCurrency: 'Account currency',
+        valueAddBudgetCurrency: 'Budget currency',
+        valueAddDisplayCurrency: 'Display currency',
+        actions: {
+          title: 'More actions',
+          edit: 'Edit budget',
+          delete: 'Delete budget',
+          viewGoal: 'View linked goal',
+          viewTransactions: 'View transactions',
+          addToBudget: 'Add to budget',
+          confirmDeleteTitle: 'Delete budget?',
+          confirmDeleteMessage: 'This will archive the budget and unlink related goals.',
+          confirmDeleteConfirm: 'Delete',
+          confirmDeleteCancel: 'Cancel',
+        },
+      },
       form: {
         nameLabel: 'Budget name',
         namePlaceholder: 'Budget name',
@@ -3040,11 +3103,43 @@ const t = {
       budgets: {
         today: 'Обзор бюджета на сегодня',
         dateTemplate: 'Обзор бюджета за {date}',
-        mainTitle: 'Главный бюджет',
+      mainTitle: 'Главный бюджет',
       categoriesTitle: 'Категории',
       addCategory: 'Добавить категорию',
       setLimit: 'Установить лимит',
       states: { exceeding: 'Превышение', fixed: 'Фиксировано', within: 'В пределах' },
+      detail: {
+        title: 'Детали бюджета',
+        status: 'Статус',
+        linkedGoal: 'Связанная цель',
+        goalUnlinked: 'Цель не привязана',
+        accountLabel: 'Счёт',
+        currencyLabel: 'Валюта бюджета',
+        limitLabel: 'Лимит',
+        spentLabel: 'Потрачено',
+        remainingLabel: 'Остаток',
+        balanceLabel: 'Текущий баланс',
+        createdAt: 'Создан',
+        updatedAt: 'Обновлён',
+        categoriesLabel: 'Категории',
+        notifyLabel: 'Уведомлять при превышении',
+        valueAddTitle: 'Value add',
+        valueAddAccountCurrency: 'Валюта счёта',
+        valueAddBudgetCurrency: 'Валюта бюджета',
+        valueAddDisplayCurrency: 'Валюта отображения',
+        actions: {
+          title: 'Действия',
+          edit: 'Редактировать бюджет',
+          delete: 'Удалить бюджет',
+          viewGoal: 'Открыть цель',
+          viewTransactions: 'Транзакции',
+          addToBudget: 'Добавить в бюджет',
+          confirmDeleteTitle: 'Удалить бюджет?',
+          confirmDeleteMessage: 'Бюджет будет архивирован и отвязан от целей.',
+          confirmDeleteConfirm: 'Удалить',
+          confirmDeleteCancel: 'Отмена',
+        },
+      },
       form: {
         nameLabel: 'Название бюджета',
         namePlaceholder: 'Название бюджета',
@@ -4157,11 +4252,43 @@ const t = {
       budgets: {
         today: 'Bugungi byudjet sharhi',
         dateTemplate: '{date} uchun byudjet sharhi',
-        mainTitle: 'Asosiy byudjet',
+      mainTitle: 'Asosiy byudjet',
       categoriesTitle: 'Kategoriyalar',
       addCategory: 'Kategoriya qo‘shish',
       setLimit: 'Limit qo‘yish',
       states: { exceeding: 'Limitdan oshgan', fixed: 'Belgilangan', within: 'Doirada' },
+      detail: {
+        title: 'Byudjet tafsilotlari',
+        status: 'Holat',
+        linkedGoal: 'Bog‘langan maqsad',
+        goalUnlinked: 'Maqsad bog‘lanmagan',
+        accountLabel: 'Hisob',
+        currencyLabel: 'Byudjet valyutasi',
+        limitLabel: 'Limit',
+        spentLabel: 'Sarflandi',
+        remainingLabel: 'Qoldiq',
+        balanceLabel: 'Joriy balans',
+        createdAt: 'Yaratilgan',
+        updatedAt: 'Yangilangan',
+        categoriesLabel: 'Kategoriyalar',
+        notifyLabel: 'Limit oshsa xabarnoma',
+        valueAddTitle: 'Qiymat qo‘shish',
+        valueAddAccountCurrency: 'Hisob valyutasi',
+        valueAddBudgetCurrency: 'Byudjet valyutasi',
+        valueAddDisplayCurrency: 'Ko‘rsatish valyutasi',
+        actions: {
+          title: 'Harakatlar',
+          edit: 'Byudjetni tahrirlash',
+          delete: 'Byudjetni o‘chirish',
+          viewGoal: 'Maqsadni ko‘rish',
+          viewTransactions: 'Tranzaksiyalar',
+          addToBudget: 'Byudjetni to‘ldirish',
+          confirmDeleteTitle: 'Byudjet o‘chirilsinmi?',
+          confirmDeleteMessage: 'Byudjet arxivlanadi va maqsadlardan uziladi.',
+          confirmDeleteConfirm: 'O‘chirish',
+          confirmDeleteCancel: 'Bekor qilish',
+        },
+      },
       form: {
         nameLabel: 'Byudjet nomi',
         namePlaceholder: 'Byudjet nomi',
@@ -5274,11 +5401,43 @@ const t = {
       budgets: {
         today: 'نظرة على ميزانية اليوم',
         dateTemplate: 'نظرة على الميزانية لـ {date}',
-        mainTitle: 'الميزانية الرئيسية',
+      mainTitle: 'الميزانية الرئيسية',
       categoriesTitle: 'الفئات',
       addCategory: 'إضافة فئة',
       setLimit: 'تحديد حد',
       states: { exceeding: 'تجاوز', fixed: 'ثابت', within: 'ضمن الحد' },
+      detail: {
+        title: 'تفاصيل الميزانية',
+        status: 'الحالة',
+        linkedGoal: 'الهدف المرتبط',
+        goalUnlinked: 'غير مرتبط بهدف',
+        accountLabel: 'الحساب',
+        currencyLabel: 'عملة الميزانية',
+        limitLabel: 'الحد',
+        spentLabel: 'المصروف',
+        remainingLabel: 'المتبقي',
+        balanceLabel: 'الرصيد الحالي',
+        createdAt: 'تاريخ الإنشاء',
+        updatedAt: 'آخر تحديث',
+        categoriesLabel: 'الفئات',
+        notifyLabel: 'تنبيه عند التجاوز',
+        valueAddTitle: 'قيمة مضافة',
+        valueAddAccountCurrency: 'عملة الحساب',
+        valueAddBudgetCurrency: 'عملة الميزانية',
+        valueAddDisplayCurrency: 'عملة العرض',
+        actions: {
+          title: 'إجراءات',
+          edit: 'تعديل الميزانية',
+          delete: 'حذف الميزانية',
+          viewGoal: 'عرض الهدف',
+          viewTransactions: 'عرض المعاملات',
+          addToBudget: 'إضافة إلى الميزانية',
+          confirmDeleteTitle: 'حذف الميزانية؟',
+          confirmDeleteMessage: 'سيتم أرشفة الميزانية وفصلها عن الأهداف.',
+          confirmDeleteConfirm: 'حذف',
+          confirmDeleteCancel: 'إلغاء',
+        },
+      },
       form: {
         nameLabel: 'اسم الميزانية',
         namePlaceholder: 'اسم الميزانية',
@@ -6391,11 +6550,43 @@ const t = {
       budgets: {
         today: 'Bugünkü bütçe özeti',
         dateTemplate: '{date} bütçe özeti',
-        mainTitle: 'Ana bütçe',
+      mainTitle: 'Ana bütçe',
       categoriesTitle: 'Kategoriler',
       addCategory: 'Kategori ekle',
       setLimit: 'Limit belirle',
       states: { exceeding: 'Limit aşıldı', fixed: 'Sabit', within: 'Sınır içinde' },
+      detail: {
+        title: 'Bütçe detayları',
+        status: 'Durum',
+        linkedGoal: 'Bağlı hedef',
+        goalUnlinked: 'Hedefe bağlı değil',
+        accountLabel: 'Hesap',
+        currencyLabel: 'Bütçe para birimi',
+        limitLabel: 'Limit',
+        spentLabel: 'Harcanan',
+        remainingLabel: 'Kalan',
+        balanceLabel: 'Güncel bakiye',
+        createdAt: 'Oluşturuldu',
+        updatedAt: 'Güncellendi',
+        categoriesLabel: 'Kategoriler',
+        notifyLabel: 'Limit aşımında uyar',
+        valueAddTitle: 'Değer ekleme',
+        valueAddAccountCurrency: 'Hesap para birimi',
+        valueAddBudgetCurrency: 'Bütçe para birimi',
+        valueAddDisplayCurrency: 'Görüntüleme para birimi',
+        actions: {
+          title: 'İşlemler',
+          edit: 'Bütçeyi düzenle',
+          delete: 'Bütçeyi sil',
+          viewGoal: 'Hedefi aç',
+          viewTransactions: 'İşlemleri gör',
+          addToBudget: 'Bütçeye ekle',
+          confirmDeleteTitle: 'Bütçe silinsin mi?',
+          confirmDeleteMessage: 'Bütçe arşivlenecek ve hedef bağlantıları kaldırılacak.',
+          confirmDeleteConfirm: 'Sil',
+          confirmDeleteCancel: 'İptal',
+        },
+      },
       form: {
         nameLabel: 'Bütçe adı',
         namePlaceholder: 'Bütçe adı',

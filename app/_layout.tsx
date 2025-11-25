@@ -542,6 +542,22 @@ function RootNavigator({
           }}
         />
         <Stack.Screen
+          name="(modals)/finance/budget-detail"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/budget-add-value"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
           name="(modals)/finance/transaction"
           options={{
             presentation: 'modal',

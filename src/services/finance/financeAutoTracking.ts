@@ -1,7 +1,7 @@
 import type { BudgetFlowType, Transaction } from '@/domain/finance/types';
 import type { Goal } from '@/domain/planner/types';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
-import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
+import { useFinancePreferencesStore, type FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 import type { Debt } from '@/domain/finance/types';
 
 type GoalFinanceEvent = 'goal-progress' | 'goal-completed';
@@ -18,7 +18,18 @@ type GoalFinanceTransactionInput = {
   paidAmount?: number;
 };
 
-const getBaseCurrency = () => useFinancePreferencesStore.getState().baseCurrency;
+const getFinancePreferences = () => useFinancePreferencesStore.getState();
+const getBaseCurrency = () => getFinancePreferences().baseCurrency;
+
+const resolveRateToBase = (
+  convertAmount: (amount: number, fromCurrency?: FinanceCurrency, toCurrency?: FinanceCurrency) => number,
+  fromCurrency: FinanceCurrency,
+  toCurrency: FinanceCurrency,
+): number => {
+  if (fromCurrency === toCurrency) return 1;
+  const rate = convertAmount(1, fromCurrency, toCurrency);
+  return Number.isFinite(rate) && rate > 0 ? rate : 1;
+};
 
 const resolveFlowDirection = (goal?: Goal, debt?: Debt): BudgetFlowType => {
   if (debt) {
@@ -28,7 +39,7 @@ const resolveFlowDirection = (goal?: Goal, debt?: Debt): BudgetFlowType => {
     return 'expense';
   }
   if (goal.financeMode === 'save') {
-    return 'expense';
+    return 'income';
   }
   return 'expense';
 };
@@ -53,6 +64,8 @@ export const createGoalFinanceTransaction = ({
   paidAmount,
 }: GoalFinanceTransactionInput): Transaction | undefined => {
   const financeStore = useFinanceDomainStore.getState();
+  const financePrefs = getFinancePreferences();
+  const convertAmount = financePrefs.convertAmount;
   const targetDebt =
     debtId ??
     goal?.linkedDebtId ??
@@ -67,15 +80,17 @@ export const createGoalFinanceTransaction = ({
   }
   const budget = financeStore.budgets.find((item) => item.id === budgetFromLink);
   const debt = targetDebt ? financeStore.debts.find((item) => item.id === targetDebt) : undefined;
-  const preferredCurrency = budget?.currency ?? goal.currency ?? getBaseCurrency();
+  const budgetCurrency = budget?.currency as FinanceCurrency | undefined;
+  const goalCurrency = goal.currency as FinanceCurrency | undefined;
+  const baseCurrency = (budgetCurrency ?? goalCurrency ?? financePrefs.baseCurrency) as FinanceCurrency;
   const resolvedAccount =
     (accountId ? financeStore.accounts.find((item) => item.id === accountId) : undefined) ??
     (budget?.accountId ? financeStore.accounts.find((item) => item.id === budget.accountId) : undefined) ??
-    financeStore.accounts.find((item) => item.currency === preferredCurrency) ??
+    financeStore.accounts.find((item) => item.currency === budgetCurrency) ??
     financeStore.accounts[0];
   const resolvedAccountId = resolvedAccount?.id ?? accountId ?? budget?.accountId;
-  const currency = preferredCurrency ?? resolvedAccount?.currency ?? getBaseCurrency();
-  const rateUsedToBudget = 1;
+  const currency = (resolvedAccount?.currency ?? budgetCurrency ?? goalCurrency ?? baseCurrency) as FinanceCurrency;
+  const rateUsedToBudget = resolveRateToBase(convertAmount, currency, baseCurrency);
   const flow = resolveFlowDirection(goal, debt);
   const today = new Date().toISOString();
   const financeCategory = (goal as any).financeCategoryId ?? (goal as any).financeCategory ?? (goal as any).categoryId;
@@ -89,7 +104,7 @@ export const createGoalFinanceTransaction = ({
     accountId: resolvedAccountId,
     amount: Math.abs(amount),
     currency,
-    baseCurrency: currency,
+    baseCurrency,
     rateUsedToBase: rateUsedToBudget,
     convertedAmountToBase: Math.abs(amount) * rateUsedToBudget,
     categoryId: financeCategory,

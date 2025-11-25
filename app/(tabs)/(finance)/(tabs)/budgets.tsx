@@ -11,6 +11,9 @@ import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useRouter } from 'expo-router';
+import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
+import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
+import type { FinanceCurrency } from '@/stores/useFinancePreferencesStore';
 
 type BudgetState = 'exceeding' | 'within' | 'fixed';
 
@@ -21,6 +24,7 @@ type CategoryBudget = {
   limit: number;
   state: BudgetState;
   currency: string;
+  originalCurrency?: FinanceCurrency;
   accountName: string;
   categories: string[];
   notifyOnExceed: boolean;
@@ -36,16 +40,6 @@ const resolveBudgetState = (limit: number, spent: number): BudgetState => {
     return 'exceeding';
   }
   return 'within';
-};
-
-const formatCurrency = (value: number, currency: string) => {
-  const locale = currency === 'UZS' ? 'uz-UZ' : 'en-US';
-  const maximumFractionDigits = currency === 'UZS' ? 0 : 2;
-  return new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency,
-    maximumFractionDigits,
-  }).format(value);
 };
 
 type ProgressAppearance = {
@@ -143,9 +137,10 @@ const buildProgressAppearance = (
 };
 
 const MainBudgetProgress: React.FC<{
-  budget: { current: number; total: number; currency: string };
+  budget: { current: number; total: number };
   labels: Record<BudgetState, string>;
-}> = ({ budget, labels }) => {
+  formatValue: (value: number) => string;
+}> = ({ budget, labels, formatValue }) => {
   const percentage =
     budget.total === 0 ? 0 : Math.min((budget.current / budget.total) * 100, 125);
   const appearance = useMemo(() => buildProgressAppearance('within', labels), [labels]);
@@ -153,8 +148,8 @@ const MainBudgetProgress: React.FC<{
   return (
     <View style={styles.mainSection}>
       <View style={styles.mainAmountsRow}>
-        <Text style={styles.mainAmount}>{formatCurrency(budget.current, budget.currency)}</Text>
-        <Text style={styles.mainAmount}>/ {formatCurrency(budget.total, budget.currency)}</Text>
+        <Text style={styles.mainAmount}>{formatValue(budget.current)}</Text>
+        <Text style={styles.mainAmount}>/ {formatValue(budget.total)}</Text>
       </View>
 
       <AnimatedProgressBar percentage={percentage} appearance={appearance} />
@@ -168,6 +163,8 @@ interface CategoryBudgetCardProps {
   labels: Record<BudgetState, string>;
   actionLabel: string;
   onManage?: (budgetId: string) => void;
+  onOpen?: (budgetId: string) => void;
+  formatValue: (value: number) => string;
 }
 
 const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
@@ -176,6 +173,8 @@ const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
   labels,
   actionLabel,
   onManage,
+  onOpen,
+  formatValue,
 }) => {
   const fade = useSharedValue(0);
   const translateY = useSharedValue(12);
@@ -208,39 +207,41 @@ const CategoryBudgetCard: React.FC<CategoryBudgetCardProps> = ({
   const remainingAmount = Math.max(category.limit - category.spent, 0);
 
   return (
-    <Animated.View style={[styles.categoryBlock, animatedStyle]}>
-      <AdaptiveGlassView style={[styles.glassSurface, styles.categoryCard]}>
-        <View style={styles.categoryHeaderRow}>
-          <Text style={styles.categoryTitle}>{category.name}</Text>
-          <Pressable
-            style={({ pressed }) => [styles.categoryActionButton, pressed && styles.pressed]}
-            onPress={() => onManage?.(category.id)}
-          >
-            <Text style={styles.categoryAction}>{actionLabel}</Text>
-          </Pressable>
-        </View>
-        <Text style={styles.categorySubtitle}>
-          {category.accountName}
-          {categoriesSummary ? ` · ${categoriesSummary}` : ''}
-        </Text>
-
-        <View style={styles.categoryAmountsRow}>
-          <Text style={styles.categoryAmount}>
-            {formatCurrency(category.spent, category.currency)}
+    <Pressable onPress={() => onOpen?.(category.id)}>
+      <Animated.View style={[styles.categoryBlock, animatedStyle]}>
+        <AdaptiveGlassView style={[styles.glassSurface, styles.categoryCard]}>
+          <View style={styles.categoryHeaderRow}>
+            <Text style={styles.categoryTitle}>{category.name}</Text>
+            <Pressable
+              style={({ pressed }) => [styles.categoryActionButton, pressed && styles.pressed]}
+              onPress={() => onManage?.(category.id)}
+            >
+              <Text style={styles.categoryAction}>{actionLabel}</Text>
+            </Pressable>
+          </View>
+          <Text style={styles.categorySubtitle}>
+            {category.accountName}
+            {categoriesSummary ? ` · ${categoriesSummary}` : ''}
           </Text>
-          <Text style={styles.categoryAmount}>
-            / {formatCurrency(category.limit, category.currency)}
-          </Text>
-        </View>
 
-        <AnimatedProgressBar percentage={progress} appearance={appearance} />
-        <Text style={styles.remainingLabel}>
-          {appearance.label === labels.exceeding
-            ? `${formatCurrency(category.spent - category.limit, category.currency)} over limit`
-            : `Remaining ${formatCurrency(remainingAmount, category.currency)}`}
-        </Text>
-      </AdaptiveGlassView>
-    </Animated.View>
+          <View style={styles.categoryAmountsRow}>
+            <Text style={styles.categoryAmount}>
+              {formatValue(category.spent)}
+            </Text>
+            <Text style={styles.categoryAmount}>
+              / {formatValue(category.limit)}
+            </Text>
+          </View>
+
+          <AnimatedProgressBar percentage={progress} appearance={appearance} />
+          <Text style={styles.remainingLabel}>
+            {appearance.label === labels.exceeding
+              ? `${labels.exceeding}: ${formatValue(category.spent - category.limit)}`
+              : `${labels.within}: ${formatValue(remainingAmount)}`}
+          </Text>
+        </AdaptiveGlassView>
+      </Animated.View>
+    </Pressable>
   );
 };
 
@@ -248,6 +249,7 @@ const BudgetsScreen: React.FC = () => {
   const { strings, locale } = useLocalization();
   const budgetsStrings = strings.financeScreens.budgets;
   const router = useRouter();
+  const { convertAmount, formatCurrency: formatFinanceCurrency, globalCurrency } = useFinanceCurrency();
 
   const selectedDate = useSelectedDayStore((state) => state.selectedDate);
   const normalizedSelectedDate = useMemo(
@@ -267,25 +269,46 @@ const BudgetsScreen: React.FC = () => {
     [domainAccounts],
   );
 
+  const formatValue = useCallback(
+    (value: number) =>
+      formatFinanceCurrency(value, {
+        fromCurrency: globalCurrency,
+        convert: false,
+      }),
+    [formatFinanceCurrency, globalCurrency],
+  );
+
   const aggregate = useMemo(() => {
     const total = domainBudgets.reduce(
       (acc, budget) => {
-        acc.current += budget.spentAmount;
-        acc.total += budget.limitAmount;
+        const account = budget.accountId ? accountMap.get(budget.accountId) : undefined;
+        const resolvedCurrency = normalizeFinanceCurrency(
+          (budget.currency ?? account?.currency ?? baseCurrency) as FinanceCurrency,
+        );
+        const spent = convertAmount(budget.spentAmount, resolvedCurrency, globalCurrency);
+        const limit = convertAmount(budget.limitAmount, resolvedCurrency, globalCurrency);
+        acc.current += spent;
+        acc.total += limit;
         return acc;
       },
       { current: 0, total: 0 },
     );
     const categories = domainBudgets.map((budget) => {
       const account = budget.accountId ? accountMap.get(budget.accountId) : undefined;
-      const state = resolveBudgetState(budget.limitAmount, budget.spentAmount);
+      const resolvedCurrency = normalizeFinanceCurrency(
+        (budget.currency ?? account?.currency ?? baseCurrency) as FinanceCurrency,
+      );
+      const spent = convertAmount(budget.spentAmount, resolvedCurrency, globalCurrency);
+      const limit = convertAmount(budget.limitAmount, resolvedCurrency, globalCurrency);
+      const state = resolveBudgetState(limit, spent);
       return {
         id: budget.id,
         name: budget.name,
-        spent: budget.spentAmount,
-        limit: budget.limitAmount,
+        spent,
+        limit,
         state,
-        currency: budget.currency ?? account?.currency ?? baseCurrency,
+        currency: globalCurrency,
+        originalCurrency: resolvedCurrency,
         accountName: account?.name ?? strings.financeScreens.accounts.header,
         categories: budget.categoryIds ?? [],
         notifyOnExceed: Boolean(budget.notifyOnExceed),
@@ -295,11 +318,17 @@ const BudgetsScreen: React.FC = () => {
       main: {
         current: total.current,
         total: total.total,
-        currency: baseCurrency,
       },
       categories,
     };
-  }, [accountMap, baseCurrency, domainBudgets, strings.financeScreens.accounts.header]);
+  }, [
+    accountMap,
+    baseCurrency,
+    convertAmount,
+    domainBudgets,
+    globalCurrency,
+    strings.financeScreens.accounts.header,
+  ]);
 
   const selectedDateLabel = useMemo(() => {
     const today = startOfDay(new Date());
@@ -327,6 +356,13 @@ const BudgetsScreen: React.FC = () => {
     router.push('/(modals)/finance/budget');
   }, [router]);
 
+  const handleOpenDetailBudget = useCallback(
+    (budgetId: string) => {
+      router.push({ pathname: '/(modals)/finance/budget-detail', params: { budgetId } });
+    },
+    [router],
+  );
+
   return (
     <ScrollView
       style={styles.screen}
@@ -336,7 +372,11 @@ const BudgetsScreen: React.FC = () => {
       <Text style={styles.dateCaption}>{selectedDateLabel}</Text>
       <Text style={styles.sectionHeading}>{budgetsStrings.mainTitle}</Text>
 
-      <MainBudgetProgress budget={aggregate.main} labels={budgetsStrings.states} />
+      <MainBudgetProgress
+        budget={aggregate.main}
+        labels={budgetsStrings.states}
+        formatValue={formatValue}
+      />
 
       <View style={styles.sectionHeaderRow}>
         <Text style={styles.sectionHeading}>{budgetsStrings.categoriesTitle}</Text>
@@ -359,6 +399,8 @@ const BudgetsScreen: React.FC = () => {
             labels={budgetsStrings.states}
             actionLabel={manageLabel}
             onManage={handleManageBudget}
+            onOpen={handleOpenDetailBudget}
+            formatValue={formatValue}
           />
         ))}
       </View>

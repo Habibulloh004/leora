@@ -6,6 +6,7 @@ import type { Goal } from '@/domain/planner/types';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
 import { createGoalFinanceTransaction } from '@/services/finance/financeAutoTracking';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 type BudgetInput = {
   name?: string;
@@ -28,6 +29,7 @@ export const useGoalFinanceLink = (goal?: Goal) => {
     })),
   );
   const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
+  const updateGoal = usePlannerDomainStore((state) => state.updateGoal);
 
   const linkedBudget = useMemo(() => {
     if (!goal) return undefined;
@@ -67,18 +69,27 @@ export const useGoalFinanceLink = (goal?: Goal) => {
       });
       if (goal?.id) {
         updateBudget(budget.id, { linkedGoalId: goal.id });
+        updateGoal?.(goal.id, {
+          linkedBudgetId: budget.id,
+          currency: budget.currency,
+        } as any);
       }
       return budget;
     },
-    [baseCurrency, createBudget, goal, updateBudget],
+    [baseCurrency, createBudget, goal, updateBudget, updateGoal],
   );
 
   const linkExistingBudget = useCallback(
     (budgetId: string) => {
       if (!goal?.id) return;
+      const target = budgets.find((b) => b.id === budgetId);
       updateBudget(budgetId, { linkedGoalId: goal.id });
+      updateGoal?.(goal.id, {
+        linkedBudgetId: budgetId,
+        currency: target?.currency ?? goal.currency ?? baseCurrency,
+      } as any);
     },
-    [goal?.id, updateBudget],
+    [baseCurrency, budgets, goal?.id, goal?.currency, updateBudget, updateGoal],
   );
 
   const applyProgressWithBudget = useCallback(

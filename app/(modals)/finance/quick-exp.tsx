@@ -51,10 +51,11 @@ export default function QuickExpenseModal() {
   const filterStrings = transactionsStrings.filterSheet ?? {};
   const commonStrings = (strings as any).common ?? {};
   const debtStrings = financeStrings.debts?.modal ?? {};
-  const { id, tab, goalId } = useLocalSearchParams<{ id?: string; tab?: string; goalId?: string }>();
+  const { id, tab, goalId, budgetId } = useLocalSearchParams<{ id?: string; tab?: string; goalId?: string; budgetId?: string }>();
   const editingId = Array.isArray(id) ? id[0] : id ?? null;
   const initialTab = Array.isArray(tab) ? tab[0] : tab ?? null;
   const linkedGoalId = Array.isArray(goalId) ? goalId[0] : goalId ?? null;
+  const budgetIdParam = Array.isArray(budgetId) ? budgetId[0] : budgetId ?? null;
 
   const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
   const goals = usePlannerDomainStore((state) => state.goals);
@@ -214,7 +215,7 @@ export default function QuickExpenseModal() {
     () => (effectiveGoalId ? goals.find((goal) => goal.id === effectiveGoalId) ?? null : null),
     [effectiveGoalId, goals],
   );
-  const inferredBudgetId = editingTransaction?.budgetId ?? linkedGoal?.linkedBudgetId ?? null;
+  const inferredBudgetId = editingTransaction?.budgetId ?? budgetIdParam ?? linkedGoal?.linkedBudgetId ?? null;
   const inferredDebtId = editingTransaction?.debtId ?? linkedGoal?.linkedDebtId ?? null;
   const linkedBudget = useMemo(() => {
     const targetId = editingTransaction?.relatedBudgetId ?? inferredBudgetId;
