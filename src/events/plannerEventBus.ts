@@ -27,6 +27,7 @@ export type PlannerEventName =
   | 'planner.focus.completed'
   | 'finance.tx.created'
   | 'finance.tx.updated'
+  | 'finance.budget.updated'
   | 'finance.budget.spending_changed'
   | 'finance.debt.created'
   | 'finance.debt.payment_added'
@@ -50,6 +51,7 @@ export type PlannerEventPayloadMap = {
   'planner.focus.completed': PlannerFocusEvent;
   'finance.tx.created': FinanceTxEvent;
   'finance.tx.updated': FinanceTxEvent;
+  'finance.budget.updated': FinanceBudgetEvent;
   'finance.budget.spending_changed': FinanceBudgetEvent;
   'finance.debt.created': FinanceDebtEvent;
   'finance.debt.payment_added': FinanceDebtEvent;

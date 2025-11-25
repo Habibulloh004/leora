@@ -30,6 +30,7 @@ import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import { useFinancePreferencesStore } from '@/stores/useFinancePreferencesStore';
 import { useLocalization } from '@/localization/useLocalization';
 import { useShallow } from 'zustand/react/shallow';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 type IncomeOutcomeTab = 'income' | 'outcome';
 
@@ -56,11 +57,14 @@ export default function QuickExpenseModal() {
   const linkedGoalId = Array.isArray(goalId) ? goalId[0] : goalId ?? null;
 
   const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
+  const goals = usePlannerDomainStore((state) => state.goals);
 
   const {
     accounts,
     categories,
     transactions,
+    budgets,
+    debts,
     createTransaction,
     updateTransaction,
     addCategory,
@@ -70,6 +74,8 @@ export default function QuickExpenseModal() {
       accounts: state.accounts,
       categories: state.categories,
       transactions: state.transactions,
+      budgets: state.budgets,
+      debts: state.debts,
       createTransaction: state.createTransaction,
       updateTransaction: state.updateTransaction,
       addCategory: state.addCategory,
@@ -199,6 +205,27 @@ export default function QuickExpenseModal() {
     () => accounts.find((account) => account.id === selectedAccount) ?? accounts[0] ?? null,
     [accounts, selectedAccount],
   );
+
+  const effectiveGoalId = useMemo(
+    () => linkedGoalId ?? editingTransaction?.goalId ?? null,
+    [editingTransaction?.goalId, linkedGoalId],
+  );
+  const linkedGoal = useMemo(
+    () => (effectiveGoalId ? goals.find((goal) => goal.id === effectiveGoalId) ?? null : null),
+    [effectiveGoalId, goals],
+  );
+  const inferredBudgetId = editingTransaction?.budgetId ?? linkedGoal?.linkedBudgetId ?? null;
+  const inferredDebtId = editingTransaction?.debtId ?? linkedGoal?.linkedDebtId ?? null;
+  const linkedBudget = useMemo(() => {
+    const targetId = editingTransaction?.relatedBudgetId ?? inferredBudgetId;
+    if (!targetId) return null;
+    return budgets.find((budget) => budget.id === targetId) ?? null;
+  }, [budgets, editingTransaction?.relatedBudgetId, inferredBudgetId]);
+  const linkedDebt = useMemo(() => {
+    const targetId = editingTransaction?.relatedDebtId ?? inferredDebtId;
+    if (!targetId) return null;
+    return debts.find((debt) => debt.id === targetId) ?? null;
+  }, [debts, editingTransaction?.relatedDebtId, inferredDebtId]);
 
   const amountNumber = useMemo(() => {
     const sanitized = amount.replace(/,/g, '.');
@@ -344,6 +371,15 @@ export default function QuickExpenseModal() {
     }
 
     const domainType: 'income' | 'expense' = activeTab === 'income' ? 'income' : 'expense';
+    const goalForLink =
+      linkedGoal ??
+      (editingTransaction?.goalId ? goals.find((goal) => goal.id === editingTransaction.goalId) ?? null : null);
+    const budgetForLink =
+      linkedBudget ??
+      (inferredBudgetId ? budgets.find((budget) => budget.id === inferredBudgetId) ?? null : null);
+    const debtForLink =
+      linkedDebt ??
+      (inferredDebtId ? debts.find((debt) => debt.id === inferredDebtId) ?? null : null);
     const basePayload: Parameters<typeof createTransaction>[0] = {
       userId: 'local-user',
       type: domainType,
@@ -356,7 +392,15 @@ export default function QuickExpenseModal() {
       baseCurrency,
       rateUsedToBase: 1,
       convertedAmountToBase: amountNumber,
-      goalId: editingTransaction?.goalId ?? linkedGoalId ?? undefined,
+      goalId: goalForLink?.id ?? editingTransaction?.goalId ?? linkedGoalId ?? undefined,
+      budgetId: budgetForLink?.id ?? editingTransaction?.budgetId ?? undefined,
+      debtId: debtForLink?.id ?? editingTransaction?.debtId ?? undefined,
+      goalName: goalForLink?.title ?? editingTransaction?.goalName,
+      goalType: goalForLink?.goalType ?? editingTransaction?.goalType,
+      relatedBudgetId: budgetForLink?.id ?? editingTransaction?.relatedBudgetId,
+      relatedDebtId: debtForLink?.id ?? editingTransaction?.relatedDebtId,
+      plannedAmount: goalForLink?.targetValue ?? editingTransaction?.plannedAmount,
+      paidAmount: amountNumber,
     };
 
     if (editingTransaction) {
@@ -369,13 +413,22 @@ export default function QuickExpenseModal() {
   }, [
     activeTab,
     amountNumber,
+    budgets,
     baseCurrency,
     createTransaction,
+    debts,
     debtPerson,
     editingTransaction,
+    goals,
     handleClose,
     isDebtCategory,
     isSaveDisabled,
+    linkedBudget,
+    linkedDebt,
+    linkedGoal,
+    inferredBudgetId,
+    inferredDebtId,
+    linkedGoalId,
     note,
     selectedAccountData,
     selectedCategory,
@@ -573,6 +626,40 @@ export default function QuickExpenseModal() {
                 </AdaptiveGlassView>
               </Pressable>
             </View>
+
+            {(linkedGoal || linkedBudget || linkedDebt) && (
+              <View style={styles.section}>
+                <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                  Linked data
+                </Text>
+                <AdaptiveGlassView style={[styles.glassSurface, styles.linkedCard,{ backgroundColor: theme.colors.card }]}>
+                  {linkedGoal && (
+                    <View style={styles.linkedRow}>
+                      <Text style={[styles.linkedLabel, { color: theme.colors.textSecondary }]}>Goal</Text>
+                      <Text style={[styles.linkedValue, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                        {linkedGoal.title}
+                      </Text>
+                    </View>
+                  )}
+                  {linkedBudget && (
+                    <View style={styles.linkedRow}>
+                      <Text style={[styles.linkedLabel, { color: theme.colors.textSecondary }]}>Budget</Text>
+                      <Text style={[styles.linkedValue, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                        {linkedBudget.name} · {(linkedBudget.currentBalance ?? linkedBudget.remainingAmount ?? linkedBudget.limitAmount).toFixed(2)} {linkedBudget.currency}
+                      </Text>
+                    </View>
+                  )}
+                  {linkedDebt && (
+                    <View style={styles.linkedRow}>
+                      <Text style={[styles.linkedLabel, { color: theme.colors.textSecondary }]}>Debt</Text>
+                      <Text style={[styles.linkedValue, { color: theme.colors.textPrimary }]} numberOfLines={1}>
+                        {linkedDebt.counterpartyName ?? linkedDebt.counterpartyId ?? ''} · {linkedDebt.principalAmount.toFixed(2)} {linkedDebt.principalCurrency}
+                      </Text>
+                    </View>
+                  )}
+                </AdaptiveGlassView>
+              </View>
+            )}
 
             {isDebtCategory && (
               <View style={styles.section}>
@@ -921,6 +1008,27 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  linkedCard: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  linkedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  linkedLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  linkedValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    flex: 1,
+    textAlign: 'right',
   },
   actionButtons: {
     flexDirection: 'row',

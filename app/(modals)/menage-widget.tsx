@@ -8,7 +8,7 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
+  FlatList,
   Animated,
   ActivityIndicator,
 } from 'react-native';
@@ -39,6 +39,8 @@ export default function ManageWidgetModal() {
     ) as WidgetType[];
   }, [activeWidgets]);
 
+  // Group inactive widgets by category for horizontal carousels
+  // Each category will be rendered as a separate horizontal FlatList
   const inactiveWidgetsByCategory = useMemo(() => {
     return inactiveWidgets.reduce<Partial<Record<WidgetConfig['category'], WidgetType[]>>>(
       (acc, widgetId) => {
@@ -229,98 +231,107 @@ export default function ManageWidgetModal() {
         <Text style={styles.headerTitle}>Manage Widgets</Text>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Active Widgets Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ACTIVE WIDGETS</Text>
-          <Text style={styles.sectionSubtitle}>
-            Drag to reorder • Swipe left to remove
-          </Text>
+      {/* Main vertical FlatList - replaces ScrollView to avoid Android nesting issues */}
+      {/* Available widgets at TOP, Active widgets at BOTTOM */}
+      <FlatList
+        data={[]} // Empty data array - all content is in ListHeaderComponent
+        renderItem={null}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.mainListContent}
+        ListHeaderComponent={
+          <>
+            {/* Available Widgets Section - AT THE TOP */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>AVAILABLE WIDGETS</Text>
+              <Text style={styles.sectionSubtitle}>Tap plus to add</Text>
 
-          {activeWidgets.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>No active widgets</Text>
-              <Text style={styles.emptySubtext}>Add widgets from below</Text>
-            </View>
-          ) : (
-            <View style={styles.sortableContainer}>
-              <Sortable.Grid
-                activeItemScale={1.05}
-                columns={1}
-                data={activeWidgets}
-                overDrag="vertical"
-                renderItem={renderActiveWidget}
-                rowGap={12}
-                customHandle
-                onDragEnd={handleDragEnd}
-              />
-            </View>
-          )}
-        </View>
-
-        {/* Available Widgets Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>AVAILABLE WIDGETS</Text>
-          <Text style={styles.sectionSubtitle}>Tap plus to add</Text>
-
-          {availableCategories.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyText}>All widgets are active</Text>
-            </View>
-          ) : (
-            <>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoryList}
-              >
-                {availableCategories.map((category) => (
-                  <TouchableOpacity
-                    key={category}
-                    style={[
-                      styles.categoryChip,
-                      selectedCategory === category && styles.categoryChipActive,
-                    ]}
-                    onPress={() => setSelectedCategory(category)}
-                  >
-                    <Text
-                      style={[
-                        styles.categoryChipText,
-                        selectedCategory === category && styles.categoryChipTextActive,
-                      ]}
-                    >
-                      {CATEGORY_LABELS[category] ?? category}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {displayedInactiveWidgets.length === 0 ? (
+              {availableCategories.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <Text style={styles.emptyText}>No widgets available in this category</Text>
+                  <Text style={styles.emptyText}>All widgets are active</Text>
                 </View>
               ) : (
-                <View style={styles.widgetList}>
-                  {displayedInactiveWidgets.map((widgetId, index) => (
-                    <View
-                      key={widgetId}
-                      style={[
-                        styles.widgetListItem,
-                        index === displayedInactiveWidgets.length - 1 &&
-                          styles.widgetListItemLast,
-                      ]}
-                    >
-                      {renderInactiveWidget(widgetId)}
+                <>
+                  {/* Category Tab Bar - horizontal scroll for category selection */}
+                  <FlatList
+                    data={availableCategories}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    keyExtractor={(category) => category}
+                    renderItem={({ item: category }) => (
+                      <TouchableOpacity
+                        style={[
+                          styles.categoryChip,
+                          selectedCategory === category && styles.categoryChipActive,
+                        ]}
+                        onPress={() => setSelectedCategory(category)}
+                      >
+                        <Text
+                          style={[
+                            styles.categoryChipText,
+                            selectedCategory === category && styles.categoryChipTextActive,
+                          ]}
+                        >
+                          {CATEGORY_LABELS[category] ?? category}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                    contentContainerStyle={styles.categoryTabBar}
+                    ItemSeparatorComponent={() => <View style={{ width: 8 }} />}
+                  />
+
+                  {/* Horizontal FlatList for widgets in selected category */}
+                  {/* DO NOT use ScrollView here - FlatList horizontal mode prevents Android gesture conflicts */}
+                  {displayedInactiveWidgets.length === 0 ? (
+                    <View style={styles.emptyState}>
+                      <Text style={styles.emptyText}>No widgets available in this category</Text>
                     </View>
-                  ))}
+                  ) : (
+                    <FlatList
+                      data={displayedInactiveWidgets}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      keyExtractor={(widgetId) => widgetId}
+                      renderItem={({ item: widgetId }) => (
+                        <View style={styles.horizontalWidgetItem}>
+                          {renderInactiveWidget(widgetId)}
+                        </View>
+                      )}
+                      contentContainerStyle={styles.horizontalWidgetList}
+                      ItemSeparatorComponent={() => <View style={{ width: 12 }} />}
+                    />
+                  )}
+                </>
+              )}
+            </View>
+
+            {/* Active Widgets Section - AT THE BOTTOM */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>ACTIVE WIDGETS</Text>
+              <Text style={styles.sectionSubtitle}>Drag to reorder • Swipe left to remove</Text>
+
+              {activeWidgets.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyText}>No active widgets</Text>
+                  <Text style={styles.emptySubtext}>Add widgets from above</Text>
+                </View>
+              ) : (
+                <View style={styles.sortableContainer}>
+                  <Sortable.Grid
+                    activeItemScale={1.05}
+                    columns={1}
+                    data={activeWidgets}
+                    overDrag="vertical"
+                    renderItem={renderActiveWidget}
+                    rowGap={12}
+                    customHandle
+                    onDragEnd={handleDragEnd}
+                  />
                 </View>
               )}
-            </>
-          )}
-        </View>
-
-        <View style={{ height: 100 }} />
-      </ScrollView>
+            </View>
+          </>
+        }
+      />
     </SafeAreaView>
   );
 }
@@ -355,6 +366,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.textPrimary,
   },
+  // Main FlatList content container - adds bottom padding for scroll comfort
+  mainListContent: {
+    paddingBottom: 100,
+  },
   section: {
     paddingHorizontal: 16,
     marginTop: 24,
@@ -371,8 +386,43 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginBottom: 16,
   },
+  // Header section for Available Widgets (appears after Active Widgets)
+  availableSectionHeader: {
+    marginTop: 32,
+  },
   sortableContainer: {
     flex: 1,
+  },
+  // Category tab bar - horizontal list of category chips
+  categoryTabBar: {
+    paddingVertical: 8,
+    paddingHorizontal: 0,
+  },
+  categoryChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(166,166,185,0.12)',
+  },
+  categoryChipActive: {
+    backgroundColor: Colors.primary,
+  },
+  categoryChipText: {
+    color: Colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  categoryChipTextActive: {
+    color: Colors.textPrimary,
+  },
+  // Horizontal FlatList content container for widgets
+  horizontalWidgetList: {
+    paddingRight: 16,
+  },
+  // Wrapper for each widget in horizontal carousel
+  // Fixed width ensures consistent card sizes in horizontal scroll
+  horizontalWidgetItem: {
+    width: 280,
   },
   widgetItem: {
     flexDirection: 'row',
@@ -414,39 +464,6 @@ const styles = StyleSheet.create({
   widgetDescription: {
     fontSize: 13,
     color: Colors.textSecondary,
-  },
-  categoryList: {
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    backgroundColor: 'rgba(166,166,185,0.12)',
-    marginRight: 8,
-  },
-  categoryChipActive: {
-    backgroundColor: Colors.primary,
-  },
-  categoryChipText: {
-    color: Colors.textSecondary,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-  categoryChipTextActive: {
-    color: Colors.textPrimary,
-  },
-  widgetList: {
-    paddingTop: 8,
-  },
-  widgetListItem: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginBottom: 12,
-  },
-  widgetListItemLast: {
-    marginBottom: 0,
   },
   actionButton: {
     padding: 4,

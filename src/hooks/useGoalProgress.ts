@@ -13,6 +13,10 @@ type ProgressOptions = {
   note?: string;
   budgetId?: string;
   dateKey?: string;
+  accountId?: string;
+  debtId?: string;
+  plannedAmount?: number;
+  paidAmount?: number;
 };
 
 export const useGoalProgress = (goal?: Goal) => {
@@ -30,8 +34,12 @@ export const useGoalProgress = (goal?: Goal) => {
           goal,
           amount: value,
           budgetId: options?.budgetId ?? goal.linkedBudgetId,
+          debtId: options?.debtId ?? goal.linkedDebtId,
+          accountId: options?.accountId,
           note: options?.note ?? `Goal: ${goal.title}`,
           eventType: 'goal-progress',
+          plannedAmount: options?.plannedAmount ?? goal.targetValue,
+          paidAmount: options?.paidAmount ?? value,
         });
         if (transaction) {
           return { status: 'logged', transactionId: transaction.id, budgetId: transaction.budgetId };

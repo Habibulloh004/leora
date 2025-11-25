@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -40,7 +40,6 @@ import { StepIndicator } from '@/components/modals/StepIndicator';
 import { SmartHint } from '@/components/modals/SmartHint';
 import { useLocalization } from '@/localization/useLocalization';
 import type { FinanceMode, GoalType, MetricKind } from '@/domain/planner/types';
-import type { BudgetFlowType } from '@/domain/finance/types';
 import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 import { useFinanceDomainStore } from '@/stores/useFinanceDomainStore';
 import {
@@ -49,7 +48,7 @@ import {
   useFinancePreferencesStore,
 } from '@/stores/useFinancePreferencesStore';
 import { createThemedStyles, useAppTheme } from '@/constants/theme';
-import { BudgetCreateInline } from '@/components/finance/BudgetCreateInline';
+import { AdaptiveGlassView } from '@/components/ui/AdaptiveGlassView';
 
 // Wizard Step Definition
 type WizardStep = {
@@ -208,19 +207,16 @@ export function GoalModalContent({ goalId }: Props) {
     })),
   );
 
-  const { budgets, debts, accounts, updateBudget, updateDebt, createBudget } = useFinanceDomainStore(
+  const { budgets, debts, updateBudget, updateDebt } = useFinanceDomainStore(
     useShallow((state) => ({
       budgets: state.budgets,
       debts: state.debts,
-      accounts: state.accounts,
       updateBudget: state.updateBudget,
       updateDebt: state.updateDebt,
-      createBudget: state.createBudget,
     })),
   );
 
   const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
-
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<GoalFormData>({
     title: '',
@@ -234,10 +230,14 @@ export function GoalModalContent({ goalId }: Props) {
     linkedTaskIds: [],
   });
 
+  const linkedBudgetForCurrency = useMemo(
+    () => (formData.linkedBudgetId ? budgets.find((budget) => budget.id === formData.linkedBudgetId) : undefined),
+    [budgets, formData.linkedBudgetId],
+  );
+
   const [datePickerVisible, setDatePickerVisible] = useState(false);
   const [datePickerTarget, setDatePickerTarget] = useState<DatePickerTarget | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [showInlineBudget, setShowInlineBudget] = useState(false);
 
   // Load goal data if editing
   useEffect(() => {
@@ -309,10 +309,32 @@ export function GoalModalContent({ goalId }: Props) {
     }
   }, [formData.goalType, baseCurrency]);
 
+  useEffect(() => {
+    if (!linkedBudgetForCurrency) return;
+    if (formData.currency !== linkedBudgetForCurrency.currency) {
+      setFormData((prev) => ({
+        ...prev,
+        currency: linkedBudgetForCurrency.currency as FinanceCurrency,
+      }));
+    }
+  }, [formData.currency, linkedBudgetForCurrency]);
+
   const updateField = useCallback(<K extends keyof GoalFormData>(field: K, value: GoalFormData[K]) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value };
+
+      // Sync currency when budget is selected
+      if (field === 'linkedBudgetId' && value) {
+        const linkedBudget = budgets.find((b) => b.id === value);
+        if (linkedBudget?.currency) {
+          updated.currency = linkedBudget.currency as FinanceCurrency;
+        }
+      }
+
+      return updated;
+    });
     setErrors((prev) => ({ ...prev, [field]: '' }));
-  }, []);
+  }, [budgets]);
 
   const validateStep = useCallback(
     (step: number): boolean => {
@@ -332,6 +354,16 @@ export function GoalModalContent({ goalId }: Props) {
         }
         if (formData.targetValue === formData.currentValue) {
           newErrors.targetValue = 'Target should be different from current value';
+        }
+      }
+
+      if (step === 4 && formData.goalType === 'financial') {
+        const requiresBudget = formData.financeMode !== 'debt_close';
+        if (requiresBudget && !formData.linkedBudgetId) {
+          newErrors.linkedBudgetId = 'Select or create a budget for this goal.';
+        }
+        if (formData.financeMode === 'debt_close' && !formData.linkedDebtId) {
+          newErrors.linkedDebtId = 'Link a debt to track repayments.';
         }
       }
 
@@ -390,6 +422,10 @@ export function GoalModalContent({ goalId }: Props) {
     const previousGoal = goalId ? goals.find((item) => item.id === goalId) : undefined;
     const prevBudgetId = previousGoal?.linkedBudgetId ?? null;
     const prevDebtId = previousGoal?.linkedDebtId ?? null;
+    const selectedBudget = formData.linkedBudgetId
+      ? budgets.find((budget) => budget.id === formData.linkedBudgetId)
+      : undefined;
+    const enforcedCurrency = (selectedBudget?.currency ?? formData.currency ?? baseCurrency) as FinanceCurrency;
 
     let nextGoalId = goalId ?? undefined;
     if (goalId) {
@@ -400,7 +436,7 @@ export function GoalModalContent({ goalId }: Props) {
         metricType: formData.metricKind,
         direction,
         financeMode: formData.financeMode,
-        currency: formData.currency,
+        currency: enforcedCurrency,
         unit: formData.unit,
         initialValue: formData.currentValue,
         targetValue: formData.targetValue,
@@ -426,7 +462,7 @@ export function GoalModalContent({ goalId }: Props) {
         metricType: formData.metricKind,
         direction,
         financeMode: formData.financeMode,
-        currency: formData.currency,
+        currency: enforcedCurrency,
         unit: formData.unit,
         initialValue: formData.currentValue,
         targetValue: formData.targetValue,
@@ -452,7 +488,7 @@ export function GoalModalContent({ goalId }: Props) {
     setTimeout(() => {
       router.back();
     }, 100);
-  }, [formData, goalId, goals, createGoal, updateGoal, router, syncFinanceLinks]);
+  }, [baseCurrency, budgets, formData, goalId, goals, createGoal, updateGoal, router, syncFinanceLinks]);
 
   const handleDateChange = useCallback(
     (event: DateTimePickerEvent, selectedDate?: Date) => {
@@ -535,13 +571,14 @@ export function GoalModalContent({ goalId }: Props) {
   }, []);
 
   const handleCreateBudgetLink = useCallback(() => {
-    if (!goalId) return;
-    router.push({ pathname: '/(modals)/finance/budget', params: { goalId } });
+    // Open budget modal with goalId if editing, otherwise just open it
+    const params = goalId ? { goalId } : {};
+    router.push({ pathname: '/(modals)/finance/budget', params });
   }, [goalId, router]);
 
   const handleAddFinanceContribution = useCallback(() => {
     if (!goalId) return;
-    const tabParam = formData.financeMode === 'spend' ? 'outcome' : 'income';
+    const tabParam = formData.financeMode === 'spend' || formData.financeMode === 'save' || formData.financeMode === 'debt_close' ? 'outcome' : 'income';
     router.push({ pathname: '/(modals)/finance/quick-exp', params: { goalId, tab: tabParam } });
   }, [formData.financeMode, goalId, router]);
 
@@ -656,19 +693,41 @@ export function GoalModalContent({ goalId }: Props) {
 
             <View style={styles.fieldContainer}>
               <Text style={styles.fieldLabel}>Currency</Text>
-              <View style={styles.chipRow}>
-                {AVAILABLE_FINANCE_CURRENCIES.map((curr) => (
-                  <Pressable
-                    key={curr}
-                    style={[styles.chip, formData.currency === curr && styles.chipSelected]}
-                    onPress={() => updateField('currency', curr)}
-                  >
-                    <Text style={[styles.chipLabel, formData.currency === curr && styles.chipLabelSelected]}>
-                      {curr}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              {formData.linkedBudgetId && (() => {
+                const linkedBudget = budgets.find((b) => b.id === formData.linkedBudgetId);
+                if (linkedBudget) {
+                  return (
+                    <View>
+                      <View style={styles.chipRow}>
+                        <View style={[styles.chip, styles.chipSelected]}>
+                          <Text style={[styles.chipLabel, styles.chipLabelSelected]}>
+                            {linkedBudget.currency}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.fieldLabel} opacity={0.6}>
+                        Currency inherited from linked budget
+                      </Text>
+                    </View>
+                  );
+                }
+                return null;
+              })()}
+              {!formData.linkedBudgetId && (
+                <View style={styles.chipRow}>
+                  {AVAILABLE_FINANCE_CURRENCIES.map((curr) => (
+                    <Pressable
+                      key={curr}
+                      style={[styles.chip, formData.currency === curr && styles.chipSelected]}
+                      onPress={() => updateField('currency', curr)}
+                    >
+                      <Text style={[styles.chipLabel, formData.currency === curr && styles.chipLabelSelected]}>
+                        {curr}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
             </View>
 
             <View style={styles.fieldContainer}>
@@ -841,33 +900,39 @@ export function GoalModalContent({ goalId }: Props) {
 
     const activeBudgets = budgets.filter((b) => !b.isArchived);
     const activeDebts = debts.filter((d) => d.status === 'active');
-    const defaultCurrency = formData.currency ?? baseCurrency;
-
-    const handleInlineBudgetCreate = (payload: { name: string; amount: number; currency: string; transactionType: BudgetFlowType }) => {
-      const created = createBudget({
-        userId: 'local-user',
-        name: payload.name,
-        budgetType: 'project',
-        categoryIds: [],
-        linkedGoalId: goalId ?? undefined,
-        accountId: accounts[0]?.id,
-        transactionType: payload.transactionType,
-        currency: payload.currency,
-        limitAmount: payload.amount,
-        periodType: 'none',
-        startDate: new Date().toISOString(),
-        isArchived: false,
-        rolloverMode: 'none',
-        notifyOnExceed: false,
-      });
-      setFormData((prev) => ({ ...prev, linkedBudgetId: created.id }));
-      setShowInlineBudget(false);
-    };
+    const selectedBudget = formData.linkedBudgetId
+      ? activeBudgets.find((b) => b.id === formData.linkedBudgetId) ?? null
+      : null;
+    const selectedDebt = formData.linkedDebtId
+      ? activeDebts.find((d) => d.id === formData.linkedDebtId) ?? null
+      : null;
+    const progressPreview = formData.targetValue > 0
+      ? Math.min(Math.max((formData.currentValue / formData.targetValue) * 100, 0), 999)
+      : 0;
 
     return (
       <View style={styles.stepContainer}>
         <Text style={styles.stepTitle}>Connect to finances (optional)</Text>
         <Text style={styles.stepSubtitle}>Link to budgets or debts to track progress automatically</Text>
+
+        {isFinancial && (selectedBudget || selectedDebt) && (
+          <AdaptiveGlassView style={styles.previewCard}>
+            <Text style={styles.previewLabel}>Live preview</Text>
+            {selectedBudget && (
+              <Text style={styles.previewValue}>
+                Budget balance:{' '}
+                {(selectedBudget.currentBalance ?? selectedBudget.remainingAmount ?? selectedBudget.limitAmount).toFixed(2)}{' '}
+                {selectedBudget.currency}
+              </Text>
+            )}
+            <Text style={styles.previewValue}>Goal progress: {progressPreview.toFixed(0)}%</Text>
+            {selectedDebt && (
+              <Text style={styles.previewValue}>
+                Debt remaining: {selectedDebt.principalAmount.toFixed(2)} {selectedDebt.principalCurrency}
+              </Text>
+            )}
+          </AdaptiveGlassView>
+        )}
 
         {isFinancial ? (
           <>
@@ -908,41 +973,23 @@ export function GoalModalContent({ goalId }: Props) {
                         </Pressable>
                       ))}
                     </View>
-                    <Pressable style={styles.addButton} onPress={() => setShowInlineBudget((prev) => !prev)}>
+                    <Pressable style={styles.addButton} onPress={handleCreateBudgetLink}>
                       <PlusCircle size={20} color={styles.addButtonText.color} />
-                      <Text style={styles.addButtonText}>{showInlineBudget ? 'Hide' : 'Create Budget'}</Text>
+                      <Text style={styles.addButtonText}>Add Budget</Text>
                     </Pressable>
-                    {showInlineBudget && (
-                      <BudgetCreateInline
-                        defaultName={`Budget · ${formData.title || 'Goal'}`}
-                        defaultCurrency={defaultCurrency}
-                        defaultTransactionType="income"
-                        onSubmit={(payload) => handleInlineBudgetCreate({ ...payload, transactionType: 'income' })}
-                        onCancel={() => setShowInlineBudget(false)}
-                      />
-                    )}
                   </>
                 ) : (
                   <>
                     <SmartHint type="info" message="No budgets available. Create one below to link automatically." />
-                    {showInlineBudget ? (
-                      <BudgetCreateInline
-                        defaultName={`Budget · ${formData.title || 'Goal'}`}
-                        defaultCurrency={defaultCurrency}
-                        defaultTransactionType="income"
-                        onSubmit={(payload) => handleInlineBudgetCreate({ ...payload, transactionType: 'income' })}
-                        onCancel={() => setShowInlineBudget(false)}
-                      />
-                    ) : (
-                      <Pressable style={styles.addButton} onPress={() => setShowInlineBudget(true)}>
-                        <PlusCircle size={20} color={styles.addButtonText.color} />
-                        <Text style={styles.addButtonText}>Create Budget</Text>
-                      </Pressable>
-                    )}
-                  </>
-                )}
-              </View>
-            )}
+                    <Pressable style={styles.addButton} onPress={handleCreateBudgetLink}>
+                      <PlusCircle size={20} color={styles.addButtonText.color} />
+                      <Text style={styles.addButtonText}>Add Budget</Text>
+                    </Pressable>
+                </>
+              )}
+              {errors.linkedBudgetId && <Text style={styles.errorText}>{errors.linkedBudgetId}</Text>}
+            </View>
+          )}
 
             {isDebtMode && (
               <View style={styles.fieldContainer}>
@@ -983,6 +1030,14 @@ export function GoalModalContent({ goalId }: Props) {
                 ) : (
                   <SmartHint type="info" message="No active debts. Create one in Finance tab." />
                 )}
+                <Pressable
+                  style={styles.addButton}
+                  onPress={() => router.push({ pathname: '/(modals)/finance/debt', params: goalId ? { goalId } : undefined })}
+                >
+                  <PlusCircle size={20} color={styles.addButtonText.color} />
+                  <Text style={styles.addButtonText}>Create Debt</Text>
+                </Pressable>
+                {errors.linkedDebtId && <Text style={styles.errorText}>{errors.linkedDebtId}</Text>}
                 <SmartHint type="success" message="Progress updates automatically when you make payments" />
               </View>
             )}
@@ -1024,39 +1079,21 @@ export function GoalModalContent({ goalId }: Props) {
                         </Pressable>
                       ))}
                     </View>
-                    <Pressable style={styles.addButton} onPress={() => setShowInlineBudget((prev) => !prev)}>
+                    <Pressable style={styles.addButton} onPress={handleCreateBudgetLink}>
                       <PlusCircle size={20} color={styles.addButtonText.color} />
-                      <Text style={styles.addButtonText}>{showInlineBudget ? 'Hide' : 'Create Budget'}</Text>
+                      <Text style={styles.addButtonText}>Add Budget</Text>
                     </Pressable>
-                    {showInlineBudget && (
-                      <BudgetCreateInline
-                        defaultName={`Budget · ${formData.title || 'Goal'}`}
-                        defaultCurrency={defaultCurrency}
-                        defaultTransactionType="expense"
-                        onSubmit={(payload) => handleInlineBudgetCreate({ ...payload, transactionType: 'expense' })}
-                        onCancel={() => setShowInlineBudget(false)}
-                      />
-                    )}
                   </>
                 ) : (
                   <>
                     <SmartHint type="info" message="No budgets available. Create one below to link automatically." />
-                    {showInlineBudget ? (
-                      <BudgetCreateInline
-                        defaultName={`Budget · ${formData.title || 'Goal'}`}
-                        defaultCurrency={defaultCurrency}
-                        defaultTransactionType="expense"
-                        onSubmit={(payload) => handleInlineBudgetCreate({ ...payload, transactionType: 'expense' })}
-                        onCancel={() => setShowInlineBudget(false)}
-                      />
-                    ) : (
-                      <Pressable style={styles.addButton} onPress={() => setShowInlineBudget(true)}>
-                        <PlusCircle size={20} color={styles.addButtonText.color} />
-                        <Text style={styles.addButtonText}>Create Budget</Text>
-                      </Pressable>
-                    )}
+                    <Pressable style={styles.addButton} onPress={handleCreateBudgetLink}>
+                      <PlusCircle size={20} color={styles.addButtonText.color} />
+                      <Text style={styles.addButtonText}>Add Budget</Text>
+                    </Pressable>
                   </>
                 )}
+                {errors.linkedBudgetId && <Text style={styles.errorText}>{errors.linkedBudgetId}</Text>}
               </View>
             )}
           </>
@@ -1320,6 +1357,24 @@ const useStyles = createThemedStyles((theme) => ({
     fontSize: 15,
     fontWeight: '600',
     color: theme.colors.primary,
+  },
+  previewCard: {
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    gap: 6,
+  },
+  previewLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  previewValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: theme.colors.textPrimary,
   },
   listContainer: {
     gap: 10,

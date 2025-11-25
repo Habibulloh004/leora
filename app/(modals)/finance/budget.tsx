@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -25,6 +26,7 @@ import { useSelectedDayStore } from '@/stores/selectedDayStore';
 import { addDays, addMonths, startOfMonth, startOfWeek } from '@/utils/calendar';
 import type { BudgetPeriodType } from '@/domain/finance/types';
 import { useShallow } from 'zustand/react/shallow';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 const formatDate = (date?: Date | null) => {
   if (!date) return '—';
@@ -52,6 +54,7 @@ export default function BudgetModal() {
   const linkedGoalId = Array.isArray(goalId) ? goalId[0] : goalId ?? null;
 
   const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
+  const goals = usePlannerDomainStore((state) => state.goals);
 
   const { budgets, accounts, createBudget, updateBudget, archiveBudget } = useFinanceDomainStore(
     useShallow((state) => ({
@@ -219,6 +222,7 @@ export default function BudgetModal() {
     }
 
     const resolvedLinkedGoalId = linkedGoalId ?? editingBudget?.linkedGoalId ?? null;
+    const linkedGoal = resolvedLinkedGoalId ? goals.find((g) => g.id === resolvedLinkedGoalId) : null;
     const startDateValue = computedRange.start ?? startOfMonth(normalizedSelectedDate);
     const endDateValue = computedRange.end ?? addDays(addMonths(new Date(startDateValue), 1), -1);
     const startIso = startDateValue.toISOString();
@@ -243,11 +247,10 @@ export default function BudgetModal() {
         userId: 'local-user',
         name: formName.trim(),
         budgetType: 'category',
-        linkedGoalId: undefined,
         categoryIds: ensuredCategories,
         accountId: selectedAccountId ?? undefined,
         transactionType: transactionType === 'income' ? 'income' : 'expense',
-        currency: account?.currency ?? baseCurrency,
+        currency: linkedGoal?.currency ?? account?.currency ?? baseCurrency,
         limitAmount: limitValue,
         periodType,
         startDate: startIso,
@@ -268,9 +271,11 @@ export default function BudgetModal() {
     editingBudget,
     ensuredCategories,
     formName,
+    goals,
     handleClose,
     isBudgetFormValid,
     limitValue,
+    linkedGoalId,
     normalizedSelectedDate,
     notifyEnabled,
     periodType,
@@ -281,9 +286,19 @@ export default function BudgetModal() {
 
   const handleDeleteCurrentBudget = useCallback(() => {
     if (!editingBudget) return;
+    const linkedGoals = goals.filter((goal) => goal.linkedBudgetId === editingBudget.id);
+    if (linkedGoals.length > 0) {
+      Alert.alert(
+        'Budget is linked',
+        linkedGoals.length === 1
+          ? 'This budget is linked to a goal. Unlink it before deleting.'
+          : 'This budget is linked to multiple goals. Unlink them before deleting.',
+      );
+      return;
+    }
     archiveBudget(editingBudget.id);
     handleClose();
-  }, [archiveBudget, editingBudget, handleClose]);
+  }, [archiveBudget, editingBudget, goals, handleClose]);
 
   const periodOptions: BudgetPeriodType[] = ['weekly', 'monthly', 'custom_range'];
   const periodLabels: Record<BudgetPeriodType, string> = {

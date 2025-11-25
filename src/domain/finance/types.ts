@@ -71,6 +71,12 @@ export interface Transaction {
   recurringId?: string;
   attachments?: string[];
   tags?: string[];
+  goalName?: string;
+  goalType?: string;
+  relatedBudgetId?: string;
+  relatedDebtId?: string;
+  plannedAmount?: number;
+  paidAmount?: number;
   isPending?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -100,6 +106,9 @@ export interface Budget {
   rolloverMode?: 'none' | 'carryover';
   isArchived: boolean;
   notifyOnExceed?: boolean;
+  contributionTotal?: number;
+  currentBalance?: number;
+  goalLinks?: string[];
   isPending?: boolean;
   createdAt: string;
   updatedAt: string;

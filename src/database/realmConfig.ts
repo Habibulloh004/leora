@@ -4,7 +4,7 @@ import { financeSchemas } from './schema/financeSchemas';
 import { plannerSchemas } from './schema/plannerSchemas';
 import { SeedService } from '@/services/SeedService';
 
-const schemaVersion = 9;
+const schemaVersion = 11;
 
 const ensureField = <T>(collection: Realm.Results<T>, field: keyof T, value: any) => {
   collection.forEach((item: any) => {
@@ -34,6 +34,12 @@ export const realmConfig: Realm.Configuration = {
       if (!txn.rateUsedToBase) txn.rateUsedToBase = 1;
       if (!txn.convertedAmountToBase) txn.convertedAmountToBase = txn.amount;
       if (!txn.syncStatus) txn.syncStatus = 'local';
+      if (txn.goalName === undefined) txn.goalName = null;
+      if (txn.goalType === undefined) txn.goalType = null;
+      if (txn.relatedBudgetId === undefined) txn.relatedBudgetId = null;
+      if (txn.relatedDebtId === undefined) txn.relatedDebtId = null;
+      if (txn.plannedAmount === undefined) txn.plannedAmount = null;
+      if (txn.paidAmount === undefined) txn.paidAmount = null;
     });
 
     const budgets = newRealm.objects<any>('Budget');
@@ -42,6 +48,8 @@ export const realmConfig: Realm.Configuration = {
     ensureField(budgets, 'accountId', null);
     ensureField(budgets, 'transactionType', 'expense');
     ensureField(budgets, 'notifyOnExceed', false);
+    ensureField(budgets, 'contributionTotal', 0);
+    ensureField(budgets, 'currentBalance', (item: any) => item.remainingAmount ?? item.limitAmount ?? 0);
 
     const budgetEntries = newRealm.objects<any>('BudgetEntry');
     ensureField(budgetEntries, 'syncStatus', 'local');
@@ -49,6 +57,8 @@ export const realmConfig: Realm.Configuration = {
     const goals = newRealm.objects<any>('Goal');
     ensureField(goals, 'direction', 'increase');
     ensureField(goals, 'currentValue', 0);
+    ensureField(goals, 'linkedDebtId', null);
+    ensureField(goals, 'financeContributionIds', []);
 
     const debts = newRealm.objects<any>('Debt');
     ensureField(debts, 'userId', 'local-user');

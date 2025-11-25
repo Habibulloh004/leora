@@ -30,6 +30,15 @@ export interface Transaction {
   relatedDebtId?: string;
   sourceTransactionId?: string;
   transferDirection?: 'incoming' | 'outgoing';
+  goalId?: string;
+  goalName?: string;
+  goalType?: string;
+  budgetId?: string;
+  debtId?: string;
+  relatedBudgetId?: string;
+  relatedDebtId?: string;
+  plannedAmount?: number;
+  paidAmount?: number;
 }
 
 export interface Debt {

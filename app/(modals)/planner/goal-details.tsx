@@ -73,6 +73,7 @@ export default function GoalDetailsModal() {
   const archiveGoal = usePlannerDomainStore((state) => state.archiveGoal);
   const completeGoal = usePlannerDomainStore((state) => state.completeGoal);
   const resumeGoal = usePlannerDomainStore((state) => state.resumeGoal);
+  const restartGoal = usePlannerDomainStore((state) => state.restartGoal);
   const deleteGoalPermanently = usePlannerDomainStore((state) => state.deleteGoalPermanently);
 
   // Check-in modal state
@@ -88,6 +89,7 @@ export default function GoalDetailsModal() {
   const [completeConfirmVisible, setCompleteConfirmVisible] = useState(false);
   const [deleteConfirmVisible, setDeleteConfirmVisible] = useState(false);
   const [deleteForeverVisible, setDeleteForeverVisible] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
 
   // Finance data
   const debts = useFinanceDomainStore((state) => state.debts);
@@ -99,7 +101,7 @@ export default function GoalDetailsModal() {
     return goals.find((g) => g.id === params.goalId);
   }, [goals, params.goalId]);
 
-  const { linkedBudget, availableBudgets, createAndLinkBudget, linkExistingBudget } = useGoalFinanceLink(goal);
+  const { accounts, linkedBudget, availableBudgets, createAndLinkBudget, linkExistingBudget } = useGoalFinanceLink(goal);
   const { logProgress } = useGoalProgress(goal);
 
   const goalSummary = useMemo(() => {
@@ -151,6 +153,12 @@ export default function GoalDetailsModal() {
     }
   }, [goal, router]);
 
+  useEffect(() => {
+    if (!selectedAccountId && accounts[0]) {
+      setSelectedAccountId(accounts[0].id);
+    }
+  }, [accounts, selectedAccountId]);
+
   // Subscribe to events for auto-update
   useEffect(() => {
     const unsubscribe1 = plannerEventBus.subscribe('planner.goal.updated', () => {});
@@ -196,14 +204,12 @@ export default function GoalDetailsModal() {
     return null;
   }
 
-  const currentDisplay = progressData?.displayCurrent ?? summary?.current ?? 0;
-  const targetDisplay = progressData?.displayTarget ?? summary?.target ?? 0;
-  const numericCurrent = Number(
-    Number.isFinite(goal?.currentValue) ? goal?.currentValue : progressData?.displayCurrent ?? summary?.current ?? 0,
-  );
-  const numericTarget = Number(
-    Number.isFinite(goal?.targetValue) ? goal?.targetValue : progressData?.displayTarget ?? summary?.target ?? 0,
-  );
+  // Use displayCurrent/displayTarget to account for initialValue properly
+  const numericCurrent = Number(progressData?.displayCurrent ?? summary?.current ?? 0);
+  const numericTarget = Number(progressData?.displayTarget ?? summary?.target ?? 0);
+  const currentDisplay = numericCurrent;
+  const targetDisplay = numericTarget;
+
   const ratioBase =
     numericTarget > 0 && Number.isFinite(numericTarget)
       ? numericCurrent / numericTarget
@@ -413,6 +419,10 @@ export default function GoalDetailsModal() {
       const result = logProgress(value, {
         note,
         budgetId: linkedBudget?.id,
+        accountId: selectedAccountId ?? accounts[0]?.id,
+        debtId: goal?.linkedDebtId,
+        plannedAmount: goal?.targetValue,
+        paidAmount: value,
         dateKey: new Date().toISOString().slice(0, 10),
       });
       if (result.status === 'needs-budget') {
@@ -428,7 +438,7 @@ export default function GoalDetailsModal() {
       setCheckInValue('');
       setCheckInNote('');
     },
-    [goal, linkedBudget?.id, logProgress],
+    [accounts, goal, linkedBudget?.id, logProgress, selectedAccountId],
   );
 
   const handleStepperIncrement = useCallback(
@@ -485,6 +495,10 @@ export default function GoalDetailsModal() {
       const result = logProgress(pendingProgress, {
         budgetId,
         note: pendingNote,
+        accountId: selectedAccountId ?? accounts[0]?.id,
+        debtId: goal?.linkedDebtId,
+        plannedAmount: goal?.targetValue,
+        paidAmount: pendingProgress,
         dateKey: new Date().toISOString().slice(0, 10),
       });
       if (result.status === 'logged') {
@@ -498,11 +512,13 @@ export default function GoalDetailsModal() {
       }
     },
     [
+      accounts,
       goal,
       linkExistingBudget,
       logProgress,
       pendingNote,
       pendingProgress,
+      selectedAccountId,
     ],
   );
 
@@ -666,6 +682,14 @@ export default function GoalDetailsModal() {
               accessibilityRole="button"
             >
               <Text style={styles.recoverButtonText}>Recover Goal</Text>
+            </Pressable>
+          ) : goal.status === 'completed' ? (
+            <Pressable
+              style={styles.recoverButton}
+              onPress={() => restartGoal(goal.id)}
+              accessibilityRole="button"
+            >
+              <Text style={styles.recoverButtonText}>Restart Goal</Text>
             </Pressable>
           ) : (
             <>
@@ -1030,6 +1054,41 @@ export default function GoalDetailsModal() {
                 placeholder="Note (optional)"
                 placeholderTextColor={theme.colors.textMuted}
               />
+
+              {isMoneyGoal && accounts.length > 0 && (
+                <View style={styles.modalAccountSection}>
+                  <Text style={[styles.modalSubtitle, { color: theme.colors.textSecondary }]}>
+                    Choose account
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.modalAccountChips}
+                  >
+                    {accounts.map((account) => {
+                      const active = (selectedAccountId ?? accounts[0]?.id) === account.id;
+                      return (
+                        <Pressable
+                          key={account.id}
+                          onPress={() => setSelectedAccountId(account.id)}
+                          style={({ pressed }) => [
+                            styles.modalAccountChip,
+                            active && styles.modalAccountChipActive,
+                            pressed && styles.pressed,
+                          ]}
+                        >
+                          <Text style={[styles.modalAccountLabel, { color: theme.colors.textPrimary }]}>
+                            {account.name}
+                          </Text>
+                          <Text style={[styles.modalAccountSub, { color: theme.colors.textSecondary }]}>
+                            {account.currency} · {account.currentBalance.toFixed(2)}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
 
               <View style={styles.modalButtons}>
                 <Pressable
@@ -1749,6 +1808,32 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  modalAccountSection: {
+    gap: 8,
+  },
+  modalAccountChips: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  modalAccountChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#30303a',
+  },
+  modalAccountChipActive: {
+    borderColor: '#8B5CF6',
+    backgroundColor: 'rgba(139,92,246,0.12)',
+  },
+  modalAccountLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalAccountSub: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   modalButtons: {
     flexDirection: 'row',

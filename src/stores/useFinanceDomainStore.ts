@@ -112,6 +112,28 @@ const convertBetweenCurrencies = (amount: number, fromCurrency: string, toCurren
   }
 };
 
+const mapDebtAdjustmentFromTransaction = (
+  transaction: Transaction,
+  debts: Debt[],
+): { debt: Debt; amountDebtCurrency: number; amountBaseCurrency: number } | null => {
+  const targetId = transaction.debtId ?? transaction.relatedDebtId;
+  if (!targetId) {
+    return null;
+  }
+  const debt = debts.find((item) => item.id === targetId);
+  if (!debt) {
+    return null;
+  }
+  const sourceAmount = transaction.paidAmount ?? transaction.amount;
+  if (!(sourceAmount > 0)) {
+    return null;
+  }
+  const sourceCurrency = transaction.currency ?? debt.principalCurrency;
+  const amountDebtCurrency = convertBetweenCurrencies(sourceAmount, sourceCurrency, debt.principalCurrency);
+  const amountBaseCurrency = convertBetweenCurrencies(sourceAmount, sourceCurrency, debt.baseCurrency);
+  return { debt, amountDebtCurrency, amountBaseCurrency };
+};
+
 const resolveGoalLinksForTransaction = (
   transaction: Transaction,
   budgets: Budget[],
@@ -123,6 +145,12 @@ const resolveGoalLinksForTransaction = (
   }
   if (transaction.budgetId) {
     const budget = budgets.find((item) => item.id === transaction.budgetId && item.linkedGoalId);
+    if (budget?.linkedGoalId) {
+      goalIds.add(budget.linkedGoalId);
+    }
+  }
+  if (transaction.relatedBudgetId) {
+    const budget = budgets.find((item) => item.id === transaction.relatedBudgetId && item.linkedGoalId);
     if (budget?.linkedGoalId) {
       goalIds.add(budget.linkedGoalId);
     }
@@ -143,6 +171,12 @@ const resolveGoalLinksForTransaction = (
       goalIds.add(debt.linkedGoalId);
     }
   }
+  if (transaction.relatedDebtId) {
+    const debt = debts.find((item) => item.id === transaction.relatedDebtId && item.linkedGoalId);
+    if (debt?.linkedGoalId) {
+      goalIds.add(debt.linkedGoalId);
+    }
+  }
   return Array.from(goalIds);
 };
 
@@ -151,7 +185,7 @@ const applyFinanceContributionToGoals = (
   state: Pick<FinanceDomainState, 'budgets' | 'debts'>,
 ) => {
   const plannerStore = usePlannerDomainStore.getState();
-  if (!plannerStore?.addGoalCheckIn) {
+  if (!plannerStore?.addGoalCheckIn || !plannerStore?.updateGoal) {
     return;
   }
   const goalIds = resolveGoalLinksForTransaction(transaction, state.budgets, state.debts);
@@ -159,7 +193,7 @@ const applyFinanceContributionToGoals = (
     return;
   }
   const dateKey = transaction.date?.slice(0, 10);
-  const amountSource = transaction.toAmount ?? transaction.amount;
+  const amountSource = transaction.paidAmount ?? transaction.toAmount ?? transaction.amount;
   const currencySource = transaction.toCurrency ?? transaction.currency ?? getBaseCurrency();
 
   goalIds.forEach((goalId) => {
@@ -173,6 +207,8 @@ const applyFinanceContributionToGoals = (
     if (!(value > 0)) {
       return;
     }
+
+    // Add check-in
     plannerStore.addGoalCheckIn({
       goalId,
       value,
@@ -182,13 +218,54 @@ const applyFinanceContributionToGoals = (
       dateKey,
       createdAt: transaction.date,
     });
+
+    // Update goal currentValue (atomic sync) with flag to skip budget sync
+    const newCurrentValue = (goal.currentValue ?? 0) + value;
+    plannerStore.updateGoal(goalId, {
+      currentValue: newCurrentValue,
+      __skipBudgetSync: true,
+    } as any);
   });
 };
 
-const removeFinanceContributionForTransaction = (transactionId: string) => {
+const removeFinanceContributionForTransaction = (
+  transactionId: string,
+  transaction?: Transaction,
+  state?: Pick<FinanceDomainState, 'budgets' | 'debts'>,
+) => {
   const plannerStore = usePlannerDomainStore.getState();
-  if (plannerStore?.removeFinanceContribution) {
-    plannerStore.removeFinanceContribution(transactionId);
+  if (!plannerStore?.removeFinanceContribution || !plannerStore?.updateGoal) {
+    return;
+  }
+
+  // Remove check-in
+  plannerStore.removeFinanceContribution(transactionId);
+
+  // Rollback goal currentValue if transaction data is provided
+  if (transaction && state) {
+    const goalIds = resolveGoalLinksForTransaction(transaction, state.budgets, state.debts);
+    const amountSource = transaction.paidAmount ?? transaction.toAmount ?? transaction.amount;
+    const currencySource = transaction.toCurrency ?? transaction.currency ?? getBaseCurrency();
+
+    goalIds.forEach((goalId) => {
+      const goal = plannerStore.goals.find((item) => item.id === goalId);
+      if (!goal || goal.metricType !== 'amount') {
+        return;
+      }
+      const targetCurrency = goal.currency ?? currencySource;
+      const convertedAmount = convertBetweenCurrencies(amountSource, currencySource, targetCurrency);
+      const value = Number.isFinite(convertedAmount) ? Math.max(convertedAmount, 0) : Math.max(amountSource, 0);
+      if (!(value > 0)) {
+        return;
+      }
+
+      // Rollback currentValue with flag to skip budget sync
+      const newCurrentValue = Math.max((goal.currentValue ?? 0) - value, 0);
+      plannerStore.updateGoal(goalId, {
+        currentValue: newCurrentValue,
+        __skipBudgetSync: true,
+      } as any);
+    });
   }
 };
 
@@ -287,16 +364,38 @@ const recalcBudgetsFromEntries = (budgets: Budget[], entries: BudgetEntry[], tim
   budgets.map((budget) => {
     const appliedEntries = entries.filter((entry) => entry.budgetId === budget.id);
     if (appliedEntries.length === 0) {
-      return budget;
+      const baselineBalance =
+        budget.transactionType === 'income'
+          ? budget.limitAmount
+          : Math.max(0, budget.limitAmount);
+      return {
+        ...budget,
+        spentAmount: 0,
+        contributionTotal: 0,
+        currentBalance: baselineBalance,
+        remainingAmount: baselineBalance,
+        percentUsed: 0,
+        updatedAt: timestamp,
+      };
     }
     const spentAmount = appliedEntries.reduce((sum, entry) => sum + entry.appliedAmountBudgetCurrency, 0);
-    const remainingAmount = Math.max(0, budget.limitAmount - spentAmount);
-    const percentUsed = budget.limitAmount > 0 ? spentAmount / budget.limitAmount : 0;
+    const isIncomeBudget = budget.transactionType === 'income';
+    const remainingAmount = isIncomeBudget
+      ? budget.limitAmount + spentAmount
+      : Math.max(0, budget.limitAmount - spentAmount);
+    const percentUsed = budget.limitAmount > 0
+      ? isIncomeBudget
+        ? spentAmount / budget.limitAmount
+        : spentAmount / budget.limitAmount
+      : 0;
+    const currentBalance = isIncomeBudget ? remainingAmount : remainingAmount;
     return {
       ...budget,
       spentAmount,
       remainingAmount,
       percentUsed,
+      contributionTotal: spentAmount,
+      currentBalance,
       updatedAt: timestamp,
     } satisfies Budget;
   });
@@ -325,6 +424,35 @@ const resolveDebtStatus = (debt: Debt): DebtStatus => {
     return 'overdue';
   }
   return debt.status;
+};
+
+const syncLinkedGoalFromBudget = (budget: Budget, previousLinkedGoalId?: string | null) => {
+  const plannerStore = usePlannerDomainStore.getState();
+  if (!plannerStore?.updateGoal) {
+    return;
+  }
+  const prevGoalId = previousLinkedGoalId ?? null;
+  const nextGoalId = budget.linkedGoalId ?? null;
+  if (prevGoalId && prevGoalId !== nextGoalId) {
+    plannerStore.updateGoal(prevGoalId, {
+      linkedBudgetId: undefined,
+      __skipBudgetSync: true,
+    } as any);
+  }
+  if (nextGoalId) {
+    const goal = plannerStore.goals.find((g) => g.id === nextGoalId);
+    const nextUpdates: any = {
+      linkedBudgetId: budget.id,
+      currency: budget.currency,
+      __skipBudgetSync: true,
+    };
+    if (goal && goal.targetValue !== budget.limitAmount) {
+      nextUpdates.targetValue = budget.limitAmount;
+    }
+    plannerStore.updateGoal(nextGoalId, {
+      ...nextUpdates,
+    } as any);
+  }
 };
 
 export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
@@ -417,12 +545,39 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           const nextAccounts = applyTransactionToAccounts(state.accounts, created, 1, timestamp);
           const nextBudgetEntries = [...state.budgetEntries, ...persistedEntries];
           const updatedBudgets = recalcBudgetsFromEntries(state.budgets, nextBudgetEntries, timestamp);
+          const debtAdjustment = mapDebtAdjustmentFromTransaction(created, state.debts);
+          let updatedDebts = state.debts;
+          if (debtAdjustment) {
+            const nextPrincipal = Math.max(0, debtAdjustment.debt.principalAmount - debtAdjustment.amountDebtCurrency);
+            const nextBase = Math.max(0, debtAdjustment.debt.principalBaseValue - debtAdjustment.amountBaseCurrency);
+            const normalizedStatus = resolveDebtStatus({
+              ...debtAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+            });
+            const updatedDebt: Debt = {
+              ...debtAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            };
+            const { debts: debtDao } = getFinanceDaoRegistry();
+            debtDao.update(updatedDebt.id, {
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            });
+            updatedDebts = state.debts.map((debt) => (debt.id === updatedDebt.id ? updatedDebt : debt));
+          }
           nextAccountsSnapshot.push(...nextAccounts);
           return {
             accounts: nextAccounts,
             transactions: [created, ...state.transactions],
             budgetEntries: nextBudgetEntries,
             budgets: updatedBudgets,
+            debts: updatedDebts,
           };
         });
         const changedAccounts = nextAccountsSnapshot.filter((account) => {
@@ -467,6 +622,56 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           const filteredEntries = removeBudgetEntriesForTransaction(state.budgetEntries, id);
           const nextBudgetEntries = [...filteredEntries, ...persistedEntries];
           const updatedBudgets = recalcBudgetsFromEntries(state.budgets, nextBudgetEntries, timestamp);
+          const revertAdjustment = mapDebtAdjustmentFromTransaction(existing, state.debts);
+          const applyAdjustment = mapDebtAdjustmentFromTransaction(updated, state.debts);
+          let adjustedDebts = state.debts;
+          const { debts: debtDao } = getFinanceDaoRegistry();
+          if (revertAdjustment) {
+            const nextPrincipal = revertAdjustment.debt.principalAmount + revertAdjustment.amountDebtCurrency;
+            const nextBase = revertAdjustment.debt.principalBaseValue + revertAdjustment.amountBaseCurrency;
+            const normalizedStatus = resolveDebtStatus({
+              ...revertAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+            });
+            const debtUpdated: Debt = {
+              ...revertAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            };
+            debtDao.update(debtUpdated.id, {
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            });
+            adjustedDebts = adjustedDebts.map((debt) => (debt.id === debtUpdated.id ? debtUpdated : debt));
+          }
+          if (applyAdjustment) {
+            const nextPrincipal = Math.max(0, (adjustedDebts.find((item) => item.id === applyAdjustment.debt.id)?.principalAmount ?? applyAdjustment.debt.principalAmount) - applyAdjustment.amountDebtCurrency);
+            const nextBase = Math.max(0, (adjustedDebts.find((item) => item.id === applyAdjustment.debt.id)?.principalBaseValue ?? applyAdjustment.debt.principalBaseValue) - applyAdjustment.amountBaseCurrency);
+            const normalizedStatus = resolveDebtStatus({
+              ...applyAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+            });
+            const debtUpdated: Debt = {
+              ...applyAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            };
+            debtDao.update(debtUpdated.id, {
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            });
+            adjustedDebts = adjustedDebts.map((debt) => (debt.id === debtUpdated.id ? debtUpdated : debt));
+          }
           nextAccountsSnapshot.push(...nextAccounts);
           return {
             accounts: nextAccounts,
@@ -475,6 +680,7 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
             ),
             budgetEntries: nextBudgetEntries,
             budgets: updatedBudgets,
+            debts: adjustedDebts,
           };
         });
         const changedAccounts = nextAccountsSnapshot.filter((account) => {
@@ -501,12 +707,39 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           const revertedAccounts = applyTransactionToAccounts(state.accounts, existing, -1, timestamp);
           const nextBudgetEntries = removeBudgetEntriesForTransaction(state.budgetEntries, id);
           const updatedBudgets = recalcBudgetsFromEntries(state.budgets, nextBudgetEntries, timestamp);
+          const debtAdjustment = mapDebtAdjustmentFromTransaction(existing, state.debts);
+          let updatedDebts = state.debts;
+          if (debtAdjustment) {
+            const nextPrincipal = debtAdjustment.debt.principalAmount + debtAdjustment.amountDebtCurrency;
+            const nextBase = debtAdjustment.debt.principalBaseValue + debtAdjustment.amountBaseCurrency;
+            const normalizedStatus = resolveDebtStatus({
+              ...debtAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+            });
+            const debtUpdated: Debt = {
+              ...debtAdjustment.debt,
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            };
+            const { debts: debtDao } = getFinanceDaoRegistry();
+            debtDao.update(debtUpdated.id, {
+              principalAmount: nextPrincipal,
+              principalBaseValue: nextBase,
+              status: normalizedStatus,
+              updatedAt: timestamp,
+            });
+            updatedDebts = state.debts.map((debt) => (debt.id === debtUpdated.id ? debtUpdated : debt));
+          }
           nextAccountsSnapshot.push(...revertedAccounts);
           return {
             accounts: revertedAccounts,
             transactions: state.transactions.filter((txn) => txn.id !== id),
             budgetEntries: nextBudgetEntries,
             budgets: updatedBudgets,
+            debts: updatedDebts,
           };
         });
         const changedAccounts = nextAccountsSnapshot.filter((account) => {
@@ -514,7 +747,7 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
           return previous && previous.currentBalance !== account.currentBalance;
         });
         persistChangedAccounts(changedAccounts);
-        removeFinanceContributionForTransaction(id);
+        removeFinanceContributionForTransaction(id, existing, { budgets: get().budgets, debts: get().debts });
       },
 
       addCategory: (name) =>
@@ -627,11 +860,13 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
         const { budgets: budgetDao } = getFinanceDaoRegistry();
         const created = budgetDao.create(payload as BudgetCreateInput);
         set((state) => ({ budgets: [...state.budgets.filter((budget) => budget.id !== created.id), created] }));
+        syncLinkedGoalFromBudget(created);
         return created;
       },
 
       updateBudget: (id, updates) => {
         const { budgets: budgetDao } = getFinanceDaoRegistry();
+        const previous = get().budgets.find((budget) => budget.id === id);
         const updated = budgetDao.update(id, updates);
         if (!updated) {
           return;
@@ -639,9 +874,23 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
         set((state) => ({
           budgets: state.budgets.map((budget) => (budget.id === id ? updated : budget)),
         }));
+        syncLinkedGoalFromBudget(updated, previous?.linkedGoalId);
+        plannerEventBus.publish('finance.budget.updated', { budget: updated });
       },
 
       archiveBudget: (id) => {
+        const budget = get().budgets.find((b) => b.id === id);
+
+        // Unlink goal before archiving
+        if (budget?.linkedGoalId) {
+          const plannerStore = usePlannerDomainStore.getState();
+          if (plannerStore?.updateGoal) {
+            plannerStore.updateGoal(budget.linkedGoalId, {
+              linkedBudgetId: undefined,
+            });
+          }
+        }
+
         const { budgets: budgetDao } = getFinanceDaoRegistry();
         budgetDao.archive(id, true);
         set((state) => ({
@@ -699,9 +948,20 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
               accountId: account.id,
               amount: amountInAccountCurrency,
               currency: accountCurrency,
+              baseCurrency: accountCurrency,
+              rateUsedToBase: 1,
+              convertedAmountToBase: amountInAccountCurrency,
               description: debtPayload.description ?? `Debt • ${debtPayload.counterpartyName}`,
               date: debtPayload.startDate ?? nowIso,
               debtId: created.id,
+              budgetId: debtPayload.linkedBudgetId,
+              goalId: debtPayload.linkedGoalId,
+              goalName: debtPayload.counterpartyName,
+              goalType: 'financial',
+              relatedBudgetId: debtPayload.linkedBudgetId,
+              relatedDebtId: created.id,
+              plannedAmount: resolvedPrincipal,
+              paidAmount: amountInAccountCurrency,
             });
             const patched = debtDao.update(created.id, {
               fundingTransactionId: fundingTransaction.id,
@@ -803,25 +1063,36 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
         const targetAccountId = payload.accountId ?? debt.fundingAccountId;
         if (targetAccountId) {
           const account = get().accounts.find((acc) => acc.id === targetAccountId);
-          if (account) {
-            const amountInAccountCurrency = convertBetweenCurrencies(
-              payload.amount,
-              paymentCurrency,
-              account.currency,
-            );
-            const transaction = get().createTransaction({
-              userId: debt.userId,
-              type: debt.direction === 'they_owe_me' ? 'income' : 'expense',
-              accountId: account.id,
-              amount: amountInAccountCurrency,
-              currency: account.currency,
-              description: payload.note ?? debt.description ?? `Debt payment • ${debt.counterpartyName}`,
-              date: payload.paymentDate,
-              debtId: debt.id,
-            });
-            relatedTransactionId = transaction.id;
-          }
+        if (account) {
+          const amountInAccountCurrency = convertBetweenCurrencies(
+            payload.amount,
+            paymentCurrency,
+            account.currency,
+          );
+          const transaction = get().createTransaction({
+            userId: debt.userId,
+            type: debt.direction === 'they_owe_me' ? 'income' : 'expense',
+            accountId: account.id,
+            amount: amountInAccountCurrency,
+            currency: account.currency,
+            baseCurrency: account.currency,
+            rateUsedToBase: 1,
+            convertedAmountToBase: amountInAccountCurrency,
+            description: payload.note ?? debt.description ?? `Debt payment • ${debt.counterpartyName}`,
+            date: payload.paymentDate,
+            debtId: debt.id,
+            budgetId: debt.linkedBudgetId,
+            goalId: debt.linkedGoalId,
+            goalName: debt.counterpartyName,
+            goalType: 'financial',
+            relatedBudgetId: debt.linkedBudgetId,
+            relatedDebtId: debt.id,
+            plannedAmount: debt.principalAmount,
+            paidAmount: payload.amount,
+          });
+          relatedTransactionId = transaction.id;
         }
+      }
 
         const payment: DebtPayment = {
           ...payload,
@@ -973,3 +1244,39 @@ export const useFinanceDomainStore = create<FinanceDomainState>((set, get) => ({
         })),
       reset: () => set(createInitialFinanceCollections()),
 }));
+
+plannerEventBus.subscribe('planner.goal.updated', ({ goal }) => {
+  const financeStore = useFinanceDomainStore.getState();
+  if (goal.linkedBudgetId) {
+    financeStore.updateBudget(goal.linkedBudgetId, {
+      linkedGoalId: goal.id,
+      limitAmount: Number.isFinite(goal.targetValue ?? NaN) ? goal.targetValue : undefined,
+    });
+  }
+  if (goal.linkedDebtId) {
+    financeStore.updateDebt(goal.linkedDebtId, { linkedGoalId: goal.id });
+  }
+  const relatedTransactions = financeStore.transactions.filter((txn) => txn.goalId === goal.id);
+  relatedTransactions.forEach((txn) => {
+    financeStore.updateTransaction(txn.id, {
+      goalName: goal.title,
+      goalType: goal.goalType,
+      plannedAmount: goal.targetValue ?? txn.plannedAmount,
+      relatedBudgetId: goal.linkedBudgetId ?? txn.relatedBudgetId,
+      relatedDebtId: goal.linkedDebtId ?? txn.relatedDebtId,
+    });
+  });
+});
+
+plannerEventBus.subscribe('planner.goal.created', ({ goal }) => {
+  if (!goal.linkedBudgetId && !goal.linkedDebtId) {
+    return;
+  }
+  const financeStore = useFinanceDomainStore.getState();
+  if (goal.linkedBudgetId) {
+    financeStore.updateBudget(goal.linkedBudgetId, { linkedGoalId: goal.id });
+  }
+  if (goal.linkedDebtId) {
+    financeStore.updateDebt(goal.linkedDebtId, { linkedGoalId: goal.id });
+  }
+});

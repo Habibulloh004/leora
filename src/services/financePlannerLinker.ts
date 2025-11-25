@@ -139,6 +139,39 @@ const handleDebtPaymentAdded = (debtId: string) => {
 };
 
 /**
+ * Sync budget contributionTotal to goal currentValue
+ */
+const handleBudgetUpdated = (budgetId: string) => {
+  const { goals, updateGoal } = usePlannerDomainStore.getState();
+
+  // Find goals linked to this budget
+  const linkedGoals = goals.filter((g) => g.linkedBudgetId === budgetId);
+
+  if (linkedGoals.length === 0) {
+    return;
+  }
+
+  // Get budget data from finance store
+  const { budgets } = require('@/stores/useFinanceDomainStore').useFinanceDomainStore.getState();
+  const budget = budgets.find((b: any) => b.id === budgetId);
+
+  if (!budget) {
+    return;
+  }
+
+  // Sync contributionTotal to currentValue for linked goals
+  linkedGoals.forEach((goal) => {
+    // Only sync if budget has contributionTotal defined
+    if (budget.contributionTotal !== undefined) {
+      updateGoal(goal.id, {
+        currentValue: budget.contributionTotal,
+        __skipBudgetSync: true,
+      } as any);
+    }
+  });
+};
+
+/**
  * Initialize Finance ↔ Planner linker
  */
 export const initFinancePlannerLinker = () => {
@@ -155,5 +188,10 @@ export const initFinancePlannerLinker = () => {
   // PL-32: Update goal progress when debt payment is added
   plannerEventBus.subscribe('finance.debt.payment_added', ({ debt }) => {
     handleDebtPaymentAdded(debt.id);
+  });
+
+  // Sync budget contributionTotal to goal currentValue
+  plannerEventBus.subscribe('finance.budget.updated', ({ budget }) => {
+    handleBudgetUpdated(budget.id);
   });
 };

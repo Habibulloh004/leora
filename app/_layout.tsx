@@ -573,6 +573,38 @@ function RootNavigator({
             animation: "slide_from_bottom",
           }}
         />
+        <Stack.Screen
+          name="(modals)/finance/fx-override"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/account-filter"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/transaction-monitor"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
+        <Stack.Screen
+          name="(modals)/finance/transaction-detail"
+          options={{
+            presentation: 'modal',
+            headerShown: false,
+            animation: "slide_from_bottom",
+          }}
+        />
       </Stack>
       {/* {canManageStatusBar && (
         <StatusBar  style={statusBarStyle} backgroundColor={palette.background} animated />

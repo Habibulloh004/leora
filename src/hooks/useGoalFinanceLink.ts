@@ -82,16 +82,25 @@ export const useGoalFinanceLink = (goal?: Goal) => {
   );
 
   const applyProgressWithBudget = useCallback(
-    (amount: number, note?: string, budgetId?: string) => {
+    (
+      amount: number,
+      note?: string,
+      options?: { budgetId?: string; accountId?: string; debtId?: string; plannedAmount?: number; paidAmount?: number },
+    ) => {
       if (!goal) return undefined;
-      const targetBudgetId = budgetId ?? goal.linkedBudgetId ?? linkedBudget?.id;
+      const targetBudgetId = options?.budgetId ?? goal.linkedBudgetId ?? linkedBudget?.id;
+      const targetDebtId = options?.debtId ?? goal.linkedDebtId;
       if (!targetBudgetId) return undefined;
       return createGoalFinanceTransaction({
         goal,
         amount,
         budgetId: targetBudgetId,
+        debtId: targetDebtId,
+        accountId: options?.accountId,
         note,
         eventType: 'goal-progress',
+        plannedAmount: options?.plannedAmount,
+        paidAmount: options?.paidAmount,
       });
     },
     [goal, linkedBudget?.id],

@@ -24,6 +24,7 @@ const ACTIVE_TASK_STATUSES = new Set<Task['status']>([
   'planned',
   'overdue',
   'inbox',
+  'completed',
 ]);
 
 const isHabitDueOnDate = (habit: Habit, normalizedDay: Date) => {

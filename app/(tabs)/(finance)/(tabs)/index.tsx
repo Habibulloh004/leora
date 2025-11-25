@@ -1,24 +1,16 @@
 // app/(tabs)/(finance)/(tabs)/index.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Dimensions,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
-  Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import DateTimePicker, {
-  DateTimePickerAndroid,
-  DateTimePickerEvent,
-} from '@react-native-community/datetimepicker';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import {
   Clock,
   Wallet,
@@ -39,11 +31,9 @@ import { useFinanceCurrency } from '@/hooks/useFinanceCurrency';
 import { normalizeFinanceCurrency } from '@/utils/financeCurrency';
 import { useShallow } from 'zustand/react/shallow';
 import {
-  AVAILABLE_FINANCE_CURRENCIES,
   type FinanceCurrency,
   useFinancePreferencesStore,
 } from '@/stores/useFinancePreferencesStore';
-import type { FxProviderId } from '@/services/fx/providers';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -124,10 +114,15 @@ interface FinanceSummaryView {
 }
 
 export default function FinanceReviewScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{
+    selectedAccountIds?: string;
+    balanceCurrency?: FinanceCurrency;
+  }>();
+
   const theme = useAppTheme();
-  const { strings, locale } = useLocalization();
+  const { strings } = useLocalization();
   const reviewStrings = strings.financeScreens.review;
-  const fxStrings = reviewStrings.fxQuick;
   const styles = createStyles(theme);
   const { accounts, transactions, debts, budgets } = useFinanceDomainStore(
     useShallow((state) => ({
@@ -137,36 +132,34 @@ export default function FinanceReviewScreen() {
       budgets: state.budgets,
     })),
   );
-  const { syncExchangeRates, overrideExchangeRate, baseCurrency: financePreferencesBaseCurrency } =
-    useFinancePreferencesStore(
-      useShallow((state) => ({
-        syncExchangeRates: state.syncExchangeRates,
-        overrideExchangeRate: state.overrideExchangeRate,
-        baseCurrency: state.baseCurrency,
-      })),
-    );
+  const { baseCurrency: financePreferencesBaseCurrency } = useFinancePreferencesStore(
+    useShallow((state) => ({
+      baseCurrency: state.baseCurrency,
+    })),
+  );
   const {
     convertAmount,
     formatCurrency: formatFinanceCurrency,
     globalCurrency,
     baseCurrency,
   } = useFinanceCurrency();
-  const [balanceCurrency, setBalanceCurrency] = useState<FinanceCurrency>(globalCurrency);
-  const [accountFilterVisible, setAccountFilterVisible] = useState(false);
-  const [monitoringVisible, setMonitoringVisible] = useState(false);
-  const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>([]);
-  const [monitorAccountIds, setMonitorAccountIds] = useState<string[]>([]);
-  const [monitorTypes, setMonitorTypes] = useState<('income' | 'expense' | 'transfer')[]>([]);
-  const [monitorSearch, setMonitorSearch] = useState('');
-  const [monitorDateFrom, setMonitorDateFrom] = useState<Date | null>(null);
-  const [monitorDateTo, setMonitorDateTo] = useState<Date | null>(null);
-  const [monitorDatePicker, setMonitorDatePicker] = useState<{
-    target: 'from' | 'to';
-    value: Date;
-  } | null>(null);
+
+  // Parse params from account-filter modal
+  const selectedAccountIds = useMemo(
+    () => (params.selectedAccountIds ? params.selectedAccountIds.split(',').filter(Boolean) : []),
+    [params.selectedAccountIds],
+  );
+  const [balanceCurrency, setBalanceCurrency] = useState<FinanceCurrency>(
+    (params.balanceCurrency as FinanceCurrency) || globalCurrency,
+  );
+
   useEffect(() => {
-    setBalanceCurrency(globalCurrency);
-  }, [globalCurrency]);
+    if (params.balanceCurrency) {
+      setBalanceCurrency(params.balanceCurrency as FinanceCurrency);
+    } else {
+      setBalanceCurrency(globalCurrency);
+    }
+  }, [globalCurrency, params.balanceCurrency]);
   const convertToBalanceCurrency = useCallback(
     (value: number) => {
       if (balanceCurrency === globalCurrency) {
@@ -184,79 +177,12 @@ export default function FinanceReviewScreen() {
       }),
     [balanceCurrency, convertToBalanceCurrency, formatFinanceCurrency],
   );
-  const monitorTypeOptions: ('income' | 'expense' | 'transfer')[] = ['income', 'expense', 'transfer'];
-  const monitorDateFormatter = useMemo(
-    () => new Intl.DateTimeFormat(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }),
-    [locale],
-  );
-  const formatMonitorDate = useCallback(
-    (date: Date | null) => (date ? monitorDateFormatter.format(date) : reviewStrings.monitorNoDate),
-    [monitorDateFormatter, reviewStrings.monitorNoDate],
-  );
-  const applyMonitorDate = useCallback((target: 'from' | 'to', value: Date) => {
-    if (target === 'from') {
-      setMonitorDateFrom(value);
-    } else {
-      setMonitorDateTo(value);
-    }
-    setMonitorDatePicker(null);
-  }, []);
-  const openMonitorDatePicker = useCallback(
-    (target: 'from' | 'to') => {
-      const baseValue = (target === 'from' ? monitorDateFrom : monitorDateTo) ?? new Date();
-      if (Platform.OS === 'android') {
-        DateTimePickerAndroid.open({
-          value: baseValue,
-          mode: 'date',
-          onChange: (event, selected) => {
-            if (event.type === 'set' && selected) {
-              applyMonitorDate(target, selected);
-            }
-          },
-        });
-        return;
-      }
-      setMonitorDatePicker({ target, value: baseValue });
-    },
-    [applyMonitorDate, monitorDateFrom, monitorDateTo],
-  );
-  const handleMonitorIosPicker = useCallback(
-    (event: DateTimePickerEvent, selected?: Date) => {
-      if (event.type === 'dismissed') {
-        setMonitorDatePicker(null);
-        return;
-      }
-      if (selected && monitorDatePicker) {
-        applyMonitorDate(monitorDatePicker.target, selected);
-      }
-    },
-    [applyMonitorDate, monitorDatePicker],
-  );
+
   const filteredAccounts = useMemo(
     () => (selectedAccountIds.length ? accounts.filter((account) => selectedAccountIds.includes(account.id)) : accounts),
     [accounts, selectedAccountIds],
   );
   const filteredAccountIds = useMemo(() => new Set(filteredAccounts.map((account) => account.id)), [filteredAccounts]);
-  const [selectedProvider, setSelectedProvider] = useState<FxProviderId>('central_bank_stub');
-  const [fxSyncing, setFxSyncing] = useState(false);
-  const [fxStatus, setFxStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [lastSyncAt, setLastSyncAt] = useState<Date | null>(null);
-  const [overrideModalVisible, setOverrideModalVisible] = useState(false);
-  const [overrideRateInput, setOverrideRateInput] = useState('');
-  const [overrideError, setOverrideError] = useState<string | null>(null);
-  const providerOptions = useMemo(
-    () => [
-      { id: 'central_bank_stub' as FxProviderId, label: fxStrings.providers.central_bank_stub },
-      { id: 'market_stub' as FxProviderId, label: fxStrings.providers.market_stub },
-    ],
-    [fxStrings.providers],
-  );
-  const [overrideCurrency, setOverrideCurrency] = useState<FinanceCurrency>(() => {
-    const fallback =
-      AVAILABLE_FINANCE_CURRENCIES.find((code) => code !== financePreferencesBaseCurrency) ??
-      financePreferencesBaseCurrency;
-    return fallback as FinanceCurrency;
-  });
 
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -269,89 +195,24 @@ export default function FinanceReviewScreen() {
     }).start();
   }, [fadeAnim]);
 
-  useEffect(() => {
-    if (overrideCurrency === financePreferencesBaseCurrency) {
-      const fallback =
-        AVAILABLE_FINANCE_CURRENCIES.find((code) => code !== financePreferencesBaseCurrency) ??
-        financePreferencesBaseCurrency;
-      setOverrideCurrency(fallback as FinanceCurrency);
-    }
-  }, [financePreferencesBaseCurrency, overrideCurrency]);
+  // Modal navigation handlers
+  const handleOpenFxOverride = useCallback(() => {
+    router.push('/(modals)/finance/fx-override');
+  }, [router]);
 
-  const lastSyncLabel = useMemo(() => {
-    if (!lastSyncAt) {
-      return null;
-    }
-    return new Intl.DateTimeFormat(locale, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(lastSyncAt);
-  }, [lastSyncAt, locale]);
-
-  const handleQuickSync = useCallback(async () => {
-    setFxStatus(null);
-    try {
-      setFxSyncing(true);
-      await syncExchangeRates(selectedProvider);
-      setLastSyncAt(new Date());
-      const providerLabel = providerOptions.find((option) => option.id === selectedProvider)?.label ?? '';
-      setFxStatus({
-        type: 'success',
-        message: fxStrings.syncSuccess.replace('{provider}', providerLabel),
-      });
-    } catch (error) {
-      setFxStatus({ type: 'error', message: fxStrings.syncError });
-    } finally {
-      setFxSyncing(false);
-    }
-  }, [fxStrings.syncError, fxStrings.syncSuccess, providerOptions, selectedProvider, syncExchangeRates]);
-
-  const handleOpenOverrideModal = useCallback(() => {
-    setOverrideRateInput('');
-    setOverrideError(null);
-    setOverrideModalVisible(true);
-  }, []);
-
-  const closeOverrideModal = useCallback(() => {
-    setOverrideModalVisible(false);
-    setOverrideError(null);
-  }, []);
-
-  const handleApplyOverride = useCallback(() => {
-    const normalizedValue = Number(overrideRateInput.replace(/\s+/g, '').replace(',', '.'));
-    if (overrideCurrency === financePreferencesBaseCurrency) {
-      setOverrideError(fxStrings.overrideBaseError);
-      return;
-    }
-    if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
-      setOverrideError(fxStrings.overrideError);
-      return;
-    }
-    overrideExchangeRate(overrideCurrency, normalizedValue);
-    setFxStatus({
-      type: 'success',
-      message: fxStrings.overrideSuccess.replace('{currency}', overrideCurrency),
+  const handleOpenAccountFilter = useCallback(() => {
+    router.push({
+      pathname: '/(modals)/finance/account-filter',
+      params: {
+        selectedAccountIds: selectedAccountIds.join(','),
+        balanceCurrency,
+      },
     });
-    setOverrideRateInput('');
-    closeOverrideModal();
-  }, [
-    closeOverrideModal,
-    financePreferencesBaseCurrency,
-    fxStrings.overrideBaseError,
-    fxStrings.overrideError,
-    fxStrings.overrideSuccess,
-    overrideCurrency,
-    overrideExchangeRate,
-    overrideRateInput,
-  ]);
+  }, [router, selectedAccountIds, balanceCurrency]);
 
-  const overrideCurrencyOptions = useMemo(
-    () => AVAILABLE_FINANCE_CURRENCIES.filter((code) => code !== financePreferencesBaseCurrency),
-    [financePreferencesBaseCurrency],
-  );
+  const handleOpenMonitoring = useCallback(() => {
+    router.push('/(modals)/finance/transaction-monitor');
+  }, [router]);
 
   const summary = useMemo<FinanceSummaryView>(() => {
     const now = new Date();
@@ -560,45 +421,6 @@ export default function FinanceReviewScreen() {
     filteredAccountIds,
   ]);
 
-  const monitorFilteredTransactions = useMemo(() => {
-    return transactions
-      .filter((transaction) => {
-        if (monitorAccountIds.length) {
-          const refs = [transaction.accountId, transaction.fromAccountId, transaction.toAccountId].filter(
-            Boolean,
-          ) as string[];
-          if (!refs.some((id) => monitorAccountIds.includes(id))) {
-            return false;
-          }
-        }
-        if (monitorTypes.length && !monitorTypes.includes(transaction.type)) {
-          return false;
-        }
-        if (monitorSearch.trim()) {
-          const haystack = `${transaction.description ?? ''} ${transaction.categoryId ?? ''}`.toLowerCase();
-          if (!haystack.includes(monitorSearch.trim().toLowerCase())) {
-            return false;
-          }
-        }
-        const txnDate = new Date(transaction.date);
-        if (monitorDateFrom && txnDate < monitorDateFrom) {
-          return false;
-        }
-        if (monitorDateTo && txnDate > monitorDateTo) {
-          return false;
-        }
-        return true;
-      })
-      .slice(0, 20);
-  }, [
-    monitorAccountIds,
-    monitorTypes,
-    monitorDateFrom,
-    monitorDateTo,
-    monitorSearch,
-    transactions,
-  ]);
-
   const transactionColumns: TableColumn<RecentTransactionRow>[] = [
     {
       key: 'title',
@@ -669,13 +491,13 @@ export default function FinanceReviewScreen() {
         {/* 1. Balance Section */}
         <View style={styles.balanceSection}>
           {/* Main Balance Card */}
-          <Pressable onLongPress={() => setMonitoringVisible(true)} delayLongPress={350}>
+          <Pressable onLongPress={handleOpenMonitoring} delayLongPress={350}>
             <AdaptiveGlassView style={[styles.glassSurface, styles.mainBalanceCard]}>
             <View style={styles.balanceHeaderRow}>
               <Text style={styles.balanceLabel}>{reviewStrings.totalBalance}</Text>
               <Pressable
                 style={({ pressed }) => [styles.balanceFilterButton, pressed && styles.pressed]}
-                onPress={() => setAccountFilterVisible(true)}
+                onPress={handleOpenAccountFilter}
               >
                 <Text style={[styles.balanceFilterLabel, { color: theme.colors.textSecondary }]}>
                   {selectedAccountIds.length
@@ -728,90 +550,20 @@ export default function FinanceReviewScreen() {
 
         {/* FX Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{fxStrings.title}</Text>
-          <AdaptiveGlassView style={[styles.glassSurface, styles.fxQuickCard]}>
-            <Text style={styles.fxQuickLabel}>{fxStrings.providerLabel}</Text>
-            <View style={styles.fxProviderRow}>
-              {providerOptions.map((option) => {
-                const isActive = option.id === selectedProvider;
-                return (
-                  <Pressable
-                    key={option.id}
-                    onPress={() => setSelectedProvider(option.id)}
-                    style={({ pressed }) => [
-                      styles.fxProviderChip,
-                      {
-                        borderColor: isActive ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: isActive ? `${theme.colors.primary}22` : theme.colors.card,
-                      },
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.fxProviderChipText,
-                        { color: isActive ? theme.colors.primary : theme.colors.textSecondary },
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.fxQuickRow}>
-              <Pressable
-                onPress={handleQuickSync}
-                disabled={fxSyncing}
-                style={({ pressed }) => [
-                  styles.fxActionButton,
-                  { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={[styles.fxActionLabel, { color: theme.colors.textPrimary }]}>
-                  {fxSyncing ? fxStrings.syncing : fxStrings.syncButton}
-                </Text>
-                {fxSyncing ? (
-                  <ActivityIndicator color={theme.colors.primary} size="small" />
-                ) : (
-                  <Text style={[styles.fxActionDescription, { color: theme.colors.textSecondary }]}>
-                    {fxStrings.syncDescription}
-                  </Text>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={handleOpenOverrideModal}
-                style={({ pressed }) => [
-                  styles.fxActionButton,
-                  { borderColor: theme.colors.border, backgroundColor: theme.colors.card },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={[styles.fxActionLabel, { color: theme.colors.textPrimary }]}>
-                  {fxStrings.overrideButton}
-                </Text>
-                <Text style={[styles.fxActionDescription, { color: theme.colors.textSecondary }]}>
-                  {fxStrings.overrideHint.replace('{base}', financePreferencesBaseCurrency)}
-                </Text>
-              </Pressable>
-            </View>
-            {fxStatus ? (
-              <Text
-                style={[
-                  styles.fxStatusText,
-                  { color: fxStatus.type === 'error' ? theme.colors.danger : theme.colors.success },
-                ]}
-              >
-                {fxStatus.message}
+          <Text style={styles.sectionTitle}>{reviewStrings.fxQuick.title}</Text>
+          <Pressable
+            onPress={handleOpenFxOverride}
+            style={({ pressed }) => [pressed && styles.pressed]}
+          >
+            <AdaptiveGlassView style={[styles.glassSurface, styles.fxQuickCard]}>
+              <Text style={[styles.fxActionLabel, { color: theme.colors.textPrimary }]}>
+                {reviewStrings.fxQuick.overrideButton}
               </Text>
-            ) : null}
-            {lastSyncLabel ? (
-              <Text style={[styles.fxStatusMuted, { color: theme.colors.textSecondary }]}>
-                {fxStrings.lastSync.replace('{value}', lastSyncLabel)}
+              <Text style={[styles.fxActionDescription, { color: theme.colors.textSecondary }]}>
+                {reviewStrings.fxQuick.overrideHint.replace('{base}', financePreferencesBaseCurrency)}
               </Text>
-            ) : null}
-          </AdaptiveGlassView>
+            </AdaptiveGlassView>
+          </Pressable>
         </View>
 
         {/* 2. Monthly Progress Indicator */}
@@ -904,361 +656,6 @@ export default function FinanceReviewScreen() {
         <View style={styles.bottomSpacer} />
       </Animated.View>
       </ScrollView>
-      <Modal
-        transparent
-        animationType="fade"
-        visible={overrideModalVisible}
-        onRequestClose={closeOverrideModal}
-      >
-        <View style={styles.modalBackdrop}>
-          <AdaptiveGlassView style={[styles.glassSurface, styles.modalCard]}> 
-            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>{fxStrings.overrideTitle}</Text>
-            <Text style={[styles.modalSubtitle, { color: theme.colors.textSecondary }]}>
-              {fxStrings.overrideHint.replace('{base}', financePreferencesBaseCurrency)}
-            </Text>
-            <View style={styles.currencyChipGrid}>
-              {overrideCurrencyOptions.map((code) => {
-                const isActive = code === overrideCurrency;
-                return (
-                  <Pressable
-                    key={code}
-                    onPress={() => setOverrideCurrency(code)}
-                    style={({ pressed }) => [
-                      styles.currencyChip,
-                      {
-                        borderColor: isActive ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: isActive ? `${theme.colors.primary}22` : theme.colors.card,
-                      },
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.currencyChipText,
-                        { color: isActive ? theme.colors.primary : theme.colors.textSecondary },
-                      ]}
-                    >
-                      {code}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <TextInput
-              value={overrideRateInput}
-              onChangeText={setOverrideRateInput}
-              placeholder={fxStrings.overridePlaceholder}
-              placeholderTextColor={theme.colors.textMuted}
-              keyboardType="decimal-pad"
-              style={[
-                styles.modalInput,
-                {
-                  color: theme.colors.textPrimary,
-                  borderColor: theme.colors.border,
-                  backgroundColor: theme.colors.card,
-                },
-              ]}
-            />
-            {overrideError ? (
-              <Text style={[styles.fxStatusText, { color: theme.colors.danger }]}>{overrideError}</Text>
-            ) : null}
-            <View style={styles.modalActions}>
-              <Pressable
-                style={({ pressed }) => [styles.modalSecondaryButton, pressed && styles.pressed]}
-                onPress={closeOverrideModal}
-              >
-                <Text style={[styles.modalSecondaryLabel, { color: theme.colors.textSecondary }]}>
-                  {fxStrings.overrideCancel}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [styles.modalPrimaryButton, { backgroundColor: theme.colors.primary }, pressed && styles.pressed]}
-                onPress={handleApplyOverride}
-              >
-                <Text style={styles.modalPrimaryLabel}>{fxStrings.overrideConfirm}</Text>
-              </Pressable>
-            </View>
-          </AdaptiveGlassView>
-        </View>
-      </Modal>
-      <Modal
-        transparent
-        animationType="fade"
-        visible={accountFilterVisible}
-        onRequestClose={() => setAccountFilterVisible(false)}
-      >
-        <View style={styles.modalBackdrop}>
-          <AdaptiveGlassView style={[styles.glassSurface, styles.modalCard]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
-              {reviewStrings.accountFilterTitle}
-            </Text>
-            <Text style={[styles.accountFilterSectionTitle, { color: theme.colors.textSecondary }]}>
-              {reviewStrings.accountFilterCurrencyLabel}
-            </Text>
-            <View style={styles.currencyChipGrid}>
-              {AVAILABLE_FINANCE_CURRENCIES.map((code) => {
-                const isActive = balanceCurrency === code;
-                return (
-                  <Pressable
-                    key={code}
-                    style={({ pressed }) => [
-                      styles.currencyChip,
-                      {
-                        borderColor: isActive ? theme.colors.primary : theme.colors.border,
-                        backgroundColor: isActive ? `${theme.colors.primary}22` : theme.colors.card,
-                      },
-                      pressed && styles.pressed,
-                    ]}
-                    onPress={() => setBalanceCurrency(code)}
-                  >
-                    <Text
-                      style={[
-                        styles.currencyChipText,
-                        { color: isActive ? theme.colors.primary : theme.colors.textSecondary },
-                      ]}
-                    >
-                      {code}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false}>
-              {accounts.map((account) => {
-                const isSelected =
-                  selectedAccountIds.length === 0 || selectedAccountIds.includes(account.id);
-                return (
-                  <Pressable
-                    key={account.id}
-                    style={({ pressed }) => [styles.accountFilterRow, pressed && styles.pressed]}
-                    onPress={() =>
-                      setSelectedAccountIds((prev) => {
-                        if (!prev.length) {
-                          return accounts.filter((acc) => acc.id !== account.id).map((acc) => acc.id);
-                        }
-                        if (prev.includes(account.id)) {
-                          const next = prev.filter((id) => id !== account.id);
-                          return next;
-                        }
-                        return [...prev, account.id];
-                      })
-                    }
-                  >
-                    <Text style={[styles.accountFilterName, { color: theme.colors.textPrimary }]}>
-                      {account.name}
-                    </Text>
-                    <Text style={{ color: isSelected ? theme.colors.primary : theme.colors.textSecondary }}>
-                      {isSelected ? '✓' : ''}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <Pressable
-                style={({ pressed }) => [styles.modalSecondaryButton, pressed && styles.pressed]}
-                onPress={() => setSelectedAccountIds([])}
-              >
-                <Text style={[styles.modalSecondaryLabel, { color: theme.colors.textSecondary }]}>
-                  {reviewStrings.accountFilterSelectAll}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.modalPrimaryButton,
-                  { backgroundColor: theme.colors.primary },
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => setAccountFilterVisible(false)}
-              >
-                <Text style={styles.modalPrimaryLabel}>{reviewStrings.accountFilterApply}</Text>
-              </Pressable>
-            </View>
-          </AdaptiveGlassView>
-        </View>
-      </Modal>
-      <Modal transparent animationType="slide" visible={monitoringVisible} onRequestClose={() => setMonitoringVisible(false)}>
-        <SafeAreaView style={styles.modalBackdrop} edges={['bottom']}>
-          <AdaptiveGlassView style={[styles.glassSurface, styles.monitorCard]}>
-            <View style={styles.monitorHeader}>
-              <Text style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>{reviewStrings.monitorTitle}</Text>
-              <TextInput
-                value={monitorSearch}
-                onChangeText={setMonitorSearch}
-                placeholder={reviewStrings.monitorSearchPlaceholder}
-                placeholderTextColor={theme.colors.textMuted}
-                style={[styles.monitorInput, { borderColor: theme.colors.border, color: theme.colors.textPrimary }]}
-              />
-            </View>
-            <ScrollView
-              style={styles.monitorScroll}
-              contentContainerStyle={styles.monitorScrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              <View style={styles.monitorSection}>
-                <Text style={[styles.accountFilterSectionTitle, { color: theme.colors.textSecondary }]}>
-                  {reviewStrings.monitorAccounts}
-                </Text>
-                <View style={styles.monitorChipGrid}>
-                  {accounts.map((account) => {
-                    const isActive = monitorAccountIds.includes(account.id);
-                    return (
-                      <Pressable
-                        key={account.id}
-                        style={({ pressed }) => [
-                          styles.monitorChip,
-                          {
-                            borderColor: isActive ? theme.colors.primary : theme.colors.border,
-                            backgroundColor: isActive ? `${theme.colors.primary}22` : theme.colors.card,
-                          },
-                          pressed && styles.pressed,
-                        ]}
-                        onPress={() =>
-                          setMonitorAccountIds((prev) =>
-                            prev.includes(account.id) ? prev.filter((id) => id !== account.id) : [...prev, account.id],
-                          )
-                        }
-                      >
-                        <Text
-                          style={[
-                            styles.monitorChipText,
-                            { color: isActive ? theme.colors.primary : theme.colors.textSecondary },
-                          ]}
-                        >
-                          {account.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-              <View style={styles.monitorSection}>
-                <Text style={[styles.accountFilterSectionTitle, { color: theme.colors.textSecondary }]}>
-                  {reviewStrings.monitorTypesTitle}
-                </Text>
-                <View style={styles.monitorChipGrid}>
-                  {monitorTypeOptions.map((type) => {
-                    const isActive = monitorTypes.includes(type);
-                    return (
-                      <Pressable
-                        key={type}
-                        style={({ pressed }) => [
-                          styles.monitorChip,
-                          {
-                            borderColor: isActive ? theme.colors.primary : theme.colors.border,
-                            backgroundColor: isActive ? `${theme.colors.primary}22` : theme.colors.card,
-                          },
-                          pressed && styles.pressed,
-                        ]}
-                        onPress={() =>
-                          setMonitorTypes((prev) =>
-                            prev.includes(type) ? prev.filter((item) => item !== type) : [...prev, type],
-                          )
-                        }
-                      >
-                        <Text
-                          style={[
-                            styles.monitorChipText,
-                            { color: isActive ? theme.colors.primary : theme.colors.textSecondary },
-                          ]}
-                        >
-                          {reviewStrings.monitorTypes[type]}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-              <View style={[styles.monitorSection, styles.monitorDatesRow]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.accountFilterSectionTitle, { color: theme.colors.textSecondary }]}>
-                    {reviewStrings.monitorDateFrom}
-                  </Text>
-                  <Pressable
-                    style={[styles.monitorDateInput, { borderColor: theme.colors.border }]}
-                    onPress={() => openMonitorDatePicker('from')}
-                  >
-                    <Text style={{ color: theme.colors.textPrimary }}>{formatMonitorDate(monitorDateFrom)}</Text>
-                  </Pressable>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.accountFilterSectionTitle, { color: theme.colors.textSecondary }]}>
-                    {reviewStrings.monitorDateTo}
-                  </Text>
-                  <Pressable
-                    style={[styles.monitorDateInput, { borderColor: theme.colors.border }]}
-                    onPress={() => openMonitorDatePicker('to')}
-                  >
-                    <Text style={{ color: theme.colors.textPrimary }}>{formatMonitorDate(monitorDateTo)}</Text>
-                  </Pressable>
-                </View>
-              </View>
-              <View style={styles.monitorSection}>
-                <Text style={[styles.accountFilterSectionTitle, { color: theme.colors.textSecondary }]}>
-                  {reviewStrings.monitorResults}
-                </Text>
-                {monitorFilteredTransactions.length ? (
-                  monitorFilteredTransactions.map((transaction) => (
-                    <View key={transaction.id} style={[styles.monitorTransactionCard, { borderColor: theme.colors.border }]}>
-                      <Text style={[styles.monitorRowTitle, { color: theme.colors.textPrimary }]} numberOfLines={2}>
-                        {transaction.description ?? transaction.categoryId ?? '—'}
-                      </Text>
-                      <Text
-                        style={{ color: transaction.type === 'income' ? theme.colors.success : theme.colors.danger }}
-                      >
-                        {transaction.type === 'income' ? '+' : '−'}{' '}
-                        {formatFinanceCurrency(transaction.amount, {
-                          fromCurrency: transaction.currency ?? globalCurrency,
-                          convert: false,
-                        })}
-                      </Text>
-                      <Text style={[styles.monitorRowTime, { color: theme.colors.textMuted }]}>
-                        {new Date(transaction.date).toLocaleString()}
-                      </Text>
-                    </View>
-                  ))
-                ) : (
-                  <Text style={{ color: theme.colors.textSecondary }}>{reviewStrings.monitorEmpty}</Text>
-                )}
-              </View>
-            </ScrollView>
-            {monitorDatePicker && Platform.OS === 'ios' && (
-              <DateTimePicker
-                value={monitorDatePicker.value}
-                mode="date"
-                display="spinner"
-                onChange={handleMonitorIosPicker}
-              />
-            )}
-            <View style={styles.monitorFooter}>
-              <Pressable
-                style={({ pressed }) => [styles.modalSecondaryButton, pressed && styles.pressed]}
-                onPress={() => {
-                  setMonitorAccountIds([]);
-                  setMonitorTypes([]);
-                  setMonitorSearch('');
-                  setMonitorDateFrom(null);
-                  setMonitorDateTo(null);
-                }}
-              >
-                <Text style={[styles.modalSecondaryLabel, { color: theme.colors.textSecondary }]}>
-                  {reviewStrings.monitorReset}
-                </Text>
-              </Pressable>
-              <Pressable
-                style={({ pressed }) => [
-                  styles.modalPrimaryButton,
-                  { backgroundColor: theme.colors.primary },
-                  pressed && styles.pressed,
-                ]}
-                onPress={() => setMonitoringVisible(false)}
-              >
-                <Text style={styles.modalPrimaryLabel}>{reviewStrings.monitorApply}</Text>
-              </Pressable>
-            </View>
-          </AdaptiveGlassView>
-        </SafeAreaView>
-      </Modal>
     </>
   );
 }
@@ -1373,39 +770,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       padding: 16,
       gap: 14,
     },
-    fxQuickLabel: {
-      fontSize: 12,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-      letterSpacing: 0.6,
-      color: theme.colors.textSecondary,
-    },
-    fxProviderRow: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    fxProviderChip: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 14,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-    },
-    fxProviderChipText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    fxQuickRow: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    fxActionButton: {
-      flex: 1,
-      borderRadius: 16,
-      padding: 14,
-      borderWidth: StyleSheet.hairlineWidth,
-      gap: 6,
-    },
     fxActionLabel: {
       fontSize: 14,
       fontWeight: '700',
@@ -1413,14 +777,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
     fxActionDescription: {
       fontSize: 12,
       lineHeight: 16,
-    },
-    fxStatusText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    fxStatusMuted: {
-      fontSize: 11,
-      marginTop: -2,
     },
     sectionHeader: {
       flexDirection: 'row',
@@ -1532,170 +888,6 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>) =>
       fontSize: 11,
       color: theme.colors.textMuted,
       fontWeight: '500',
-    },
-
-    modalBackdrop: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.5)',
-      justifyContent: 'center',
-      alignItems: 'center',
-      padding: 24,
-    },
-    modalCard: {
-      width: '100%',
-      borderRadius: 20,
-      padding: 20,
-      gap: 16,
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: '700',
-    },
-    modalSubtitle: {
-      fontSize: 13,
-      lineHeight: 20,
-    },
-    currencyChipGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-    },
-    currencyChip: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 14,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-    },
-    currencyChipText: {
-      fontSize: 13,
-      fontWeight: '600',
-    },
-    modalInput: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 16,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      fontSize: 16,
-      fontWeight: '600',
-    },
-    modalActions: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    accountFilterRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingVertical: 10,
-    },
-    accountFilterName: {
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    accountFilterSectionTitle: {
-      fontSize: 12,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-      letterSpacing: 0.4,
-      marginTop: 8,
-      marginBottom: 4,
-    },
-    modalSecondaryButton: {
-      flex: 1,
-      borderRadius: 16,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: theme.colors.border,
-      alignItems: 'center',
-      paddingVertical: 12,
-    },
-    modalSecondaryLabel: {
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    modalPrimaryButton: {
-      flex: 1,
-      borderRadius: 16,
-      alignItems: 'center',
-      paddingVertical: 12,
-    },
-    modalPrimaryLabel: {
-      fontSize: 14,
-      fontWeight: '700',
-      color: theme.colors.onPrimary,
-    },
-    monitorCard: {
-      width: '100%',
-      borderRadius: 24,
-      padding: 24,
-      gap: 14,
-      maxHeight: '90%',
-    },
-    monitorHeader: {
-      gap: 10,
-    },
-    monitorScroll: {
-      flexGrow: 0,
-    },
-    monitorScrollContent: {
-      gap: 20,
-      paddingBottom: 8,
-    },
-    monitorSection: {
-      gap: 10,
-    },
-    monitorInput: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      fontSize: 14,
-    },
-    monitorDateInput: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 14,
-      paddingHorizontal: 14,
-      paddingVertical: 10,
-      minHeight: 46,
-      justifyContent: 'center',
-    },
-    monitorChipGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: 8,
-      marginBottom: 6,
-    },
-    monitorChip: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 14,
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-    },
-    monitorChipText: {
-      fontSize: 12,
-      fontWeight: '600',
-    },
-    monitorDatesRow: {
-      flexDirection: 'row',
-      gap: 12,
-    },
-    monitorTransactionCard: {
-      borderWidth: StyleSheet.hairlineWidth,
-      borderRadius: 16,
-      padding: 12,
-      backgroundColor: theme.colors.card,
-      gap: 4,
-    },
-    monitorRowTitle: {
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    monitorRowTime: {
-      fontSize: 11,
-    },
-    monitorFooter: {
-      flexDirection: 'row',
-      gap: 12,
-      paddingTop: 8,
     },
 
     bottomSpacer: {

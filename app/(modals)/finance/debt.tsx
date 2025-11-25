@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -25,6 +26,7 @@ import {
   useFinancePreferencesStore,
 } from '@/stores/useFinancePreferencesStore';
 import { useShallow } from 'zustand/react/shallow';
+import { usePlannerDomainStore } from '@/stores/usePlannerDomainStore';
 
 const ensureCurrency = (value?: string): FinanceCurrency => {
   if (!value) return 'USD';
@@ -69,6 +71,7 @@ export default function DebtModal() {
   const linkedGoalId = Array.isArray(goalId) ? goalId[0] : goalId ?? null;
 
   const baseCurrency = useFinancePreferencesStore((state) => state.baseCurrency);
+  const goals = usePlannerDomainStore((state) => state.goals);
 
   const { debts, accounts, createDebt, updateDebt, deleteDebt } = useFinanceDomainStore(
     useShallow((state) => ({
@@ -221,9 +224,19 @@ export default function DebtModal() {
 
   const handleDelete = useCallback(() => {
     if (!editingDebt) return;
+    const linkedGoals = goals.filter((goal) => goal.linkedDebtId === editingDebt.id);
+    if (linkedGoals.length > 0) {
+      Alert.alert(
+        'Debt is linked',
+        linkedGoals.length === 1
+          ? 'This debt is linked to a goal. Unlink it before deleting.'
+          : 'This debt is linked to multiple goals. Unlink them before deleting.',
+      );
+      return;
+    }
     deleteDebt(editingDebt.id);
     handleClose();
-  }, [deleteDebt, editingDebt, handleClose]);
+  }, [deleteDebt, editingDebt, goals, handleClose]);
 
   return (
     <>

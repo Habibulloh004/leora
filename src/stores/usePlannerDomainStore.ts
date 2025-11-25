@@ -9,6 +9,8 @@ import { offlineQueueService } from '@/services/offlineQueueService';
 import { mmkvStorageAdapter } from '@/utils/storage';
 import { calculateGoalProgress, syncGoalMilestones } from '@/utils/goalProgress';
 import { getPlannerDaoRegistry, hasPlannerDaoRegistry } from '@/database/dao/plannerDaoRegistry';
+import { useFinanceDomainStore } from './useFinanceDomainStore';
+import { createGoalFinanceTransaction } from '@/services/finance/financeAutoTracking';
 
 export type PlannerHistoryItem = {
   historyId: string;
@@ -36,6 +38,7 @@ interface PlannerDomainState {
   pauseGoal: (id: string) => void;
   resumeGoal: (id: string) => void;
   deleteGoalPermanently: (id: string) => void;
+  restartGoal: (id: string) => void;
   createHabit: (payload: Omit<Habit, 'id' | 'createdAt' | 'updatedAt' | 'streakCurrent' | 'streakBest' | 'completionRate30d'> & { id?: string; streakCurrent?: number; streakBest?: number; completionRate30d?: number }) => Habit;
   updateHabit: (id: string, updates: Partial<Habit>) => void;
   logHabitCompletion: (id: string, completed: boolean, options?: { date?: Date | string; clear?: boolean }) => void;
@@ -210,6 +213,25 @@ const deleteTaskFromRealm = (taskId: string) => {
   } catch (error) {
     console.warn('[PlannerDAO] Failed to delete task', error);
   }
+};
+
+const resolveLinkedBudget = (budgetId?: string | null) => {
+  if (!budgetId) return undefined;
+  const financeStore = useFinanceDomainStore.getState();
+  return financeStore?.budgets.find((budget) => budget.id === budgetId);
+};
+
+const resolveLinkedBudgetForGoal = (goalId?: string, goalLinkedBudgetId?: string | null) => {
+  const financeStore = useFinanceDomainStore.getState();
+  if (!financeStore) return undefined;
+  if (goalLinkedBudgetId) {
+    const direct = financeStore.budgets.find((budget) => budget.id === goalLinkedBudgetId);
+    if (direct) return direct;
+  }
+  if (goalId) {
+    return financeStore.budgets.find((budget) => budget.linkedGoalId === goalId);
+  }
+  return undefined;
 };
 
 const createDefaultGoal = (params: Partial<Goal> & { id: string }): Goal => ({
@@ -696,6 +718,44 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
       ...createInitialPlannerCollections(),
 
       addGoalCheckIn: (payload) => {
+        const goal = get().goals.find((g) => g.id === payload.goalId);
+        const linkedBudget = resolveLinkedBudgetForGoal(goal?.id, goal?.linkedBudgetId);
+        const hasFinanceLink = Boolean(linkedBudget || goal?.linkedDebtId);
+        const isMoneyGoal =
+          goal &&
+          (goal.goalType === 'financial' || goal.metricType === 'amount') &&
+          hasFinanceLink;
+
+        // Prevent over-progress and block updates on completed goals
+        if (goal && goal.status === 'completed') {
+          return;
+        }
+
+        let valueToApply = payload.value;
+        if (goal && isMoneyGoal) {
+          const { progressValue, progressTargetValue } = calculateGoalProgress(goal);
+          const remaining = Math.max(progressTargetValue - progressValue, 0);
+          valueToApply = Math.min(Math.max(payload.value, 0), remaining);
+          if (valueToApply <= 0) {
+            return;
+          }
+        }
+
+        if (goal && isMoneyGoal && payload.sourceType !== 'finance' && valueToApply > 0) {
+          // Route manual goal check-ins through Finance to keep budgets/transactions in sync.
+          createGoalFinanceTransaction({
+            goal,
+            amount: valueToApply,
+            budgetId: linkedBudget?.id ?? goal.linkedBudgetId,
+            debtId: goal.linkedDebtId,
+            note: payload.note,
+            eventType: 'goal-progress',
+            plannedAmount: goal.targetValue,
+            paidAmount: valueToApply,
+          });
+          return;
+        }
+
         let created: GoalCheckIn | undefined;
         let updatedGoal: Goal | undefined;
         set((state) => {
@@ -712,7 +772,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
               const entry: GoalCheckIn = {
                 id: checkInId,
                 goalId: payload.goalId,
-                value: payload.value,
+                value: valueToApply,
                 note: payload.note,
                 sourceType: payload.sourceType ?? 'manual',
                 sourceId: payload.sourceId,
@@ -805,6 +865,8 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
         const targetValue = payload.targetValue ?? 0;
         const direction =
           payload.direction ?? (targetValue > initialValue ? 'increase' : targetValue < initialValue ? 'decrease' : 'neutral');
+        const linkedBudget = resolveLinkedBudget(payload.linkedBudgetId);
+        const resolvedCurrency = linkedBudget?.currency ?? payload.currency;
 
         const baseGoal: Goal = {
           ...payload,
@@ -812,6 +874,7 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
           direction,
           initialValue,
           targetValue,
+          currency: resolvedCurrency,
           progressTargetValue: payload.progressTargetValue,
           currentValue: 0,
           checkIns: payload.checkIns ?? [],
@@ -850,11 +913,33 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
       },
 
       updateGoal: (id, updates) => {
+        const previousGoal = get().goals.find((g) => g.id === id);
+
+        // Extract internal flag and clean updates
+        const { __skipBudgetSync, ...cleanUpdates } = updates as any;
+        const isUnlinkingBudget =
+          Object.prototype.hasOwnProperty.call(updates, 'linkedBudgetId') &&
+          !cleanUpdates.linkedBudgetId;
+
+        if (!isUnlinkingBudget) {
+          const targetBudgetId = cleanUpdates.linkedBudgetId ?? previousGoal?.linkedBudgetId;
+          const budget = resolveLinkedBudget(targetBudgetId);
+          if (budget) {
+            cleanUpdates.linkedBudgetId = budget.id;
+            cleanUpdates.currency = budget.currency;
+          }
+        } else {
+          // When unlinking a budget, ignore any currency overrides from the payload
+          if (previousGoal?.linkedBudgetId) {
+            delete (cleanUpdates as any).currency;
+          }
+        }
+
         let updated: Goal | undefined;
         set((state) => {
           const goals = recalcGoalProgress(
             state.goals.map((goal) =>
-              goal.id === id ? { ...goal, ...updates, updatedAt: nowIso() } : goal,
+              goal.id === id ? { ...goal, ...cleanUpdates, updatedAt: nowIso() } : goal,
             ),
             state.tasks,
             state.habits,
@@ -865,7 +950,82 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
         });
         if (updated) {
           persistGoalToRealm(updated);
-          publishPlannerEvent('planner.goal.updated', { goal: updated });
+          const skipBudgetSync = Boolean(__skipBudgetSync);
+
+          if (!skipBudgetSync) {
+            publishPlannerEvent('planner.goal.updated', { goal: updated });
+          }
+
+          // Skip budget sync if flag is set (to prevent infinite loops from FinanceDomainStore)
+          if (skipBudgetSync) {
+            return;
+          }
+
+          // Sync changes with linked budget
+          if (updated.linkedBudgetId) {
+            const financeStore = useFinanceDomainStore.getState();
+            const budgetUpdates: Record<string, any> = {};
+
+            // Sync currency
+            if (cleanUpdates.currency && cleanUpdates.currency !== previousGoal?.currency) {
+              budgetUpdates.currency = cleanUpdates.currency;
+            }
+
+            // Sync target value → limit amount
+            if (cleanUpdates.targetValue !== undefined && cleanUpdates.targetValue !== previousGoal?.targetValue) {
+              budgetUpdates.limitAmount = cleanUpdates.targetValue;
+            }
+
+            // Sync status: archived/completed → archive budget
+            if ((cleanUpdates.status === 'archived' || cleanUpdates.status === 'completed') &&
+                previousGoal?.status !== 'archived' && previousGoal?.status !== 'completed') {
+              budgetUpdates.isArchived = true;
+            }
+
+            // Sync status: active → unarchive budget
+            if (cleanUpdates.status === 'active' &&
+                (previousGoal?.status === 'archived' || previousGoal?.status === 'completed')) {
+              budgetUpdates.isArchived = false;
+            }
+
+            if (Object.keys(budgetUpdates).length > 0 && financeStore?.updateBudget) {
+              financeStore.updateBudget(updated.linkedBudgetId, budgetUpdates);
+            }
+
+            // If goal progress increased without a finance transaction (e.g., manual current value change),
+            // create a synced finance transaction to keep the linked budget aligned.
+            const previousProgress = previousGoal ? calculateGoalProgress(previousGoal).progressValue : 0;
+            const nextProgress = calculateGoalProgress(updated).progressValue;
+            const progressDelta = nextProgress - previousProgress;
+            if (progressDelta > 0 && financeStore?.createTransaction) {
+              const budget = financeStore.budgets.find((b) => b.id === updated?.linkedBudgetId);
+              const accountId =
+                budget?.accountId ??
+                financeStore.accounts.find((acc) => acc.currency === budget?.currency)?.id ??
+                financeStore.accounts[0]?.id;
+              if (budget) {
+                financeStore.createTransaction({
+                  userId: updated.userId,
+                  type: budget.transactionType === 'income' ? 'income' : 'expense',
+                  accountId: accountId ?? undefined,
+                  amount: progressDelta,
+                  currency: budget.currency,
+                  baseCurrency: budget.currency,
+                  rateUsedToBase: 1,
+                  convertedAmountToBase: progressDelta,
+                  description: `Goal: ${updated.title}`,
+                  date: new Date().toISOString(),
+                  budgetId: budget.id,
+                  goalId: updated.id,
+                  relatedBudgetId: budget.id,
+                  goalName: updated.title,
+                  goalType: updated.goalType,
+                  plannedAmount: updated.targetValue,
+                  paidAmount: progressDelta,
+                });
+              }
+            }
+          }
         }
       },
 
@@ -977,7 +1137,59 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
         }
       },
 
+      restartGoal: (id) => {
+        let restarted: Goal | undefined;
+        set((state) => {
+          const goals = recalcGoalProgress(
+            state.goals.map((goal) => {
+              if (goal.id !== id) return goal;
+              return {
+                ...goal,
+                status: 'active',
+                progressPercent: 0,
+                currentValue: 0,
+                checkIns: [],
+                financeContributionIds: [],
+                completedDate: undefined,
+                updatedAt: nowIso(),
+              };
+            }),
+            state.tasks,
+            state.habits,
+            state.focusSessions,
+          );
+          restarted = goals.find((goal) => goal.id === id);
+          return { goals };
+        });
+        if (restarted) {
+          persistGoalToRealm(restarted);
+          publishPlannerEvent('planner.goal.updated', { goal: restarted });
+        }
+      },
+
       deleteGoalPermanently: (id) => {
+        const goal = get().goals.find((g) => g.id === id);
+
+        // Unlink budget before deleting
+        if (goal?.linkedBudgetId) {
+          const financeStore = useFinanceDomainStore.getState();
+          if (financeStore?.updateBudget) {
+            financeStore.updateBudget(goal.linkedBudgetId, {
+              linkedGoalId: undefined,
+            });
+          }
+        }
+
+        // Unlink debt before deleting
+        if (goal?.linkedDebtId) {
+          const financeStore = useFinanceDomainStore.getState();
+          if (financeStore?.updateDebt) {
+            financeStore.updateDebt(goal.linkedDebtId, {
+              linkedGoalId: undefined,
+            });
+          }
+        }
+
         set((state) => {
           const goals = state.goals.filter((goal) => goal.id !== id);
           return { goals };
@@ -1741,7 +1953,9 @@ export const usePlannerDomainStore = create<PlannerDomainState>()(
           }
           const restored: Task = {
             ...entry.snapshot,
-            status: entry.snapshot.status === 'canceled' ? 'active' : entry.snapshot.status,
+            status: ['canceled', 'completed', 'archived'].includes(entry.snapshot.status)
+              ? 'active'
+              : entry.snapshot.status,
             updatedAt: nowIso(),
           };
           restoredTask = restored;
